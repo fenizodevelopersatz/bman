@@ -4,7 +4,7 @@ define('DB_USERNAME', "root");
 define('DB_PASS', "");
 define('DB_NAME', "e-commerce-mlm-v2");
 // define('BASE_URL', "http://localhost:9000");
-define('BASE_URL', "http://192.168.29.18:9000");
+define('BASE_URL', "http://192.168.29.7:9000");
 
 
 define('DEFAULTAVATARIMAGE', BASE_URL . "/assets/default-user.png");
