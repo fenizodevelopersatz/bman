@@ -1,7 +1,7 @@
 <?php
 require_once('vendor/autoload.php'); 
 
-\Stripe\Stripe::setApiKey('s'); 
+\Stripe\Stripe::setApiKey(''); // Replace with your Stripe secret key
 
 $token = $_POST['stripeToken'];
 
