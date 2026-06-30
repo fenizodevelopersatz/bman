@@ -515,7 +515,7 @@ class Shopcontroller extends CI_Controller
     public function stripe_checkout($order_id)
     {
         require_once(APPPATH . 'third_party/stripe/vendor/autoload.php');
-        \Stripe\Stripe::setApiKey('sk_test_51RTgU2Qhzmr6TYhsFObjkApvYPa0Xbtoei6RHgeljNWSZ0dQaHchXpvwNaUbY37dxeswlXrvJEfW8MY1wb8sRgXC00xLKfHPua');
+        \Stripe\Stripe::setApiKey('');
 
         $order = $this->db->get_where('orders', ['id' => $order_id])->row();
 

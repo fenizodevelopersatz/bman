@@ -1,7 +1,7 @@
 <?php
 require_once('vendor/autoload.php'); 
 
-\Stripe\Stripe::setApiKey('sk_test_51OlpnESBMFAv5sdQo9IxqnOOOhV1NzZuMHfsLd0l9ZXVmyoAKVeAnG7t646FKCDXmuAa6gKumMJej0hiY1UG2P5m0011COM12m'); 
+\Stripe\Stripe::setApiKey('s'); 
 
 $token = $_POST['stripeToken'];
 
