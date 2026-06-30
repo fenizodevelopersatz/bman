@@ -46,6 +46,9 @@ if ($theme_force) { $theme_mode = $theme_force; }
     <link rel="stylesheet" href="<?php echo base_url('assets/css/default-icons.css'); ?>">
     <link rel="stylesheet" href="<?php echo base_url('assets/css/default.css'); ?>">
     <link rel="stylesheet" href="<?php echo base_url('assets/css/aos.css'); ?>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Parkinsans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?php echo base_url('assets/css/main.css'); ?>">
     <!-- light-theme polish (scoped to html[data-theme="light"], dark untouched) -->
     <link rel="stylesheet" href="<?php echo base_url('assets/css/landing-light.css'); ?>">

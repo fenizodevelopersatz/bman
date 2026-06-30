@@ -93,6 +93,9 @@ $route['payment-verify'] = 'admin/settings/Paymentsettings/finelVerify';
 
 
 /****************** MAIL SETTINS ********/
+$route['member-theme'] = 'admin/settings/Membertheme';
+$route['member-theme-update'] = 'admin/settings/Membertheme/update';
+$route['member-theme-reset'] = 'admin/settings/Membertheme/reset_default';
 $route['mail-settings'] = 'admin/settings/Mailsettings';
 $route['mail-settings-update'] = 'admin/settings/Mailsettings/update';
 

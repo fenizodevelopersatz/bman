@@ -52,6 +52,53 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-06-30 — Member panel: user-selectable sun/moon toggle
+
+- Dashboard uses the **v2 layout** (`user/layout/v2/user_style.php`), so the
+  member theme vars + default mode are injected there (in addition to
+  `common_style.php`).
+- Added a floating **sun/moon toggle** (bottom-left) so members switch
+  light/dark themselves; choice persists in `localStorage['data-bs-theme']`.
+  Default mode comes from **Settings → Member Panel Theme**.
+- New admin option **"Allow members to switch theme"** (`member_theme.user_switch`)
+  shows/hides the toggle. Controller + admin view + seed updated.
+- Files: `v2/user_style.php` (vars + toggle), `Membertheme.php`,
+  `admin/settings/member-theme.php`, `db/member_theme_seed.sql`.
+
+---
+
+## 2026-06-30 — Feature: Member Panel Theme (independent theme engine)
+
+Two independent theme engines now exist: **Landing** (`landing_settings`) and
+**Member Panel** (`site_settings` type `member_theme`). They never mix; both can
+read shared Brand Settings (logo/name/favicon) from `site_settings`.
+
+- `db/member_theme_seed.sql` — seeds `member_theme` (mode + palette).
+- `application/controllers/admin/settings/Membertheme.php` — Settings → Member
+  Panel Theme: index / update (AJAX) / reset_default; colour validation; saves to
+  `site_settings`.
+- `application/views/admin/settings/member-theme.php` — Light/Dark/Auto mode +
+  palette pickers (primary/secondary/accent, highlight set, gradient, status),
+  Reset to Default, Open Dashboard.
+- `application/config/routes.php` — `member-theme`, `member-theme-update`,
+  `member-theme-reset`.
+- `application/views/admin/Layout/admin_sidebar.php` — menu item under Settings.
+- `application/views/user/layout/common_style.php` — emits the member theme as
+  **CSS variables** (`--mp-primary`, `--mp-highlight`, `--mp-gradient`, status
+  colours…) and drives Metronic's `--bs-primary` + the default `data-bs-theme`
+  mode (light/dark/auto) from the setting. So the member dashboard switches
+  white/black and follows the palette; the landing page is unaffected.
+- **Apply:** `mysql … < db/member_theme_seed.sql`
+
+**Scope note (phased):** delivered the core — independent Light/Dark/Auto + a
+central palette via CSS variables. The exhaustive per-component colour maps
+(sidebar/header/cards/tables/forms/charts each fully itemised), the in-admin
+multi-page preview, draft/publish, and automatic contrast validation are a
+follow-on roadmap; every component already reads the central `--mp-*` / `--bs-*`
+variables, so they extend without touching components.
+
+---
+
 ## 2026-06-30 — Reverted: removed new auth pages; restyle the EXISTING ones
 
 The standalone `/login` & `/register` pages caused a real bug: the existing

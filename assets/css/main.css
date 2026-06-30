@@ -43,7 +43,7 @@
 /*============================================
 /*  01. Theme Default CSS
 ==============================================*/
-@import url("../../../css2");
+/* font is loaded via a <link> in the page head (the old @import resolved to /css2 and 404'd) */
 :root {
   scroll-behavior: auto;
   --tg-body-font-family: 'Parkinsans', sans-serif;
@@ -7781,10 +7781,10 @@ html[data-theme="light"] .countdown__wrap .time-count {
   padding: 0;
   border-radius: 50%;
   cursor: pointer;
-  color: var(--tg-heading-font-color);
-  background: var(--tg-secondary-color);
-  border: 1px solid var(--tg-border-1);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.25);
+  color: #191a1b;
+  background: var(--tg-primary-color);
+  border: 1px solid var(--tg-primary-color);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
   transition: all 0.3s ease;
 }
 .theme-toggle:hover {

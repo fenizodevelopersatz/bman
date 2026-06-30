@@ -1,0 +1,90 @@
+{
+  "meta": {
+    "currency": "USDT",
+    "generated": "2026-07-01",
+    "note": "Dummy dashboard finance data for the Income / Outcome / Profit combo chart. Filterable by daily / monthly / yearly."
+  },
+  "summary": {
+    "openingBalance": 500000,
+    "totalIncome": 1368450,
+    "totalOutcome": 883250,
+    "netProfit": 485200,
+    "closingBalance": 985200
+  },
+  "daily": {
+    "label": "Last 30 Days",
+    "points": [
+      { "date": "Jun 02", "income": 38500, "outcome": 24100, "profit": 14400 },
+      { "date": "Jun 03", "income": 41200, "outcome": 26800, "profit": 14400 },
+      { "date": "Jun 04", "income": 36900, "outcome": 25200, "profit": 11700 },
+      { "date": "Jun 05", "income": 44800, "outcome": 28900, "profit": 15900 },
+      { "date": "Jun 06", "income": 47300, "outcome": 30100, "profit": 17200 },
+      { "date": "Jun 07", "income": 39600, "outcome": 27400, "profit": 12200 },
+      { "date": "Jun 08", "income": 42100, "outcome": 29000, "profit": 13100 },
+      { "date": "Jun 09", "income": 50500, "outcome": 32600, "profit": 17900 },
+      { "date": "Jun 10", "income": 48700, "outcome": 31200, "profit": 17500 },
+      { "date": "Jun 11", "income": 45300, "outcome": 30500, "profit": 14800 },
+      { "date": "Jun 12", "income": 52800, "outcome": 34100, "profit": 18700 },
+      { "date": "Jun 13", "income": 49900, "outcome": 33000, "profit": 16900 },
+      { "date": "Jun 14", "income": 43600, "outcome": 29800, "profit": 13800 },
+      { "date": "Jun 15", "income": 55200, "outcome": 35900, "profit": 19300 },
+      { "date": "Jun 16", "income": 57800, "outcome": 37200, "profit": 20600 },
+      { "date": "Jun 17", "income": 51400, "outcome": 34600, "profit": 16800 },
+      { "date": "Jun 18", "income": 48200, "outcome": 32100, "profit": 16100 },
+      { "date": "Jun 19", "income": 60100, "outcome": 38800, "profit": 21300 },
+      { "date": "Jun 20", "income": 58600, "outcome": 37900, "profit": 20700 },
+      { "date": "Jun 21", "income": 53300, "outcome": 35400, "profit": 17900 },
+      { "date": "Jun 22", "income": 61700, "outcome": 39600, "profit": 22100 },
+      { "date": "Jun 23", "income": 64200, "outcome": 41100, "profit": 23100 },
+      { "date": "Jun 24", "income": 56900, "outcome": 37600, "profit": 19300 },
+      { "date": "Jun 25", "income": 59400, "outcome": 38500, "profit": 20900 },
+      { "date": "Jun 26", "income": 66800, "outcome": 42300, "profit": 24500 },
+      { "date": "Jun 27", "income": 62500, "outcome": 40200, "profit": 22300 },
+      { "date": "Jun 28", "income": 57100, "outcome": 37800, "profit": 19300 },
+      { "date": "Jun 29", "income": 68900, "outcome": 43500, "profit": 25400 },
+      { "date": "Jun 30", "income": 71200, "outcome": 44800, "profit": 26400 },
+      { "date": "Jul 01", "income": 69500, "outcome": 43900, "profit": 25600 }
+    ]
+  },
+  "monthly": {
+    "label": "Last 12 Months",
+    "points": [
+      { "date": "Aug 25", "income": 712000, "outcome": 468000, "profit": 244000 },
+      { "date": "Sep 25", "income": 758000, "outcome": 495000, "profit": 263000 },
+      { "date": "Oct 25", "income": 790000, "outcome": 512000, "profit": 278000 },
+      { "date": "Nov 25", "income": 805000, "outcome": 525000, "profit": 280000 },
+      { "date": "Dec 25", "income": 868000, "outcome": 560000, "profit": 308000 },
+      { "date": "Jan 26", "income": 845000, "outcome": 530000, "profit": 315000 },
+      { "date": "Feb 26", "income": 910000, "outcome": 590000, "profit": 320000 },
+      { "date": "Mar 26", "income": 980000, "outcome": 640000, "profit": 340000 },
+      { "date": "Apr 26", "income": 1085000, "outcome": 715000, "profit": 370000 },
+      { "date": "May 26", "income": 1150000, "outcome": 785000, "profit": 365000 },
+      { "date": "Jun 26", "income": 1210000, "outcome": 825000, "profit": 385000 },
+      { "date": "Jul 26", "income": 1368450, "outcome": 883250, "profit": 485200 }
+    ]
+  },
+  "yearly": {
+    "label": "Last 5 Years",
+    "points": [
+      { "date": "2022", "income": 4250000, "outcome": 2980000, "profit": 1270000 },
+      { "date": "2023", "income": 6840000, "outcome": 4510000, "profit": 2330000 },
+      { "date": "2024", "income": 9120000, "outcome": 6050000, "profit": 3070000 },
+      { "date": "2025", "income": 11460000, "outcome": 7480000, "profit": 3980000 },
+      { "date": "2026", "income": 13985000, "outcome": 9020000, "profit": 4965000 }
+    ]
+  },
+  "topIncomeSources": [
+    { "source": "Staking Purchase", "amount": 780000 },
+    { "source": "Exchange Coin Sale", "amount": 185000 },
+    { "source": "Token Sale", "amount": 149900 },
+    { "source": "Trading Revenue", "amount": 115000 },
+    { "source": "Other Income", "amount": 89000 }
+  ],
+  "topExpenses": [
+    { "expense": "Withdrawal", "amount": 315000 },
+    { "expense": "ROI Distribution", "amount": 286000 },
+    { "expense": "Binary Bonus", "amount": 98000 },
+    { "expense": "Group Incentive", "amount": 53000 },
+    { "expense": "Rank Reward", "amount": 42000 }
+  ]
+}

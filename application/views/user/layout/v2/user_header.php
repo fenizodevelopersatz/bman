@@ -73,6 +73,13 @@ $uid = $this->session->userdata('userid') ?? '';
   </div>
 
   <div class="header-actions">
+    <?php $mp_us = site_settings('member_theme','user_switch'); if ($mp_us === '' || $mp_us === null) $mp_us = '1'; ?>
+    <?php if ($mp_us !== '0'): ?>
+    <button class="action-btn" type="button" id="mpThemeToggle" title="Toggle theme">
+      <i class="ph ph-sun mp-sun"></i><i class="ph ph-moon mp-moon"></i>
+    </button>
+    <?php endif; ?>
+
     <button class="action-btn" title="Messages" onclick="window.location.href='<?php echo base_url('user/chat'); ?>'">
       <i class="ph ph-chat-centered-text"></i>
     </button>

@@ -289,6 +289,34 @@
       </div>
 
 
+      <!-- Finance Overview chart -->
+      <style>
+        .fin-chart-card{ background:var(--bs-body-bg,#fff); border:1px solid var(--bs-border-color,#eef0f4);
+          border-radius:18px; padding:18px 20px; margin:0 0 18px; box-shadow:0 8px 24px rgba(20,22,26,.05); }
+        .fin-chart-head{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:8px; }
+        .fin-chart-head h3{ margin:0; font-weight:700; font-size:17px; }
+        .fin-chart-head small{ color:var(--bs-secondary-color,#8a8f99); }
+        .fin-filter{ display:inline-flex; background:var(--bs-secondary-bg,#f3f4f7); border-radius:30px; padding:4px; }
+        .fin-filter button{ border:none; background:transparent; padding:6px 16px; border-radius:30px; font-weight:600;
+          font-size:13px; color:var(--bs-secondary-color,#6b7280); cursor:pointer; transition:.2s; }
+        .fin-filter button.active{ background:var(--mp-primary,#6D4AFF); color:#fff; }
+        .fin-chart-body{ position:relative; height:300px; }
+      </style>
+      <div class="fin-chart-card">
+        <div class="fin-chart-head">
+          <div>
+            <h3>Finance Overview</h3>
+            <small id="finRangeLabel">Income vs Outcome &amp; Profit</small>
+          </div>
+          <div class="fin-filter" id="finFilter">
+            <button type="button" data-range="daily">Days</button>
+            <button type="button" data-range="monthly" class="active">Months</button>
+            <button type="button" data-range="yearly">Yearly</button>
+          </div>
+        </div>
+        <div class="fin-chart-body"><canvas id="financeChart"></canvas></div>
+      </div>
+
       <!-- Wallet & Commission KPIs -->
       <div class="kpi-grid">
         <div class="kpi-card">
@@ -892,6 +920,63 @@
       requestAnimationFrame(() => t.style.opacity = "1");
       setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 250); }, 1400);
     }
+  </script>
+
+  <!-- Finance Overview chart (Chart.js combo: income/outcome bars + profit line) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+  (function () {
+    var canvas = document.getElementById('financeChart');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    var DATA = null, chart = null, range = 'monthly';
+    var css = getComputedStyle(document.documentElement);
+    var primary = (css.getPropertyValue('--mp-primary') || '#6D4AFF').trim();
+    var danger  = (css.getPropertyValue('--mp-danger')  || '#F64E60').trim();
+    var accent  = (css.getPropertyValue('--mp-secondary') || '#FFC94A').trim();
+
+    function fmt(v){ return (v >= 1000 ? (v/1000).toFixed(v >= 1000000 ? 1 : 0) + (v >= 1000000 ? 'M' : 'K') : v); }
+
+    function render(){
+      if (!DATA) return;
+      var d = DATA[range]; if (!d) return;
+      var labels = d.points.map(function(p){ return p.date; });
+      var income = d.points.map(function(p){ return p.income; });
+      var outcome = d.points.map(function(p){ return p.outcome; });
+      var profit = d.points.map(function(p){ return p.profit; });
+      document.getElementById('finRangeLabel').textContent = d.label + ' · Income vs Outcome & Profit (USDT)';
+
+      var cfg = {
+        data: { labels: labels, datasets: [
+          { type:'bar', label:'Income',  data:income,  backgroundColor:primary, borderRadius:6, maxBarThickness:26, order:2 },
+          { type:'bar', label:'Outcome', data:outcome, backgroundColor:danger,  borderRadius:6, maxBarThickness:26, order:2 },
+          { type:'line', label:'Profit', data:profit, borderColor:accent, backgroundColor:accent, borderWidth:3,
+            tension:.35, pointRadius:3, pointBackgroundColor:accent, fill:false, order:1 }
+        ]},
+        options: {
+          responsive:true, maintainAspectRatio:false, interaction:{ mode:'index', intersect:false },
+          plugins:{ legend:{ position:'top', labels:{ usePointStyle:true, boxWidth:8, padding:16 } },
+            tooltip:{ callbacks:{ label:function(c){ return c.dataset.label + ': ' + Number(c.raw).toLocaleString() + ' USDT'; } } } },
+          scales:{ x:{ grid:{ display:false } },
+            y:{ beginAtZero:true, ticks:{ callback:function(v){ return fmt(v); } }, grid:{ color:'rgba(140,140,160,.12)' } } }
+        }
+      };
+      if (chart) { chart.data = cfg.data; chart.options = cfg.options; chart.update(); }
+      else { chart = new Chart(canvas.getContext('2d'), cfg); }
+    }
+
+    document.getElementById('finFilter').addEventListener('click', function(e){
+      var b = e.target.closest('button[data-range]'); if (!b) return;
+      this.querySelectorAll('button').forEach(function(x){ x.classList.remove('active'); });
+      b.classList.add('active'); range = b.dataset.range; render();
+    });
+
+    fetch('<?php echo base_url('assets/user_v2/data/dashboard_chart.json'); ?>?v=' + Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(json){ DATA = json; render(); })
+      .catch(function(){ document.querySelector('.fin-chart-body').innerHTML =
+        '<div style="padding:40px;text-align:center;color:#8a8f99">Chart data could not be loaded.</div>'; });
+  })();
   </script>
 </body>
 

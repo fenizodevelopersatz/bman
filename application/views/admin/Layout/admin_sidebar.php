@@ -380,6 +380,13 @@ $logo_info = site_settings('image', 'logo');
               </div>
 
               <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>member-theme">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Member Panel Theme</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>package-settings">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Package Settings</span>
