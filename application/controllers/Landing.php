@@ -47,6 +47,14 @@ class Landing extends CI_Controller
      */
     public function early_access()
     {
+        // allow the form to be posted from any site (config.php toggle) + preflight
+        $this->_cors();
+
+        // feature on/off switch (config.php)
+        if (defined('LANDING_EARLY_ACCESS_ENABLED') && LANDING_EARLY_ACCESS_ENABLED !== true) {
+            return $this->_json(false, 'Early access is currently closed.');
+        }
+
         $email = trim((string)$this->input->post('email', true));
         $name  = trim((string)$this->input->post('name', true));
         $phone = trim((string)$this->input->post('phone', true));
@@ -133,6 +141,23 @@ class Landing extends CI_Controller
         $headers .= "Reply-To: " . $email . "\r\n";
         $headers .= "MIME-Version: 1.0\r\nContent-Type: text/html; charset=utf-8\r\n";
         return @mail($admin_to, $subject, $body, $headers);
+    }
+
+    /** CORS for the early-access endpoint (gated by config.php), incl. preflight. */
+    private function _cors()
+    {
+        if (defined('LANDING_EARLY_ACCESS_ALLOW_ANY_ORIGIN') && LANDING_EARLY_ACCESS_ALLOW_ANY_ORIGIN === true) {
+            $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '*';
+            header('Access-Control-Allow-Origin: ' . $origin);
+            header('Vary: Origin');
+            header('Access-Control-Allow-Methods: POST, OPTIONS');
+            header('Access-Control-Allow-Headers: Content-Type, X-Requested-With');
+        }
+        // answer the browser's preflight and stop
+        if (strtoupper($this->input->method()) === 'OPTIONS') {
+            $this->output->set_status_header(204);
+            exit;
+        }
     }
 
     private function _json($status, $message, $extra = array())

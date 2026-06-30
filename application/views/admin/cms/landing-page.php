@@ -123,7 +123,7 @@
                                                 ?>
                                                 <div class="col-md-6 mb-5">
                                                     <label class="form-label fw-semibold fs-7">Theme Mode</label>
-                                                    <?php $tm = isset($general['theme_mode']) ? $general['theme_mode'] : 'light'; ?>
+                                                    <?php $tm = isset($general['theme_mode']) ? $general['theme_mode'] : 'dark'; ?>
                                                     <select name="theme_mode" class="form-select form-select-solid">
                                                         <option value="light" <?php echo $tm === 'light' ? 'selected' : ''; ?>>Light</option>
                                                         <option value="dark" <?php echo $tm === 'dark' ? 'selected' : ''; ?>>Dark</option>
@@ -134,11 +134,11 @@
                                                 lp_image('Logo','logo',$general,$base);
                                                 lp_image('Logo (Dark)','logo_dark',$general,$base);
                                                 lp_image('Favicon','favicon',$general,$base);
-                                                lp_color('Primary Color','general','primary_color',$general,'#7857FE');
-                                                lp_color('Secondary Color','general','secondary_color',$general,'#0B0B23');
-                                                lp_color('Button Color','general','button_color',$general,'#7857FE');
-                                                lp_color('Button Hover Color','general','button_hover_color',$general,'#5a3df0');
-                                                lp_color('Background Color','general','background_color',$general,'#0B0B23');
+                                                lp_color('Highlight / Accent Color (highlighted words, links)','general','primary_color',$general,'#FFC94A');
+                                                lp_color('Button Color','general','button_color',$general,'#FFC94A');
+                                                lp_color('Button Hover Color','general','button_hover_color',$general,'#6D4AFF');
+                                                lp_color('Background Color (page)','general','background_color',$general,'#FFFFFF');
+                                                lp_color('Secondary Color','general','secondary_color',$general,'#6D4AFF');
                                                 lp_switch('Enable Preloader','enable_preloader',$general);
                                                 lp_switch('Enable Dark Mode','enable_dark_mode',$general);
                                                 lp_text('Copyright','general','copyright',$general);

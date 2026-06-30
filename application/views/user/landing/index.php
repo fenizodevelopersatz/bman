@@ -12,7 +12,7 @@ $site_copyright  = site_settings('meta-settings', 'copyright');
 /* Theme mode (light|dark). Admin default from General settings; the admin
    live-preview can force it with ?theme=light|dark. The template ships a full
    light theme under html[data-theme="light"]. */
-$theme_mode = lp($general, 'theme_mode', 'light');
+$theme_mode = lp($general, 'theme_mode', 'dark');   // dark is the default theme
 $theme_force = $this->input->get('theme');
 $theme_force = ($theme_force === 'light' || $theme_force === 'dark') ? $theme_force : '';
 if ($theme_force) { $theme_mode = $theme_force; }
@@ -47,6 +47,8 @@ if ($theme_force) { $theme_mode = $theme_force; }
     <link rel="stylesheet" href="<?php echo base_url('assets/css/default.css'); ?>">
     <link rel="stylesheet" href="<?php echo base_url('assets/css/aos.css'); ?>">
     <link rel="stylesheet" href="<?php echo base_url('assets/css/main.css'); ?>">
+    <!-- light-theme polish (scoped to html[data-theme="light"], dark untouched) -->
+    <link rel="stylesheet" href="<?php echo base_url('assets/css/landing-light.css'); ?>">
 
     <!-- dynamic theme colors (palette-driven, mapped to the template's --tg vars) -->
     <?php
@@ -66,12 +68,27 @@ if ($theme_force) { $theme_mode = $theme_force; }
         <?php if ($c_btnhov): ?>.tg-btn:hover, .tg-btn-two:hover, .header-btn .tg-btn:hover{ background-color: <?php echo html_escape($c_btnhov); ?> !important; border-color: <?php echo html_escape($c_btnhov); ?> !important; }<?php endif; ?>
         .lp-form-msg{ display:block; margin-top:10px; font-weight:500; }
         .lp-form-msg.ok{ color:#1bc5bd; } .lp-form-msg.err{ color:#f64e60; }
+        /* pure-CSS marquee (right-to-left), no JS plugin dependency */
+        .lp-marquee{ overflow:hidden; width:100%; }
+        .lp-marquee-track{ display:flex; width:max-content; flex-wrap:nowrap;
+            animation-name:lp-marquee-rtl; animation-timing-function:linear;
+            animation-iteration-count:infinite; will-change:transform; }
+        .lp-marquee-half{ display:flex; flex-wrap:nowrap; }
+        .lp-marquee-track .marquee__item{ flex:0 0 auto; white-space:nowrap; padding-right:60px; margin:0; }
+        .lp-marquee:hover .lp-marquee-track{ animation-play-state:paused; }
+        @keyframes lp-marquee-rtl{ from{ transform:translateX(0); } to{ transform:translateX(-50%); } }
         <?php echo lp($scripts, 'custom_css'); ?>
     </style>
-    <!-- make the admin-configured theme authoritative on load so a stale
-         localStorage value can't keep the page dark (visitor toggle still works
-         live within the session) -->
-    <script>try{ localStorage.setItem('site-theme', '<?php echo $theme_mode; ?>'); }catch(e){}</script>
+    <!-- Theme handling:
+         - normal load: theme.js applies the visitor's saved choice if any,
+           otherwise the admin default rendered in <html data-theme>. So the
+           sun/moon toggle now PERSISTS across reloads.
+         - admin preview (?theme=): force that theme regardless of saved value. -->
+    <?php if ($theme_force): ?>
+    <script>try{ localStorage.setItem('site-theme', '<?php echo $theme_force; ?>'); }catch(e){}</script>
+    <?php else: ?>
+    <script>try{ if(!localStorage.getItem('site-theme')){ document.documentElement.setAttribute('data-theme','<?php echo $theme_mode; ?>'); } }catch(e){}</script>
+    <?php endif; ?>
     <script src="<?php echo base_url('assets/js/theme.js'); ?>"></script>
 
     <?php echo lp($scripts, 'header_scripts'); ?>
@@ -218,11 +235,21 @@ if ($theme_force) { $theme_mode = $theme_force; }
 
         <!-- marquee-area -->
         <?php if (lp($marquee, 'enable', '1') == '1'): ?>
+        <?php
+        $mq_text = lp($marquee, 'text');
+        $mq_rep  = (int)lp($marquee, 'repeat', 2); $mq_rep = $mq_rep > 0 ? $mq_rep : 2;
+        $mq_spd  = (int)lp($marquee, 'speed', 50);  $mq_spd = $mq_spd > 0 ? $mq_spd : 50;
+        $mq_dur  = max(8, (int)round(1000 / $mq_spd));   // seconds (higher speed = shorter)
+        ?>
         <section class="marquee__area section-pt-120">
-            <div class="slider__marquee clearfix marquee-wrap">
-                <div class="marquee_mode marquee__group">
-                    <?php $rep = (int)lp($marquee, 'repeat', 2); $rep = $rep > 0 ? $rep : 2; for ($k = 0; $k < $rep; $k++): ?>
-                        <h2 class="marquee__item"><?php echo html_escape(lp($marquee, 'text')); ?></h2>
+            <div class="slider__marquee clearfix marquee-wrap lp-marquee">
+                <div class="lp-marquee-track" style="animation-duration: <?php echo $mq_dur; ?>s">
+                    <?php for ($half = 0; $half < 2; $half++): ?>
+                        <div class="lp-marquee-half"<?php echo $half ? ' aria-hidden="true"' : ''; ?>>
+                            <?php for ($k = 0; $k < $mq_rep; $k++): ?>
+                                <h2 class="marquee__item"><?php echo html_escape($mq_text); ?></h2>
+                            <?php endfor; ?>
+                        </div>
                     <?php endfor; ?>
                 </div>
             </div>

@@ -325,15 +325,22 @@ class Login extends CI_Controller
 		if ($random_number) {
 
 			$this->load->model('member/Mlm_model');
-			$useremail = $this->db->query("SELECT * FROM `admin_members` where id = '" . $userid . "' ")->row()->admin_email;
-			$mailid = "7";
-			$mail_subject_data = $this->db->query("SELECT * FROM email_template where id = '" . $mailid . "' ")->row();
-			$createddate = date('Y-m-d H:i:s');
-			$subject = $mail_subject_data->subject;
-			$message = str_replace('[temp_otp]', $random_number, $mail_subject_data->temp_content);
-			$this->Mlm_model->sendmail($useremail, $subject, $message);
 
-			email_log($random_number, $useremail, 'email_verify');
+			// member id comes from the `users` table (login), not admin_members.
+			$user_row  = $this->db->query("SELECT * FROM `users` where id = '" . $userid . "' ")->row();
+			$useremail = $user_row ? $user_row->email : '';
+
+			if ($useremail) {
+				$mailid = "7";
+				$mail_subject_data = $this->db->query("SELECT * FROM email_template where id = '" . $mailid . "' ")->row();
+				if ($mail_subject_data) {
+					$subject = $mail_subject_data->subject;
+					$message = str_replace('[temp_otp]', $random_number, $mail_subject_data->temp_content);
+					$this->Mlm_model->sendmail($useremail, $subject, $message);
+				}
+				email_log($random_number, $useremail, 'email_verify');
+			}
+
 			$this->session->set_userdata('sender_otp', $random_number);
 			$this->session->set_userdata('user_get_id', $userid);
 			return true;

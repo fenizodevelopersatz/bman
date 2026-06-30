@@ -689,3 +689,27 @@ LIFETIME
 NULL
 percent
 1
+
+
+
+
+BMAN PORJECT QUIZ & CONFIRMATION
+30-06-2026
+
+
+
+
+If any logo or porject name & images 
+
+
+
+
+Today Works
+=================
+
+
+1. Color change globally theme
+2. Implement the chart on user dashboard(to get based on the income of site & outcomes)
+3. Integerated the landing page dynamically - Compelted
+4. Login & register
+5. Package setting & Staking plan & ROI Structure 

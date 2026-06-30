@@ -1,0 +1,155 @@
+/* =====================================================================
+   Landing — LIGHT THEME polish
+   ---------------------------------------------------------------------
+   Layered on top of main.css. Everything is scoped to
+   html[data-theme="light"], so the dark theme is untouched.
+   No HTML / layout / JS / CMS changes — colours still come from the CMS
+   palette via --tg-primary-color (highlight), the button colours and the
+   page background injected by the view.
+   ===================================================================== */
+
+html[data-theme="light"] {
+  --lp-surface:       #ffffff;   /* primary card / section */
+  --lp-surface-2:     #f8f9fc;   /* alternate section      */
+  --lp-ink:           #14161a;   /* headings               */
+  --lp-ink-soft:      #5f6368;   /* paragraphs             */
+  --lp-border:        #eaecef;
+  --lp-shadow:        0 10px 30px rgba(20, 22, 26, .08);
+  --lp-shadow-hover:  0 18px 45px rgba(20, 22, 26, .14);
+}
+
+/* ---- HIGHLIGHT WORDS: always the accent, never grey ---------------- */
+html[data-theme="light"] .title span {
+  color: var(--tg-primary-color) !important;
+}
+
+/* ---- TYPOGRAPHY HIERARCHY ----------------------------------------- */
+html[data-theme="light"] .section__title .sub-title,
+html[data-theme="light"] .banner__content .sub-title {
+  color: var(--tg-primary-color);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 600;
+}
+html[data-theme="light"] .title { color: var(--lp-ink); font-weight: 700; }
+html[data-theme="light"] p      { color: var(--lp-ink-soft); line-height: 1.8; }
+
+/* ---- HERO ---------------------------------------------------------- */
+html[data-theme="light"] .banner__content .title { line-height: 1.12; }
+html[data-theme="light"] .banner__form {
+  background: var(--lp-surface);
+  border: 1px solid var(--lp-border);
+  border-radius: 50px;
+  box-shadow: var(--lp-shadow);
+}
+html[data-theme="light"] .banner__form input { color: var(--lp-ink); }
+
+/* ---- SECTION SEPARATION (alternating backgrounds) ------------------ */
+html[data-theme="light"] .features__area,
+html[data-theme="light"] .work__area,
+html[data-theme="light"] .faq__area,
+html[data-theme="light"] .team__area      { background: var(--lp-surface); }
+html[data-theme="light"] .token__area,
+html[data-theme="light"] .crypto__area,
+html[data-theme="light"] .roadmap__area    { background: var(--lp-surface-2); }
+
+/* ---- BRAND LOGOS --------------------------------------------------- */
+html[data-theme="light"] .brand__item img {
+  filter: grayscale(1);
+  opacity: .55;
+  transition: filter .3s ease, opacity .3s ease;
+}
+html[data-theme="light"] .brand__item img:hover { filter: none; opacity: 1; }
+
+/* ---- CARD DEPTH (features / crypto / team / exchange / token / faq) - */
+html[data-theme="light"] .features__item,
+html[data-theme="light"] .crypto__item,
+html[data-theme="light"] .team__item,
+html[data-theme="light"] .exchange__inner-wrap,
+html[data-theme="light"] .token__wrap-inner,
+html[data-theme="light"] .faq__wrap .accordion-item {
+  background: var(--lp-surface);
+  border: 1px solid var(--lp-border);
+  border-radius: 20px;
+  box-shadow: var(--lp-shadow);
+  transition: transform .3s ease, box-shadow .3s ease, border-color .3s ease;
+}
+html[data-theme="light"] .features__item,
+html[data-theme="light"] .crypto__item { padding: 35px; }
+
+/* hover lift + accent border + icon motion */
+html[data-theme="light"] .features__item:hover,
+html[data-theme="light"] .crypto__item:hover,
+html[data-theme="light"] .team__item:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--lp-shadow-hover);
+  border-color: var(--tg-primary-color);
+}
+html[data-theme="light"] .features__icon img,
+html[data-theme="light"] .crypto__icon img { transition: transform .3s ease; }
+html[data-theme="light"] .features__item:hover .features__icon img,
+html[data-theme="light"] .crypto__item:hover .crypto__icon img { transform: scale(1.08) rotate(-4deg); }
+
+/* ---- TOKEN SALE / COUNTDOWN --------------------------------------- */
+html[data-theme="light"] .token__wrap-inner { padding: 40px; }
+html[data-theme="light"] .countdown__wrap .time-count,
+html[data-theme="light"] .coming-time > span,
+html[data-theme="light"] .coming-time > div {
+  background: var(--lp-surface-2);
+  border: 1px solid var(--lp-border);
+  color: var(--lp-ink);
+}
+html[data-theme="light"] .progress { background: var(--lp-surface-2); }
+html[data-theme="light"] .progress-bar {
+  background: linear-gradient(90deg, var(--tg-primary-color), #ffd98a);
+}
+html[data-theme="light"] .token__received span { color: var(--tg-primary-color); }
+
+/* ---- WORK SECTION -------------------------------------------------- */
+html[data-theme="light"] .work__item .number { color: rgba(20, 22, 26, .06); }
+html[data-theme="light"] .work__img img { filter: drop-shadow(0 25px 40px rgba(0, 0, 0, .18)); }
+
+/* ---- EXCHANGE ------------------------------------------------------ */
+html[data-theme="light"] .exchange__icons li { transition: transform .3s ease; }
+html[data-theme="light"] .exchange__icons li:hover { transform: translateY(-4px) scale(1.06); }
+
+/* ---- FAQ ----------------------------------------------------------- */
+html[data-theme="light"] .faq__wrap .accordion-item { margin-bottom: 14px; overflow: hidden; }
+html[data-theme="light"] .accordion-button { color: var(--lp-ink); font-weight: 600; }
+html[data-theme="light"] .accordion-button:not(.collapsed) {
+  color: var(--tg-primary-color);
+  box-shadow: inset 3px 0 0 var(--tg-primary-color);
+}
+html[data-theme="light"] .accordion-body p { color: var(--lp-ink-soft); }
+
+/* ---- ROADMAP ------------------------------------------------------- */
+html[data-theme="light"] .roadmap__content .title { color: var(--tg-primary-color); }
+html[data-theme="light"] .roadmap__icon img { transition: transform .3s ease; }
+html[data-theme="light"] .roadmap__item:hover .roadmap__icon img { transform: translateY(-6px); }
+
+/* ---- TEAM ---------------------------------------------------------- */
+html[data-theme="light"] .team__content .title { color: var(--lp-ink); font-weight: 700; }
+html[data-theme="light"] .team__thumb img { box-shadow: var(--lp-shadow); border-radius: 14px; }
+
+/* ---- FOOTER -------------------------------------------------------- */
+html[data-theme="light"] .footer__area { background: var(--lp-surface-2); }
+html[data-theme="light"] .footer__content .title { color: var(--lp-ink); }
+html[data-theme="light"] .footer__bottom .copyright-text p { color: var(--lp-ink-soft); }
+
+/* ---- BUTTONS (rounded + soft shadow + lift) ----------------------- */
+html[data-theme="light"] .tg-btn,
+html[data-theme="light"] .tg-btn-two {
+  border-radius: 50px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .10);
+  transition: transform .25s ease, box-shadow .25s ease, background-color .25s ease;
+}
+html[data-theme="light"] .tg-btn:hover,
+html[data-theme="light"] .tg-btn-two:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, .16);
+}
+
+/* ---- DIVIDERS ------------------------------------------------------ */
+html[data-theme="light"] .section-divider span {
+  background: linear-gradient(90deg, transparent, var(--lp-border), transparent);
+}
