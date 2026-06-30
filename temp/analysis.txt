@@ -1,0 +1,691 @@
+
+
+http://localhost:9000/user/lending/payment_success?method=paypal&did=54&PayerID=CSDRH97R7GLM8
+
+
+http://localhost:9000/user/make-investment-post
+http://localhost:9000/user/lending/payment_success?method=stripe&did=55
+
+
+http://localhost:9000/user/lending/payment_success?method=stripe&did=56
+
+
+http://localhost:9000/user/shop/order_success?oid=34
+
+
+
+ 1) Daily Maximum Pairs (5)
+
+This is only a payout limit.
+
+Meaning:
+
+Even if the user has 50 pairs possible today, you will pay only 5 pairs today.
+
+The remaining pairs are not lost — they stay as unused BV.
+
+So Daily Max Pairs controls: “How much pair commission can be paid per day.”
+
+2) Carry Forward Mode (daily / weekly / lifetime)
+
+This controls: “How long unused BV can remain valid.”
+
+Because when Daily Max Pairs blocks payout, you will have leftover BV.
+
+Carry Forward Mode decides what happens to that leftover BV:
+
+✅ lifetime
+
+Unused BV never expires.
+
+Tomorrow you can still use it to make pairs.
+
+✅ daily
+
+At end of day, leftover BV is reset to 0 (or flushed).
+
+Tomorrow starts fresh (no carry).
+
+✅ weekly
+
+Carry allowed within the same week.
+
+When week changes, leftover BV reset.
+
+So Carry Forward Mode is about expiry/reset, not payout speed.
+
+3) Carry Forward Cap (BV)
+
+This controls: “Maximum BV allowed to carry forward.”
+
+Example:
+
+Carry cap = 50,000 BV
+
+If left has 90,000 BV leftover, system keeps only 50,000, and extra 40,000 is discarded (or frozen).
+
+Why? To prevent very old users from stacking unlimited BV and breaking payouts later.
+
+I need above feature will be include on the _settle_pairs_for_ancestors
+
+
+
+
+
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////
+We want to recheck the mlm BV / PV + rank + pair(Number of pair completed) + remaining number of Pairs needed to completed using this settings based on  
+
+package setting as html
+<form action="http://localhost:9000/package-update" class="form-validate fv-plugins-bootstrap5 fv-plugins-framework" method="post" autocomplete="off" id="kt_account_meta_details_form" data-kt-redirect-url="http://localhost:9000/package-settings" accept-charset="utf-8">
+                        <input type="hidden" name="ci_csrf_token" value="">  
+                                      
+
+                        <div class="row mb-6">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Package Name<span class="text-danger"> * </span></label>
+                        <div class="col-lg-8 fv-row fv-plugins-icon-container">
+                        <div class="input-group mb-5 has-validation">
+                        <span class="input-group-text border-transparent " id="basic-addon1"><i class="fa-solid fa-note-sticky "></i></span>
+                        <input type="text" name="package_name" class="form-control form-control-lg form-control-solid" placeholder="Enter package name" value="TEST PKG" required="">
+                        <div class="fv-plugins-message-container fv-plugins-message-container--enabled invalid-feedback"></div></div>
+                        </div>
+                        </div>
+
+                     
+                        <div class="row mb-6">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Minimum Amount<span class="text-danger"> * </span></label>
+                        <div class="col-lg-8 fv-row mb-5 fv-plugins-icon-container">
+                        <div class="input-group has-validation">
+                        <span class="input-group-text border-transparent " id="basic-addon1"><i class="fa-solid fa-note-sticky "></i></span>
+                        <input type="text" name="minimum" class="form-control form-control-lg form-control-solid" placeholder="Enter minimum amount" value="2500" required="">
+                        <div class="fv-plugins-message-container fv-plugins-message-container--enabled invalid-feedback"></div></div>
+                        </div>
+                        </div>
+
+                        <div class="row mb-6">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Maximum Amount<span class="text-danger"> * </span></label>
+                        <div class="col-lg-8 fv-row mb-5 fv-plugins-icon-container">
+                        <div class="input-group has-validation">
+                        <span class="input-group-text border-transparent " id="basic-addon1"><i class="fa-solid fa-note-sticky "></i></span>
+                        <input type="text" name="maximum" class="form-control form-control-lg form-control-solid" placeholder="Enter maximum amount" value="3000" required="">
+                        <div class="fv-plugins-message-container fv-plugins-message-container--enabled invalid-feedback"></div></div>
+                        <small class="text-danger"> Notes : if set 0 unlimit  </small>
+                        </div>
+                        </div>
+
+                        <div class="row mb-6">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6"> Select Period <span class="text-danger"> * </span></label>
+                        <div class="col-lg-8 fv-row fv-plugins-icon-container">
+                        <div class="input-group mb-5 has-validation">
+                            <select class="form-select form-select-solid select2-hidden-accessible" data-control="select2" data-close-on-select="false" id="period" name="period" data-placeholder="Select a Period" data-allow-clear="true" data-select2-id="select2-data-period" tabindex="-1" aria-hidden="true" data-kt-initialized="1">
+                            <option></option>
+                            <option value="daily" selected="" data-select2-id="select2-data-2-z762">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                            </select><span class="select2 select2-container select2-container--bootstrap5" dir="ltr" data-select2-id="select2-data-1-wk66" style="width: 100%;"><span class="selection"><span class="select2-selection select2-selection--single form-select form-select-solid select2-selection--clearable" role="combobox" aria-haspopup="true" aria-expanded="false" tabindex="0" aria-disabled="false" aria-labelledby="select2-period-container" aria-controls="select2-period-container"><button type="button" class="select2-selection__clear" tabindex="-1" title="Remove all items" aria-label="Remove all items" aria-describedby="select2-period-container" data-select2-id="select2-data-3-jiz5"><span aria-hidden="true">×</span></button><span class="select2-selection__rendered" id="select2-period-container" role="textbox" aria-readonly="true" title="Daily">Daily</span><span class="select2-selection__arrow" role="presentation"><b role="presentation"></b></span></span></span><span class="dropdown-wrapper" aria-hidden="true"></span></span>
+                        <div class="fv-plugins-message-container fv-plugins-message-container--enabled invalid-feedback"></div></div>
+                        </div>
+                        </div>
+
+
+                        <div class="row mb-6">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Package ROI (%)<span class="text-danger"> * </span></label>
+                        <div class="col-lg-8 fv-row fv-plugins-icon-container">
+                        <div class="input-group mb-5 has-validation">
+                        <span class="input-group-text border-transparent " id="basic-addon1"><i class="fa-solid fa-note-sticky "></i></span>
+                        <input type="text" name="roi" class="form-control form-control-lg form-control-solid" placeholder="Enter ROI" value="0.2" required="">
+                        <div class="fv-plugins-message-container fv-plugins-message-container--enabled invalid-feedback"></div></div>
+                        </div>
+                        </div>
+
+                        <div class="row mb-6">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Package Duration<span class="text-danger"> * </span></label>
+                        <div class="col-lg-8 fv-row fv-plugins-icon-container">
+                        <div class="input-group mb-5 has-validation">
+                        <span class="input-group-text border-transparent " id="basic-addon1"><i class="fa-solid fa-note-sticky "></i></span>
+                        <input type="text" name="duration" class="form-control form-control-lg form-control-solid" placeholder="Enter duration" value="30" required="">
+                        <div class="fv-plugins-message-container fv-plugins-message-container--enabled invalid-feedback"></div></div>
+                        </div>
+                        </div>
+
+
+                        <!-- Binary / Plan Settings --------------------------------------------------->
+                        <div class="separator my-10"></div>
+                        <h3 class="fw-bold mb-7">Binary &amp; Direct Settings</h3>
+
+                        <div class="row mb-6">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Business Volume (BV) <span class="text-danger">*</span></label>
+                        <div class="col-lg-8 fv-row">
+                            <div class="input-group mb-5">
+                            <span class="input-group-text border-transparent"><i class="fa-solid fa-coins"></i></span>
+                            <input type="text" name="bv" class="form-control form-control-lg form-control-solid" placeholder="e.g. 10" value="25.0000" required="">
+                            </div>
+                        </div>
+                        </div>
+
+                        <div class="row mb-6">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Binary Commission <span class="text-danger">*</span></label>
+                        <div class="col-lg-8 fv-row">
+                            <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="input-group">
+                                <span class="input-group-text border-transparent"><i class="fa-solid fa-percent"></i></span>
+                                <input type="text" name="binary_commission" class="form-control form-control-lg form-control-solid" placeholder="e.g. 10" value="25.0000" required="">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <select class="form-select form-select-solid select2-hidden-accessible" name="binary_commission_type" data-control="select2" data-placeholder="Type" data-select2-id="select2-data-4-phpn" tabindex="-1" aria-hidden="true" data-kt-initialized="1">
+                                <option value="percent" selected="" data-select2-id="select2-data-6-kyhi">Percentage</option>
+                                <option value="amount">Flat Amount</option>
+                                </select><span class="select2 select2-container select2-container--bootstrap5" dir="ltr" data-select2-id="select2-data-5-548i" style="width: 100%;"><span class="selection"><span class="select2-selection select2-selection--single form-select form-select-solid" role="combobox" aria-haspopup="true" aria-expanded="false" tabindex="0" aria-disabled="false" aria-labelledby="select2-binary_commission_type-e1-container" aria-controls="select2-binary_commission_type-e1-container"><span class="select2-selection__rendered" id="select2-binary_commission_type-e1-container" role="textbox" aria-readonly="true" title="Percentage">Percentage</span><span class="select2-selection__arrow" role="presentation"><b role="presentation"></b></span></span></span><span class="dropdown-wrapper" aria-hidden="true"></span></span>
+                            </div>
+                            </div>
+                        </div>
+                        </div>
+
+                        <div class="row mb-6">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Own Commission(%) <span class="text-danger">*</span></label>
+                        <div class="col-lg-8 fv-row">
+                            <div class="input-group">
+                            <span class="input-group-text border-transparent"><i class="fa-solid fa-user-check"></i></span>
+                            <input type="text" name="own_commission" class="form-control form-control-lg form-control-solid" placeholder="e.g. 20" value="25.0000" required="">
+                            </div>
+                        </div>
+                        </div>
+
+                        <div class="row mb-6">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Direct Commission <span class="text-danger">*</span></label>
+                        <div class="col-lg-8 fv-row">
+                            <div class="input-group">
+                            <span class="input-group-text border-transparent"><i class="fa-solid fa-user-plus"></i></span>
+                            <input type="text" name="direct_commission" class="form-control form-control-lg form-control-solid" placeholder="e.g. 30" value="25.0000" required="">
+                            </div>
+                        </div>
+                        </div>
+
+                        <div class="row mb-6">
+                            <label class="col-lg-4 col-form-label fw-semibold fs-6">Pair Commission Status <span class="text-danger">*</span></label>
+                            <div class="col-lg-8 fv-row">
+                                <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
+                                <input class="form-check-input h-30px w-50px" type="checkbox" value="1" id="pair_commission_status_sw" checked="">
+                                <input type="hidden" name="pair_commission_status" value="1">
+                                <label class="form-check-label" for="pair_commission_status_sw"></label>
+                                </div>
+                            </div>
+                            </div>
+
+                            <div id="pairFields" class="">
+                            <div class="row mb-6">
+                                <label class="col-lg-4 col-form-label fw-semibold fs-6">Pair Commission <span class="text-danger">*</span></label>
+                                <div class="col-lg-8 fv-row">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                    <div class="input-group">
+                                        <span class="input-group-text border-transparent"><i class="fa-solid fa-link"></i></span>
+                                        <input type="text" name="pair_commission" class="form-control form-control-lg form-control-solid" placeholder="e.g. 10" value="25.0000">
+                                    </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                    <select class="form-select form-select-solid select2-hidden-accessible" name="pair_commission_type" data-control="select2" data-placeholder="Type" data-select2-id="select2-data-7-mzx4" tabindex="-1" aria-hidden="true" data-kt-initialized="1">
+                                        <option value="percent" selected="" data-select2-id="select2-data-9-8p07">Percentage</option>
+                                        <option value="amount">Flat Amount</option>
+                                    </select><span class="select2 select2-container select2-container--bootstrap5" dir="ltr" data-select2-id="select2-data-8-q7d0" style="width: 100%;"><span class="selection"><span class="select2-selection select2-selection--single form-select form-select-solid" role="combobox" aria-haspopup="true" aria-expanded="false" tabindex="0" aria-disabled="false" aria-labelledby="select2-pair_commission_type-3b-container" aria-controls="select2-pair_commission_type-3b-container"><span class="select2-selection__rendered" id="select2-pair_commission_type-3b-container" role="textbox" aria-readonly="true" title="Percentage">Percentage</span><span class="select2-selection__arrow" role="presentation"><b role="presentation"></b></span></span></span><span class="dropdown-wrapper" aria-hidden="true"></span></span>
+                                    </div>
+                                </div>
+                                </div>
+                            </div>
+
+                            <div class="row mb-6">
+                                <label class="col-lg-4 col-form-label fw-semibold fs-6">Daily Maximum Pairs <span class="text-danger">*</span></label>
+                                <div class="col-lg-8 fv-row">
+                                <input type="number" name="daily_max_pairs" min="0" class="form-control form-control-lg form-control-solid" placeholder="e.g. 5" value="10">
+                                </div>
+                            </div>
+                            </div>
+
+
+                            <div class="separator my-10"></div>
+                                <h3 class="fw-bold mb-7">Multi-Level Settings</h3>
+
+                                <!-- Matching Bonus ---------------------------------------------------------->
+                                <div class="row mb-4">
+                                <label class="col-lg-4 col-form-label fw-semibold fs-6">Matching Bonus</label>
+                                <div class="col-lg-8 fv-row">
+                                    <div id="matchingBonusWrap" class="vstack gap-3">
+                                                                            <div class="input-group mb-2 matching-row">
+                                        <input type="text" name="matching_bonus[]" class="form-control form-control-lg form-control-solid" value="10">
+                                        <button type="button" class="btn btn-light-danger ms-2 btn-remove-row"><i class="fa fa-minus"></i></button>
+                                        </div>
+                                                                            <div class="input-group mb-2 matching-row">
+                                        <input type="text" name="matching_bonus[]" class="form-control form-control-lg form-control-solid" value="7">
+                                        <button type="button" class="btn btn-light-danger ms-2 btn-remove-row"><i class="fa fa-minus"></i></button>
+                                        </div>
+                                                                            <div class="input-group mb-2 matching-row">
+                                        <input type="text" name="matching_bonus[]" class="form-control form-control-lg form-control-solid" value="5">
+                                        <button type="button" class="btn btn-light-danger ms-2 btn-remove-row"><i class="fa fa-minus"></i></button>
+                                        </div>
+                                                                            <div class="input-group mb-2 matching-row">
+                                        <input type="text" name="matching_bonus[]" class="form-control form-control-lg form-control-solid" value="2">
+                                        <button type="button" class="btn btn-light-danger ms-2 btn-remove-row"><i class="fa fa-minus"></i></button>
+                                        </div>
+                                                                        </div>
+                                    <button type="button" class="btn btn-light-primary mt-3" id="addMatching"><i class="fa fa-plus"></i> Add Row</button>
+                                </div>
+                                </div>
+
+                                <!-- Level PV ---------------------------------------------------------------->
+                                <div class="row mb-4">
+                                <label class="col-lg-4 col-form-label fw-semibold fs-6">Level PV</label>
+                                <div class="col-lg-8 fv-row">
+                                    <div id="levelPvWrap" class="vstack gap-3">
+                                                                            <div class="input-group mb-2 levelpv-row">
+                                        <input type="text" name="level_pv[]" class="form-control form-control-lg form-control-solid" value="10">
+                                        <button type="button" class="btn btn-light-danger ms-2 btn-remove-row"><i class="fa fa-minus"></i></button>
+                                        </div>
+                                                                            <div class="input-group mb-2 levelpv-row">
+                                        <input type="text" name="level_pv[]" class="form-control form-control-lg form-control-solid" value="5">
+                                        <button type="button" class="btn btn-light-danger ms-2 btn-remove-row"><i class="fa fa-minus"></i></button>
+                                        </div>
+                                                                            <div class="input-group mb-2 levelpv-row">
+                                        <input type="text" name="level_pv[]" class="form-control form-control-lg form-control-solid" value="2">
+                                        <button type="button" class="btn btn-light-danger ms-2 btn-remove-row"><i class="fa fa-minus"></i></button>
+                                        </div>
+                                                                        </div>
+                                    <button type="button" class="btn btn-light-primary mt-3" id="addLevelPv"><i class="fa fa-plus"></i> Add Row</button>
+                                </div>
+                                </div>
+
+                                <!-- Product Level Commission Amount ---------------------------------------->
+                                <div class="row mb-6">
+                                <label class="col-lg-4 col-form-label fw-semibold fs-6">Product Level Commission Amount</label>
+                                <div class="col-lg-8 fv-row">
+                                    <div id="productLvlCommWrap" class="vstack gap-3">
+                                                                            <div class="input-group mb-2 prod-row">
+                                        <input type="text" name="product_level_commission_amount[]" class="form-control form-control-lg form-control-solid" value="12">
+                                        <button type="button" class="btn btn-light-danger ms-2 btn-remove-row"><i class="fa fa-minus"></i></button>
+                                        </div>
+                                                                        </div>
+                                    <button type="button" class="btn btn-light-primary mt-3" id="addProdLvlComm"><i class="fa fa-plus"></i> Add Row</button>
+                                </div>
+                                </div>
+
+
+                        
+                        <div class="row mb-6">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Return Capital invesment<span class="text-danger"> * </span></label>
+                        <div class="col-lg-8 fv-row">
+                        <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
+                        <input class="form-check-input h-30px w-50px" type="checkbox" value="1" name="retrun_principle" checked="" id="retrun_principle">
+                        <label class="form-check-label" for="retrun_principle">
+                        </label>
+                        </div>
+                        </div>
+                        </div>
+
+                        <div class="row mb-6 d-none">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6 ">ROI Made by<span class="text-danger"> * </span></label>
+                        <div class="col-lg-8 fv-row fv-plugins-icon-container">
+                        <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
+                        <select class="form-select form-select-solid select2-hidden-accessible" data-control="select2" data-close-on-select="false" id="roi_made_by" name="roi_made_by" data-placeholder="Select a ROI Type" data-allow-clear="true" data-select2-id="select2-data-roi_made_by" tabindex="-1" aria-hidden="true" data-kt-initialized="1">
+                            <option></option>
+                            <option value="currency">Site Currency  USD</option>
+                            <option value="token" selected="" data-select2-id="select2-data-11-5twn">Token Feni</option>
+                            </select><span class="select2 select2-container select2-container--bootstrap5" dir="ltr" data-select2-id="select2-data-10-fh4r" style="width: 100%;"><span class="selection"><span class="select2-selection select2-selection--single form-select form-select-solid select2-selection--clearable" role="combobox" aria-haspopup="true" aria-expanded="false" tabindex="0" aria-disabled="false" aria-labelledby="select2-roi_made_by-container" aria-controls="select2-roi_made_by-container"><button type="button" class="select2-selection__clear" tabindex="-1" title="Remove all items" aria-label="Remove all items" aria-describedby="select2-roi_made_by-container" data-select2-id="select2-data-12-o4jg"><span aria-hidden="true">×</span></button><span class="select2-selection__rendered" id="select2-roi_made_by-container" role="textbox" aria-readonly="true" title="Token Feni">Token Feni</span><span class="select2-selection__arrow" role="presentation"><b role="presentation"></b></span></span></span><span class="dropdown-wrapper" aria-hidden="true"></span></span>
+                        
+                        </div>
+                        <div class="fv-plugins-message-container fv-plugins-message-container--enabled invalid-feedback"></div></div>
+                        </div>
+
+                        <input type="hidden" name="package_id" value="10">
+                                                
+                        <div class="col-md-12">
+                        <div class="form-group"><button type="submit" id="kt_account_meta_details_submit" class="btn btn-lg btn-primary">Submit</button>
+                        </div>
+                        </div>
+
+                    </form>
+
+
+
+Commission setting as html 
+
+<form id="kt_account_meta_details_form" class="form w-100 fv-plugins-bootstrap5 fv-plugins-framework" method="post" novalidate="novalidate" data-kt-redirect-url="http://localhost:9000/commission-settings" action="http://localhost:9000/update-commission-settings">
+
+  <div class="card-body border-top p-9">
+
+    <!-- Direct -->
+    <div class="row mb-6 align-items-center">
+      <label class="col-lg-8 col-form-label fw-semibold fs-6">Direct Commission Status</label>
+      <div class="col-lg-4 fv-row">
+        <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
+          <input class="form-check-input h-30px w-50px" name="direct_commission_status" type="checkbox" value="1" checked="">
+        </div>
+      </div>
+    </div>
+
+    <div class="row mb-6">
+      <label class="col-lg-4 col-form-label fw-semibold fs-6">Direct Commission Type</label>
+      <div class="col-lg-8 fv-row">
+        <select name="direct_commission_type" class="form-select form-select-lg w-200px" required="">
+                    <option value="percent" selected="">Percent</option>
+          <option value="amount">Fixed Amount</option>
+        </select>
+      </div>
+    </div>
+
+    <hr class="my-6">
+
+    <!-- Level -->
+    <div class="row mb-6 align-items-center">
+      <label class="col-lg-8 col-form-label fw-semibold fs-6">Level Commission Status</label>
+      <div class="col-lg-4 fv-row">
+        <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
+          <input class="form-check-input h-30px w-50px" name="level_commission_status" type="checkbox" value="1" checked="">
+        </div>
+      </div>
+    </div>
+
+    <hr class="my-6">
+
+    <!-- Binary & Matching -->
+    <div class="row mb-6 align-items-center">
+      <label class="col-lg-8 col-form-label fw-semibold fs-6">Binary Commission Status</label>
+      <div class="col-lg-4 fv-row">
+        <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
+          <input class="form-check-input h-30px w-50px" name="binary_commission_status" type="checkbox" value="1" checked="">
+        </div>
+      </div>
+    </div>
+
+    <div class="row mb-6">
+      <label class="col-lg-4 col-form-label fw-semibold fs-6">Binary Pair Type</label>
+      <div class="col-lg-8 fv-row">
+        <select name="binary_pair_type" class="form-select form-select-lg w-200px" required="">
+                    <option value="percent" selected="">Percent</option>
+          <option value="amount">Fixed Amount</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row mb-6">
+      <label class="col-lg-4 col-form-label fw-semibold fs-6">Binary Pair Ratio</label>
+      <div class="col-lg-8 fv-row">
+                <select name="binary_pair_ratio" class="form-select form-select-lg w-200px" required="">
+          <option value="1:1" selected="">1:1</option>
+          <option value="1:2">1:2</option>
+          <option value="2:1">2:1</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row mb-6 align-items-center">
+      <label class="col-lg-8 col-form-label fw-semibold fs-6">Matching Bonus Status</label>
+      <div class="col-lg-4 fv-row">
+        <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
+          <input class="form-check-input h-30px w-50px" name="matching_bonus_status" type="checkbox" value="1" checked="">
+        </div>
+      </div>
+    </div>
+
+    <hr class="my-6">
+
+    <!-- Own / Repurchase / Leadership / Pool -->
+    <div class="row mb-6 align-items-center">
+      <label class="col-lg-8 col-form-label fw-semibold fs-6">Own Commission Status</label>
+      <div class="col-lg-4 fv-row">
+        <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
+          <input class="form-check-input h-30px w-50px" name="own_commission_status" type="checkbox" value="1" checked="">
+        </div>
+      </div>
+    </div>
+
+    <div class="row mb-6 align-items-center">
+      <label class="col-lg-8 col-form-label fw-semibold fs-6">Repurchase Commission Status</label>
+      <div class="col-lg-4 fv-row">
+        <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
+          <input class="form-check-input h-30px w-50px" name="repurchase_commission_status" type="checkbox" value="1" checked="">
+        </div>
+      </div>
+    </div>
+
+    <div class="row mb-6 align-items-center">
+      <label class="col-lg-8 col-form-label fw-semibold fs-6">Leadership Bonus Status</label>
+      <div class="col-lg-4 fv-row">
+        <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
+          <input class="form-check-input h-30px w-50px" name="leadership_bonus_status" type="checkbox" value="1" checked="">
+        </div>
+      </div>
+    </div>
+
+    <div class="row mb-6 align-items-center">
+      <label class="col-lg-8 col-form-label fw-semibold fs-6">Pool Bonus Status</label>
+      <div class="col-lg-4 fv-row">
+        <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
+          <input class="form-check-input h-30px w-50px" name="pool_bonus_status" type="checkbox" value="1" checked="">
+        </div>
+      </div>
+    </div>
+<!-- Carry Forward Status -->
+<div class="row mb-6 align-items-center">
+  <label class="col-lg-8 col-form-label fw-semibold fs-6">
+    Carry Forward Status
+  </label>
+  <div class="col-lg-4 fv-row">
+    <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
+      <input class="form-check-input h-30px w-50px" name="carry_forward_status" type="checkbox" value="1" checked="">
+    </div>
+  </div>
+</div>
+
+<!-- Carry Forward Mode -->
+<div class="row mb-6 align-items-center">
+  <label class="col-lg-8 col-form-label fw-semibold fs-6">
+    Carry Forward Mode
+  </label>
+  <div class="col-lg-4 fv-row">
+    <select name="carry_forward_mode" class="form-select form-select-solid">
+      <option value="LIFETIME" selected="">
+        Lifetime
+      </option>
+      <option value="DAILY">
+        Daily Reset
+      </option>
+      <option value="WEEKLY">
+        Weekly Reset
+      </option>
+      <option value="MONTHLY">
+        Monthly Reset
+      </option>
+    </select>
+  </div>
+</div>
+
+<!-- Carry Forward Cap -->
+<div class="row mb-6 align-items-center">
+  <label class="col-lg-8 col-form-label fw-semibold fs-6">
+    Carry Forward Cap (BV)
+    <small class="text-muted">(optional)</small>
+  </label>
+  <div class="col-lg-4 fv-row">
+    <input type="number" step="0.01" name="carry_forward_cap" value="" class="form-control form-control-solid" placeholder="Example: 50000">
+  </div>
+</div>
+
+  </div>
+
+  <div class="card-footer d-flex justify-content-end py-6 px-9">
+    <button type="submit" class="btn btn-primary" id="kt_account_meta_details_submit">Save Changes</button>
+  </div>
+</form>
+
+
+Package config on database table
+SELECT * FROM `package_config`
+ Profiling [ Edit inline ] [ Edit ] [ Explain SQL ] [ Create PHP code ] [ Refresh ]
+ Show all	|			Number of rows: 
+25
+Filter rows: 
+Search this table
+Sort by key: 
+None
+Full texts
+package_name
+id
+minimum
+maximum
+bv
+binary_commission
+binary_commission_type
+own_commission
+direct_commission
+pair_commission_status
+pair_commission
+pair_commission_type
+daily_max_pairs
+matching_bonus_json
+level_pv_json
+product_level_comm_json
+subscription_type
+subscription_grace_days
+period
+roi
+duration
+status
+created_date
+update_date
+retrun_principle
+days_duration
+roi_made_by
+
+Edit Edit
+Copy Copy
+Delete Delete
+ZEN
+4
+100
+200
+20.0000
+10.0000
+percent
+10.0000
+30.0000
+1
+10.0000
+percent
+5
+[10,2,4,6]
+[10,5,4]
+[12,6,7]
+0
+daily
+0.1
+30
+1
+2025-03-07 13:17:33
+2025-08-29 08:39:53
+1
+30
+token
+
+Edit Edit
+Copy Copy
+Delete Delete
+CORE
+9
+1000
+2000
+20.0000
+20.0000
+percent
+20.0000
+30.0000
+1
+20.0000
+percent
+5
+[10,2,4,6]
+[10,5,4]
+[12,6,7]
+yearly
+0
+daily
+0.1
+30
+1
+2025-03-07 13:17:33
+2025-08-29 08:39:53
+1
+30
+token
+
+Edit Edit
+Copy Copy
+Delete Delete
+TEST PKG
+10
+2500
+3000
+25.0000
+25.0000
+percent
+25.0000
+25.0000
+1
+25.0000
+percent
+10
+[10,7,5,2]
+[10,5,2]
+[12]
+NULL
+0
+daily
+0.2
+30
+1
+2026-02-02 07:43:35
+NULL
+1
+30
+token
+
+
+Full texts
+id
+direct_commission_status
+level_commission_status
+update_date
+binary_pair_type
+binary_pair_ratio
+repurchase_commission_status
+leadership_bonus_status
+pool_bonus_status
+binary_commission_status
+matching_bonus_status
+carry_forward_status
+carry_forward_mode
+carry_forward_cap
+direct_commission_type
+own_commission_status
+
+Edit Edit
+Copy Copy
+Delete Delete
+1
+1
+1
+2026-02-13 07:27:06
+percent
+1:1
+1
+1
+1
+1
+1
+1
+LIFETIME
+NULL
+percent
+1

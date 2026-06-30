@@ -1,0 +1,965 @@
+
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$benchmark is deprecated</p>
+<p>Filename: core/Controller.php</p>
+<p>Line Number: 83</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$hooks is deprecated</p>
+<p>Filename: core/Controller.php</p>
+<p>Line Number: 83</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$config is deprecated</p>
+<p>Filename: core/Controller.php</p>
+<p>Line Number: 83</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$log is deprecated</p>
+<p>Filename: core/Controller.php</p>
+<p>Line Number: 83</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$utf8 is deprecated</p>
+<p>Filename: core/Controller.php</p>
+<p>Line Number: 83</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$uri is deprecated</p>
+<p>Filename: core/Controller.php</p>
+<p>Line Number: 83</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$router is deprecated</p>
+<p>Filename: core/Controller.php</p>
+<p>Line Number: 83</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$output is deprecated</p>
+<p>Filename: core/Controller.php</p>
+<p>Line Number: 83</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$security is deprecated</p>
+<p>Filename: core/Controller.php</p>
+<p>Line Number: 83</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$input is deprecated</p>
+<p>Filename: core/Controller.php</p>
+<p>Line Number: 83</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$lang is deprecated</p>
+<p>Filename: core/Controller.php</p>
+<p>Line Number: 83</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$db is deprecated</p>
+<p>Filename: core/Loader.php</p>
+<p>Line Number: 397</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property CI_DB_mysqli_driver::$failover is deprecated</p>
+<p>Filename: database/DB_driver.php</p>
+<p>Line Number: 372</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$session is deprecated</p>
+<p>Filename: core/Loader.php</p>
+<p>Line Number: 1284</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$form_validation is deprecated</p>
+<p>Filename: core/Loader.php</p>
+<p>Line Number: 1284</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$encryption is deprecated</p>
+<p>Filename: core/Loader.php</p>
+<p>Line Number: 1284</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$email is deprecated</p>
+<p>Filename: core/Loader.php</p>
+<p>Line Number: 1284</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$myencrypt is deprecated</p>
+<p>Filename: core/Loader.php</p>
+<p>Line Number: 1284</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$Rank_model is deprecated</p>
+<p>Filename: core/Loader.php</p>
+<p>Line Number: 359</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\libraries\Rankservice.php<br />
+			Line: 11<br />
+			Function: model			</p>
+
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$rankservice is deprecated</p>
+<p>Filename: core/Loader.php</p>
+<p>Line Number: 1284</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$common_model is deprecated</p>
+<p>Filename: core/Loader.php</p>
+<p>Line Number: 359</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 973<br />
+			Function: __construct			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>
+<div style="border:1px solid #990000;padding-left:20px;margin:0 0 10px 0;">
+
+<h4>A PHP Error was encountered</h4>
+
+<p>Severity: 8192</p>
+<p>Message:  Creation of dynamic property Cron::$Commission_model is deprecated</p>
+<p>Filename: core/Loader.php</p>
+<p>Line Number: 359</p>
+
+
+	<p>Backtrace:</p>
+	
+		
+	
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\application\controllers\Cron.php<br />
+			Line: 975<br />
+			Function: model			</p>
+
+		
+	
+		
+	
+		
+			<p style="margin-left:10px">
+			File: D:\SATZ\SATZ\GOLD\admlm\index.php<br />
+			Line: 345<br />
+			Function: require_once			</p>
+
+		
+	
+
+</div>

@@ -1,0 +1,1328 @@
+<?php
+// Normalize arrays -> objects (view uses ->)
+$userArr = is_array($user ?? null) ? $user : [];
+$kycArr = is_array($kyc ?? null) ? $kyc : [];
+$bankArr = is_array($bank ?? null) ? $bank : [];
+$prefsArr = is_array($prefs ?? null) ? $prefs : [];
+
+// USERS TABLE fields
+$user = (object) array_merge([
+    'id' => '',
+    'name' => '',
+    'first_name' => '',
+    'last_name' => '',
+    'username' => '',
+    'email' => '',
+    'contact' => '',
+    'country' => '',
+    'time_zone' => '',
+    'profile_img' => '',
+    'referral_id' => '',
+    'rank_id' => '',
+    'twofa_status' => 0,
+], $userArr);
+
+// user_kyc table fields
+$kyc = (object) array_merge([
+    'status' => 'none', // none|pending|under_review|approved|rejected|resubmit
+    'full_name_pan' => '',
+    'pan_number' => '',
+    'dob' => '',
+    'aadhaar_last4' => '',
+    'address' => '',
+    'city' => '',
+    'state' => '',
+    'pincode' => '',
+    'pan_doc' => '',
+    'aadhaar_doc' => '',
+    'reviewer_note' => '',
+    'submitted_at' => '',
+], $kycArr);
+
+// user_bank table fields
+$bank = (object) array_merge([
+    'status' => 'not_added', // not_added|pending|approved|rejected
+    'holder_name' => '',
+    'bank_name' => '',
+    'account_number' => '',
+    'ifsc' => '',
+    'upi_id' => '',
+    'note' => '',
+    'submitted_at' => '',
+], $bankArr);
+
+// prefs - you already send fallback in controller
+$prefs = (object) array_merge([
+    'success_payments' => 0,
+    'payouts' => 1,
+    'product_commission' => 0,
+    'refund_alerts' => 0,
+    'invoice_payments' => 1,
+], $prefsArr);
+
+// Display name / uid / rank
+$displayName = trim(($user->first_name . ' ' . $user->last_name));
+if ($displayName === '')
+    $displayName = trim($user->name ?: 'User');
+
+$displayUid = $user->referral_id ?: ('USER' . $user->id);
+$displayRank = $user->rank_id ?: '—';
+
+// Avatar
+$avatarUrl = !empty($user->profile_img)
+    ? base_url('assets/images/' . $user->profile_img)
+    : 'https://i.pravatar.cc/160?u=' . urlencode(($user->email ?: $user->contact ?: 'user'));
+
+// Rank progress + eligibility from controller
+$rankPercent = isset($rankPercent) ? (int) $rankPercent : 0;
+$eligibleText = isset($eligibleText) ? $eligibleText : 'Not Eligible';
+
+function badgeClassPro($st)
+{
+    $st = strtolower(trim($st ?? ''));
+    if ($st === 'approved' || $st === 'verified')
+        return 'b-ok';
+    if ($st === 'pending' || $st === 'under_review')
+        return 'b-warn';
+    if ($st === 'rejected' || $st === 'resubmit')
+        return 'b-bad';
+    return 'b-soft';
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <?php $this->load->view('user/layout/v2/user_style'); ?>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        /* (your existing styles - kept as-is) */
+        .titlebar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 12px;
+            margin: 8px 0 16px;
+        }
+
+        .titlebar h2 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 1100;
+            color: var(--text-main);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .titlebar h2 i {
+            color: var(--primary);
+            font-size: 20px;
+        }
+
+        .titlebar .sub {
+            margin-top: 4px;
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 900;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1.15fr .85fr;
+            gap: 14px;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #f5f5f7;
+            border-radius: 22px;
+            padding: 14px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.04);
+        }
+
+        .card-h {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .card-h h3 {
+            margin: 0;
+            font-size: 13px;
+            font-weight: 1100;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 10px;
+            border-radius: 999px;
+            border: 1px solid #eeecff;
+            background: #efedfb;
+            color: var(--primary);
+            font-size: 10px;
+            font-weight: 1100;
+        }
+
+        .muted {
+            color: var(--text-muted);
+            font-weight: 900;
+            font-size: 12px;
+        }
+
+        .btn-soft {
+            border: 1px solid #f1f1f6;
+            background: #fff;
+            border-radius: 14px;
+            padding: 10px 12px;
+            font-weight: 1100;
+            cursor: pointer;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-main {
+            border: none;
+            background: var(--primary);
+            color: #fff;
+            border-radius: 14px;
+            padding: 10px 12px;
+            font-weight: 1100;
+            cursor: pointer;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-dark {
+            border: none;
+            background: #111;
+            color: #fff;
+            border-radius: 14px;
+            padding: 10px 12px;
+            font-weight: 1100;
+            cursor: pointer;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-danger {
+            border: none;
+            background: #ef4444;
+            color: #fff;
+            border-radius: 14px;
+            padding: 10px 12px;
+            font-weight: 1100;
+            cursor: pointer;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .tab {
+            border: 1px solid #f1f1f6;
+            background: #fff;
+            border-radius: 999px;
+            padding: 9px 12px;
+            font-size: 12px;
+            font-weight: 1100;
+            cursor: pointer;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .tab.active {
+            background: #efedfb;
+            border-color: #eeecff;
+            color: var(--primary);
+        }
+
+        .tab i {
+            font-size: 16px;
+        }
+
+        .tabpanels>.panel {
+            display: none;
+        }
+
+        .tabpanels>.panel.active {
+            display: block;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+        }
+
+        .field label {
+            font-size: 11px;
+            font-weight: 1100;
+            color: #111;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .inp,
+        .sel,
+        .ta {
+            border: 1px solid #f1f1f6;
+            background: #f7f7fb;
+            border-radius: 14px;
+            padding: 11px 12px;
+            outline: none;
+            font-size: 12px;
+            font-weight: 900;
+            color: #111;
+        }
+
+        .ta {
+            min-height: 92px;
+            resize: vertical;
+        }
+
+        .inp:focus,
+        .sel:focus,
+        .ta:focus {
+            background: #fff;
+            border-color: #dcd7ff;
+            box-shadow: 0 0 0 4px rgba(110, 86, 207, 0.10);
+        }
+
+        .full {
+            grid-column: 1/-1;
+        }
+
+        .hint {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 900;
+            line-height: 1.4;
+            margin-top: 4px;
+        }
+
+        .profile-top {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .ava {
+            width: 66px;
+            height: 66px;
+            border-radius: 22px;
+            object-fit: cover;
+            border: 2px solid #f1f1f6;
+            background: #f7f7fb;
+        }
+
+        .pn b {
+            display: block;
+            font-size: 14px;
+            font-weight: 1200;
+        }
+
+        .pn small {
+            display: block;
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 1000;
+            margin-top: 3px;
+        }
+
+        .minirow {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 1100;
+            border: 1px solid #f1f1f6;
+            background: #fff;
+        }
+
+        .b-ok {
+            border-color: #dcfce7;
+            background: #ecfdf3;
+            color: #0f9d58;
+        }
+
+        .b-warn {
+            border-color: #ffedd5;
+            background: #fff7ed;
+            color: #c2410c;
+        }
+
+        .b-bad {
+            border-color: #fee2e2;
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+
+        .b-soft {
+            border-color: #eeecff;
+            background: #efedfb;
+            color: var(--primary);
+        }
+
+        .upload {
+            border: 1px dashed #e7e7f3;
+            background: #fbfbff;
+            border-radius: 18px;
+            padding: 12px;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .upload b {
+            font-size: 12px;
+            font-weight: 1100;
+        }
+
+        .upload small {
+            display: block;
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 900;
+            margin-top: 4px;
+        }
+
+        .upload input {
+            max-width: 220px;
+        }
+
+        .switch-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            border: 1px solid #f1f1f6;
+            background: #f7f7fb;
+            border-radius: 18px;
+            padding: 12px;
+        }
+
+        .switch-row b {
+            font-size: 12px;
+            font-weight: 1100;
+        }
+
+        .switch-row span {
+            display: block;
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 900;
+            margin-top: 3px;
+        }
+
+        .tog {
+            width: 52px;
+            height: 30px;
+            border-radius: 999px;
+            background: #e9e7ff;
+            position: relative;
+            cursor: pointer;
+            border: 1px solid #eeecff;
+            flex: none;
+        }
+
+        .tog::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            left: 4px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.10);
+            transition: .18s;
+        }
+
+        .tog.on {
+            background: var(--primary);
+        }
+
+        .tog.on::after {
+            left: 26px;
+        }
+
+        .side-grid {
+            display: grid;
+            gap: 14px;
+        }
+
+        .statCard {
+            background: #fff;
+            border: 1px solid #f5f5f7;
+            border-radius: 22px;
+            padding: 14px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.04);
+        }
+
+        .ring {
+            --p: 48;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: conic-gradient(var(--primary) calc(var(--p)*1%), #ecebff 0);
+            display: grid;
+            place-items: center;
+            margin: 10px auto 0;
+        }
+
+        .ring .in {
+            width: 115px;
+            height: 115px;
+            border-radius: 50%;
+            background: #fff;
+            display: grid;
+            place-items: center;
+            text-align: center;
+            border: 1px solid #f1f1f6;
+        }
+
+        .ring .in b {
+            font-size: 20px;
+            font-weight: 1200;
+        }
+
+        .ring .in small {
+            display: block;
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 1000;
+            margin-top: 2px;
+        }
+
+        .sidebtn {
+            width: 100%;
+            border: none;
+            border-radius: 16px;
+            padding: 12px 14px;
+            font-weight: 1100;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .sidebtn.primary {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        .sidebtn.soft {
+            background: #efedfb;
+            color: var(--primary);
+        }
+
+        .sidebtn.dark {
+            background: #111;
+            color: #fff;
+        }
+
+        .rowpill {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            border: 1px solid #f1f1f6;
+            background: #f7f7fb;
+            border-radius: 16px;
+            padding: 12px;
+            font-size: 12px;
+            font-weight: 1100;
+        }
+
+        .rowpill span {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 900;
+        }
+
+        .danger {
+            border: 1px solid #fee2e2;
+            background: #fef2f2;
+            border-radius: 22px;
+            padding: 14px;
+        }
+
+        .danger h4 {
+            margin: 0;
+            font-size: 13px;
+            font-weight: 1200;
+            color: #b91c1c;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .danger p {
+            margin: 8px 0 0;
+            font-size: 12px;
+            font-weight: 900;
+            color: #7f1d1d;
+            line-height: 1.45;
+        }
+
+        @media(max-width:1200px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <?php $this->load->view('user/layout/v2/user_sidebar'); ?>
+
+        <main class="main-content">
+            <?php $this->load->view('user/layout/v2/user_header'); ?>
+
+            <div class="titlebar">
+                <div>
+                    <h2><i class="ph ph-gear"></i> Profile Settings</h2>
+                    <div class="sub">Manage your account details, KYC, bank info, security and notifications.</div>
+                </div>
+                <div class="actions">
+                    <button class="btn-soft" type="button" onclick="location.href='<?= base_url('user/main'); ?>'"><i
+                            class="ph ph-house"></i> Dashboard</button>
+                    <button class="btn-main" type="button" onclick="saveActiveTab()"><i class="ph ph-floppy-disk"></i>
+                        Save
+                        Changes</button>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <!-- LEFT -->
+                <section class="card">
+                    <div class="profile-top">
+                        <img class="ava" src="<?= htmlspecialchars($avatarUrl); ?>" alt="">
+                        <div class="pn">
+                            <b>
+                                <?= htmlspecialchars($displayName); ?>
+                            </b>
+                            <small>
+                                UID:
+                                <?= htmlspecialchars($displayUid); ?>
+                                • Username:
+                                <?= htmlspecialchars($user->username ?: '—'); ?>
+                                • Rank:
+                                <?= htmlspecialchars($displayRank); ?>
+                            </small>
+
+                            <div class="minirow">
+                                <span class="badge <?= badgeClassPro($kyc->status); ?>"><i
+                                        class="ph ph-identification-card"></i> KYC:
+                                    <?= htmlspecialchars($kyc->status); ?>
+                                </span>
+                                <span class="badge <?= badgeClassPro($bank->status); ?>"><i class="ph ph-bank"></i>
+                                    Bank:
+                                    <?= htmlspecialchars($bank->status); ?>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tabs" style="margin-top:14px;">
+                        <button class="tab active" data-tab="profile"><i class="ph ph-user"></i> Profile</button>
+                        <button class="tab" data-tab="kyc"><i class="ph ph-identification-card"></i> KYC</button>
+                        <button class="tab" data-tab="bank"><i class="ph ph-bank"></i> Bank</button>
+                        <button class="tab" data-tab="security"><i class="ph ph-shield-check"></i> Security</button>
+                        <button class="tab" data-tab="notifications"><i class="ph ph-bell"></i> Notifications</button>
+                        <button class="tab" data-tab="danger"><i class="ph ph-warning"></i> Danger</button>
+                    </div>
+
+                    <div class="tabpanels">
+                        <!-- PROFILE TAB -->
+                        <div class="panel active" id="tab-profile">
+                            <div class="card-h">
+                                <h3>Basic Information</h3>
+                                <span class="chip"><i class="ph ph-pencil-simple"></i> Public profile</span>
+                            </div>
+
+                            <form id="profileForm" method="post"
+                                action="<?= site_url('member/profile/profile_update'); ?>"
+                                enctype="multipart/form-data">
+
+                                <input type="hidden" name="<?= $csrfName; ?>" value="<?= $csrfHash; ?>">
+
+                                <div class="form-grid">
+                                    <div class="field">
+                                        <label><i class="ph ph-user"></i> First Name</label>
+                                        <input class="inp" name="first_name"
+                                            value="<?= htmlspecialchars($user->first_name); ?>"
+                                            placeholder="Enter first name">
+                                    </div>
+                                    <div class="field">
+                                        <label><i class="ph ph-user"></i> Last Name</label>
+                                        <input class="inp" name="last_name"
+                                            value="<?= htmlspecialchars($user->last_name); ?>"
+                                            placeholder="Enter last name">
+                                    </div>
+
+                                    <div class="field full">
+                                        <label><i class="ph ph-phone"></i> Phone</label>
+                                        <input class="inp" name="contact"
+                                            value="<?= htmlspecialchars($user->contact); ?>" placeholder="+91...">
+                                    </div>
+
+                                    <div class="field">
+                                        <label><i class="ph ph-globe"></i> Country</label>
+                                        <input class="inp" name="country"
+                                            value="<?= htmlspecialchars($user->country); ?>" placeholder="Country">
+                                    </div>
+                                    <div class="field">
+                                        <label><i class="ph ph-clock"></i> Timezone</label>
+                                        <input class="inp" name="time_zone"
+                                            value="<?= htmlspecialchars($user->time_zone); ?>"
+                                            placeholder="Asia/Kolkata">
+                                    </div>
+
+                                    <div class="field full">
+                                        <div class="upload">
+                                            <div>
+                                                <b><i class="ph ph-image"></i> Update Profile Photo</b>
+                                                <small>PNG/JPG/WebP up to 2MB. Recommended: 400×400.</small>
+                                            </div>
+                                            <input type="file" name="profile_img" accept="image/*">
+                                        </div>
+                                    </div>
+
+                                    <div class="field full">
+                                        <button class="btn-main" type="submit"><i class="ph ph-check"></i> Save
+                                            Profile</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- KYC TAB -->
+                        <div class="panel" id="tab-kyc">
+                            <div class="card-h">
+                                <h3>KYC Verification</h3>
+                                <span class="badge <?= badgeClassPro($kyc->status); ?>"><i class="ph ph-seal-check"></i>
+                                    <?= htmlspecialchars($kyc->status); ?>
+                                </span>
+                            </div>
+                            <div class="muted">Complete KYC to unlock withdrawals and avoid payout delays.</div>
+
+                            <form id="kycForm" method="post" action="<?= site_url('member/profile/kyc_submit'); ?>"
+                                enctype="multipart/form-data" style="margin-top:12px;">
+
+                                <input type="hidden" name="<?= $csrfName; ?>" value="<?= $csrfHash; ?>">
+
+                                <div class="form-grid">
+                                    <div class="field">
+                                        <label>Full Name (as per PAN)</label>
+                                        <input class="inp" name="full_name_pan"
+                                            value="<?= htmlspecialchars($kyc->full_name_pan); ?>"
+                                            placeholder="Name on PAN">
+                                    </div>
+                                    <div class="field">
+                                        <label>PAN Number</label>
+                                        <input class="inp" name="pan_number"
+                                            value="<?= htmlspecialchars($kyc->pan_number); ?>" placeholder="ABCDE1234F">
+                                    </div>
+
+                                    <div class="field">
+                                        <label>Date of Birth</label>
+                                        <input class="inp" name="dob" value="<?= htmlspecialchars($kyc->dob); ?>"
+                                            placeholder="YYYY-MM-DD">
+                                    </div>
+                                    <div class="field">
+                                        <label>Aadhaar (Last 4 digits)</label>
+                                        <input class="inp" name="aadhaar_last4"
+                                            value="<?= htmlspecialchars($kyc->aadhaar_last4); ?>" placeholder="1234">
+                                    </div>
+
+                                    <div class="field full">
+                                        <label>Address</label>
+                                        <textarea class="ta" name="address"
+                                            placeholder="Full address"><?= htmlspecialchars($kyc->address); ?></textarea>
+                                    </div>
+
+                                    <div class="field">
+                                        <label>City</label>
+                                        <input class="inp" name="city" value="<?= htmlspecialchars($kyc->city); ?>"
+                                            placeholder="City">
+                                    </div>
+                                    <div class="field">
+                                        <label>State</label>
+                                        <input class="inp" name="state" value="<?= htmlspecialchars($kyc->state); ?>"
+                                            placeholder="State">
+                                    </div>
+
+                                    <div class="field">
+                                        <label>Pincode</label>
+                                        <input class="inp" name="pincode"
+                                            value="<?= htmlspecialchars($kyc->pincode); ?>" placeholder="Pincode">
+                                    </div>
+                                    <div class="field">
+                                        <label>KYC Status Note</label>
+                                        <input class="inp"
+                                            value="<?= htmlspecialchars($kyc->reviewer_note ?: 'Admin will review documents within 24–48 hrs.'); ?>"
+                                            disabled>
+                                    </div>
+
+                                    <div class="field full">
+                                        <div class="upload">
+                                            <div>
+                                                <b><i class="ph ph-file"></i> Upload PAN Document</b>
+                                                <small>Clear scan/photo. Max 2MB.</small>
+                                            </div>
+                                            <input type="file" name="pan_doc" accept="image/*,.pdf">
+                                        </div>
+                                    </div>
+
+                                    <div class="field full">
+                                        <div class="upload">
+                                            <div>
+                                                <b><i class="ph ph-file"></i> Upload Aadhaar Document</b>
+                                                <small>Front + back combined or PDF. Max 2MB.</small>
+                                            </div>
+                                            <input type="file" name="aadhaar_doc" accept="image/*,.pdf">
+                                        </div>
+                                    </div>
+
+                                    <div class="field full">
+                                        <button class="btn-main" type="submit"><i class="ph ph-check"></i> Submit
+                                            KYC</button>
+                                    </div>
+                                </div>
+
+                                <div class="hint">Tip: KYC name must match Bank account holder name.</div>
+                            </form>
+                        </div>
+
+                        <!-- BANK TAB -->
+                        <div class="panel" id="tab-bank">
+                            <div class="card-h">
+                                <h3>Bank Details</h3>
+                                <span class="badge <?= badgeClassPro($bank->status); ?>"><i class="ph ph-bank"></i>
+                                    <?= htmlspecialchars($bank->status); ?>
+                                </span>
+                            </div>
+                            <div class="muted">Bank details are required for withdrawals. Ensure name matches KYC.</div>
+
+                            <form id="bankForm" method="post" action="<?= site_url('member/profile/bank_save'); ?>"
+                                style="margin-top:12px;">
+
+                                <input type="hidden" name="<?= $csrfName; ?>" value="<?= $csrfHash; ?>">
+
+                                <div class="form-grid">
+                                    <div class="field">
+                                        <label>Account Holder Name</label>
+                                        <input class="inp" name="holder_name"
+                                            value="<?= htmlspecialchars($bank->holder_name); ?>"
+                                            placeholder="Holder name">
+                                    </div>
+                                    <div class="field">
+                                        <label>Bank Name</label>
+                                        <input class="inp" name="bank_name"
+                                            value="<?= htmlspecialchars($bank->bank_name); ?>" placeholder="Bank name">
+                                    </div>
+
+                                    <div class="field">
+                                        <label>Account Number</label>
+                                        <input class="inp" name="account_number"
+                                            value="<?= htmlspecialchars($bank->account_number); ?>"
+                                            placeholder="1234...">
+                                    </div>
+                                    <div class="field">
+                                        <label>IFSC</label>
+                                        <input class="inp" name="ifsc" value="<?= htmlspecialchars($bank->ifsc); ?>"
+                                            placeholder="SBIN0000000">
+                                    </div>
+
+                                    <div class="field full">
+                                        <label>UPI ID (optional)</label>
+                                        <input class="inp" name="upi_id" value="<?= htmlspecialchars($bank->upi_id); ?>"
+                                            placeholder="name@upi">
+                                        <?php if (!empty($bank->note)): ?>
+                                            <div class="hint">
+                                                <?= htmlspecialchars($bank->note); ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+
+                                    <div class="field full">
+                                        <button class="btn-main" type="submit"><i class="ph ph-check"></i> Save Bank
+                                            Details</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- SECURITY TAB -->
+                        <div class="panel" id="tab-security">
+                            <div class="card-h">
+                                <h3>Security</h3>
+                                <span class="chip"><i class="ph ph-shield-check"></i> Protect your account</span>
+                            </div>
+
+                            <div class="form-grid">
+                                <div class="field full">
+                                    <div class="switch-row">
+                                        <div>
+                                            <b>Two-Factor Authentication (2FA)</b>
+                                            <span>Recommended for withdrawals & profile changes.</span>
+                                        </div>
+                                        <div class="tog <?= ((int) $user->twofa_status === 1) ? 'on' : ''; ?>"
+                                            id="twofaTog"></div>
+                                    </div>
+                                    <div class="hint">2FA save API not added here (you can add later).</div>
+                                </div>
+
+                                <div class="field full">
+                                    <div class="upload">
+                                        <div>
+                                            <b><i class="ph ph-password"></i> Change Password</b>
+                                            <small>Use strong password (min 8 chars).</small>
+                                        </div>
+                                        <button class="btn-soft" type="button" onclick="openPasswordModal()"><i
+                                                class="ph ph-lock-key"></i>
+                                            Update</button>
+                                    </div>
+                                </div>
+
+                                <div class="field full">
+                                    <div class="upload">
+                                        <div>
+                                            <b><i class="ph ph-device-mobile"></i> Logout from all devices</b>
+                                            <small>If you suspect suspicious login, logout everywhere.</small>
+                                        </div>
+                                        <button class="btn-dark" type="button" onclick="logoutAll()"><i
+                                                class="ph ph-sign-out"></i> Logout
+                                            All</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NOTIFICATIONS TAB -->
+                        <div class="panel" id="tab-notifications">
+                            <div class="card-h">
+                                <h3>Notifications</h3>
+                                <span class="chip"><i class="ph ph-bell"></i> Alerts & updates</span>
+                            </div>
+
+                            <div class="hint">Select what notifications you want to receive.</div>
+
+                            <form id="prefsForm" method="post"
+                                action="<?= site_url('member/profile/update_email_preferences'); ?>"
+                                style="display:grid;gap:10px;margin-top:12px;">
+                                <input type="hidden" name="<?= $csrfName; ?>" value="<?= $csrfHash; ?>">
+
+                                <?php
+                                $prefItems = [
+                                    'success_payments' => ['Successful Payments', 'Payment success alerts'],
+                                    'payouts' => ['Payout Updates', 'Payout status updates'],
+                                    'product_commission' => ['Product Commission', 'Commission credit alerts'],
+                                    'refund_alerts' => ['Refund Alerts', 'Refund and reversal alerts'],
+                                    'invoice_payments' => ['Invoice Payments', 'Invoice payment updates'],
+                                ];
+                                ?>
+
+                                <?php foreach ($prefItems as $k => $meta): ?>
+                                    <div class="switch-row">
+                                        <div>
+                                            <b>
+                                                <?= htmlspecialchars($meta[0]); ?>
+                                            </b>
+                                            <span>
+                                                <?= htmlspecialchars($meta[1]); ?>
+                                            </span>
+                                        </div>
+                                        <label style="display:flex;align-items:center;gap:10px;">
+                                            <input type="checkbox" name="pref[<?= $k; ?>]" value="1" <?= !empty($prefs->$k) ? 'checked' : ''; ?>>
+                                        </label>
+                                    </div>
+                                <?php endforeach; ?>
+
+                                <button class="btn-main" type="submit"><i class="ph ph-check"></i> Save Notification
+                                    Settings</button>
+                            </form>
+                        </div>
+
+                        <!-- DANGER TAB -->
+                        <div class="panel" id="tab-danger">
+                            <div class="danger">
+                                <h4><i class="ph ph-warning"></i> Danger Zone</h4>
+                                <p>These actions are irreversible. Proceed carefully.</p>
+
+                                <div style="display:grid;gap:10px;margin-top:12px;">
+                                    <div class="upload">
+                                        <div>
+                                            <b><i class="ph ph-trash"></i> Delete Account</b>
+                                            <small>Account will be permanently removed after admin approval.</small>
+                                        </div>
+                                        <button class="btn-danger" type="button" onclick="requestDelete()"><i
+                                                class="ph ph-warning-circle"></i> Request Delete</button>
+                                    </div>
+
+                                    <div class="upload">
+                                        <div>
+                                            <b><i class="ph ph-shield-warning"></i> Freeze Withdrawals</b>
+                                            <small>Temporarily block withdrawals for safety.</small>
+                                        </div>
+                                        <button class="btn-dark" type="button" onclick="freezeWithdraw()"><i
+                                                class="ph ph-lock"></i>
+                                            Freeze</button>
+                                    </div>
+
+                                    <div class="hint">Tip: You can enforce OTP/2FA before danger actions.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- RIGHT -->
+                <aside class="side-grid">
+                    <div class="statCard">
+                        <div class="card-h">
+                            <h3>Profile & Stats</h3>
+                            <button class="btn-soft" type="button"
+                                onclick="location.href='<?= base_url('user/profile'); ?>'"><i
+                                    class="ph ph-sliders-horizontal"></i> Manage</button>
+                        </div>
+
+                        <div class="ring" style="--p:<?= (int) $rankPercent; ?>;">
+                            <div class="in">
+                                <b>
+                                    <?= (int) $rankPercent; ?>%
+                                </b>
+                                <small>Rank Progress</small>
+                            </div>
+                        </div>
+
+                        <div style="margin-top:12px;display:grid;gap:10px;">
+                            <div class="rowpill">
+                                <div>
+                                    <b>Withdraw Eligibility</b>
+                                    <span>Based on KYC + Bank</span>
+                                </div>
+                                <b style="color:<?= ($eligibleText === 'Eligible') ? '#0f9d58' : '#b91c1c'; ?>;">
+                                    <?= htmlspecialchars($eligibleText); ?>
+                                </b>
+                            </div>
+
+                            <div class="rowpill">
+                                <div><b>KYC Status</b><span>Verification progress</span></div>
+                                <span class="badge <?= badgeClassPro($kyc->status); ?>">
+                                    <?= htmlspecialchars($kyc->status); ?>
+                                </span>
+                            </div>
+
+                            <div class="rowpill">
+                                <div><b>Bank Status</b><span>Withdrawal account</span></div>
+                                <span class="badge <?= badgeClassPro($bank->status); ?>">
+                                    <?= htmlspecialchars($bank->status); ?>
+                                </span>
+                            </div>
+
+                            <button class="sidebtn primary" type="button" onclick="goTab('kyc')"><i
+                                    class="ph ph-identification-card"></i> Update KYC</button>
+                            <button class="sidebtn soft" type="button" onclick="goTab('bank')"><i
+                                    class="ph ph-bank"></i> Update
+                                Bank</button>
+                            <button class="sidebtn dark" type="button"
+                                onclick="location.href='<?= base_url('user/support'); ?>'"><i class="ph ph-headset"></i>
+                                Support Ticket</button>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </main>
+    </div>
+
+    <!-- Password Modal -->
+    <div id="pwdModal"
+        style="display:none;position:fixed;inset:0;background:rgba(10,10,20,.35);z-index:99999;align-items:center;justify-content:center;padding:14px;">
+        <div
+            style="width:min(520px,100%);background:#fff;border:1px solid #f5f5f7;border-radius:24px;box-shadow:0 26px 70px rgba(0,0,0,.18);overflow:hidden;">
+            <div
+                style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #f5f5f7;">
+                <b style="font-size:14px;font-weight:1100;">Change Password</b>
+                <button class="btn-soft" onclick="closePasswordModal()"><i class="ph ph-x"></i> Close</button>
+            </div>
+            <div style="padding:14px 16px;">
+                <input type="hidden" id="csrfName" value="<?= $csrfName; ?>">
+                <input type="hidden" id="csrfHash" value="<?= $csrfHash; ?>">
+
+                <div class="form-grid">
+                    <div class="field full">
+                        <label>Current Password</label>
+                        <input class="inp" type="password" id="curPwd" placeholder="Current password">
+                    </div>
+                    <div class="field">
+                        <label>New Password</label>
+                        <input class="inp" type="password" id="newPwd" placeholder="New password">
+                    </div>
+                    <div class="field">
+                        <label>Confirm</label>
+                        <input class="inp" type="password" id="cnfPwd" placeholder="Confirm password">
+                    </div>
+                    <div class="field full">
+                        <button class="btn-main" type="button" onclick="savePassword()"><i class="ph ph-check"></i>
+                            Update
+                            Password</button>
+                        <div class="hint">Password should be at least 8 characters.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="<?php echo base_url(); ?>/assets/user_v2/js/script.js?ver=2.9"></script>
+    <script>
+        // ---------- Tabs ----------
+        const tabs = document.querySelectorAll('.tab');
+        const panels = document.querySelectorAll('.panel');
+
+        function setTab(key) {
+            tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === key));
+            panels.forEach(p => p.classList.toggle('active', p.id === 'tab-' + key));
+            localStorage.setItem('fenizo_profile_tab', key);
+        }
+        tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
+
+        const last = localStorage.getItem('fenizo_profile_tab');
+        if (last) { setTab(last); }
+
+        function goTab(key) {
+            setTab(key);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function saveActiveTab() { toastMini("Saved."); }
+
+        // ---------- CSRF helper ----------
+        function setCsrfFromResponse(res) {
+            if (res && res.csrfName && res.csrfHash) {
+                // update hidden inputs in all forms
+                document.querySelectorAll('input[name="' + res.csrfName + '"]').forEach(i => i.value = res.csrfHash);
+
+                // also update modal hidden
+                const h = document.getElementById('csrfHash');
+                const n = document.getElementById('csrfName');
+                if (h) h.value = res.csrfHash;
+                if (n) n.value = res.csrfName;
+            }
+        }
+
+        // ---------- AJAX submit helper (FormData) ----------
+        async function postForm(formEl) {
+            const url = formEl.getAttribute('action');
+            const fd = new FormData(formEl);
+
+            const r = await fetch(url, {
+                method: 'POST',
+                body: fd,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const data = await r.json().catch(() => null);
+            if (!data) throw new Error('Invalid JSON response');
+            setCsrfFromResponse(data);
+            return data;
+        }
+
+        // PROFILE AJAX
+        document.getElementById('profileForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const res = await postForm(e.target);
+                if (res.status === 'success') { toastMini(res.message || "Profile updated"); }
+                else toastMini(res.message || "Profile update failed");
+            } catch (err) {
+                toastMini(err.message || "Profile update error");
+            }
+        });
+
+        // KYC AJAX
+        document.getElementById('kycForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const res = await postForm(e.target);
+                if (res.status === 'success') { toastMini(res.message || "KYC submitted"); }
+                else toastMini(res.message || "KYC submit failed");
+            } catch (err) {
+                toastMini(err.message || "KYC submit error");
+            }
+        });
+
+        // BANK AJAX
+        document.getElementById('bankForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const res = await postForm(e.target);
+                if (res.status === 'success') { toastMini(res.message || "Bank saved"); }
+                else toastMini(res.message || "Bank save failed");
+            } catch (err) {
+                toastMini(err.message || "Bank save error");
+            }
+        });
+
+        // PREFS AJAX
+        document.getElementById('prefsForm')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const res = await postForm(e.target);
+                if (res.status === 'success') { toastMini(res.message || "Preferences saved"); }
+                else toastMini(res.message || "Preferences save failed");
+            } catch (err) {
+                toastMini(err.message || "Prefs error");
+            }
+        });
+
+        // ---------- Password modal ----------
+        function openPasswordModal() { document.getElementById('pwdModal').style.display = 'flex'; }
+        function closePasswordModal() { document.getElementById('pwdModal').style.display = 'none'; }
+
+        async function savePassword() {
+            const cur = document.getElementById('curPwd').value.trim();
+            const a = document.getElementById('newPwd').value.trim();
+            const b = document.getElementById('cnfPwd').value.trim();
+            if (a.length < 8) return toastMini("New password must be 8+ chars");
+            if (a !== b) return toastMini("Confirm password mismatch");
+
+            const csrfName = document.getElementById('csrfName').value;
+            const csrfHash = document.getElementById('csrfHash').value;
+
+            const fd = new FormData();
+            fd.append('currentpassword', cur);
+            fd.append('newpassword', a);
+            fd.append('confirmpassword', b);
+            fd.append(csrfName, csrfHash);
+
+            try {
+                const r = await fetch("<?= site_url('member/profile/update_password'); ?>", {
+                    method: 'POST',
+                    body: fd,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const res = await r.json();
+                setCsrfFromResponse(res);
+                if (res.status === 'success') {
+                    toastMini(res.message || "Password updated");
+                    closePasswordModal();
+                    document.getElementById('curPwd').value = '';
+                    document.getElementById('newPwd').value = '';
+                    document.getElementById('cnfPwd').value = '';
+                } else {
+                    toastMini(res.message || "Password update failed");
+                }
+            } catch (err) {
+                toastMini(err.message || "Password update error");
+            }
+        }
+
+        // ---------- Danger actions ----------
+        async function requestDelete() {
+            const reason = prompt("Reason for delete request?");
+            if (!reason) return;
+
+            const csrfName = document.getElementById('csrfName')?.value || "<?= $csrfName; ?>";
+            const csrfHash = document.getElementById('csrfHash')?.value || "<?= $csrfHash; ?>";
+
+            const fd = new FormData();
+            fd.append('reason', reason);
+            fd.append(csrfName, csrfHash);
+
+            try {
+                const r = await fetch("<?= site_url('member/profile/request_delete'); ?>", {
+                    method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const res = await r.json();
+                setCsrfFromResponse(res);
+                toastMini(res.message || "Done");
+            } catch (e) { toastMini("Error"); }
+        }
+
+        async function freezeWithdraw() {
+            const reason = prompt("Reason for freezing withdraw?");
+            if (!reason) return;
+
+            const csrfName = document.getElementById('csrfName')?.value || "<?= $csrfName; ?>";
+            const csrfHash = document.getElementById('csrfHash')?.value || "<?= $csrfHash; ?>";
+
+            const fd = new FormData();
+            fd.append('reason', reason);
+            fd.append(csrfName, csrfHash);
+
+            try {
+                const r = await fetch("<?= site_url('member/profile/freeze_withdraw'); ?>", {
+                    method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                const res = await r.json();
+                setCsrfFromResponse(res);
+                toastMini(res.message || "Done");
+            } catch (e) { toastMini("Error"); }
+        }
+
+        function logoutAll() { toastMini("Logout all (API not connected)"); }
+
+        // ---------- Toast ----------
+        function toastMini(msg) {
+            const t = document.createElement('div');
+            t.textContent = msg;
+            t.style.cssText =
+                "position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:14px;font-weight:1100;font-size:12px;z-index:99999;opacity:0;transition:.2s;";
+            document.body.appendChild(t);
+            requestAnimationFrame(() => t.style.opacity = "1");
+            setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 250); }, 1600);
+        }
+    </script>
+</body>
+
+</html>

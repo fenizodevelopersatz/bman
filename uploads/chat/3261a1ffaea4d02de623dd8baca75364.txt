@@ -1,0 +1,48 @@
+📥 Request URL: http://192.168.29.200:4000/api/auth/admin/login
+Login error: Error: read ECONNRESET
+    at PromisePool.query (C:\Users\Admin\Downloads\SATZ\Github\akc-pay-backend\node_modules\mysql2\lib\promise\pool.js:36:22)
+    at C:\Users\Admin\Downloads\SATZ\Github\akc-pay-backend\routes\auth_admin.js:171:31
+    at Layer.handleRequest (C:\Users\Admin\Downloads\SATZ\Github\akc-pay-backend\node_modules\router\lib\layer.js:152:17)
+    at next (C:\Users\Admin\Downloads\SATZ\Github\akc-pay-backend\node_modules\router\lib\route.js:157:13)
+    at middleware (C:\Users\Admin\Downloads\SATZ\Github\akc-pay-backend\node_modules\express-validator\lib\middlewares\check.js:16:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  code: 'ECONNRESET',
+  errno: -4077,
+  sql: undefined,
+  sqlState: undefined,
+  sqlMessage: undefined
+}
+
+
+
+    const decryptedId = decrypt(id); // Decrypt the ID if it was encrypted
+
+    const vendor = await User.findOne({ where: { id: decryptedId, types: 2 } });
+    if (!vendor)
+      return res
+        .status(404)
+        .json({ success: false, message: "Vendor not found" });
+
+    if (!vendor) {
+      return res.status(404).json({ success: false, message: "Vendor not found" });
+    }
+
+    // I want to update all employees of vendor or parent
+    
+ 
+
+    // Validate profile image
+    if (!profile || typeof profile !== "string" || !/^https?:\/\//i.test(profile)) {
+      profile = vendor.profile || process.env.DEFAULT_CLOUD_USER_IMSGE; // Use vendor profile or default image
+    }
+
+
+      const childVendor = await User.findOne({ where: { parent_id: decryptedId, types: 3 } });
+      if (childVendor) {
+        await childVendor.update({ profile });        
+      }   
+
+
+image
+name
+Profiledetails
