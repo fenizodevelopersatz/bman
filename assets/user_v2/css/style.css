@@ -853,3 +853,66 @@
   transform: translateY(-1px);
   transition: .15s;
 }
+
+/* =====================================================================
+   DARK THEME for the member dashboard.
+   Activates when the sun/moon toggle sets <html data-bs-theme="dark">.
+   Overrides the :root variables + the hardcoded #fff surfaces.
+   ===================================================================== */
+html[data-bs-theme="dark"]{
+  --bg-page:#0f1115;
+  --bg-app:#15171c;
+  --bg-card:#1b1e24;
+  --text-main:#e8eaed;
+  --text-muted:#9aa1ac;
+  --line:#2a2e36;
+  --shadow:0 18px 50px rgba(0,0,0,.5);
+  --shadow-soft:0 2px 10px rgba(0,0,0,.35);
+}
+html[data-bs-theme="dark"] body{ background:var(--bg-page) !important; color:var(--text-main); }
+html[data-bs-theme="dark"] .main-content{ background:var(--bg-page); }
+
+/* white card surfaces -> dark */
+html[data-bs-theme="dark"] .sidebar,
+html[data-bs-theme="dark"] .right-panel,
+html[data-bs-theme="dark"] .kpi-card,
+html[data-bs-theme="dark"] .panel,
+html[data-bs-theme="dark"] .mini,
+html[data-bs-theme="dark"] .list,
+html[data-bs-theme="dark"] .rp-card,
+html[data-bs-theme="dark"] .qa,
+html[data-bs-theme="dark"] .small-k,
+html[data-bs-theme="dark"] .fin-chart-card{
+  background:var(--bg-card) !important;
+  border-color:var(--line) !important;
+  color:var(--text-main);
+}
+
+/* elevated controls (search, header buttons, user pill) */
+html[data-bs-theme="dark"] .search-box,
+html[data-bs-theme="dark"] .action-btn,
+html[data-bs-theme="dark"] .user-pill{
+  background:#22262e !important;
+  border-color:var(--line) !important;
+  color:var(--text-main);
+}
+html[data-bs-theme="dark"] .search-box input{ color:var(--text-main); }
+html[data-bs-theme="dark"] .search-box input::placeholder{ color:var(--text-muted); }
+
+/* headings + muted text */
+html[data-bs-theme="dark"] h1,
+html[data-bs-theme="dark"] h2,
+html[data-bs-theme="dark"] h3,
+html[data-bs-theme="dark"] h4,
+html[data-bs-theme="dark"] .rp-title h4,
+html[data-bs-theme="dark"] .fin-chart-head h3{ color:var(--text-main); }
+html[data-bs-theme="dark"] .muted,
+html[data-bs-theme="dark"] small,
+html[data-bs-theme="dark"] .fin-chart-head small{ color:var(--text-muted); }
+
+/* rings / circles that hardcode white */
+html[data-bs-theme="dark"] .stat-circle::after,
+html[data-bs-theme="dark"] .ring-inner{ background:var(--bg-card) !important; }
+
+/* finance-chart filter pill track */
+html[data-bs-theme="dark"] .fin-filter{ background:#22262e; }

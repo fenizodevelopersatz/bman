@@ -59,6 +59,11 @@ if (!function_exists('mp_hex_rgb')) {
 ?>
 <style id="member-theme-vars">
     :root{
+        /* drive the dashboard's own accent so the palette controls the
+           announcement banner, active sidebar, Create Ticket button, charts,
+           progress rings, badges and links */
+        --primary: <?php echo $mp['primary']; ?>;
+        --primary-dark: <?php echo $mp['hover_highlight']; ?>;
         --mp-primary: <?php echo $mp['primary']; ?>;
         --mp-secondary: <?php echo $mp['secondary']; ?>;
         --mp-accent: <?php echo $mp['accent']; ?>;

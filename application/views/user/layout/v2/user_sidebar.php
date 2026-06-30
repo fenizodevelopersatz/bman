@@ -37,11 +37,11 @@ $isSettings = ($uri === 'user/view-profile' || $uri === 'user/edit-profile');
         <a href="<?php echo base_url('user/withdraw'); ?>" class="nav-item <?php echo $isPayouts ? 'active' : ''; ?>"><i
                 class="ph ph-calendar-check"></i> Payouts</a>
 
-        <span class="nav-label">E-Commerce</span>
+        <!-- <span class="nav-label">E-Commerce</span>
         <a href="<?php echo base_url('user/myorders'); ?>" class="nav-item <?php echo $isOrders ? 'active' : ''; ?>"><i
                 class="ph ph-bag"></i> Orders</a>
         <a href="<?php echo base_url('user/shop-list'); ?>" class="nav-item <?php echo $isShop ? 'active' : ''; ?>"><i
-                class="ph ph-storefront"></i> Shop</a>
+                class="ph ph-storefront"></i> Shop</a> -->
 
         <span class="nav-label">Team</span>
         <a href="<?php echo base_url('user/referrals'); ?>"
