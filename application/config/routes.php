@@ -654,3 +654,19 @@ $route['user/payouts/request'] = 'user/payouts/request';
 $route['GlobalVerify/status'] = 'GlobalVerify/status';
 $route['GlobalVerify/start'] = 'GlobalVerify/start';
 $route['GlobalVerify/verify'] = 'GlobalVerify/verify';
+
+/**************** Dynamic Landing Page ****************/
+// public
+$route['landing'] = 'Landing';
+
+// admin — Content Management -> Landing Page Settings
+$route['landing-page-cms'] = 'admin/cms/Landingpage';
+$route['landing-save-section'] = 'admin/cms/Landingpage/save_section';
+$route['landing-item-save/(:any)'] = 'admin/cms/Landingpage/item_save/$1';
+$route['landing-item-delete/(:any)/(:num)'] = 'admin/cms/Landingpage/item_delete/$1/$2';
+$route['landing-item-status/(:any)/(:num)'] = 'admin/cms/Landingpage/item_status/$1/$2';
+$route['landing-item-reorder/(:any)'] = 'admin/cms/Landingpage/item_reorder/$1';
+$route['landing-export'] = 'admin/cms/Landingpage/export';
+$route['landing-import'] = 'admin/cms/Landingpage/import';
+$route['landing-save-version'] = 'admin/cms/Landingpage/save_version';
+$route['landing-restore-version/(:num)'] = 'admin/cms/Landingpage/restore_version/$1';

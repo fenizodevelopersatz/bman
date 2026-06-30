@@ -214,6 +214,13 @@ $logo_info = site_settings('image', 'logo');
                 </a>
               </div>
 
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>landing-page-cms">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Landing Page Settings</span>
+                </a>
+              </div>
+
             </div>
           </div>
 

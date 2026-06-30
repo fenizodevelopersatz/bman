@@ -1,0 +1,36 @@
+@font-face {
+  font-family: 'Parkinsans';
+  font-style: normal;
+  font-weight: 300;
+  src: url(https://fonts.gstatic.com/s/parkinsans/v3/-W_uXJXvQyPb1QfpBpRrVEgjj0W4zSUk4gSI6R8K.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Parkinsans';
+  font-style: normal;
+  font-weight: 400;
+  src: url(https://fonts.gstatic.com/s/parkinsans/v3/-W_uXJXvQyPb1QfpBpRrVEgjj0W4zSUk4gTW6R8K.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Parkinsans';
+  font-style: normal;
+  font-weight: 500;
+  src: url(https://fonts.gstatic.com/s/parkinsans/v3/-W_uXJXvQyPb1QfpBpRrVEgjj0W4zSUk4gTk6R8K.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Parkinsans';
+  font-style: normal;
+  font-weight: 600;
+  src: url(https://fonts.gstatic.com/s/parkinsans/v3/-W_uXJXvQyPb1QfpBpRrVEgjj0W4zSUk4gQI7h8K.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Parkinsans';
+  font-style: normal;
+  font-weight: 700;
+  src: url(https://fonts.gstatic.com/s/parkinsans/v3/-W_uXJXvQyPb1QfpBpRrVEgjj0W4zSUk4gQx7h8K.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Parkinsans';
+  font-style: normal;
+  font-weight: 800;
+  src: url(https://fonts.gstatic.com/s/parkinsans/v3/-W_uXJXvQyPb1QfpBpRrVEgjj0W4zSUk4gRW7h8K.ttf) format('truetype');
+}
