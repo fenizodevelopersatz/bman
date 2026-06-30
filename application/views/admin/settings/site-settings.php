@@ -517,6 +517,19 @@
                                                             </div>
                                                         </div>
 
+                                                        <div class="row mb-6">
+                                                            <label class="col-lg-4 col-form-label fw-semibold fs-6">
+                                                                Copyright Text </label>
+                                                            <div class="col-lg-8 fv-row">
+                                                                <input type="text"
+                                                                    class="form-control form-control-lg form-control-solid"
+                                                                    name="site_copyright"
+                                                                    value="<?php echo isset($site_copyright) ? html_escape($site_copyright) : ''; ?>"
+                                                                    placeholder="Copyright &amp; design by @ThemeAdapt - 2026">
+                                                                <div class="form-text">Shown in the footer of the landing / home page.</div>
+                                                            </div>
+                                                        </div>
+
                                                     </div>
                                                     <div class="card-footer d-flex justify-content-end py-6 px-9">
                                                         <button type="submit" class="btn btn-primary"

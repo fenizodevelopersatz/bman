@@ -52,7 +52,9 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 $route['404_override'] = '';
 $route['translate_uri_dashes'] = FALSE;
-$route['default_controller'] = 'welcome';
+// Home / index page now renders the dynamic landing page.
+// The previous shop home is preserved at /welcome and /shop-home (backup).
+$route['default_controller'] = 'Landing';
 
 
 /****************** ADMIN ROUTES ********/
@@ -656,8 +658,12 @@ $route['GlobalVerify/start'] = 'GlobalVerify/start';
 $route['GlobalVerify/verify'] = 'GlobalVerify/verify';
 
 /**************** Dynamic Landing Page ****************/
-// public
+// public — '/' (default_controller) and '/landing' both render the landing page
 $route['landing'] = 'Landing';
+$route['landing/early-access'] = 'Landing/early_access';   // hero email -> SMTP
+$route['home'] = 'Landing';
+// backup alias for the previous shop/e-commerce home page
+$route['shop-home'] = 'Welcome';
 
 // admin — Content Management -> Landing Page Settings
 $route['landing-page-cms'] = 'admin/cms/Landingpage';

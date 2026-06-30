@@ -47,6 +47,8 @@ class Sitesettings extends MY_Controller
         $this->data['contact_number'] = site_settings('company', 'contact_number');
         $this->data['company_address'] = site_settings('company', 'address');
 
+        $this->data['site_copyright'] = site_settings('meta-settings', 'copyright');
+
         $this->data['landing_status'] = site_settings('site_settings', 'landing_status');
         $this->data['kyc_status'] = site_settings('site_settings', 'kyc_status');
         $this->data['email_verify'] = site_settings('site_settings', 'email_verify');
@@ -192,6 +194,7 @@ class Sitesettings extends MY_Controller
         $site_title = $this->input->post('site_title', true);
         $site_metakeyword = $this->input->post('meta_keyword', true);
         $site_metadescription = $this->input->post('meta_discription', true);
+        $site_copyright = $this->input->post('site_copyright', true);
 
 
         $this->site_settings_update('meta-settings', 'site-title', $site_title);
@@ -199,6 +202,15 @@ class Sitesettings extends MY_Controller
         $this->site_settings_update('meta-settings', 'site-keyword', $site_metakeyword);
         $this->site_settings_update('meta-settings', 'site-description', $site_metadescription);
         $this->site_settings_update('meta-settings', 'site-name', $site_name);
+        $this->site_settings_update('meta-settings', 'copyright', $site_copyright);
+
+        // unified meta — mirror into the landing SEO section so the landing
+        // page and Site Settings always show the same meta details.
+        $this->landing_seo_mirror(array(
+            'meta_title'       => $site_title,
+            'meta_description' => $site_metadescription,
+            'meta_keywords'    => $site_metakeyword,
+        ));
 
         echo json_encode([
             'status' => true,
@@ -215,6 +227,28 @@ class Sitesettings extends MY_Controller
 
         if (!$update) {
             log_message('error', 'Failed to update setting: ' . $key);
+        }
+    }
+
+    /** Mirror meta into the landing SEO section (landing_settings). Upsert. */
+    private function landing_seo_mirror(array $fields)
+    {
+        // skip silently if the landing module isn't installed yet
+        if (!$this->db->table_exists('landing_settings')) {
+            return;
+        }
+        foreach ($fields as $key => $value) {
+            $exists = $this->db->get_where('landing_settings',
+                array('section' => 'seo', 'skey' => $key))->row();
+            if ($exists) {
+                $this->db->where('id', $exists->id)
+                         ->update('landing_settings', array('svalue' => $value, 'update_date' => date('Y-m-d H:i:s')));
+            } else {
+                $this->db->insert('landing_settings', array(
+                    'section' => 'seo', 'skey' => $key, 'svalue' => $value,
+                    'update_date' => date('Y-m-d H:i:s'),
+                ));
+            }
         }
     }
 

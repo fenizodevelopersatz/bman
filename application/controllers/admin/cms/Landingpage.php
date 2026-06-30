@@ -14,9 +14,9 @@ class Landingpage extends CI_Controller
 {
     /** Allowed singleton sections (whitelist => allowed keys) */
     private $sections = array(
-        'general'  => array('site_name','logo','logo_dark','favicon','primary_color','secondary_color','button_color','background_color','font_family','enable_preloader','enable_dark_mode','copyright','footer_text'),
+        'general'  => array('site_name','logo','logo_dark','favicon','theme_mode','primary_color','secondary_color','button_color','button_hover_color','background_color','font_family','enable_preloader','enable_dark_mode','copyright','footer_text'),
         'header'   => array('logo','mobile_logo','buy_btn_text','buy_btn_url','sticky_header','transparent_header'),
-        'hero'     => array('small_title','main_title','highlight_text','description','email_placeholder','button_text','button_link','bottom_text','bottom_link_text','bottom_link','bg_image','hero_img1','hero_img2','hero_img3'),
+        'hero'     => array('small_title','main_title','highlight_text','description','email_placeholder','button_text','button_link','bottom_text','bottom_link_text','bottom_link','success_message','bg_image','hero_img1','hero_img2','hero_img3'),
         'features' => array('sub_title','title','highlight'),
         'marquee'  => array('text','speed','repeat','enable'),
         'token'    => array('sub_title','title','highlight','description','button_text','button_link','countdown_date','received_text','contribution_amount','min_goal','max_goal','wallet_address','progress_percentage'),
@@ -69,6 +69,19 @@ class Landingpage extends CI_Controller
         foreach ($this->sections as $s => $keys) {
             $this->data[$s] = $this->Landing_model->get_section($s);
         }
+
+        // item 4: SEO is shared with global Site Settings meta — prefill any
+        // empty landing SEO field from site_settings so both stay in sync.
+        $seo_defaults = array(
+            'meta_title'       => site_settings('meta-settings', 'site-title'),
+            'meta_description' => site_settings('meta-settings', 'site-description'),
+            'meta_keywords'    => site_settings('meta-settings', 'site-keyword'),
+        );
+        foreach ($seo_defaults as $k => $v) {
+            if (empty($this->data['seo'][$k]) && $v !== '') {
+                $this->data['seo'][$k] = $v;
+            }
+        }
         // repeaters
         foreach ($this->Landing_model->repeaters as $key => $table) {
             $this->data['rep_' . $key] = $this->Landing_model->items($key);
@@ -116,6 +129,24 @@ class Landingpage extends CI_Controller
         }
 
         $this->Landing_model->save_section($section, $fields);
+
+        // item: unified meta — mirror SEO into global Site Settings so both
+        // places stay identical and the landing page uses one source.
+        if ($section === 'seo') {
+            $map = array(
+                'meta_title'       => 'site-title',
+                'meta_description' => 'site-description',
+                'meta_keywords'   => 'site-keyword',
+            );
+            foreach ($map as $lkey => $skey) {
+                if (isset($fields[$lkey])) {
+                    $this->db->where('settings_type', 'meta-settings')
+                             ->where('settings_name', $skey)
+                             ->update('site_settings', array('settings_value' => $fields[$lkey]));
+                }
+            }
+        }
+
         return $this->json(true, ucfirst($section) . ' settings saved');
     }
 

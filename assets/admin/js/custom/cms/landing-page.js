@@ -9,9 +9,15 @@
             Swal.fire({ icon: ok ? "success" : "error", title: msg, timer: ok ? 1600 : 3000, showConfirmButton: !ok });
         } else { alert(msg); }
     }
+    var previewTheme = "light";
+    function previewUrl() {
+        return BASE + "landing?theme=" + previewTheme + "&t=" + Date.now();
+    }
     function refreshPreview() {
         var f = document.getElementById("lpPreview");
-        if (f) f.src = f.src.split("#")[0] + "?t=" + Date.now();
+        if (f) f.src = previewUrl();
+        var nt = document.querySelector(".lp-newtab");
+        if (nt) nt.href = BASE + "landing?theme=" + previewTheme;
     }
     function post(url, formData) {
         return fetch(url, { method: "POST", body: formData, headers: { "X-Requested-With": "XMLHttpRequest" } })
@@ -31,6 +37,16 @@
                 if (res.status) refreshPreview();
             }).catch(function () { notify(false, "Request failed"); })
               .finally(function () { btn.disabled = false; });
+        });
+    });
+
+    /* ---------- color palette pickers <-> hex/rgba text ---------- */
+    document.querySelectorAll(".lp-color-pick").forEach(function (pick) {
+        var text = pick.parentElement.querySelector(".lp-color-text");
+        if (!text) return;
+        pick.addEventListener("input", function () { text.value = pick.value; });
+        text.addEventListener("input", function () {
+            if (/^#[0-9a-fA-F]{6}$/.test(text.value.trim())) pick.value = text.value.trim();
         });
     });
 
@@ -147,6 +163,19 @@
     });
     var rf = document.querySelector(".lp-refresh");
     if (rf) rf.addEventListener("click", refreshPreview);
+
+    /* ---------- preview light / dark ---------- */
+    document.querySelectorAll(".lp-theme").forEach(function (b) {
+        b.addEventListener("click", function () {
+            document.querySelectorAll(".lp-theme").forEach(function (x) { x.classList.remove("active"); });
+            b.classList.add("active");
+            previewTheme = b.dataset.theme;
+            refreshPreview();
+        });
+    });
+    // initialise the new-tab link
+    var nt0 = document.querySelector(".lp-newtab");
+    if (nt0) nt0.href = BASE + "landing?theme=" + previewTheme;
 
     /* ---------- import ---------- */
     var impBtn = document.getElementById("lpImportBtn");

@@ -27,6 +27,16 @@
         echo '<div class="col-md-6 mb-5"><label class="form-label fw-semibold fs-7">'.$label.'</label>'
             .'<input type="text" name="'.$key.'" class="form-control form-control-solid" value="'.$v.'" placeholder="'.$ph.'"></div>';
     }
+    // color picker + hex/rgba text (palette)
+    function lp_color($label, $section, $key, $data, $default = '#7857FE') {
+        $v = isset($data[$key]) ? htmlspecialchars($data[$key]) : '';
+        $hex = preg_match('/^#[0-9a-fA-F]{6}$/', $v) ? $v : $default;
+        echo '<div class="col-md-6 mb-5"><label class="form-label fw-semibold fs-7">'.$label.'</label>'
+            .'<div class="input-group">'
+            .'<input type="color" class="form-control form-control-color lp-color-pick" value="'.$hex.'" title="Pick color" style="max-width:52px">'
+            .'<input type="text" name="'.$key.'" class="form-control form-control-solid lp-color-text" value="'.$v.'" placeholder="'.$default.' or rgba(...)">'
+            .'</div></div>';
+    }
     // textarea row
     function lp_area($label, $section, $key, $data, $rows = 3) {
         $v = isset($data[$key]) ? htmlspecialchars($data[$key]) : '';
@@ -110,13 +120,25 @@
                                                 <?php
                                                 lp_text('Website Name','general','site_name',$general);
                                                 lp_text('Font Family','general','font_family',$general,'Inter');
+                                                ?>
+                                                <div class="col-md-6 mb-5">
+                                                    <label class="form-label fw-semibold fs-7">Theme Mode</label>
+                                                    <?php $tm = isset($general['theme_mode']) ? $general['theme_mode'] : 'light'; ?>
+                                                    <select name="theme_mode" class="form-select form-select-solid">
+                                                        <option value="light" <?php echo $tm === 'light' ? 'selected' : ''; ?>>Light</option>
+                                                        <option value="dark" <?php echo $tm === 'dark' ? 'selected' : ''; ?>>Dark</option>
+                                                    </select>
+                                                    <div class="text-muted fs-8 mt-1">Default theme of the public landing page. Visitors can still toggle.</div>
+                                                </div>
+                                                <?php
                                                 lp_image('Logo','logo',$general,$base);
                                                 lp_image('Logo (Dark)','logo_dark',$general,$base);
                                                 lp_image('Favicon','favicon',$general,$base);
-                                                lp_text('Primary Color','general','primary_color',$general,'#7857FE');
-                                                lp_text('Secondary Color','general','secondary_color',$general);
-                                                lp_text('Button Color','general','button_color',$general);
-                                                lp_text('Background Color','general','background_color',$general);
+                                                lp_color('Primary Color','general','primary_color',$general,'#7857FE');
+                                                lp_color('Secondary Color','general','secondary_color',$general,'#0B0B23');
+                                                lp_color('Button Color','general','button_color',$general,'#7857FE');
+                                                lp_color('Button Hover Color','general','button_hover_color',$general,'#5a3df0');
+                                                lp_color('Background Color','general','background_color',$general,'#0B0B23');
                                                 lp_switch('Enable Preloader','enable_preloader',$general);
                                                 lp_switch('Enable Dark Mode','enable_dark_mode',$general);
                                                 lp_text('Copyright','general','copyright',$general);
@@ -153,6 +175,7 @@
                                                 lp_text('Bottom Text','hero','bottom_text',$hero);
                                                 lp_text('Bottom Link Text','hero','bottom_link_text',$hero);
                                                 lp_text('Bottom Link URL','hero','bottom_link',$hero);
+                                                lp_text('Form Success Message','hero','success_message',$hero,'Thank you! We will be in touch soon.');
                                                 lp_image('Background Image','bg_image',$hero,$base);
                                                 lp_image('Hero Image 1','hero_img1',$hero,$base);
                                                 lp_image('Hero Image 2','hero_img2',$hero,$base);
@@ -338,11 +361,18 @@
                                             <div class="card-header pt-5">
                                                 <h3 class="card-title fw-bold">Live Preview</h3>
                                                 <div class="card-toolbar">
-                                                    <div class="btn-group" role="group">
+                                                    <div class="btn-group me-2" role="group">
                                                         <button class="btn btn-sm btn-light-primary active lp-device" data-device="desktop"><i class="fa fa-desktop"></i></button>
                                                         <button class="btn btn-sm btn-light-primary lp-device" data-device="tablet"><i class="fa fa-tablet-alt"></i></button>
                                                         <button class="btn btn-sm btn-light-primary lp-device" data-device="mobile"><i class="fa fa-mobile-alt"></i></button>
-                                                        <button class="btn btn-sm btn-light-success lp-refresh"><i class="fa fa-sync"></i></button>
+                                                    </div>
+                                                    <div class="btn-group me-2" role="group">
+                                                        <button class="btn btn-sm btn-light-warning active lp-theme" data-theme="light"><i class="fa fa-sun"></i></button>
+                                                        <button class="btn btn-sm btn-light-dark lp-theme" data-theme="dark"><i class="fa fa-moon"></i></button>
+                                                    </div>
+                                                    <div class="btn-group" role="group">
+                                                        <button class="btn btn-sm btn-light-success lp-refresh" title="Refresh"><i class="fa fa-sync"></i></button>
+                                                        <a class="btn btn-sm btn-light-info lp-newtab" target="_blank" title="Open in new tab"><i class="fa fa-external-link-alt"></i></a>
                                                     </div>
                                                 </div>
                                             </div>

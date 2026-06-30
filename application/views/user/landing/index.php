@@ -2,16 +2,30 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 /* dynamic landing page — Webze template, content from landing_* tables */
 $a = function ($p) { return lp_asset($p); };              // asset url
+/* shared meta: landing SEO falls back to the global Site Settings meta
+   so the home page and Site Settings stay in sync (single source of truth) */
+$site_meta_title = site_settings('meta-settings', 'site-title');
+$site_meta_desc  = site_settings('meta-settings', 'site-description');
+$site_meta_keys  = site_settings('meta-settings', 'site-keyword');
+$site_copyright  = site_settings('meta-settings', 'copyright');
+
+/* Theme mode (light|dark). Admin default from General settings; the admin
+   live-preview can force it with ?theme=light|dark. The template ships a full
+   light theme under html[data-theme="light"]. */
+$theme_mode = lp($general, 'theme_mode', 'light');
+$theme_force = $this->input->get('theme');
+$theme_force = ($theme_force === 'light' || $theme_force === 'dark') ? $theme_force : '';
+if ($theme_force) { $theme_mode = $theme_force; }
 ?>
 <!doctype html>
-<html class="no-js" lang="en">
+<html class="no-js" lang="en" data-theme="<?php echo $theme_mode; ?>">
 
 <head>
     <meta charset="utf-8">
     <meta http-equiv="x-ua-compatible" content="ie=edge">
-    <title><?php echo html_escape(lp($seo, 'meta_title', lp($general, 'site_name', 'Webze'))); ?></title>
-    <meta name="description" content="<?php echo html_escape(lp($seo, 'meta_description')); ?>">
-    <meta name="keywords" content="<?php echo html_escape(lp($seo, 'meta_keywords')); ?>">
+    <title><?php echo html_escape(lp($seo, 'meta_title', $site_meta_title ?: lp($general, 'site_name', 'Webze'))); ?></title>
+    <meta name="description" content="<?php echo html_escape(lp($seo, 'meta_description', $site_meta_desc)); ?>">
+    <meta name="keywords" content="<?php echo html_escape(lp($seo, 'meta_keywords', $site_meta_keys)); ?>">
     <meta name="robots" content="<?php echo html_escape(lp($seo, 'robots', 'index, follow')); ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <?php if (lp($seo, 'canonical')): ?><link rel="canonical" href="<?php echo html_escape(lp($seo, 'canonical')); ?>"><?php endif; ?>
@@ -34,14 +48,30 @@ $a = function ($p) { return lp_asset($p); };              // asset url
     <link rel="stylesheet" href="<?php echo base_url('assets/css/aos.css'); ?>">
     <link rel="stylesheet" href="<?php echo base_url('assets/css/main.css'); ?>">
 
-    <!-- dynamic theme colors -->
+    <!-- dynamic theme colors (palette-driven, mapped to the template's --tg vars) -->
+    <?php
+    $c_primary = lp($general, 'primary_color');           // e.g. #FFC94A
+    $c_second  = lp($general, 'secondary_color');          // e.g. #6D4AFF
+    $c_bg      = lp($general, 'background_color');          // light: page bg
+    $c_btnhov  = lp($general, 'button_hover_color');
+    $c_font    = lp($general, 'font_family');
+    ?>
     <style>
         :root{
-            --tg-theme-primary: <?php echo html_escape(lp($general, 'primary_color', '#7857FE')); ?>;
-            --tg-theme-secondary: <?php echo html_escape(lp($general, 'secondary_color', '#0B0B23')); ?>;
+            <?php if ($c_primary): ?>--tg-primary-color: <?php echo html_escape($c_primary); ?>;<?php endif; ?>
         }
+        <?php if ($c_font): ?>body{ font-family: "<?php echo html_escape($c_font); ?>", sans-serif; }<?php endif; ?>
+        <?php /* override the template's light-theme page bg with the admin colour (does NOT touch dark mode) */ ?>
+        <?php if ($c_bg): ?>html[data-theme="light"]{ --tg-color-dark: <?php echo html_escape($c_bg); ?>; }<?php endif; ?>
+        <?php if ($c_btnhov): ?>.tg-btn:hover, .tg-btn-two:hover, .header-btn .tg-btn:hover{ background-color: <?php echo html_escape($c_btnhov); ?> !important; border-color: <?php echo html_escape($c_btnhov); ?> !important; }<?php endif; ?>
+        .lp-form-msg{ display:block; margin-top:10px; font-weight:500; }
+        .lp-form-msg.ok{ color:#1bc5bd; } .lp-form-msg.err{ color:#f64e60; }
         <?php echo lp($scripts, 'custom_css'); ?>
     </style>
+    <!-- make the admin-configured theme authoritative on load so a stale
+         localStorage value can't keep the page dark (visitor toggle still works
+         live within the session) -->
+    <script>try{ localStorage.setItem('site-theme', '<?php echo $theme_mode; ?>'); }catch(e){}</script>
     <script src="<?php echo base_url('assets/js/theme.js'); ?>"></script>
 
     <?php echo lp($scripts, 'header_scripts'); ?>
@@ -121,11 +151,12 @@ $a = function ($p) { return lp_asset($p); };              // asset url
                             <span class="sub-title wow fadeInUp" data-wow-delay=".2s"><?php echo html_escape(lp($hero, 'small_title')); ?></span>
                             <h2 class="title wow fadeInUp" data-wow-delay=".4s"><?php echo lp_hl(lp($hero, 'main_title'), lp($hero, 'highlight_text')); ?></h2>
                             <p class="wow fadeInUp" data-wow-delay=".6s"><?php echo html_escape(lp($hero, 'description')); ?></p>
-                            <form action="<?php echo html_escape(lp($hero, 'button_link', '#')); ?>" class="banner__form wow fadeInUp" data-wow-delay=".8s">
+                            <form action="<?php echo base_url('landing/early-access'); ?>" method="post" id="lpEarlyAccess" class="banner__form wow fadeInUp" data-wow-delay=".8s">
                                 <label for="email"><img src="<?php echo base_url('assets/img/icon/envelope.svg'); ?>" alt=""></label>
-                                <input type="email" id="email" placeholder="<?php echo html_escape(lp($hero, 'email_placeholder', 'Business email')); ?>" required>
+                                <input type="email" id="email" name="email" placeholder="<?php echo html_escape(lp($hero, 'email_placeholder', 'Business email')); ?>" required>
                                 <button type="submit" class="tg-btn"><?php echo html_escape(lp($hero, 'button_text', 'get early access')); ?></button>
                             </form>
+                            <span class="lp-form-msg" id="lpEarlyAccessMsg"></span>
                             <span class="banner__content-bottom wow fadeInUp" data-wow-delay=".8s"><?php echo html_escape(lp($hero, 'bottom_text')); ?> <a href="<?php echo html_escape(lp($hero, 'bottom_link', '#')); ?>"><?php echo html_escape(lp($hero, 'bottom_link_text')); ?></a></span>
                         </div>
                     </div>
@@ -488,7 +519,8 @@ $a = function ($p) { return lp_asset($p); };              // asset url
                 </div></div>
             </div>
             <div class="footer__bottom">
-                <div class="copyright-text"><p><?php echo html_escape(lp($footer, 'copyright', lp($general, 'copyright'))); ?></p></div>
+                <?php $home_copyright = $site_copyright ?: lp($footer, 'copyright', lp($general, 'copyright', 'Copyright &amp; design by @ThemeAdapt - 2026')); ?>
+                <div class="copyright-text"><p><?php echo html_escape($home_copyright); ?></p></div>
             </div>
         </div>
         <div class="footer__shape">
@@ -510,6 +542,32 @@ $a = function ($p) { return lp_asset($p); };              // asset url
     <script src="<?php echo base_url('assets/js/wow.min.js'); ?>"></script>
     <script src="<?php echo base_url('assets/js/aos.js'); ?>"></script>
     <script src="<?php echo base_url('assets/js/main.js'); ?>"></script>
+
+    <!-- early-access form -> SMTP (Landing::early_access) -->
+    <script>
+    (function () {
+        var f = document.getElementById('lpEarlyAccess');
+        if (!f) return;
+        var msg = document.getElementById('lpEarlyAccessMsg');
+        f.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var btn = f.querySelector('button[type=submit]');
+            var original = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = 'Sending...';
+            msg.className = 'lp-form-msg';
+            var data = new FormData(f);
+            fetch(f.action, { method: 'POST', body: data, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    msg.textContent = res.message;
+                    msg.className = 'lp-form-msg ' + (res.status ? 'ok' : 'err');
+                    if (res.status) { f.reset(); if (res.redirect) { window.location.href = res.redirect; } }
+                })
+                .catch(function () { msg.textContent = 'Something went wrong. Please try again.'; msg.className = 'lp-form-msg err'; })
+                .finally(function () { btn.disabled = false; btn.innerHTML = original; });
+        });
+    })();
+    </script>
 
     <?php echo lp($scripts, 'custom_js'); ?>
     <?php echo lp($scripts, 'footer_scripts'); ?>

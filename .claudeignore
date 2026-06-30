@@ -1,0 +1,38 @@
+# Node.js
+**/node_modules/**
+**/dist/**
+**/build/**
+**/coverage/**
+**/.next/**
+**/.cache/**
+
+# Flutter
+**/.dart_tool/**
+**/build/**
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+
+# Git
+.git/
+
+# Logs
+**/*.log
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+pubspec.lock
+
+# Temporary files
+**/tmp/**
+**/.tmp/**
+
+# IDE
+.vscode/
+.idea/
+
+# Documentation (optional)
+docs/
+IMPLEMENTATION_SUMMARY.md
+hoppr_tmp/
