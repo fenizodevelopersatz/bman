@@ -302,8 +302,9 @@ class Landingpage extends CI_Controller
     private function valid_url_or_path($v)
     {
         if (preg_match('#^(https?:)?//#', $v)) return filter_var($v, FILTER_VALIDATE_URL) !== false || strpos($v, '//') === 0;
-        // relative path / anchor allowed
-        return (bool)preg_match('#^[a-zA-Z0-9_\-./#?=&%]+$#', $v);
+        // relative path / anchor allowed (use ~ delimiter so the literal # in
+        // the class doesn't terminate the pattern)
+        return (bool)preg_match('~^[a-zA-Z0-9_\-./#?=&%]+$~', $v);
     }
 
     private function json($status, $message, $extra = array())
