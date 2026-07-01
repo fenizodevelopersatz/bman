@@ -20,7 +20,7 @@ $isSettings = ($uri === 'user/view-profile' || $uri === 'user/edit-profile');
 <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
 <aside class="sidebar" style="overflow:auto">
-    <div class="logo"><i class="ph-fill ph-sparkle"></i> Fenizo MLM </div>
+    <div class="logo"><i class="ph-fill ph-sparkle"></i> NEXMAN </div>
     <nav>
         <span class="nav-label">Overview</span>
         <a href="<?php echo base_url('user/main'); ?>" class="nav-item <?php echo $isDashboard ? 'active' : ''; ?>"><i
