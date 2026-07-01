@@ -161,29 +161,29 @@ $logo = site_settings('image', 'logo');
                                             <div class="otp-container">
                                                 <div class="d-flex flex-wrap flex-stack">
                                                     <input type="text" name="twofa_code_1"
-                                                        data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1"
+                                                        maxlength="1"
                                                         class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code"
-                                                        value="" inputmode="text">
+                                                        value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
                                                     <input type="text" name="twofa_code_2"
-                                                        data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1"
+                                                        maxlength="1"
                                                         class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code"
-                                                        value="" inputmode="text">
+                                                        value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
                                                     <input type="text" name="twofa_code_3"
-                                                        data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1"
+                                                        maxlength="1"
                                                         class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code"
-                                                        value="" inputmode="text">
+                                                        value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
                                                     <input type="text" name="twofa_code_4"
-                                                        data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1"
+                                                        maxlength="1"
                                                         class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code"
-                                                        value="" inputmode="text">
+                                                        value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
                                                     <input type="text" name="twofa_code_5"
-                                                        data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1"
+                                                        maxlength="1"
                                                         class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code"
-                                                        value="" inputmode="text">
+                                                        value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
                                                     <input type="text" name="twofa_code_6"
-                                                        data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1"
+                                                        maxlength="1"
                                                         class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code"
-                                                        value="" inputmode="text">
+                                                        value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
                                                 </div>
                                                 <span class="otp-loader d-none">⏳ Verifying...</span>
                                                 <p class="otp-message"></p>
@@ -199,29 +199,29 @@ $logo = site_settings('image', 'logo');
                                             <div class="otp-container">
                                                 <div class="d-flex flex-wrap flex-stack">
                                                     <input type="text" name="email_code_1"
-                                                        data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1"
+                                                        maxlength="1"
                                                         class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code"
-                                                        value="" inputmode="text">
+                                                        value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
                                                     <input type="text" name="email_code_2"
-                                                        data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1"
+                                                        maxlength="1"
                                                         class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code"
-                                                        value="" inputmode="text">
+                                                        value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
                                                     <input type="text" name="email_code_3"
-                                                        data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1"
+                                                        maxlength="1"
                                                         class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code"
-                                                        value="" inputmode="text">
+                                                        value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
                                                     <input type="text" name="email_code_4"
-                                                        data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1"
+                                                        maxlength="1"
                                                         class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code"
-                                                        value="" inputmode="text">
+                                                        value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
                                                     <input type="text" name="email_code_5"
-                                                        data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1"
+                                                        maxlength="1"
                                                         class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code"
-                                                        value="" inputmode="text">
+                                                        value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
                                                     <input type="text" name="email_code_6"
-                                                        data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1"
+                                                        maxlength="1"
                                                         class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code"
-                                                        value="" inputmode="text">
+                                                        value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
                                                 </div>
                                                 <span class="otp-loader d-none">⏳ Verifying...</span>
                                                 <p class="otp-message"></p>

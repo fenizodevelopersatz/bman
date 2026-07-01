@@ -20,10 +20,11 @@
     .lpx-form-inner{ width:100%; max-width:430px; }
     .lpx-brand-side{ flex:1 1 0; min-width:0; position:relative; display:flex; align-items:center; justify-content:center;
         min-height:620px; border-radius:24px; padding:48px;
-        background:linear-gradient(150deg, #FFC94A 0%, #2b2640 45%, #14141f 100%);
+        /* NEW: driven by Admin -> Member Panel Theme (Gradient Start / Gradient End) */
+        background: var(--mp-gradient, linear-gradient(150deg, #6D4AFF 0%, #A855F7 100%));
         box-shadow:0 20px 60px rgba(0,0,0,.35); }
     .lpx-brand-inner{ padding:48px; }
-    .lpx-brand-inner img{ height:40px; margin-bottom:26px; }
+    .lpx-brand-inner img{ height:135px; margin-bottom:26px; }
     .lpx-brand-inner h2{ color:#fff; font-weight:800; font-size:34px; line-height:1.2; margin:0; }
     .lpx-home{ position:absolute; top:24px; right:30px; color:#fff; font-weight:600; letter-spacing:.5px; text-decoration:none; }
     .lpx-home:hover{ color:#fff; opacity:.85; }
@@ -34,10 +35,11 @@
     .lpx-form-side .text-gray-500, .lpx-form-side .text-gray-600, .lpx-form-side .text-muted{ color:rgba(255,255,255,.65) !important; }
     .lpx-form-side .form-control{ background:rgba(255,255,255,.05) !important; border:1px solid rgba(255,255,255,.14) !important;
         border-radius:14px; height:56px; color:#fff !important; }
-    .lpx-form-side .btn-primary{ background:linear-gradient(135deg,#FFC94A,#f0b400) !important; border:none !important;
-        border-radius:40px; height:56px; color:#1a1a1a !important; font-weight:700; box-shadow:0 10px 24px rgba(0,0,0,.25); }
+    /* NEW: primary CTA driven by Member Panel Theme (Primary + Hover Highlight) */
+    .lpx-form-side .btn-primary{ background:linear-gradient(135deg, var(--mp-primary, #6D4AFF), var(--mp-hover, #5a3df0)) !important; border:none !important;
+        border-radius:40px; height:56px; color:#fff !important; font-weight:700; box-shadow:0 10px 24px rgba(0,0,0,.25); }
     .lpx-form-side .btn-primary:hover{ filter:brightness(1.05); }
-    .lpx-form-side .link-primary{ color:#FFC94A !important; }
+    .lpx-form-side .link-primary{ color: var(--mp-primary, #6D4AFF) !important; }
     .lpx-form-side [data-kt-password-meter-control="visibility"] i{ color:#fff; }
     .lpx-hide{ display:none !important; }
 

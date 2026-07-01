@@ -20,10 +20,11 @@
     .lpx-form-inner{ width:100%; max-width:420px; }
     .lpx-brand-side{ flex:1 1 0; min-width:0; position:relative; display:flex; align-items:center; justify-content:center;
         min-height:560px; border-radius:24px; padding:48px;
-        background:linear-gradient(150deg, #FFC94A 0%, #2b2640 45%, #14141f 100%);
+        /* NEW: driven by Admin -> Member Panel Theme (Gradient Start / Gradient End) */
+        background: var(--mp-gradient, linear-gradient(150deg, #6D4AFF 0%, #A855F7 100%));
         box-shadow:0 20px 60px rgba(0,0,0,.35); }
     .lpx-brand-inner{ padding:48px; }
-    .lpx-brand-inner img{ height:40px; margin-bottom:26px; }
+    .lpx-brand-inner img{ height:135px; margin-bottom:26px; }
     .lpx-brand-inner h2{ color:#fff; font-weight:800; font-size:34px; line-height:1.2; margin:0; }
     .lpx-home{ position:absolute; top:24px; right:30px; color:#fff; font-weight:600; letter-spacing:.5px; text-decoration:none; }
     .lpx-home:hover{ color:#fff; opacity:.85; }
@@ -37,10 +38,11 @@
     .lpx-form-side .input-group-text{ background:rgba(255,255,255,.05) !important; border:1px solid rgba(255,255,255,.14) !important;
         border-left:none !important; border-radius:0 14px 14px 0; color:#fff; }
     .lpx-form-side .input-group .form-control{ border-right:none !important; border-radius:14px 0 0 14px; }
-    .lpx-form-side .btn-primary{ background:linear-gradient(135deg,#FFC94A,#f0b400) !important; border:none !important;
-        border-radius:40px; height:56px; color:#1a1a1a !important; font-weight:700; box-shadow:0 10px 24px rgba(0,0,0,.25); }
+    /* NEW: primary CTA driven by Member Panel Theme (Primary + Hover Highlight) */
+    .lpx-form-side .btn-primary{ background:linear-gradient(135deg, var(--mp-primary, #6D4AFF), var(--mp-hover, #5a3df0)) !important; border:none !important;
+        border-radius:40px; height:56px; color:#fff !important; font-weight:700; box-shadow:0 10px 24px rgba(0,0,0,.25); }
     .lpx-form-side .btn-primary:hover{ filter:brightness(1.05); }
-    .lpx-form-side .link-primary{ color:#FFC94A !important; }
+    .lpx-form-side .link-primary{ color: var(--mp-primary, #6D4AFF) !important; }
     .lpx-form-side .fa-code, .lpx-form-side .email-code{ color:#fff !important; }
     .lpx-hide{ display:none !important; }
 
@@ -131,12 +133,12 @@
                         <div class="fw-bold text-start text-gray-900 fs-6 mb-1 ms-1"><?php echo lang('two_factor_input_label'); ?></div>
                         <div class="otp-container">
                             <div class="d-flex flex-wrap flex-stack">
-                                <input type="text" name="twofa_code_1" data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code" value="" inputmode="numeric">
-                                <input type="text" name="twofa_code_2" data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code" value="" inputmode="numeric">
-                                <input type="text" name="twofa_code_3" data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code" value="" inputmode="numeric">
-                                <input type="text" name="twofa_code_4" data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code" value="" inputmode="numeric">
-                                <input type="text" name="twofa_code_5" data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code" value="" inputmode="numeric">
-                                <input type="text" name="twofa_code_6" data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code" value="" inputmode="numeric">
+                                <input type="text" name="twofa_code_1" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code" value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
+                                <input type="text" name="twofa_code_2" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code" value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
+                                <input type="text" name="twofa_code_3" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code" value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
+                                <input type="text" name="twofa_code_4" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code" value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
+                                <input type="text" name="twofa_code_5" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code" value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
+                                <input type="text" name="twofa_code_6" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 fa-code" value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
                             </div>
                             <span class="otp-loader d-none">⏳ Verifying...</span>
                             <p class="otp-message"></p>
@@ -148,12 +150,12 @@
                         <div class="fw-bold text-start text-gray-900 fs-6 mb-1 ms-1"><?php echo lang('email_otp_input_label'); ?></div>
                         <div class="otp-container">
                             <div class="d-flex flex-wrap flex-stack">
-                                <input type="text" name="email_code_1" data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code" value="" inputmode="numeric">
-                                <input type="text" name="email_code_2" data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code" value="" inputmode="numeric">
-                                <input type="text" name="email_code_3" data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code" value="" inputmode="numeric">
-                                <input type="text" name="email_code_4" data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code" value="" inputmode="numeric">
-                                <input type="text" name="email_code_5" data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code" value="" inputmode="numeric">
-                                <input type="text" name="email_code_6" data-inputmask="'mask': '9', 'placeholder': ''" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code" value="" inputmode="numeric">
+                                <input type="text" name="email_code_1" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code" value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
+                                <input type="text" name="email_code_2" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code" value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
+                                <input type="text" name="email_code_3" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code" value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
+                                <input type="text" name="email_code_4" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code" value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
+                                <input type="text" name="email_code_5" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code" value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
+                                <input type="text" name="email_code_6" maxlength="1" class="form-control bg-transparent h-60px w-60px fs-2qx text-center mx-1 my-2 email-code" value="" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*">
                             </div>
                             <span class="otp-loader d-none">⏳ Verifying...</span>
                             <p class="otp-message"></p>
