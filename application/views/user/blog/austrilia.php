@@ -76,7 +76,7 @@
             <div class="mn-blogs-content">
               <div class="mn-blogs-inner">
                 <article class="mn-single-blog-item" itemscope itemtype="https://schema.org/Article">
-                  <meta itemprop="author" content="Fenizo Editorial Team" />
+                  <meta itemprop="author" content="Nexman Editorial Team" />
                   <meta itemprop="datePublished" content="2025-09-01" />
                   <meta itemprop="dateModified" content="2025-09-01" />
                   <meta itemprop="headline" content="Australia MLM: Compliance & Software Guide" />
@@ -102,8 +102,8 @@
                       <!-- CTA 1 -->
                       <p class="mn-text-highlight mn-callout">
                         Looking for ready-to-use Australian settings (GST invoices, KYC/KYB, audit logs)?
-                        <a href="https://www.fenizotechnologies.com/best-mlm-software" target="_blank">
-                          Explore Fenizo MLM Software</a>.
+                        <a href="https://nexman.in/best-mlm-software" target="_blank">
+                          Explore Nexman MLM Software</a>.
                       </p>
 
                       <!-- TOC -->
@@ -144,8 +144,8 @@
                       </ul>
                       <p class="mn-callout">
                         Your plan design (commissions, qualifiers, caps) should <em>prioritise retail sales</em>.
-                        Fenizo lets you configure PV on SKUs, enforce retail ratios, and cap payouts.
-                        <a href="https://www.fenizotechnologies.com/best-mlm-software" target="_blank">See how</a>.
+                        Nexman lets you configure PV on SKUs, enforce retail ratios, and cap payouts.
+                        <a href="https://nexman.in/best-mlm-software" target="_blank">See how</a>.
                       </p>
 
                       <h3 id="ads-claims">Advertising & Income/Health Claims</h3>
@@ -191,9 +191,9 @@
 
                       <!-- CTA 2 -->
                       <p class="mn-text-highlight mn-callout">
-                        Fenizo ships with <strong>AU invoice templates, consent logs,</strong> PV-based payouts and
+                        Nexman ships with <strong>AU invoice templates, consent logs,</strong> PV-based payouts and
                         <strong>exportable ledgers</strong> for audits. 
-                        <a href="https://www.fenizotechnologies.com/best-mlm-software" target="_blank">Get a live demo</a>.
+                        <a href="https://nexman.in/best-mlm-software" target="_blank">Get a live demo</a>.
                       </p>
 
                       <h3 id="ops-checklist">Operations Checklist (Australia)</h3>
@@ -210,8 +210,8 @@
                       <!-- CTA 3 -->
                       <p class="mn-text-highlight mn-callout">
                         Need help configuring these controls end-to-end? 
-                        <a href="https://www.fenizotechnologies.com/best-mlm-software" target="_blank">
-                          Fenizo MLM Software</a> is built for compliant growth in Australia.
+                        <a href="https://nexman.in/best-mlm-software" target="_blank">
+                          Nexman MLM Software</a> is built for compliant growth in Australia.
                       </p>
 
                       <h3 id="faqs">FAQs</h3>
@@ -282,10 +282,10 @@
       "image": ["https://example.com/assets/shop/img/user/australia_mlm_compliance_software_guide_cover.jpeg"],
       "datePublished": "2025-09-01",
       "dateModified": "2025-09-01",
-      "author": { "@type": "Organization", "name": "Fenizo Technologies" },
+      "author": { "@type": "Organization", "name": "Nexman Technologies" },
       "publisher": {
         "@type": "Organization",
-        "name": "Fenizo Technologies",
+        "name": "Nexman Technologies",
         "logo": { "@type": "ImageObject", "url": "https://example.com/assets/images/logo.png" }
       },
       "mainEntityOfPage": {

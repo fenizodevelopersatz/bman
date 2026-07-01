@@ -1,11 +1,11 @@
 <?php
 // ===================== BINARY TREE PAGE (USER • ADVANCED UI) =====================
 // Expected vars from controller (sample):
-// $user = (object)['uid'=>'FENIZO123','name'=>'Lucas','rank'=>'SILVER','left_bv'=>2450,'right_bv'=>1120,'left_cf'=>320,'right_cf'=>0,'pairs'=>3];
+// $user = (object)['uid'=>'NEXMAN123','name'=>'Lucas','rank'=>'SILVER','left_bv'=>2450,'right_bv'=>1120,'left_cf'=>320,'right_cf'=>0,'pairs'=>3];
 // $tree = array root node with children
 // Node format:
 // [
-//   'uid' => 'FENIZO123',
+//   'uid' => 'NEXMAN123',
 //   'name' => 'Lucas',
 //   'rank' => 'SILVER',
 //   'avatar' => 'https://i.pravatar.cc/100?u=1',

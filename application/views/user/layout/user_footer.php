@@ -2,7 +2,7 @@
 <!--begin::Copyright-->
 <div class="text-gray-900 order-2 order-md-1">
 <span class="text-muted fw-semibold me-1">2025&copy;</span>
-<a href="https://www.fenizotechnologies.com/best-mlm-software" target="_blank" class="text-gray-800 text-hover-primary">Fenizo MLM Software</a>
+<a href="https://nexman.in/best-mlm-software" target="_blank" class="text-gray-800 text-hover-primary">Nexman MLM Software</a>
 </div>
 <!--end::Copyright-->
 </div>

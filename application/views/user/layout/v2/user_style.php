@@ -9,20 +9,20 @@ $org_img = site_settings('image','og-img');
 <!--========= Required meta tags =========-->
 <meta charset="utf-8">
 <meta http-equiv="x-ua-compatible" content="ie=edge">
-<meta name="author" content="Fenizo Technologies Top MLM Software Company">
+<meta name="author" content="Nexman Technologies Top MLM Software Company">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="<?php echo $discription; ?>">
 <meta name="keywords" content="<?php echo $keywords; ?>">
 
 <meta property="og:locale" content="en_US" />
-<meta property="og:type" content="fenizo mlm software" />
-<meta property="og:title" content="Fenizo MLM software - The World's #1 Selling MLM software" />
+<meta property="og:type" content="nexman software" />
+<meta property="og:title" content="Nexman MLM software - The World's #1 Selling MLM software" />
 <meta property="og:url" content="<?php echo base_url(); ?>assets/images/<?php echo $org_img; ?>"/>
-<meta property="og:site_name" content="Fenizo mlm software" />
+<meta property="og:site_name" content="Nexman mlm software" />
 
 <title><?php echo $title; ?></title>
 <link rel="shortcut icon" href="<?php echo base_url(); ?>assets/images/<?php echo $fav_img; ?>"  type="image/png">
-<link rel="canonical" href="Fenizo MLM Software"/>
+<link rel="canonical" href="Nexman MLM Software"/>
 <!-- css include -->
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://unpkg.com/@phosphor-icons/web"></script>

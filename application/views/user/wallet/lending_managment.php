@@ -10,7 +10,7 @@
 
 $user = $user ?? (object) [
   'name' => 'LucasSATZ',
-  'uid' => 'FENIZO123',
+  'uid' => 'NEXMAN123',
 ];
 
 $wallet_balance_usd = $wallet_balance_usd ?? 0.00;

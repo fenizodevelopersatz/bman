@@ -7,7 +7,7 @@ $period = $this->input->get('period') ?? 'weekly';
 
 // Current user (example)
 $current_user = (object)[
-  'uid' => 'FENIZO123',
+  'uid' => 'NEXMAN123',
   'name' => 'vaaluashok',
   'avatar' => 'https://i.pravatar.cc/100?u=you',
   'rank' => 14,

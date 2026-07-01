@@ -17,7 +17,7 @@ $keywords = site_settings('meta-settings','site-keyword');
 
 <head>
 <meta charset="utf-8">
-<meta name="author" content="Fenizo Technologies Top MLM Software Company">
+<meta name="author" content="Nexman Technologies Top MLM Software Company">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <meta name="description" content="<?php echo $discription; ?>">
 <meta name="keywords" content="<?php echo $keywords; ?>">

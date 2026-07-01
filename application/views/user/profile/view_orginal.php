@@ -1133,11 +1133,11 @@ function badgeClassPro($st)
         function setTab(key) {
             tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === key));
             panels.forEach(p => p.classList.toggle('active', p.id === 'tab-' + key));
-            localStorage.setItem('fenizo_profile_tab', key);
+            localStorage.setItem('nexman_profile_tab', key);
         }
         tabs.forEach(t => t.addEventListener('click', () => setTab(t.dataset.tab)));
 
-        const last = localStorage.getItem('fenizo_profile_tab');
+        const last = localStorage.getItem('nexman_profile_tab');
         if (last) { setTab(last); }
 
         function goTab(key) {

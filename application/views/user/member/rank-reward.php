@@ -4,7 +4,7 @@
 // Fallback demo values (replace with DB later)
 $user = $user ?? (object) [
   'name' => 'Lucas',
-  'uid' => 'FENIZO123',
+  'uid' => 'NEXMAN123',
   'rank' => 'SILVER'
 ];
 

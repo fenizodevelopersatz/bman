@@ -37,8 +37,8 @@
                 <br/> on how to reset your password.
                 <br/>
                 Need more help? Contact 
-                <a href="https://fenizotechnologies.com" class="opacity-75-hover text-primary me-1" target="_blank">
-                    Fenizo Technologies Support
+                <a href="https://nexman.in" class="opacity-75-hover text-primary me-1" target="_blank">
+                    Nexman Technologies Support
                 </a>.
             </div>
             <!--end::Text-->

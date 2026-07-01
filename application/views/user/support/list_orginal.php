@@ -2,7 +2,7 @@
 // -------------------- SAMPLE DATA (replace with DB values) --------------------
 $user = $user ?? (object) [
   'name' => 'Lucas',
-  'uid' => 'FENIZO123',
+  'uid' => 'NEXMAN123',
 ];
 
 $supportStats = $supportStats ?? (object) [

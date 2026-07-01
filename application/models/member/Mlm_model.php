@@ -47,7 +47,7 @@ class Mlm_model extends CI_Model
     public function generateReferralID()
     {
         do {
-            $referral_id = "FENIZO" . mt_rand(100000, 999999);
+            $referral_id = "NEXMAN" . mt_rand(100000, 999999);
             $exists = $this->db->where('referral_id', $referral_id)->get('users')->num_rows();
         } while ($exists > 0);
 
@@ -419,13 +419,13 @@ class Mlm_model extends CI_Model
             $mail->isSMTP();
             $mail->Host = 'smtp.hostinger.com';
             $mail->SMTPAuth = true;
-            $mail->Username = 'enquirie@fenizomlmsoft.com';
+            $mail->Username = 'enquirie@nexmanmlmsoft.com';
             $mail->Password = 'tquRBj4~'; // ⚠ Change immediately
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // SSL
             $mail->Port = 465;
 
             // Recipients
-            $mail->setFrom('enquirie@fenizomlmsoft.com', 'Fenizo MLM Soft');
+            $mail->setFrom('enquirie@nexmanmlmsoft.com', 'Nexman MLM Soft');
             $mail->addAddress($useremail);
 
 
@@ -453,13 +453,13 @@ class Mlm_model extends CI_Model
             $mail->isSMTP();
             $mail->Host = 'smtp.hostinger.com';
             $mail->SMTPAuth = true;
-            $mail->Username = 'enquirie@fenizomlmsoft.com';
+            $mail->Username = 'enquirie@nexmanmlmsoft.com';
             $mail->Password = 'tquRBj4~'; // ⚠ Change immediately
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // SSL
             $mail->Port = 465;
 
             // Recipients
-            $mail->setFrom('enquirie@fenizomlmsoft.com', 'Fenizo MLM Soft');
+            $mail->setFrom('enquirie@nexmanmlmsoft.com', 'Nexman MLM Soft');
             $mail->addAddress($useremail);
 
 

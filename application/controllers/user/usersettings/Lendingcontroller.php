@@ -342,7 +342,7 @@ class Lendingcontroller extends CI_Controller
 
                     if ($payment_option == "paypal") {
                         $paypal_url = "https://www.sandbox.paypal.com/cgi-bin/webscr";
-                        $paypal_email = "fenizo@business.example.com";
+                        $paypal_email = "nexman@business.example.com";
 
                         $return_url = base_url("user/lending/payment_success?method=paypal&did=$deposit_id");
                         $cancel_url = base_url("user/lending/payment_failed?did=$deposit_id");

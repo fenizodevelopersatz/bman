@@ -507,7 +507,7 @@
 
               <div class="ref-link-row">
                 <input id="refLeft" class="ref-input"
-                  value="<?= $left_link ?? 'http://yourdomain.com/user/re?L-FENIZO165'; ?>" readonly>
+                  value="<?= $left_link ?? 'http://yourdomain.com/user/re?L-NEXMAN165'; ?>" readonly>
                 <button class="ref-btn primary" onclick="copyText('refLeft')"><i class="ph ph-copy"></i> Copy</button>
               </div>
 
@@ -539,7 +539,7 @@
               </div>
 
               <div class="ref-link-row">
-                <input id="refRight" class="ref-input" value="<?= $right_link ?? base_url() . 'user/re?R-FENIZO165'; ?>"
+                <input id="refRight" class="ref-input" value="<?= $right_link ?? base_url() . 'user/re?R-NEXMAN165'; ?>"
                   readonly>
                 <button class="ref-btn primary" onclick="copyText('refRight')"><i class="ph ph-copy"></i> Copy</button>
               </div>

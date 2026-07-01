@@ -49,7 +49,7 @@ $lang['please_wait'] = 'Por favor espera...';
 $lang['already_have_account'] = '¿Ya tienes una cuenta?';
 $lang['sign_in'] = 'Iniciar sesión';
 
-$lang['mlm_solutions_title'] = 'Inteligente. Escalable. Soluciones MLM por Fenizo';
+$lang['mlm_solutions_title'] = 'Inteligente. Escalable. Soluciones MLM por Nexman';
 
 $lang['mlm_solutions_text'] = 'Bienvenido a %s, tu socio confiable en soluciones innovadoras de software MLM.<br/>
 Nuestra plataforma potente y personalizable está diseñada para ayudar a crecer a los negocios<br/>
@@ -62,7 +62,7 @@ Nuestra plataforma potente y personalizable está diseñada para ayudar a crecer
 con funciones como seguimiento en tiempo real, pagos seguros y paneles intuitivos.<br/>
 %s y descubre cómo nuestras soluciones pueden llevar tu negocio al siguiente nivel.';
 
-$lang['welcome_title'] = 'Bienvenido a Fenizo Software MLM';
+$lang['welcome_title'] = 'Bienvenido a Nexman Software MLM';
 
 $lang['welcome_text'] = 'Experimenta una gestión de red sin problemas con %s, tu socio confiable en soluciones MLM.<br/>
 Gestiona miembros, comisiones e informes — todo en una plataforma poderosa.<br/>

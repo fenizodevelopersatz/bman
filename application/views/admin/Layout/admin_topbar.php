@@ -38,7 +38,7 @@ $sitelogo = site_settings('image', 'logo');
         <div class="d-flex align-items-center flex-grow-1 flex-lg-grow-0">
             <a href="<?php echo base_url('admin'); ?>" class="d-lg-none">
                 <img alt="Logo"
-                    src="<?php echo base_url('assets/images/fenizo_technologies_software_company_logo.jpg'); ?>"
+                    src="<?php echo base_url('assets/images/nexman_technologies_software_company_logo.jpg'); ?>"
                     class="h-30px">
             </a>
         </div>

@@ -11,10 +11,10 @@ $dark_logo = site_settings('dark_logo','logo');
           <!-- Brand / Short SEO blurb -->
           <div class="col-sm-12 col-lg-3 mn-footer-cat">
             <div class="mn-footer-widget mn-footer-company">
-              <img src="<?php echo base_url();?>assets/images/<?php echo $logo; ?>" class="mn-footer-logo" alt="Fenizo MLM Software logo">
-              <img src="<?php echo base_url();?>assets/images/<?php echo $logo; ?>" class="mn-footer-dark-logo" alt="Fenizo MLM Software logo dark">
+              <img src="<?php echo base_url();?>assets/images/<?php echo $logo; ?>" class="mn-footer-logo" alt="Nexman MLM Software logo">
+              <img src="<?php echo base_url();?>assets/images/<?php echo $logo; ?>" class="mn-footer-dark-logo" alt="Nexman MLM Software logo dark">
               <p class="mn-footer-detail">
-                Fenizo MLM Software helps you launch & scale Binary, Matrix, Unilevel, Generation and Gift/Donation plans with secure payouts and real-time dashboards.
+                Nexman MLM Software helps you launch & scale Binary, Matrix, Unilevel, Generation and Gift/Donation plans with secure payouts and real-time dashboards.
               </p>
               <div class="mn-app-store">
                 <a href="javascript:void(0)" class="app-img" aria-label="Get it on Android">
@@ -86,7 +86,7 @@ $dark_logo = site_settings('dark_logo','logo');
                     </li>
                     <li class="mn-footer-link mn-foo-mail">
                       <span><i class="ri-mail-line" aria-hidden="true"></i></span>
-                      <a href="mailto:sales@fenizotechnologies.com">sales@fenizotechnologies.com</a>
+                      <a href="mailto:sales@nexmantechnologies.com">sales@nexmantechnologies.com</a>
                     </li>
                   </ul>
                 </div>
@@ -96,9 +96,9 @@ $dark_logo = site_settings('dark_logo','logo');
                   <div class="mn-footer-links mn-footer-dropdown">
                     <ul class="align-items-center">
                       <li class="mn-footer-link"><a href="https://www.facebook.com/profile.php?id=61576309678710" aria-label="Facebook"><i class="ri-facebook-fill" aria-hidden="true"></i></a></li>
-                      <li class="mn-footer-link"><a href="https://twitter.com/FenizoTechs" aria-label="Twitter"><i class="ri-twitter-fill" aria-hidden="true"></i></a></li>
-                      <li class="mn-footer-link"><a href="https://www.linkedin.com/company/fenizo-technologies-it/about/" aria-label="LinkedIn"><i class="ri-linkedin-fill" aria-hidden="true"></i></a></li>
-                      <li class="mn-footer-link"><a href="https://www.instagram.com/fenizotech/" aria-label="Instagram"><i class="ri-instagram-line" aria-hidden="true"></i></a></li>
+                      <li class="mn-footer-link"><a href="https://twitter.com/NexmanTechs" aria-label="Twitter"><i class="ri-twitter-fill" aria-hidden="true"></i></a></li>
+                      <li class="mn-footer-link"><a href="https://www.linkedin.com/company/nexman-technologies-it/about/" aria-label="LinkedIn"><i class="ri-linkedin-fill" aria-hidden="true"></i></a></li>
+                      <li class="mn-footer-link"><a href="https://www.instagram.com/nexmantech/" aria-label="Instagram"><i class="ri-instagram-line" aria-hidden="true"></i></a></li>
                     </ul>
                   </div>
                 </div>
@@ -116,7 +116,7 @@ $dark_logo = site_settings('dark_logo','logo');
               <div class="footer-bottom-copy">
                 <div class="mn-copy">
                   Copyright © <span id="copyright_year"></span>
-                  <a class="site-name" href="https://www.fenizotechnologies.com/best-mlm-software">Fenizo MLM Software</a> all rights reserved.
+                  <a class="site-name" href="https://nexman.in/best-mlm-software">Nexman MLM Software</a> all rights reserved.
                 </div>
               </div>
             </div>

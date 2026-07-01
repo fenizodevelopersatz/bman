@@ -2,7 +2,7 @@
 // ===================== WALLET TRANSFER PAGE (USER • ADVANCED UI) =====================
 // Expected vars (examples):
 // $wallet = (object)['main'=>12450.00,'commission'=>3980.00,'tcoin'=>250.00];
-// $user = (object)['uid'=>'FENIZO123','name'=>'Lucas'];
+// $user = (object)['uid'=>'NEXMAN123','name'=>'Lucas'];
 // $receivers = [
 //   (object)['id'=>1,'uid'=>'FENI001','name'=>'Arun Kumar'],
 //   (object)['id'=>2,'uid'=>'FENI002','name'=>'Priya S'],

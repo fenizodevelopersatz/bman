@@ -553,7 +553,7 @@ class Shopcontroller extends CI_Controller
         // Live: https://www.paypal.com/cgi-bin/webscr
 
         // Use your sandbox email
-        $paypal_email = "fenizo@business.example.com";
+        $paypal_email = "nexman@business.example.com";
 
         echo '
                 <form action="' . $paypal_url . '" method="post" id="paypal_form">

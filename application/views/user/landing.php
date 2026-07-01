@@ -52,9 +52,9 @@
                     <div class="container">
                         <!--begin::Heading-->
                         <div class="text-center mb-17">
-                            <h3 class="fs-2hx text-gray-900 mb-5" id="how-it-works" data-kt-scroll-offset="{default: 100, lg: 150}">How Fenizo MLM Works</h3>
+                            <h3 class="fs-2hx text-gray-900 mb-5" id="how-it-works" data-kt-scroll-offset="{default: 100, lg: 150}">How Nexman MLM Works</h3>
                             <div class="fs-5 text-muted fw-bold">
-                                Streamline your direct-selling business with Fenizo MLM Software
+                                Streamline your direct-selling business with Nexman MLM Software
                                 <br/> and experience fully automated plan management.
                             </div>
                         </div>
@@ -180,7 +180,7 @@
 
                                 <!--begin::Description-->
                                 <div class="fs-5 text-gray-700 fw-bold">
-                                    At <a href="https://fenizotechnologies.com" class="text-primary fw-bold">Fenizo Technologies</a>, our advanced MLM software helps you streamline operations,
+                                    At <a href="https://nexman.in" class="text-primary fw-bold">Nexman Technologies</a>, our advanced MLM software helps you streamline operations,
                                     <br/> save costs, and manage your business from one powerful dashboard.
                                 </div>
                                 <!--end::Description-->
@@ -243,7 +243,7 @@
 
                             <!--begin::Author-->
                             <div class="fs-2 fw-semibold text-muted text-center">
-                                <a href="https://fenizotechnologies.com" class="link-primary fs-4 fw-bold">Fenizo Technologies,</a>
+                                <a href="https://nexman.in" class="link-primary fs-4 fw-bold">Nexman Technologies,</a>
                                 <span class="fs-4 fw-bold text-gray-600">MLM Software Experts</span>
                             </div>
                             <!--end::Author-->
@@ -305,7 +305,7 @@
         <div class="container text-center">
             <h3 class="fs-2hx text-gray-900 mb-5" id="clients">What Our Clients Say</h3>
             <p class="fs-5 text-muted fw-bold mb-10">
-            Fenizo MLM Software by Fenizo Technologies helps businesses grow faster and smarter.
+            Nexman MLM Software by Nexman Technologies helps businesses grow faster and smarter.
             </p>
 
             <div class="row g-lg-10 mb-15">
@@ -315,7 +315,7 @@
                     ★★★★★
                 </div>
                 <p class="text-gray-700 fs-5 mb-4">
-                    "Fenizo MLM Software transformed our business management. User-friendly and powerful!"
+                    "Nexman MLM Software transformed our business management. User-friendly and powerful!"
                 </p>
                 <div class="d-flex align-items-center">
                     <img src="https://randomuser.me/api/portraits/men/45.jpg" alt="John Doe" class="rounded-circle me-3" width="50" height="50" />
@@ -333,7 +333,7 @@
                     ★★★★★
                 </div>
                 <p class="text-gray-700 fs-5 mb-4">
-                    "Reliable and efficient MLM software. Support from Fenizo Technologies is top-notch."
+                    "Reliable and efficient MLM software. Support from Nexman Technologies is top-notch."
                 </p>
                 <div class="d-flex align-items-center">
                     <img src="https://randomuser.me/api/portraits/women/65.jpg" alt="Jane Smith" class="rounded-circle me-3" width="50" height="50" />
@@ -351,7 +351,7 @@
                     ★★★★★
                 </div>
                 <p class="text-gray-700 fs-5 mb-4">
-                    "Fenizo MLM Software simplified our network management and boosted sales significantly."
+                    "Nexman MLM Software simplified our network management and boosted sales significantly."
                 </p>
                 <div class="d-flex align-items-center">
                     <img src="https://randomuser.me/api/portraits/men/32.jpg" alt="Steve Brown" class="rounded-circle me-3" width="50" height="50" />
@@ -367,17 +367,17 @@
             <div class="d-flex flex-stack flex-wrap flex-md-nowrap card-rounded shadow p-8 p-lg-12 mb-n5 mb-lg-n13" style="background: linear-gradient(90deg, #20AA3E 0%, #03A588 100%);">
                 <div class="my-2 me-5">
                     <div class="fs-1 fs-lg-2qx fw-bold text-white mb-2">
-                        Start With Fenizo MLM Software Today,
+                        Start With Nexman MLM Software Today,
                         <span class="fw-normal">Boost Your Network Marketing Business!</span>
                     </div>
 
                     <div class="fs-6 fs-lg-5 text-white fw-semibold opacity-75">
-                        Join thousands of satisfied clients using Fenizo MLM Software by Fenizo Technologies to grow and manage their business efficiently.
+                        Join thousands of satisfied clients using Nexman MLM Software by Nexman Technologies to grow and manage their business efficiently.
                     </div>
                 </div>
 
-                <a href="https://www.fenizotechnologies.com/best-mlm-software" target="_blank" class="btn btn-lg btn-outline border-2 btn-outline-white flex-shrink-0 my-2">
-                    Explore Fenizo MLM Software
+                <a href="https://nexman.in/best-mlm-software" target="_blank" class="btn btn-lg btn-outline border-2 btn-outline-white flex-shrink-0 my-2">
+                    Explore Nexman MLM Software
                 </a>
             </div>
 
@@ -395,7 +395,7 @@
                 <script src="<?php echo base_url();?>assets/user/js/custom/pages/pricing/general.js"></script>
 
                 <script>
-                    const text = "Fenizo MLM Software";
+                    const text = "Nexman MLM Software";
                     const target = document.getElementById("kt_landing_hero_text");
     
                     let index = 0;

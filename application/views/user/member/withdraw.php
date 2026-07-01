@@ -1,7 +1,7 @@
 <?php
 // ===================== PAYOUTS PAGE (USER • ADVANCED UI) =====================
 // Expected vars (sample):
-// $user = (object)['name'=>'Lucas','uid'=>'FENIZO123'];
+// $user = (object)['name'=>'Lucas','uid'=>'NEXMAN123'];
 // $payout = (object)[
 //   'next_date'=>'Tonight 10:00 PM',
 //   'min_withdraw'=>10,

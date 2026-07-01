@@ -69,7 +69,7 @@
           <div class="mn-blogs-content">
             <div class="mn-blogs-inner">
               <article class="mn-single-blog-item" itemscope itemtype="https://schema.org/Article">
-                <meta itemprop="author" content="Fenizo Editorial Team" />
+                <meta itemprop="author" content="Nexman Editorial Team" />
                 <meta itemprop="datePublished" content="2025-09-01" />
                 <meta itemprop="dateModified" content="2025-09-01" />
                 <meta itemprop="headline" content="Top 6 MLM Plans Explained" />
@@ -92,8 +92,8 @@
 
                     <!-- CTA 1 -->
                     <p class="mn-callout">
-                      Fenizo MLM Software supports all 6 plan types with <strong>configurable payouts, wallets, GST/VAT invoicing</strong> and more. 
-                      <a href="https://www.fenizotechnologies.com/best-mlm-software" target="_blank">Book a demo</a>.
+                      Nexman MLM Software supports all 6 plan types with <strong>configurable payouts, wallets, GST/VAT invoicing</strong> and more. 
+                      <a href="https://nexman.in/best-mlm-software" target="_blank">Book a demo</a>.
                     </p>
 
                     <!-- TOC -->
@@ -169,7 +169,7 @@
                     <!-- CTA 2 -->
                     <p class="mn-callout">
                       Need a flexible engine that lets you switch between plans or run hybrids?
-                      <a href="https://www.fenizotechnologies.com/best-mlm-software" target="_blank">Fenizo MLM Software</a> supports it.
+                      <a href="https://nexman.in/best-mlm-software" target="_blank">Nexman MLM Software</a> supports it.
                     </p>
 
                     <h3 id="summary">Summary & Choosing the Right Plan</h3>
@@ -188,7 +188,7 @@
                     <!-- CTA 3 -->
                     <p class="mn-callout">
                       Build your MLM business on a <strong>compliant, flexible platform</strong> with wallets, GST/VAT, and fraud controls:
-                      <a href="https://www.fenizotechnologies.com/best-mlm-software" target="_blank">Fenizo MLM Software</a>.
+                      <a href="https://nexman.in/best-mlm-software" target="_blank">Nexman MLM Software</a>.
                     </p>
 
                     <h3 id="faqs">Top 6 MLM Plan FAQs</h3>
@@ -244,10 +244,10 @@
     "image": ["https://example.com/assets/shop/img/user/top_6_mlm_plans_cover.jpeg"],
     "datePublished": "2025-09-01",
     "dateModified": "2025-09-01",
-    "author": { "@type": "Organization", "name": "Fenizo Technologies" },
+    "author": { "@type": "Organization", "name": "Nexman Technologies" },
     "publisher": {
       "@type": "Organization",
-      "name": "Fenizo Technologies",
+      "name": "Nexman Technologies",
       "logo": { "@type": "ImageObject", "url": "https://example.com/assets/images/logo.png" }
     },
     "mainEntityOfPage": {

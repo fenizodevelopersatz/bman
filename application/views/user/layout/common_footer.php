@@ -35,8 +35,8 @@ $address = site_settings('company', 'address');
                         <!--begin::Text-->
                         <span class="fw-normal fs-4 text-gray-700">
                             Email us at
-                            <a href="mailto:support@fenizotechnologies.com"
-                                class="text-white opacity-50 text-hover-primary">support@fenizotechnologies.com</a>
+                            <a href="mailto:support@nexman.in"
+                                class="text-white opacity-50 text-hover-primary">support@nexman.in</a>
                         </span>
                         <!--end::Text-->
                     </div>
@@ -51,7 +51,7 @@ $address = site_settings('company', 'address');
                         <!--begin::Text-->
                         <span class="fw-normal fs-4 text-gray-700">
                             Use Our Custom Development Service.
-                            <a href="https://www.fenizotechnologies.com/contact-us" target="_blank"
+                            <a href="https://nexman.in/contact-us" target="_blank"
                                 class="text-white opacity-50 text-hover-primary">Click here to Get a Quote</a>
                         </span>
                         <!--end::Text-->
@@ -128,15 +128,15 @@ $address = site_settings('company', 'address');
                 <!--begin::Copyright-->
                 <div class="d-flex align-items-center order-2 order-md-1">
                     <!--begin::Logo-->
-                    <a href="https://fenizotechnologies.com/">
+                    <a href="https://nexman.in/">
                         <img alt="Logo" src="<?php echo base_url(); ?>assets/images/<?php echo $logo; ?>"
                             class="h-15px h-md-20px" />
                     </a>
                     <!--end::Logo image-->
 
                     <!--begin::Logo image-->
-                    <span class="mx-5 fs-6 fw-semibold text-gray-600 pt-1" href="https://fenizotechnologies.com/">
-                        &copy; 2025 Fenizo MLM Software .
+                    <span class="mx-5 fs-6 fw-semibold text-gray-600 pt-1" href="https://nexman.in/">
+                        &copy; 2025 Nexman MLM Software .
                     </span>
                     <!--end::Logo image-->
                 </div>
