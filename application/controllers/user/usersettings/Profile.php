@@ -66,7 +66,7 @@ class Profile extends MY_Controller
         $data = [
             'kyc' => $current,
             'user' => $this->db->get_where('users', ['id' => $uid])->row_array(),
-            'doc_types' => ['passport' => 'Passport', 'national_id' => 'National ID', 'driver_license' => 'Driver License'],
+            'doc_types' => ['passport' => 'Passport', 'national_id' => 'Aadhaar Id', 'driver_license' => 'Driver License'],
             'countries' => $this->_countries(),
             'status' => $current ? $current['status'] : '',
             'read_only' => $readOnly,

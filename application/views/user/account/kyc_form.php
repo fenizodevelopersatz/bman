@@ -445,33 +445,18 @@
             </div>
           </div>
 
-          <!-- Change status class based on your backend -->
-          <!-- NONE / PENDING / APPROVED / REJECTED -->
+          <!-- NEW: status pill reflects the canonical KYC state machine -->
+          <!-- NOT_SUBMITTED / PENDING / UNDER_REVIEW / APPROVED / RESUBMIT_REQUIRED -->
           <?php
-              $st = strtolower($kyc['status'] ?? 'none');
-
-              $cls = 'status-none';
-              $icon = 'ph ph-info';
-              $label = 'NONE';
-
-              if ($st === 'pending' || $st === 'under_review' || $st === 'resubmitted') {
-                $cls = 'status-pending';
-                $icon = 'ph ph-hourglass';
-                $label = strtoupper($st);
-              } elseif ($st === 'approved') {
-                $cls = 'status-approved';
-                $icon = 'ph ph-check-circle';
-                $label = 'APPROVED';
-              } elseif ($st === 'rejected') {
-                $cls = 'status-rejected';
-                $icon = 'ph ph-x-circle';
-                $label = 'REJECTED';
-              } elseif ($st !== 'none' && $st !== '') {
-                // fallback for any other enum values you may add later
-                $cls = 'status-none';
-                $icon = 'ph ph-info';
-                $label = strtoupper($st);
-              }
+              $state = $state ?? 'NOT_SUBMITTED';
+              $pill = [
+                'NOT_SUBMITTED'     => ['status-none',     'ph ph-info',          'NOT SUBMITTED'],
+                'PENDING'           => ['status-pending',  'ph ph-hourglass',     'PENDING'],
+                'UNDER_REVIEW'      => ['status-pending',  'ph ph-magnifying-glass', 'UNDER REVIEW'],
+                'APPROVED'          => ['status-approved', 'ph ph-check-circle',  'APPROVED'],
+                'RESUBMIT_REQUIRED' => ['status-rejected', 'ph ph-warning-circle','RESUBMIT REQUIRED'],
+              ];
+              list($cls, $icon, $label) = $pill[$state] ?? $pill['NOT_SUBMITTED'];
               ?>
 
               <div class="status-pill <?php echo $cls; ?>">
@@ -487,9 +472,20 @@
             <!-- LEFT: Form -->
             <div class="kyc-card">
               <div class="section-h">
-                <b>Personal & Document Details</b>
+                <b>Document Details</b>
                 <small>* Required fields</small>
               </div>
+
+              <?php /* NEW: show the reviewer's rejection reason so the user knows what to fix before resubmitting */ ?>
+              <?php if (!empty($reject_reason)): ?>
+                <div style="display:flex;gap:10px;align-items:flex-start;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:14px;padding:12px 14px;margin-bottom:14px;font-size:13px;">
+                  <i class="ph ph-warning-circle" style="font-size:18px;margin-top:1px;"></i>
+                  <div>
+                    <b style="display:block;margin-bottom:2px;">Resubmission required</b>
+                    <span style="color:#7f1d1d;">Reason: <?php echo html_escape($reject_reason); ?></span>
+                  </div>
+                </div>
+              <?php endif; ?>
 
               <form id="kyc_form" action="#" method="post" enctype="multipart/form-data">
                 <!-- keep old uploaded URLs (for JS checks + resubmit UX) -->
@@ -502,170 +498,44 @@
 
                 <div class="form-grid">
 
-                  <!-- Full Name / DOB / Gender -->
+                  <!-- NEW: simplified manual-KYC form — Document Type + Number, then Front/Back/Selfie images -->
                   <div class="fg col-6">
-                    <div class="f-label">Full Name <span class="req-star">*</span></div>
-                    <input class="f-input" type="text" name="full_name"
-                      value="<?php echo html_escape($kyc['full_name'] ?? ''); ?>" placeholder="Enter your full name"
-                      <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
-                  </div>
-
-                  <div class="fg col-3">
-                    <div class="f-label">Date of Birth <span class="req-star">*</span></div>
-                    <input class="f-input" type="date" name="dob" value="<?php echo html_escape($kyc['dob'] ?? ''); ?>"
-                      <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
-                  </div>
-
-                  <div class="fg col-3">
-                    <div class="f-label">Gender</div>
-                    <select class="f-select" name="gender" <?php echo !empty($read_only) ? 'disabled' : ''; ?>>
-                      <?php $g = $kyc['gender'] ?? 'unspecified'; ?>
-                      <option value="unspecified" <?php echo $g === 'unspecified' ? 'selected' : ''; ?>>Prefer not to say
-                      </option>
-                      <option value="male" <?php echo $g === 'male' ? 'selected' : ''; ?>>Male</option>
-                      <option value="female" <?php echo $g === 'female' ? 'selected' : ''; ?>>Female</option>
-                      <option value="other" <?php echo $g === 'other' ? 'selected' : ''; ?>>Other</option>
-                    </select>
-                    <?php if (!empty($read_only)): ?>
-                      <!-- disabled fields don't submit; keep value -->
-                      <input type="hidden" name="gender" value="<?php echo html_escape($g); ?>">
-                    <?php endif; ?>
-                  </div>
-
-                  <!-- Country / Nationality (ISO2) -->
-                  <div class="fg col-3">
-                    <div class="f-label">Country of Residence <span class="req-star">*</span></div>
-                    <select class="f-select" name="country_iso2" <?php echo !empty($read_only) ? 'disabled' : ''; ?>>
-                      <?php $c = strtoupper($kyc['country_iso2'] ?? 'IN'); ?>
-                      <?php foreach (($countries ?? []) as $iso2 => $label): ?>
-                        <option value="<?php echo html_escape($iso2); ?>" <?php echo strtoupper($iso2) === $c ? 'selected' : ''; ?>>
-                          <?php echo html_escape($label); ?>
-                        </option>
-                      <?php endforeach; ?>
-                    </select>
-                    <?php if (!empty($read_only)): ?>
-                      <input type="hidden" name="country_iso2" value="<?php echo html_escape($c); ?>">
-                    <?php endif; ?>
-                  </div>
-
-                  <div class="fg col-3">
-                    <div class="f-label">Nationality <span class="req-star">*</span></div>
-                    <select class="f-select" name="nationality_iso2" <?php echo !empty($read_only) ? 'disabled' : ''; ?>>
-                      <?php $n = strtoupper($kyc['nationality_iso2'] ?? 'IN'); ?>
-                      <?php foreach (($countries ?? []) as $iso2 => $label): ?>
-                        <option value="<?php echo html_escape($iso2); ?>" <?php echo strtoupper($iso2) === $n ? 'selected' : ''; ?>>
-                          <?php echo html_escape($label); ?>
-                        </option>
-                      <?php endforeach; ?>
-                    </select>
-                    <?php if (!empty($read_only)): ?>
-                      <input type="hidden" name="nationality_iso2" value="<?php echo html_escape($n); ?>">
-                    <?php endif; ?>
-                  </div>
-
-                  <div class="fg col-6"></div>
-
-                  <!-- Address -->
-                  <div class="fg col-6">
-                    <div class="f-label">Address Line 1 <span class="req-star">*</span></div>
-                    <input class="f-input" type="text" name="addr_line1"
-                      value="<?php echo html_escape($kyc['addr_line1'] ?? ''); ?>" placeholder="House / Street / Area"
-                      <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
-                  </div>
-
-                  <div class="fg col-6">
-                    <div class="f-label">Address Line 2</div>
-                    <input class="f-input" type="text" name="addr_line2"
-                      value="<?php echo html_escape($kyc['addr_line2'] ?? ''); ?>"
-                      placeholder="Apartment / Landmark (optional)" <?php echo !empty($read_only) ? 'readonly' : ''; ?>
-                    />
-                  </div>
-
-                  <div class="fg col-4">
-                    <div class="f-label">City <span class="req-star">*</span></div>
-                    <input class="f-input" type="text" name="addr_city"
-                      value="<?php echo html_escape($kyc['addr_city'] ?? ''); ?>" placeholder="Enter city" <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
-                  </div>
-
-                  <div class="fg col-4">
-                    <div class="f-label">Region / State</div>
-                    <input class="f-input" type="text" name="addr_region"
-                      value="<?php echo html_escape($kyc['addr_region'] ?? ''); ?>" placeholder="Enter state" <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
-                  </div>
-
-                  <div class="fg col-4">
-                    <div class="f-label">Postal Code <span class="req-star">*</span></div>
-                    <input class="f-input" type="text" name="addr_postal"
-                      value="<?php echo html_escape($kyc['addr_postal'] ?? ''); ?>" placeholder="Enter postal code"
-                      <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
-                  </div>
-
-                  <!-- Document -->
-                  <div class="fg col-4">
                     <div class="f-label">Document Type <span class="req-star">*</span></div>
-                    <?php $dt = $kyc['doc_type'] ?? 'passport'; ?>
+                    <?php $dt = $kyc['doc_type'] ?? 'national_id'; ?>
                     <select class="f-select" name="doc_type" <?php echo !empty($read_only) ? 'disabled' : ''; ?>>
-                      <option value="passport" <?php echo $dt === 'passport' ? 'selected' : ''; ?>>Passport</option>
-                      <option value="national_id" <?php echo $dt === 'national_id' ? 'selected' : ''; ?>>National ID</option>
-                      <option value="driver_license" <?php echo $dt === 'driver_license' ? 'selected' : ''; ?>>Driver License
-                      </option>
+                      <?php foreach (($doc_types ?? []) as $val => $label): ?>
+                        <option value="<?php echo html_escape($val); ?>" <?php echo $dt === $val ? 'selected' : ''; ?>>
+                          <?php echo html_escape($label); ?>
+                        </option>
+                      <?php endforeach; ?>
                     </select>
                     <?php if (!empty($read_only)): ?>
                       <input type="hidden" name="doc_type" value="<?php echo html_escape($dt); ?>">
                     <?php endif; ?>
                   </div>
 
-                  <div class="fg col-4">
+                  <div class="fg col-6">
                     <div class="f-label">Document Number <span class="req-star">*</span></div>
                     <input class="f-input" type="text" name="doc_number"
                       value="<?php echo html_escape($kyc['doc_number'] ?? ''); ?>" placeholder="Enter document number"
                       <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
                   </div>
 
-                  <div class="fg col-4">
-                    <div class="f-label">Issuing Country <span class="req-star">*</span></div>
-                    <?php $ic = strtoupper($kyc['doc_issue_country'] ?? ($kyc['country_iso2'] ?? 'IN')); ?>
-                    <select class="f-select" name="doc_issue_country" <?php echo !empty($read_only) ? 'disabled' : ''; ?>>
-                      <?php foreach (($countries ?? []) as $iso2 => $label): ?>
-                        <option value="<?php echo html_escape($iso2); ?>" <?php echo strtoupper($iso2) === $ic ? 'selected' : ''; ?>>
-                          <?php echo html_escape($label); ?>
-                        </option>
-                      <?php endforeach; ?>
-                    </select>
-                    <?php if (!empty($read_only)): ?>
-                      <input type="hidden" name="doc_issue_country" value="<?php echo html_escape($ic); ?>">
-                    <?php endif; ?>
-                  </div>
-
-                  <div class="fg col-3">
-                    <div class="f-label">Issued</div>
-                    <input class="f-input" type="date" name="doc_issue_date"
-                      value="<?php echo html_escape($kyc['doc_issue_date'] ?? ''); ?>" <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
-                  </div>
-
-                  <div class="fg col-3">
-                    <div class="f-label">Expiry</div>
-                    <input class="f-input" type="date" name="doc_expiry_date"
-                      value="<?php echo html_escape($kyc['doc_expiry_date'] ?? ''); ?>" <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
-                  </div>
-
-                  <div class="fg col-6"></div>
-
-                  <!-- Uploads (names MUST match controller) -->
-                  <div class="fg col-6 col-md-6">
-                    <div class="f-label">ID Front (Image/PDF) <span class="req-star">*</span></div>
+                  <!-- Uploads (names MUST match controller): Front, Back, Selfie — all required -->
+                  <div class="fg col-4 col-md-6">
+                    <div class="f-label">Front Image <span class="req-star">*</span></div>
 
                     <div class="js-kyc file-drop" data-input="doc_front">
                       <div class="ic"><i class="ph ph-upload-simple"></i></div>
                       <div>
                         <b>Drag & drop or <a href="javascript:void(0)">browse</a></b>
-                        <small>JPG/PNG/WEBP/GIF or PDF • Max 8 MB</small>
+                        <small>JPG/JPEG/PNG/TIFF/GIF • Max 4 MB</small>
                         <?php if (!empty($kyc['doc_front_url'])): ?>
                           <div class="mt-1"><a target="_blank"
                               href="<?php echo html_escape($kyc['doc_front_url']); ?>">View uploaded</a></div>
                         <?php endif; ?>
                       </div>
-                      <input type="file" name="doc_front" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf" hidden <?php echo !empty($read_only) ? 'disabled' : ''; ?> />
+                      <input type="file" name="doc_front" accept=".jpg,.jpeg,.png,.tif,.tiff,.gif" hidden <?php echo !empty($read_only) ? 'disabled' : ''; ?> />
                       <a href="javascript:void(0)" class="js-remove d-none">Remove</a>
                     </div>
 
@@ -679,20 +549,20 @@
                     </div>
                   </div>
 
-                  <div class="fg col-6 col-md-6">
-                    <div class="f-label">ID Back (Image/PDF)</div>
+                  <div class="fg col-4 col-md-6">
+                    <div class="f-label">Back Image <span class="req-star">*</span></div>
 
                     <div class="js-kyc file-drop" data-input="doc_back">
                       <div class="ic"><i class="ph ph-upload-simple"></i></div>
                       <div>
                         <b>Drag & drop or <a href="javascript:void(0)">browse</a></b>
-                        <small>JPG/PNG/WEBP/GIF or PDF • Max 8 MB</small>
+                        <small>JPG/JPEG/PNG/TIFF/GIF • Max 4 MB</small>
                         <?php if (!empty($kyc['doc_back_url'])): ?>
                           <div class="mt-1"><a target="_blank"
                               href="<?php echo html_escape($kyc['doc_back_url']); ?>">View uploaded</a></div>
                         <?php endif; ?>
                       </div>
-                      <input type="file" name="doc_back" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf" hidden <?php echo !empty($read_only) ? 'disabled' : ''; ?> />
+                      <input type="file" name="doc_back" accept=".jpg,.jpeg,.png,.tif,.tiff,.gif" hidden <?php echo !empty($read_only) ? 'disabled' : ''; ?> />
                       <a href="javascript:void(0)" class="js-remove d-none">Remove</a>
                     </div>
 
@@ -706,47 +576,20 @@
                     </div>
                   </div>
 
-                  <div class="fg col-6 col-md-6">
-                    <div class="f-label">Selfie (Image) <span class="req-star">*</span></div>
+                  <div class="fg col-4 col-md-6">
+                    <div class="f-label">Selfie with ID <span class="req-star">*</span></div>
 
                     <div class="js-kyc file-drop" data-input="selfie">
                       <div class="ic"><i class="ph ph-camera"></i></div>
                       <div>
                         <b>Drag & drop or <a href="javascript:void(0)">browse</a></b>
-                        <small>JPG/PNG/WEBP/GIF • Max 8 MB</small>
+                        <small>JPG/JPEG/PNG/TIFF/GIF • Max 4 MB</small>
                         <?php if (!empty($kyc['selfie_url'])): ?>
                           <div class="mt-1"><a target="_blank" href="<?php echo html_escape($kyc['selfie_url']); ?>">View
                               uploaded</a></div>
                         <?php endif; ?>
                       </div>
-                      <input type="file" name="selfie" accept=".jpg,.jpeg,.png,.webp,.gif" hidden <?php echo !empty($read_only) ? 'disabled' : ''; ?> />
-                      <a href="javascript:void(0)" class="js-remove d-none">Remove</a>
-                    </div>
-
-                    <div class="kyc-preview d-none">
-                      <img class="kyc-thumb" src="" alt="">
-                      <div class="meta">
-                        <div class="name"></div>
-                        <div class="size"></div>
-                        <a class="js-view" target="_blank" href="#">View</a>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="fg col-6 col-md-6">
-                    <div class="f-label">Proof of Address (Image/PDF)</div>
-
-                    <div class="js-kyc file-drop" data-input="proof_address">
-                      <div class="ic"><i class="ph ph-file"></i></div>
-                      <div>
-                        <b>Drag & drop or <a href="javascript:void(0)">browse</a></b>
-                        <small>JPG/PNG/WEBP/GIF or PDF • Max 8 MB</small>
-                        <?php if (!empty($kyc['proof_address_url'])): ?>
-                          <div class="mt-1"><a target="_blank"
-                              href="<?php echo html_escape($kyc['proof_address_url']); ?>">View uploaded</a></div>
-                        <?php endif; ?>
-                      </div>
-                      <input type="file" name="proof_address" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf" hidden <?php echo !empty($read_only) ? 'disabled' : ''; ?> />
+                      <input type="file" name="selfie" accept=".jpg,.jpeg,.png,.tif,.tiff,.gif" hidden <?php echo !empty($read_only) ? 'disabled' : ''; ?> />
                       <a href="javascript:void(0)" class="js-remove d-none">Remove</a>
                     </div>
 
@@ -762,15 +605,10 @@
 
                 </div><!-- /form-grid -->
 
-                <!-- Consent -->
-                <?php $cons = (int) ($kyc['consent'] ?? 0); ?>
+                <!-- NEW: consent checkbox removed from the simplified form; consent is recorded server-side on submit -->
                 <div class="consent">
-                  <input type="checkbox" name="consent" id="consent" value="1" <?php echo ($cons === 1) ? 'checked' : ''; ?>
-                  <?php echo !empty($read_only) ? 'disabled' : ''; ?> />
-                  <label for="consent">I consent to verification & data processing as per platform policy.</label>
-                  <?php if (!empty($read_only)): ?>
-                    <input type="hidden" name="consent" value="<?php echo $cons ? '1' : '0'; ?>">
-                  <?php endif; ?>
+                  <i class="ph ph-lock-key"></i>
+                  <label>Your documents are stored securely and used only for identity verification.</label>
                 </div>
 
                 <div class="actions">
@@ -778,7 +616,7 @@
 
                   <?php if (!empty($read_only)): ?>
                     <button type="button" class="btn-primary2" disabled>
-                      <?php echo strtoupper($kyc['status'] ?? 'PENDING'); ?>
+                      <?php echo html_escape(str_replace('_', ' ', $state ?? 'PENDING')); ?>
                     </button>
                   <?php else: ?>
                     <button type="submit" id="kyc_submit_btn" class="btn-primary2">
@@ -844,19 +682,17 @@
       const csrfName = window.csrfName || "ci_csrf_token";
       let csrfHash = window.csrfHash || "";
 
-      const MAX_MB = 8;
-      const ACCEPT_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
+      // NEW: allowed formats limited to JPG/JPEG/PNG/TIFF/GIF, max 4MB per image.
+      const MAX_MB = 4;
+      const ACCEPT_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/tiff'];
 
       // --- helper refs (SAFE) ---
       const el = {
-        fullName: form.querySelector('input[name="full_name"]'),
-        dob: form.querySelector('input[name="dob"]'),
-        consent: form.querySelector('input[name="consent"]'),
         docType: form.querySelector('select[name="doc_type"]'),
+        docNumber: form.querySelector('input[name="doc_number"]'),
         docFront: form.querySelector('input[name="doc_front"]'),
         docBack: form.querySelector('input[name="doc_back"]'),
         selfie: form.querySelector('input[name="selfie"]'),
-        proof: form.querySelector('input[name="proof_address"]'),
 
         prevFront: form.querySelector('input[name="prev_doc_front_url"]'),
         prevBack: form.querySelector('input[name="prev_doc_back_url"]'),
@@ -905,7 +741,7 @@
         ['dragleave', 'drop'].forEach(ev => tile.addEventListener(ev, e => { e.preventDefault(); tile.classList.remove('dragover'); }));
         tile.addEventListener('drop', e => {
           const f = e.dataTransfer.files[0]; if (!f) return;
-          if (!validFile(f)) return Swal.fire('Invalid file', 'Allowed: images/PDF up to 8MB.', 'warning');
+          if (!validFile(f)) return Swal.fire('Invalid file', 'Allowed: JPG, JPEG, PNG, TIFF, GIF up to 4MB.', 'warning');
           input.files = e.dataTransfer.files; show(f);
         });
 
@@ -913,18 +749,18 @@
           const f = input.files[0]; if (!f) { clear(); return; }
           // selfie should be image only
           const imageOnly = (name === 'selfie');
-          if (!validFile(f, imageOnly)) { clear(); return Swal.fire('Invalid file', 'Allowed: images/PDF up to 8MB (Selfie must be image).', 'warning'); }
+          if (!validFile(f, imageOnly)) { clear(); return Swal.fire('Invalid file', 'Allowed: JPG, JPEG, PNG, TIFF, GIF up to 4MB.', 'warning'); }
           show(f);
         });
       });
 
       async function doSubmit(e) {
-        if (e) e.preventDefault();        
-        if (!el.fullName?.value.trim() || !el.dob?.value || !el.consent?.checked) {
-          return Swal.fire('Missing data', 'Please fill mandatory fields and check consent.', 'warning');
-        }
+        if (e) e.preventDefault();
+        // NEW: simplified validation — Document Type, Document Number and all three images are required.
+        const docNumber = (el.docNumber?.value || '').trim();
+        if (!el.docType?.value) return Swal.fire('Missing data', 'Please select a document type.', 'warning');
+        if (!docNumber) return Swal.fire('Missing data', 'Please enter the document number.', 'warning');
 
-        const docType = el.docType?.value || 'passport';
         const fFront = el.docFront?.files?.[0];
         const fBack = el.docBack?.files?.[0];
         const fSelfie = el.selfie?.files?.[0];
@@ -933,21 +769,13 @@
         const hasPrevBack = !!(el.prevBack?.value || '').trim();
         const hasPrevSelfie = !!(el.prevSelf?.value || '').trim();
 
-        if (!fFront && !hasPrevFront) return Swal.fire('Document required', 'Upload ID Front.', 'warning');
-        if (!fSelfie && !hasPrevSelfie) return Swal.fire('Selfie required', 'Upload a selfie.', 'warning');
+        if (!fFront && !hasPrevFront) return Swal.fire('Document required', 'Upload the Front image.', 'warning');
+        if (!fBack && !hasPrevBack) return Swal.fire('Document required', 'Upload the Back image.', 'warning');
+        if (!fSelfie && !hasPrevSelfie) return Swal.fire('Selfie required', 'Upload a selfie with your ID.', 'warning');
 
-        if ((docType === 'national_id' || docType === 'driver_license') && !fBack && !hasPrevBack) {
-          return Swal.fire('Back side required', 'Upload ID Back for this document type.', 'warning');
-        }
-
-        const checks = [
-          [fFront, false],
-          [fBack, false],
-          [fSelfie, true],
-          [el.proof?.files?.[0], false]
-        ];
+        const checks = [[fFront, true], [fBack, true], [fSelfie, true]];
         for (const [f, imgOnly] of checks) {
-          if (f && !validFile(f, imgOnly)) return Swal.fire('Invalid file', 'Allowed: images/PDF up to 8MB.', 'warning');
+          if (f && !validFile(f, imgOnly)) return Swal.fire('Invalid file', 'Allowed: JPG, JPEG, PNG, TIFF, GIF up to 4MB.', 'warning');
         }
 
         busy(true);

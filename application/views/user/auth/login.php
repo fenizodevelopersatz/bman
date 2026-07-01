@@ -1,7 +1,9 @@
     <?php $this->load->view('user/layout/common_style'); ?>
     <?php
     // branding for the right-hand panel (design only)
-    $lpx_logo = 'assets/img/logo/logo.svg';
+    // NEW: use the logo configured in Admin -> Site Settings; fall back to the bundled SVG.
+    $lpx_logo_file = site_settings('image', 'logo');
+    $lpx_logo = $lpx_logo_file ? 'assets/images/' . rawurlencode($lpx_logo_file) : 'assets/img/logo/logo.svg';
     $lpx_name = site_settings('meta-settings', 'site-name');
     if (!$lpx_name) { $lpx_name = 'Webze'; }
     ?>
@@ -178,7 +180,7 @@
         <div class="lpx-brand-side">
             <a class="lpx-home" href="<?php echo base_url('landing'); ?>"><i class="bi bi-arrow-left"></i> TAKE ME HOME</a>
             <div class="lpx-brand-inner">
-                <a href="<?php echo base_url('landing'); ?>"><img src="<?php echo base_url($lpx_logo); ?>" alt="logo"></a>
+                <a href="<?php echo base_url('landing'); ?>"><img src="<?php echo base_url($lpx_logo); ?>" alt="logo" onerror="this.onerror=null;this.src='<?php echo base_url('assets/img/logo/logo.svg'); ?>';"></a>
                 <h2>Start your journey with <?php echo html_escape($lpx_name); ?></h2>
             </div>
         </div>

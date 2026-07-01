@@ -19,6 +19,7 @@ trackable. Update the **Status** column as features land.
 | 2 | [2_LANDING_PAGE_MODULE.md](2_LANDING_PAGE_MODULE.md) | Setup & reference for the shipped module |
 | 3 | [3_CHANGELOG.md](3_CHANGELOG.md) | Chronological log of every step done |
 | 4 | [4_LANDING_ROADMAP.md](4_LANDING_ROADMAP.md) | Phased backlog (all 18 enhancement items) |
+| 5 | [5_KYC_STATE_MACHINE.md](5_KYC_STATE_MACHINE.md) | KYC module + controlled status state machine |
 
 ---
 
@@ -26,6 +27,7 @@ trackable. Update the **Status** column as features land.
 
 | Area | Status | Notes |
 |------|:------:|-------|
+| KYC manual verification + controlled state machine | ✅ Done | See [5_KYC_STATE_MACHINE.md](5_KYC_STATE_MACHINE.md) |
 | Dynamic landing module (17 sections, repeaters, versioning) | ✅ Done | Phase 1 |
 | Admin editor `/landing-page-cms` + permission fallback | ✅ Done | Phase 1 |
 | Public page `/landing` | ✅ Done | Phase 1 |

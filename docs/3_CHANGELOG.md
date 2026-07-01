@@ -5,6 +5,58 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-01 — Auth pages: use dynamic Site-Settings logo
+
+- **What:** login (`user/in`) and register (`user/re`) brand panel now shows the
+  logo configured in **Admin → Site Settings** (`site_settings('image','logo')`,
+  served from `assets/images/`) instead of the hardcoded `assets/img/logo/logo.svg`.
+  Same size (existing CSS `.lpx-brand-inner img{height:40px}` untouched). Filename
+  is `rawurlencode()`d (admin logos can contain spaces, e.g. `image (3).png`) and
+  an `onerror` fallback restores the bundled SVG if the file is missing.
+- **Files:** `application/views/user/auth/login.php`,
+  `application/views/user/auth/register.php`.
+- **Side fix:** the asset `logo-whites.png` was on disk as `logo-whites.png.png`
+  (double extension), so `assets/images/logo-whites.png` 404'd — breaking the
+  shop invoice and the custom 404 page. Added a correctly-named copy
+  `assets/images/logo-whites.png` (original kept).
+- **How to apply:** no SQL/route. The logo is whatever Site Settings → Logo holds
+  (currently `image (3).png`).
+
+---
+
+## 2026-07-01 — KYC: controlled state machine
+
+> Full reference: [5_KYC_STATE_MACHINE.md](5_KYC_STATE_MACHINE.md).
+
+- **What:** replaced ad-hoc KYC status changes with a controlled state machine.
+  Canonical states `NOT_SUBMITTED · PENDING · UNDER_REVIEW · APPROVED ·
+  RESUBMIT_REQUIRED` map onto the existing enum values (no schema change).
+- **Rules:** users upload only in `NOT_SUBMITTED`/`RESUBMIT_REQUIRED` → auto
+  `PENDING`; admin `Start Review` (`PENDING→UNDER_REVIEW`); from `UNDER_REVIEW`
+  only `Approve` or `Request Resubmission` (reason mandatory → `RESUBMIT_REQUIRED`).
+  All transitions validated **server-side**; invalid ones return 422 and don't
+  mutate. Every transition logged to `kyc_audit_logs`.
+- **Admin UI:** action buttons only (contextual per state); no status dropdown.
+- **Files:** `models/Kyc_model.php` (state machine), `controllers/user/Kyc.php`,
+  `controllers/admin/AdminKyc.php` (`decision()` now action-based, legacy
+  `status=` still mapped), `views/user/account/kyc_form.php`,
+  `views/admin/kyc_list.php`, `assets/admin/js/.../kyc-request-list.js`.
+- **How to apply:** no SQL; hard-refresh admin KYC page (JS `?ver=3.1`).
+
+---
+
+## 2026-07-01 — KYC: manual verification form simplified
+
+- **What:** user KYC form reduced to the required fields (Document Type →
+  Aadhaar/Driving License/Passport, Document Number, Front/Back/Selfie). Formats
+  limited to JPG/JPEG/PNG/TIFF/GIF, 4 MB/image. Admin list gained Status +
+  Document Type filters and search by Name/Email/Phone/Doc No; rejection reason
+  made mandatory; status history surfaced via the (previously unused)
+  `kyc_audit_logs` table. Legacy NOT-NULL profile columns auto-filled server-side.
+- **Files:** same KYC set as above (prior revision).
+
+---
+
 ## 2026-06-30 — Fix: login crash "admin_email on null" (sender_otp)
 
 - **Cause:** `user/auth/Login.php::sender_otp()` looked up the OTP recipient in

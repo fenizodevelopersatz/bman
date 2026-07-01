@@ -91,12 +91,29 @@
 
                                                 <div class="d-flex flex-stack mb-5">
 
-                                                    <div class="d-flex align-items-center position-relative my-1">
-                                                        <i class="ki-duotone ki-magnifier fs-1 position-absolute ms-6"><span
-                                                                class="path1"></span><span class="path2"></span></i>
-                                                        <input type="text" data-kt-docs-table-filter="search"
-                                                            class="form-control form-control-solid w-250px ps-15"
-                                                            placeholder="Search Users" />
+                                                    <!-- NEW: search (Name/Email/Phone/Doc No) + Status & Document Type filters -->
+                                                    <div class="d-flex align-items-center flex-wrap gap-3 my-1">
+                                                        <div class="position-relative">
+                                                            <i class="ki-duotone ki-magnifier fs-1 position-absolute ms-6"><span
+                                                                    class="path1"></span><span class="path2"></span></i>
+                                                            <input type="text" data-kt-docs-table-filter="search"
+                                                                class="form-control form-control-solid w-250px ps-15"
+                                                                placeholder="Search Name, Email, Phone, Doc No" />
+                                                        </div>
+                                                        <select id="kyc-filter-status"
+                                                            class="form-select form-select-solid w-150px">
+                                                            <option value="">All Status</option>
+                                                            <option value="pending">Pending</option>
+                                                            <option value="approved">Approved</option>
+                                                            <option value="rejected">Rejected</option>
+                                                        </select>
+                                                        <select id="kyc-filter-doctype"
+                                                            class="form-select form-select-solid w-175px">
+                                                            <option value="">All Document Types</option>
+                                                            <option value="national_id">Aadhaar Id</option>
+                                                            <option value="driver_license">Driving License</option>
+                                                            <option value="passport">Passport</option>
+                                                        </select>
                                                     </div>
 
                                                     <div class="d-flex justify-content-end"
@@ -227,7 +244,7 @@
         const base_url = '<?php echo base_url(); ?>';
     </script>
     <script
-        src="<?php echo base_url(); ?>/assets/admin/js/custom/authentication/sign-in/kyc-request-list.js?ver=2.9"></script>
+        src="<?php echo base_url(); ?>/assets/admin/js/custom/authentication/sign-in/kyc-request-list.js?ver=3.2"></script>
     <script>
     </script>
 </body>

@@ -1319,7 +1319,7 @@ function badgeClassPro($st)
                           <?php $dt = $kyc->doc_type ?? 'passport'; ?>
                           <select class="f-select" name="doc_type" <?php echo !empty($read_only) ? 'disabled' : ''; ?>>
                             <option value="passport" <?php echo $dt === 'passport' ? 'selected' : ''; ?>>Passport</option>
-                            <option value="national_id" <?php echo $dt === 'national_id' ? 'selected' : ''; ?>>National ID
+                            <option value="national_id" <?php echo $dt === 'national_id' ? 'selected' : ''; ?>>Aadhaar Id
                             </option>
                             <option value="driver_license" <?php echo $dt === 'driver_license' ? 'selected' : ''; ?>>
                               Driver License</option>
@@ -1447,33 +1447,7 @@ function badgeClassPro($st)
                           </div>
                         </div>
 
-                        <div class="fg col-6 col-md-6">
-                          <div class="f-label">Proof of Address (Image/PDF)</div>
-
-                          <div class="js-kyc file-drop" data-input="proof_address">
-                            <div class="ic"><i class="ph ph-file"></i></div>
-                            <div>
-                              <b>Drag & drop or <a href="javascript:void(0)">browse</a></b>
-                              <small>JPG/PNG/WEBP/GIF or PDF • Max 8 MB</small>
-                              <?php if (!empty($kyc->proof_address_url)): ?>
-                                <div class="mt-1"><a target="_blank"
-                                    href="<?php echo html_escape($kyc->proof_address_url); ?>">View uploaded</a></div>
-                              <?php endif; ?>
-                            </div>
-                            <input type="file" name="proof_address" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf" hidden
-                              <?php echo !empty($read_only) ? 'disabled' : ''; ?> />
-                            <a href="javascript:void(0)" class="js-remove d-none">Remove</a>
-                          </div>
-
-                          <div class="kyc-preview d-none">
-                            <img class="kyc-thumb" src="" alt="">
-                            <div class="meta">
-                              <div class="name"></div>
-                              <div class="size"></div>
-                              <a class="js-view" target="_blank" href="#">View</a>
-                            </div>
-                          </div>
-                        </div>
+                        <?php /* Proof of Address option removed — only Front, Back & Selfie are required. */ ?>
 
                       </div><!-- /form-grid -->
 
@@ -2173,7 +2147,6 @@ async function freezeWithdraw() {
         docFront: form.querySelector('input[name="doc_front"]'),
         docBack: form.querySelector('input[name="doc_back"]'),
         selfie: form.querySelector('input[name="selfie"]'),
-        proof: form.querySelector('input[name="proof_address"]'),
 
         prevFront: form.querySelector('input[name="prev_doc_front_url"]'),
         prevBack: form.querySelector('input[name="prev_doc_back_url"]'),
@@ -2260,8 +2233,7 @@ async function freezeWithdraw() {
         const checks = [
           [fFront, false],
           [fBack, false],
-          [fSelfie, true],
-          [el.proof?.files?.[0], false]
+          [fSelfie, true]
         ];
         for (const [f, imgOnly] of checks) {
           if (f && !validFile(f, imgOnly)) return Swal.fire('Invalid file', 'Allowed: images/PDF up to 8MB.', 'warning');

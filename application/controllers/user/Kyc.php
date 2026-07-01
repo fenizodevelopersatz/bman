@@ -18,18 +18,22 @@ class Kyc extends MY_Controller
             redirect('auth/login');
 
         $current = $this->kyc->getByUser($uid);
-        $status = $current['status'] ?? 'none';
-        $readOnly = in_array($status, ['pending', 'approved'], true);
+        // NEW: resolve the canonical state-machine state and derive editability from it.
+        $state = $current ? $this->kyc->fromDb($current['status']) : Kyc_model::S_NOT_SUBMITTED;
+        $readOnly = !$this->kyc->canUserEdit($state); // editable only in NOT_SUBMITTED / RESUBMIT_REQUIRED
 
         $userid = $this->session->userdata('user_userid');
 
         $data = [
             'kyc' => $current,
             'user' => $this->db->get_where('users', ['id' => $uid])->row_array(),
-            'doc_types' => ['passport' => 'Passport', 'national_id' => 'National ID', 'driver_license' => 'Driver License'],
+            // NEW: only the three document types required by the spec (labels map to existing enum values).
+            'doc_types' => ['national_id' => 'Aadhaar Id', 'driver_license' => 'Driving License', 'passport' => 'Passport'],
             'countries' => $this->_countries(),
-            'status' => $current ? $current['status'] : '',
+            'state' => $state,          // NEW: canonical state name for the status pill
             'read_only' => $readOnly,
+            // NEW: surface the reviewer's resubmission reason when a resubmission is required.
+            'reject_reason' => ($state === Kyc_model::S_RESUBMIT_REQUIRED) ? ($current['review_notes'] ?? '') : '',
             'user_id' => $userid
         ];
 
@@ -48,26 +52,21 @@ class Kyc extends MY_Controller
 
         // Get existing application (to keep old URLs if user didn't reupload)
         $existing = $this->kyc->getByUser($uid);
-        if ($existing && in_array($existing['status'], ['pending', 'approved'], true)) {
+        // NEW: state-machine guard — users may upload only when NOT_SUBMITTED or RESUBMIT_REQUIRED.
+        $curState = $existing ? $this->kyc->fromDb($existing['status']) : Kyc_model::S_NOT_SUBMITTED;
+        if (!$this->kyc->canUserEdit($curState)) {
             return $this->_json([
                 'status' => 'error',
-                'message' => 'Your KYC is ' . $existing['status'] . ' and cannot be edited. Please wait for the review result.',
+                'message' => 'Your KYC is ' . $curState . ' and cannot be edited. Please wait for the review result.',
             ], 403);
         }
 
         // ------- Validate required fields -------
+        // NEW: simplified manual-KYC form — only Document Type + Document Number are text fields;
+        // the three images are validated further below. Only the 3 allowed document types are accepted.
         $this->load->library('form_validation');
-        $this->form_validation->set_rules('full_name', 'Full Name', 'required|min_length[2]|max_length[150]');
-        $this->form_validation->set_rules('dob', 'DOB', 'required');
-        $this->form_validation->set_rules('country_iso2', 'Country', 'required|exact_length[2]');
-        $this->form_validation->set_rules('nationality_iso2', 'Nationality', 'required|exact_length[2]');
-        $this->form_validation->set_rules('addr_line1', 'Address Line 1', 'required');
-        $this->form_validation->set_rules('addr_city', 'City', 'required');
-        $this->form_validation->set_rules('addr_postal', 'Postal', 'required');
         $this->form_validation->set_rules('doc_type', 'Document Type', 'required|in_list[passport,national_id,driver_license]');
-        $this->form_validation->set_rules('doc_number', 'Document Number', 'required');
-        $this->form_validation->set_rules('doc_issue_country', 'Issuing Country', 'required|exact_length[2]');
-        $this->form_validation->set_rules('consent', 'Consent', 'required|in_list[1]');
+        $this->form_validation->set_rules('doc_number', 'Document Number', 'required|max_length[80]');
 
         if (!$this->form_validation->run()) {
             return $this->_json(['status' => 'error', 'message' => strip_tags(validation_errors())], 422);
@@ -79,10 +78,11 @@ class Kyc extends MY_Controller
             @mkdir($upload_path, 0775, true);
 
         $this->load->library('upload');
+        // NEW: restrict to the spec's allowed image formats (JPG, JPEG, PNG, TIFF, GIF) and a 4MB/image cap.
         $cfg = [
             'upload_path' => $upload_path,
-            'allowed_types' => 'jpg|jpeg|png|webp|gif|pdf|jfif|heic|heif',
-            'max_size' => 8192, // 8MB
+            'allowed_types' => 'jpg|jpeg|png|tif|tiff|gif',
+            'max_size' => 4096, // 4MB per image
             'encrypt_name' => true,
             'remove_spaces' => true,
             'file_ext_tolower' => true,
@@ -132,45 +132,55 @@ class Kyc extends MY_Controller
         $p = $this->input->post(NULL, true);
         $docType = $p['doc_type'];
 
-        // Server-side required files
-        if (empty($url_front) || empty($url_self)) {
-            return $this->_json(['status' => 'error', 'message' => 'Please upload ID Front and a Selfie.'], 422);
+        // ------- Server-side required files: Front, Back and Selfie are ALL mandatory -------
+        // NEW: back image is now required for every document type, per the manual-KYC spec.
+        if (empty($url_front) || empty($url_back) || empty($url_self)) {
+            return $this->_json(['status' => 'error', 'message' => 'Please upload the Front image, Back image and a Selfie with ID.'], 422);
         }
-        if (in_array($docType, ['national_id', 'driver_license']) && empty($url_back)) {
-            return $this->_json(['status' => 'error', 'message' => 'Please upload the back side of your document.'], 422);
-        }
+
+        // NEW: the simplified form no longer collects profile/address fields, but the kyc_applications
+        // table keeps them NOT NULL for backward compatibility. Preserve any existing values (so resubmits
+        // don't lose data), otherwise fall back to the user's profile / safe defaults.
+        $profile = $this->db->get_where('users', ['id' => $uid])->row_array() ?: [];
+        $keep = function ($col, $default) use ($existing) {
+            return !empty($existing[$col]) ? $existing[$col] : $default; // don't overwrite on resubmit
+        };
+        $dobVal = $keep('dob', (!empty($profile['dob']) && strtotime($profile['dob'])) ? date('Y-m-d', strtotime($profile['dob'])) : '1970-01-01');
 
         // ------- Payload -------
         $payload = [
-            'country_iso2' => strtoupper($p['country_iso2']),
-            'full_name' => $p['full_name'],
-            'dob' => $p['dob'],
-            'gender' => $p['gender'] ?? 'unspecified',
-            'nationality_iso2' => strtoupper($p['nationality_iso2']),
+            // Legacy profile columns kept for backward compatibility (auto-filled, not shown on the form).
+            'country_iso2'      => $keep('country_iso2', 'IN'),
+            'full_name'         => $keep('full_name', ($profile['name'] ?? $profile['username'] ?? 'N/A')),
+            'dob'               => $dobVal,
+            'gender'            => $keep('gender', 'unspecified'),
+            'nationality_iso2'  => $keep('nationality_iso2', 'IN'),
+            'addr_line1'        => $keep('addr_line1', ($profile['address'] ?? 'N/A')),
+            'addr_line2'        => $existing['addr_line2'] ?? null,
+            'addr_city'         => $keep('addr_city', 'N/A'),
+            'addr_region'       => $existing['addr_region'] ?? null,
+            'addr_postal'       => $keep('addr_postal', 'N/A'),
+            'doc_issue_country' => $keep('doc_issue_country', 'IN'),
 
-            'addr_line1' => $p['addr_line1'],
-            'addr_line2' => $p['addr_line2'] ?? null,
-            'addr_city' => $p['addr_city'],
-            'addr_region' => $p['addr_region'] ?? null,
-            'addr_postal' => $p['addr_postal'],
-
-            'doc_type' => $docType,
-            'doc_number' => $p['doc_number'],
-            'doc_issue_country' => strtoupper($p['doc_issue_country']),
-            'doc_issue_date' => $p['doc_issue_date'] ?: null,
-            'doc_expiry_date' => $p['doc_expiry_date'] ?: null,
-
-            'doc_front_url' => $url_front,
-            'doc_back_url' => $url_back,
-            'selfie_url' => $url_self,
+            // Fields captured by the simplified manual-KYC form.
+            'doc_type'          => $docType,
+            'doc_number'        => $p['doc_number'],
+            'doc_front_url'     => $url_front,
+            'doc_back_url'      => $url_back,
+            'selfie_url'        => $url_self,
             'proof_address_url' => $url_proof,
 
-            'is_pep' => !empty($p['is_pep']) ? 1 : 0,
-            'consent' => !empty($p['consent']) ? 1 : 0,
-            'status' => 'pending',
+            'consent'        => 1,          // NEW: submitting the form implies consent
+            'status'         => 'pending',
+            'review_notes'   => null,        // NEW: clear previous rejection metadata on (re)submit
+            'rejection_code' => null,
         ];
 
         $kyc_id = $this->kyc->createOrUpdate($uid, $payload);
+
+        // NEW: log the state-machine transition (NOT_SUBMITTED|RESUBMIT_REQUIRED -> PENDING).
+        $this->kyc->addAudit($kyc_id, $uid, 'submit',
+            $curState . ' -> ' . Kyc_model::S_PENDING . ' (by user)');
 
         $this->users->setKycStatus($uid, 'pending');
         $this->db->where('id', $uid)->update('users', ['kyc_last_submitted_at' => date('Y-m-d H:i:s')]);
@@ -201,14 +211,15 @@ class Kyc extends MY_Controller
         }
 
         // Configure upload
+        // NEW: keep this optional handler in sync with the allowed formats/size used by submit().
         $config = [
             'upload_path' => FCPATH . 'uploads/kyc/' . $uid . '/',
-            'allowed_types' => 'jpg|jpeg|png|webp|gif|pdf|jfif|heic|heif',
+            'allowed_types' => 'jpg|jpeg|png|tif|tiff|gif',
             'encrypt_name' => true,
             'remove_spaces' => true,
             'file_ext_tolower' => true,
             'detect_mime' => true,
-            'max_size' => 8192, // 8MB
+            'max_size' => 4096, // 4MB per image
         ];
         if (!is_dir($config['upload_path']))
             @mkdir($config['upload_path'], 0775, true);
