@@ -1,5 +1,5 @@
 <?php
-$uid = $this->session->userdata('userid') ?? '';
+$uid = $this->session->userdata('user_userid') ?? '';
 $profile_percent = profile_completion_percent($uid);
 $this->load->library('rankservice');
 $rank = $this->rankservice->get_rank_status($uid);
@@ -36,8 +36,8 @@ $rank = $this->rankservice->get_rank_status($uid);
         <h3>
             <span id="greeting">Hello</span>
             <span>
-                <?= $this->session->userdata('full_name')
-                    ? ucwords(strtolower($this->session->userdata('full_name')))
+                <?= $this->session->userdata('user_full_name')
+                    ? ucwords(strtolower($this->session->userdata('user_full_name')))
                     : 'Lucas'; ?>
             </span>
         </h3>

@@ -140,7 +140,7 @@
         // DEMO user (replace with your PHP session user)
         const CURRENT_USER = {
             user_id: 101,
-            username: "Fenizo"
+            username: "Nexman"
         };
 
         function formatTime(ts) {

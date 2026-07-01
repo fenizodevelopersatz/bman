@@ -9,7 +9,7 @@ class  Tranfercontroller extends CI_Controller {
         $this->load->library('session');
         $this->load->helper('url');
 
-      	if($this->session->userdata('logged_in') && $this->session->userdata('user_login')) {
+      	if($this->session->userdata('user_logged_in') && $this->session->userdata('user_login')) {
 			$this->lang->load('common',$this->session->userdata('language'));
 		} else {
 			redirect('user/in');
@@ -28,7 +28,7 @@ class  Tranfercontroller extends CI_Controller {
     */
        public function index(){
 
-        $userid = $this->session->userdata('userid');
+        $userid = $this->session->userdata('user_userid');
         $this->data['user_id'] = $userid;
         $this->data['title'] = "Internel User to User Transfer";
         $this->data['card_title'] = "User to User Transfer Currency";
@@ -608,7 +608,7 @@ class  Tranfercontroller extends CI_Controller {
         $this->data['token_info'] = currency_info();
         $this->data['action'] = base_url()."make-swap-post";
         $this->data['redirect_url'] = base_url()."user/swap";
-        $userid = $this->session->userdata('userid');
+        $userid = $this->session->userdata('user_userid');
         $this->data['user_id'] = $userid;
         $currency = currency_info()->coin_name;
         $this->data['default_currency'] = $currency;
@@ -1729,7 +1729,7 @@ class  Tranfercontroller extends CI_Controller {
         $this->data['token_info'] = currency_info();
         $this->data['action'] = base_url()."make-swap-post";
         $this->data['redirect_url'] = base_url()."user/swap";
-        $userid = $this->session->userdata('userid');
+        $userid = $this->session->userdata('user_userid');
         $this->data['user_id'] = $userid;
         $currency = currency_info()->coin_name;
         $this->data['default_currency'] = $currency;
@@ -1894,7 +1894,7 @@ class  Tranfercontroller extends CI_Controller {
     $this->data['ship_status']      = $ship_status;       // NEW
 
     // Your existing extras
-    $userid = $this->session->userdata('userid');
+    $userid = $this->session->userdata('user_userid');
     $this->data['user_id'] = $userid;
     $currency = currency_info()->coin_name;
     $this->data['default_currency'] = $currency;

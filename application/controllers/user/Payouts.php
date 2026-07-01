@@ -14,7 +14,7 @@
 //         // allow only AJAX
 //         $isAjax = strtolower($this->input->server('HTTP_X_REQUESTED_WITH') ?? '') === 'xmlhttprequest';
 
-//         $id = (int) $this->session->userdata('userid');
+//         $id = (int) $this->session->userdata('user_userid');
 //         if (!$id)
 //             return $this->_json(['success' => false, 'message' => 'Login required'], $isAjax);
 
@@ -118,7 +118,7 @@ class Payouts extends CI_Controller
     {
         $isAjax = strtolower($this->input->server('HTTP_X_REQUESTED_WITH') ?? '') === 'xmlhttprequest';
 
-        $id = (int) $this->session->userdata('userid');
+        $id = (int) $this->session->userdata('user_userid');
         if (!$id)
             return $this->_json(['success' => false, 'message' => 'Login required'], $isAjax);
 

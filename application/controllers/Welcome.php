@@ -117,7 +117,7 @@ class Welcome extends CI_Controller {
 			$this->db->order_by('blogs.created_at', 'DESC');
 			$this->data['blogs'] = $this->db->get()->result();
  			
-			$user_id = $this->session->userdata('userid');
+			$user_id = $this->session->userdata('user_userid');
 			$this->load->model('shop/Product_model');
 			$wishlist_ids = $this->Product_model->get_user_wishlist_ids($user_id);
 			$cart_ids = $this->Product_model->get_user_cart_ids($user_id);

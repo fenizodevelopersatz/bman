@@ -12,7 +12,7 @@
                             <div class="mn-pro-loader"></div>
                              <div class="mn-options">
                                     <ul>
-                                        <?php if ($this->session->userdata('userid')): ?>
+                                        <?php if ($this->session->userdata('user_userid')): ?>
                                             <li>
                                                 <a href="javascript:void(0)" title="Wishlist" class="add-to-wishlist" data-product="<?= $product['id'] ?>">
                                                     <i class="ri-heart-line"></i>

@@ -10,7 +10,7 @@ class Lendingcontroller extends CI_Controller
         $this->load->library('session');
         $this->load->helper('url');
 
-        if ($this->session->userdata('logged_in') && $this->session->userdata('user_login')) {
+        if ($this->session->userdata('user_logged_in') && $this->session->userdata('user_login')) {
             $this->lang->load('common', $this->session->userdata('language'));
         } else {
             redirect('user/in');
@@ -23,7 +23,7 @@ class Lendingcontroller extends CI_Controller
     }
     public function index()
     {
-        $userid = (int) $this->session->userdata('userid');
+        $userid = (int) $this->session->userdata('user_userid');
 
         $this->data['user_id'] = $userid;
         $this->data['title'] = "Make Lending";
@@ -50,7 +50,7 @@ class Lendingcontroller extends CI_Controller
 
     public function details_ajax()
     {
-        $userId = (int) $this->session->userdata('userid');
+        $userId = (int) $this->session->userdata('user_userid');
         if (!$userId) {
             echo json_encode(['status' => false, 'message' => 'Unauthorized']);
             return;
@@ -286,7 +286,7 @@ class Lendingcontroller extends CI_Controller
 
         if ($this->input->post()) {
 
-            $user_id = $this->session->userdata('userid');
+            $user_id = $this->session->userdata('user_userid');
             $selected_package = $this->input->post('package_id');
             $bonus_amount = $this->input->post('lending_amount');
             $payment_option = $this->input->post('payment_option');
@@ -678,7 +678,7 @@ class Lendingcontroller extends CI_Controller
         ]);
 
         // 3. Show thank you page
-        $userid = $this->session->userdata('userid');
+        $userid = $this->session->userdata('user_userid');
         $this->data['user_id'] = $userid;
         $this->data['title'] = "Make Lending";
         $this->data['card_title'] = "Add Lending";

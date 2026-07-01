@@ -25,7 +25,7 @@ class AdminKyc extends CI_Controller
     private function _adminId() {
         // your app sometimes uses user_id and sometimes userid
         $id = (int)$this->session->userdata('user_id');
-        if (!$id) $id = (int)$this->session->userdata('userid');
+        if (!$id) $id = (int)$this->session->userdata('admin_userid');
         return $id;
     }
 

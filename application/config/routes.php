@@ -50,7 +50,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 |		my-controller/my-method	-> my_controller/my_method
 */
 
-$route['404_override'] = '';
+$route['404_override'] = 'notfound';
 $route['translate_uri_dashes'] = FALSE;
 // Home / index page now renders the dynamic landing page.
 // The previous shop home is preserved at /welcome and /shop-home (backup).

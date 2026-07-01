@@ -10,7 +10,7 @@ class BusinessReport extends CI_Controller
         $this->load->helper(['url', 'security']);
         $this->load->database();
 
-        if (!$this->session->userdata('logged_in'))
+        if (!$this->session->userdata('admin_logged_in'))
             redirect('admin/login');
     }
 

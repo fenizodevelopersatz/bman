@@ -13,7 +13,10 @@ class GlobalVerify extends CI_Controller
 
     private function uid()
     {
-        $uid = $this->session->userdata('userid') ?? '';
+        // Pick the correct namespaced id based on the request role (admin vs user),
+        // so admin and user sessions can be active in the same browser without conflict.
+        $key = ($this->role() === 'admin') ? 'admin_userid' : 'user_userid';
+        $uid = $this->session->userdata($key) ?? '';
         return $uid ? (int) $uid : 0;
     }
 

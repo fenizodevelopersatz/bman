@@ -9,11 +9,11 @@ class Paymentsettings extends CI_Controller {
         $this->load->helper('url');
         $this->load->model('Admin_model');
 
-        if (!$this->session->userdata('logged_in')) {
+        if (!$this->session->userdata('admin_logged_in')) {
             redirect('admin/login');
         }
 
-        $user = $this->Admin_model->get_user($this->session->userdata('userid'));
+        $user = $this->Admin_model->get_user($this->session->userdata('admin_userid'));
 
         if ($user->admin_roll == '1') {
             $permissions = json_decode($user->permission_pages, true);
@@ -110,7 +110,7 @@ class Paymentsettings extends CI_Controller {
     //         $this->sender_otp();
     //         }
 
-    //         $admin_id = $this->session->userdata('userid');
+    //         $admin_id = $this->session->userdata('admin_userid');
     //         $this->data['verify_type'] = '0';
     //         $this->data['title'] = 'Payment Settings Verify Page';
     //         $this->data['admin_mail'] = $this->db->query("SELECT * FROM `admin_members` WHERE id = '".$admin_id."' ")->row()->admin_email;
@@ -149,7 +149,7 @@ class Paymentsettings extends CI_Controller {
         $random_number = sprintf("%06d", random_string('numeric', 6));
 
         if($random_number){
-            $userid = $this->session->userdata('userid');
+            $userid = $this->session->userdata('admin_userid');
          
             $this->load->model('member/Mlm_model');
             $useremail = $this->db->query("SELECT * FROM `admin_members` where id = '".$userid."' ")->row()->admin_email;
@@ -184,7 +184,7 @@ class Paymentsettings extends CI_Controller {
             
             if (!empty($postData)) {
              
-                $admin_id = $this->session->userdata('userid');
+                $admin_id = $this->session->userdata('admin_userid');
                 $emailOTP = $this->input->post('emailOTP');
                 $twofaOTP = $this->input->post('twofaOTP');
 
@@ -245,7 +245,7 @@ class Paymentsettings extends CI_Controller {
 
                 $otp = $data->otp;
                 $method = $data->method;
-                $admin_id = $this->session->userdata('userid');
+                $admin_id = $this->session->userdata('admin_userid');
 
                 if($otp){
 

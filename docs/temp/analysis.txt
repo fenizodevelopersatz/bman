@@ -715,3 +715,74 @@ Today Works
 
 
 5. Package setting & Staking plan & ROI Structure 
+
+
+
+Removed fenizo+adrox -> nexman
+
+
+Array
+(
+    [__ci_last_regenerate] => 1782893351
+    [user_get_id] => 1
+    [verify_payment_page] => ok
+    [sender_otp] => 
+    [remember_me] => 1
+    [admin_logged_in] => 1
+    [admin_full_name] => admin
+    [admin_userid] => 1
+    [admin_email] => admin@gmail.com
+    [admin_userlevel] => 1
+    [admin_login] => 1
+)
+
+
+
+
+Array
+(
+    [__ci_last_regenerate] => 1782893656
+    [user_get_id] => 256
+    [verify_payment_page] => ok
+    [remember_me] => 1
+    [admin_logged_in] => 1
+    [admin_full_name] => admin
+    [admin_userid] => 1
+    [admin_email] => admin@gmail.com
+    [admin_userlevel] => 1
+    [admin_login] => 1
+    [sender_otp] => 
+    [user_logged_in] => 1
+    [user_full_name] => SATZ
+    [user_userid] => 256
+    [user_email] => SATZ@yopmail.com
+    [user_login] => 1
+)
+
+
+
+
+Array
+(
+    [__ci_last_regenerate] => 1782893656
+    [user_get_id] => 256
+    [verify_payment_page] => ok
+    [remember_me] => 1
+    [admin_logged_in] => 1
+    [admin_full_name] => admin
+    [admin_userid] => 1
+    [admin_email] => admin@gmail.com
+    [admin_userlevel] => 1
+    [admin_login] => 1
+    [sender_otp] => 
+    [user_logged_in] => 1
+    [user_full_name] => SATZ
+    [user_userid] => 256
+    [user_email] => SATZ@yopmail.com
+    [user_login] => 1
+)
+
+
+
+
+echo "<pre>";print_r($this->session->all_userdata());exit;

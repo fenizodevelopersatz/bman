@@ -9,7 +9,7 @@ class Register extends CI_Controller {
 		$this->load->helper('cookie');
 		$this->load->helper('captcha');
 
-        if($this->session->userdata('logged_in') && $this->session->userdata('user_login')) {
+        if($this->session->userdata('user_logged_in') && $this->session->userdata('user_login')) {
           redirect('user/main');
         }
 

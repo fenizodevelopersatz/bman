@@ -11,12 +11,12 @@
 //         $this->load->helper(['url', 'form']);
 //         $this->load->model('Admin_model');
 
-//         if (!$this->session->userdata('logged_in')) {
+//         if (!$this->session->userdata('admin_logged_in')) {
 //             redirect('admin/login');
 //         }
 
 //         // ✅ permission like your FAQ cms
-//         $user = $this->Admin_model->get_user($this->session->userdata('userid'));
+//         $user = $this->Admin_model->get_user($this->session->userdata('admin_userid'));
 //         if ($user->admin_roll == '1') {
 //             $permissions = json_decode($user->permission_pages, true);
 //             if (empty($permissions['earning_ads'])) {
@@ -323,12 +323,12 @@ class Earnings_ads extends My_Controller
         $this->load->model('Admin_model');
 
         // ✅ Admin login check
-        if (!$this->session->userdata('logged_in')) {
+        if (!$this->session->userdata('admin_logged_in')) {
             redirect('admin/login');
         }
 
         // ✅ Permission check (change key name as per your permission JSON)
-        $user = $this->Admin_model->get_user($this->session->userdata('userid'));
+        $user = $this->Admin_model->get_user($this->session->userdata('admin_userid'));
 
         if ($user && $user->admin_roll == '1') {
             $permissions = json_decode($user->permission_pages, true);

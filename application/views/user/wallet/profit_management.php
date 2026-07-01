@@ -930,7 +930,7 @@
   $sv = strtoupper($filters['status'] ?? '');
   $fv = $filters['from'] ?? '';
   $tov = $filters['to'] ?? '';
-  $user_id = $this->session->userdata('userid') ?? '';
+  $user_id = $this->session->userdata('user_userid') ?? '';
   $isEligible = is_withdraw_eligible($user_id);
   ?>
   <div class="app-container">
@@ -1407,7 +1407,7 @@
       setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 250); }, 1400);
     }
 
-    const userId = "<?php echo $this->session->userdata('userid'); ?>";
+    const userId = "<?php echo $this->session->userdata('user_userid'); ?>";
 
     async function updateWeeklyProgress() {
       try {

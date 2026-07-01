@@ -10,7 +10,7 @@ class Login extends CI_Controller
 		$this->load->helper('cookie');
 		$this->load->helper('captcha');
 
-		if ($this->session->userdata('logged_in') && $this->session->userdata('user_login')) {
+		if ($this->session->userdata('user_logged_in') && $this->session->userdata('user_login')) {
 			redirect('user/main');
 		}
 
@@ -231,20 +231,17 @@ class Login extends CI_Controller
 
 					$result = $this->db->query("SELECT * FROM users where id = '" . $admin_id . "' ")->row();
 					$array = array(
-						"logged_in" => TRUE,
-						"full_name" => $result->username,
-						"userid" => $result->id,
-						"Email" => $result->email,
-						"admin_login" => FALSE,
+						"user_logged_in" => TRUE,
+						"user_full_name" => $result->username,
+						"user_userid" => $result->id,
+						"user_email" => $result->email,
 						"user_login" => TRUE
 					);
 
 					$userarray = array(
-						"userid" => $result->id,
-						"logindate" => date('Y-m-d H:i:s'),
-						"LoggedIn" => $result->id,
-						"admin_user" => $result->id,
-						"ip_address" => $_SERVER['REMOTE_ADDR']
+						"user_userid" => $result->id,
+						"user_logindate" => date('Y-m-d H:i:s'),
+						"user_ip_address" => $_SERVER['REMOTE_ADDR']
 					);
 
 

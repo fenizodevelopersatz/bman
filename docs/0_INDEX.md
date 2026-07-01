@@ -1,6 +1,6 @@
 # 0 — Documentation Index & Status Dashboard
 
-Master index for the **Landing Page / Home Page** work on the Fenizo MLM
+Master index for the **Landing Page / Home Page** work on the Nexman MLM
 (CodeIgniter) platform. All docs are number-prefixed so future work stays
 trackable. Update the **Status** column as features land.
 

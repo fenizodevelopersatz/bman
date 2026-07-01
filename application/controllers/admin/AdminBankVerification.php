@@ -33,7 +33,7 @@ class AdminBankVerification extends CI_Controller
     {
         $id = (int) $this->session->userdata('user_id');
         if (!$id)
-            $id = (int) $this->session->userdata('userid');
+            $id = (int) $this->session->userdata('admin_userid');
         return $id;
     }
 

@@ -10,14 +10,14 @@ class Support extends MY_Controller
         $this->load->library('session');
         $this->load->helper('url');
 
-        if ($this->session->userdata('logged_in') && $this->session->userdata('user_login')) {
+        if ($this->session->userdata('user_logged_in') && $this->session->userdata('user_login')) {
             $this->lang->load('common', $this->session->userdata('language'));
         } else {
             redirect('user/in');
         }
 
         // ✅ user must be logged in
-        $this->user_id = (int) $this->session->userdata('userid');
+        $this->user_id = (int) $this->session->userdata('user_userid');
         if (!$this->user_id) {
             redirect('user/in');
             exit;
@@ -39,7 +39,7 @@ class Support extends MY_Controller
     //     $this->data['title'] = lang('support_title');
     //     $this->data['card_tilte'] = lang('support_card_title');
 
-    //     $userid = $this->session->userdata('userid');
+    //     $userid = $this->session->userdata('user_userid');
     //     $this->data['user_id'] = $userid;
     //     $query = $this->db->query("
     //     SELECT 
@@ -65,7 +65,7 @@ class Support extends MY_Controller
     // ✅ Support List Page (your modern UI)
     public function index()
     {
-        $userid = (int) $this->session->userdata('userid');
+        $userid = (int) $this->session->userdata('user_userid');
 
         $this->data['title'] = 'Support Ticket List';
         $this->data['card_tilte'] = 'List of Tickets';
@@ -118,7 +118,7 @@ class Support extends MY_Controller
     public function create()
     {
 
-        $userid = $this->session->userdata('userid');
+        $userid = $this->session->userdata('user_userid');
 
         if ($this->input->post()) {
 
@@ -231,7 +231,7 @@ class Support extends MY_Controller
         } else {
             $this->data['title'] = "Create Support Ticket ";
             $this->data['card_tilte'] = "Create Ticket";
-            $userid = $this->session->userdata('userid');
+            $userid = $this->session->userdata('user_userid');
             $this->data['user_id'] = $userid;
             $this->load->view('user/support/create-ticket', $this->data);
         }
@@ -484,7 +484,7 @@ class Support extends MY_Controller
     // ✅ NEW JSON API for this support page (cards)
     // public function tickets_json()
     // {
-    //     $userid = (int) $this->session->userdata('userid');
+    //     $userid = (int) $this->session->userdata('user_userid');
     //     if (!$userid) {
     //         echo json_encode(['ok' => false, 'message' => 'Session expired']);
     //         return;
@@ -520,7 +520,7 @@ class Support extends MY_Controller
 
     public function tickets_json()
     {
-        $userid = (int) $this->session->userdata('userid');
+        $userid = (int) $this->session->userdata('user_userid');
         if (!$userid) {
             $this->output->set_content_type('application/json')
                 ->set_output(json_encode(['ok' => false, 'message' => 'Session expired']));
@@ -652,7 +652,7 @@ class Support extends MY_Controller
 
     public function ticket_view_api()
     {
-        $userid = (int) $this->session->userdata('userid');
+        $userid = (int) $this->session->userdata('user_userid');
         if (!$userid) {
             $this->output->set_content_type('application/json')
                 ->set_output(json_encode(['status' => false, 'message' => 'Unauthorized']));

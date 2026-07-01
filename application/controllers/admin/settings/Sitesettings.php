@@ -11,11 +11,11 @@ class Sitesettings extends MY_Controller
         $this->load->helper('url');
         $this->load->model('Admin_model');
 
-        if (!$this->session->userdata('logged_in')) {
+        if (!$this->session->userdata('admin_logged_in')) {
             redirect('admin/login');
         }
 
-        $user = $this->Admin_model->get_user($this->session->userdata('userid'));
+        $user = $this->Admin_model->get_user($this->session->userdata('admin_userid'));
 
         if ($user && $user->admin_roll == '1') {
             $permissions = json_decode($user->permission_pages, true);
@@ -289,14 +289,12 @@ class Sitesettings extends MY_Controller
     public function logout()
     {
 
-        $this->session->unset_userdata('admin_login');
-        $this->session->unset_userdata('login');
-        $this->session->unset_userdata('user_id');
-        $this->session->unset_userdata('username');
-        $this->session->unset_userdata('role_id');
-        $this->session->unset_userdata('email');
-        $this->session->unset_userdata('image');
-        $this->session->unset_userdata('site_logo');
+        // Clear only the admin session keys so a logged-in user in another tab stays logged in.
+        $this->session->unset_userdata(array(
+            'admin_logged_in', 'admin_userid', 'admin_full_name',
+            'admin_email', 'admin_userlevel', 'admin_login',
+            'admin_logindate', 'admin_ip_address', 'site_logo'
+        ));
 
         //Set Message
         $this->session->set_flashdata('success', 'You are logged out.');

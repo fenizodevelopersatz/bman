@@ -15,11 +15,11 @@ class Withdraw extends MY_Controller
         $this->load->model('member/Users_model', 'soft_delete');
         $this->load->library('upload');
 
-        // if (!$this->session->userdata('logged_in')) {
+        // if (!$this->session->userdata('admin_logged_in')) {
         //     redirect('admin/login');
         // }
 
-        // if ($this->session->userdata('logged_in') && $this->session->userdata('logged_in')) {
+        // if ($this->session->userdata('admin_logged_in') && $this->session->userdata('admin_logged_in')) {
         //     if ($this->input->is_ajax_request()) {
         //         echo json_encode(['status' => false, 'redirect' => base_url('admin/main')]);
         //         exit;
@@ -27,7 +27,7 @@ class Withdraw extends MY_Controller
         // }
 
 
-        // $user = $this->Admin_model->get_user($this->session->userdata('userid'));
+        // $user = $this->Admin_model->get_user($this->session->userdata('admin_userid'));
 
         // if ($user->admin_roll == '1') {
         //     $permissions = json_decode($user->permission_pages, true);
@@ -52,7 +52,7 @@ class Withdraw extends MY_Controller
     {
 
 
-        if (!$this->session->userdata('logged_in')) {
+        if (!$this->session->userdata('admin_logged_in')) {
             redirect('admin/login');
         }
 
@@ -780,7 +780,7 @@ class Withdraw extends MY_Controller
     //             'admin_review' => $this->input->post('review', true),
     //             'status' => $this->input->post('status', true),
     //             'approved_at' => date('Y-m-d H:i:s'),
-    //             'approved_by' => $this->session->userdata('userid') ?? $this->session->userdata('user_get_id')
+    //             'approved_by' => $this->session->userdata('admin_userid') ?? $this->session->userdata('user_get_id')
     //         ];
 
     //         if ($proof_file) {
@@ -900,7 +900,7 @@ class Withdraw extends MY_Controller
                 'admin_review' => $this->input->post('review', true),
                 'status' => $new_status,
                 'approved_at' => date('Y-m-d H:i:s'),
-                'approved_by' => $this->session->userdata('userid')
+                'approved_by' => $this->session->userdata('admin_userid')
             ];
 
             if ($proof_file) {
@@ -937,7 +937,7 @@ class Withdraw extends MY_Controller
             if ($check_user > 0) {
 
 
-                $user_id = $this->session->userdata('userid') ?? $this->session->userdata('user_get_id');
+                $user_id = $this->session->userdata('admin_userid') ?? $this->session->userdata('user_get_id');
                 if ($this->um->soft_delete($id, $user_id)) {
                     echo json_encode([
                         'status' => true,
@@ -968,7 +968,7 @@ class Withdraw extends MY_Controller
 
             if ($check_user > 0) {
 
-                $user_id = $this->session->userdata('userid') ?? $this->session->userdata('user_get_id');
+                $user_id = $this->session->userdata('admin_userid') ?? $this->session->userdata('user_get_id');
                 if ($this->um->soft_delete($id, $user_id)) {
                     echo json_encode([
                         'status' => true,

@@ -9,8 +9,8 @@ class Genealogycontroller extends MY_Controller
         parent::__construct();
         $this->load->library('session');
         $this->load->helper('url');
-
-        if ($this->session->userdata('logged_in') && $this->session->userdata('user_login')) {
+    
+        if ($this->session->userdata('user_logged_in') && $this->session->userdata('user_login')) {
             $this->lang->load('common', $this->session->userdata('language'));
         } else {
             redirect('user/in');
@@ -32,7 +32,7 @@ class Genealogycontroller extends MY_Controller
     */
     public function index()
     {
-        $id = (int) $this->session->userdata('userid');
+        $id = (int) $this->session->userdata('user_userid');
         $this->data['user_id'] = $id;
 
         $this->data['title'] = "Your Genealogy";
@@ -125,7 +125,7 @@ class Genealogycontroller extends MY_Controller
     {
         header('Content-Type: application/json');
 
-        $rootId = (int) $this->session->userdata('userid');
+        $rootId = (int) $this->session->userdata('user_userid');
         $depth = (int) $this->input->get('depth');
         if ($depth <= 0)
             $depth = 3;
@@ -649,7 +649,7 @@ class Genealogycontroller extends MY_Controller
     public function rankreward()
     {
 
-        $id = $this->session->userdata('userid');
+        $id = $this->session->userdata('user_userid');
         $this->data['user_id'] = $id;
 
         $this->data['title'] = "Your Genealogy";
@@ -680,7 +680,7 @@ class Genealogycontroller extends MY_Controller
     // public function withdraw()
     // {
 
-    //     $id = $this->session->userdata('userid');
+    //     $id = $this->session->userdata('user_userid');
     //     $this->data['user_id'] = $id;
 
     //     $this->data['title'] = "Your Genealogy";
@@ -708,7 +708,7 @@ class Genealogycontroller extends MY_Controller
 
     public function withdraw()
     {
-        $id = (int) $this->session->userdata('userid');
+        $id = (int) $this->session->userdata('user_userid');
         if (!$id) {
             redirect('login');
             return;
@@ -919,7 +919,7 @@ class Genealogycontroller extends MY_Controller
     public function wallet_transfer()
     {
 
-        $id = $this->session->userdata('userid');
+        $id = $this->session->userdata('user_userid');
         $this->data['user_id'] = $id;
 
         $this->data['title'] = "Your Genealogy";
@@ -950,7 +950,7 @@ class Genealogycontroller extends MY_Controller
     public function all_rank()
     {
 
-        $id = $this->session->userdata('userid');
+        $id = $this->session->userdata('user_userid');
         $this->data['user_id'] = $id;
 
         $this->data['title'] = "Your Genealogy";
@@ -981,7 +981,7 @@ class Genealogycontroller extends MY_Controller
     // public function chat()
     // {
 
-    //     $id = $this->session->userdata('userid');
+    //     $id = $this->session->userdata('user_userid');
     //     $this->data['user_id'] = $id;
 
     //     $this->data['title'] = "Your Genealogy";
@@ -1011,7 +1011,7 @@ class Genealogycontroller extends MY_Controller
     |-------------------------------------------------------------------------- */
     public function chat()
     {
-        $id = $this->session->userdata('userid');
+        $id = $this->session->userdata('user_userid');
         if (!$id) {
             redirect('user/in');
             return;
@@ -1054,7 +1054,7 @@ class Genealogycontroller extends MY_Controller
             return;
         }
 
-        $id = $this->session->userdata('userid');
+        $id = $this->session->userdata('user_userid');
         if (!$id) {
             return $this->output->set_content_type('application/json')
                 ->set_output(json_encode(['ok' => false, 'message' => 'Not logged in']));
@@ -1157,7 +1157,7 @@ class Genealogycontroller extends MY_Controller
     public function chat_fetch()
     {
         // allow fetch from normal requests too (avoid 404 issues)
-        $userId = (int) $this->session->userdata('userid');
+        $userId = (int) $this->session->userdata('user_userid');
         if (!$userId) {
             return $this->output->set_content_type('application/json')
                 ->set_output(json_encode(['ok' => false, 'message' => 'Not logged in']));
@@ -1213,7 +1213,7 @@ class Genealogycontroller extends MY_Controller
     // GET: user/chat/recent
     public function chat_recent()
     {
-        $userId = (int) $this->session->userdata('userid');
+        $userId = (int) $this->session->userdata('user_userid');
         if (!$userId) {
             return $this->output->set_content_type('application/json')
                 ->set_output(json_encode(['ok' => false, 'message' => 'Not logged in']));

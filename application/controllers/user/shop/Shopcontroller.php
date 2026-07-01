@@ -64,7 +64,7 @@ class Shopcontroller extends CI_Controller
         $this->data['images'] = $product_images;
         $this->data['meta'] = $product_meta;
 
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
         $this->db->select('product_id');
         $this->db->from('wishlist');
         $this->db->where('user_id', $user_id);
@@ -79,13 +79,13 @@ class Shopcontroller extends CI_Controller
 
     public function add_to_wishlist()
     {
-        if (!$this->session->userdata('userid')) {
+        if (!$this->session->userdata('user_userid')) {
             echo json_encode(['status' => 'error', 'message' => 'Login required']);
             return;
         }
 
         $product_id = $this->input->post('product_id');
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
 
         $exists = $this->db->get_where('wishlist', [
             'user_id' => $user_id,
@@ -107,13 +107,13 @@ class Shopcontroller extends CI_Controller
 
     public function add_to_cart()
     {
-        if (!$this->session->userdata('userid')) {
+        if (!$this->session->userdata('user_userid')) {
             echo json_encode(['status' => 'error', 'message' => 'Login required']);
             return;
         }
 
         $product_id = $this->input->post('product_id');
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
         $quantity = $this->input->post('quantity');
         $quantity = !empty($quantity) ? (int) $quantity : 1;
 
@@ -140,12 +140,12 @@ class Shopcontroller extends CI_Controller
 
     public function wishlist_count()
     {
-        if (!$this->session->userdata('userid')) {
+        if (!$this->session->userdata('user_userid')) {
             echo json_encode(['count' => 0]);
             return;
         }
 
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
         $count = $this->db->where('user_id', $user_id)->count_all_results('wishlist');
 
         echo json_encode(['count' => $count]);
@@ -154,7 +154,7 @@ class Shopcontroller extends CI_Controller
 
     public function ajax_get_wishlist()
     {
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
         if (!$user_id) {
             echo json_encode(['status' => false, 'html' => '']);
             return;
@@ -194,7 +194,7 @@ class Shopcontroller extends CI_Controller
     public function remove_wishlist_item()
     {
         $id = $this->input->post('id');
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
 
         $this->db->where('id', $id);
         $this->db->where('user_id', $user_id);
@@ -205,12 +205,12 @@ class Shopcontroller extends CI_Controller
 
     public function get_cart_items()
     {
-        if (!$this->session->userdata('userid')) {
+        if (!$this->session->userdata('user_userid')) {
             echo json_encode(['status' => 'error', 'message' => 'Login required']);
             return;
         }
 
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
 
         $this->db->select('cart.id as cart_id, cart.quantity, products.*');
         $this->db->from('cart');
@@ -245,7 +245,7 @@ class Shopcontroller extends CI_Controller
 
     public function remove_item()
     {
-        if (!$this->session->userdata('userid')) {
+        if (!$this->session->userdata('user_userid')) {
             echo json_encode(['status' => 'error', 'message' => 'Login required']);
             return;
         }
@@ -258,12 +258,12 @@ class Shopcontroller extends CI_Controller
 
     public function get_cart_count()
     {
-        if (!$this->session->userdata('userid')) {
+        if (!$this->session->userdata('user_userid')) {
             echo json_encode(['status' => 'error', 'count' => 0]);
             return;
         }
 
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
 
         $this->db->select_sum('quantity');
         $this->db->where('user_id', $user_id);
@@ -276,7 +276,7 @@ class Shopcontroller extends CI_Controller
     public function get_cart_page()
     {
 
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
         $this->db->select('cart.id as cart_id, cart.quantity, products.*');
         $this->db->from('cart');
         $this->db->join('products', 'products.id = cart.product_id');
@@ -315,7 +315,7 @@ class Shopcontroller extends CI_Controller
 
     public function update_cart_qty()
     {
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
         $product_id = $this->input->post('product_id');
         $quantity = $this->input->post('quantity');
 
@@ -328,7 +328,7 @@ class Shopcontroller extends CI_Controller
 
     public function remove_from_cart()
     {
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
         $product_id = $this->input->post('product_id');
 
         $this->db->where('user_id', $user_id);
@@ -343,7 +343,7 @@ class Shopcontroller extends CI_Controller
     public function get_checkout_page()
     {
 
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
         $this->data['address_info'] = $this->Product_model->get_user_addresses($user_id);
         $this->db->select('cart.id as cart_id, cart.quantity, products.*');
         $this->db->from('cart');
@@ -387,7 +387,7 @@ class Shopcontroller extends CI_Controller
     public function save_address()
     {
 
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
 
         $data = array(
             'user_id' => $user_id,
@@ -416,7 +416,7 @@ class Shopcontroller extends CI_Controller
     {
         $payment_method = $this->input->post('payment_method');
         $shipping_id = $this->input->post('shipping_id');
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
 
         $cart_items = $this->Product_model->get_user_cart($user_id);
 
@@ -581,7 +581,7 @@ class Shopcontroller extends CI_Controller
 
     //     $this->db->where('id', $order_id)->update('orders', ['payment_status' => 'paid']);
 
-    //     $user_id = $this->session->userdata('userid');
+    //     $user_id = $this->session->userdata('user_userid');
     //      $this->Product_model->clear_cart($user_id);
 
     //     $order = $this->db->get_where('orders', ['id' => $order_id])->row();
@@ -664,7 +664,7 @@ class Shopcontroller extends CI_Controller
         $this->db->where('id', $order_id)->update('orders', ['payment_status' => 'paid']);
 
         // 2) Clear cart
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
         $this->Product_model->clear_cart($user_id);
 
         // 3) Load order + items (you already have this)
@@ -732,7 +732,7 @@ class Shopcontroller extends CI_Controller
 
     public function invoice($order_id)
     {
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
 
         $order = $this->db->get_where('orders', ['id' => $order_id, 'user_id' => $user_id])->row();
         if (!$order)

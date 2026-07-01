@@ -128,7 +128,7 @@
 											<div class="mn-pro-loader"></div>
 											<div class="mn-options">
 												<ul>
-													<?php if ($this->session->userdata('userid')): ?>
+													<?php if ($this->session->userdata('user_userid')): ?>
 
 														<?php $wishlist_active = in_array($product->id, $wishlist_ids ?? []) ? 'active-heart' : '';
 														$cart_active = in_array($product->id, $cart_ids ?? []) ? 'active-cart' : '';

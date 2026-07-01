@@ -73,8 +73,8 @@ $dark_logo = site_settings('dark_logo', 'logo');
 								<li>
 									<a href="<?php echo base_url(); ?>">Home</a>
 								</li>
-								<?php $this->session->userdata('userid') ?>
-								<?php if ($this->session->userdata('userid')) { ?>
+								<?php $this->session->userdata('user_userid') ?>
+								<?php if ($this->session->userdata('user_userid')) { ?>
 									<li>
 										<a href="<?php echo base_url(); ?>user/main">Dashboard</a>
 									</li>
@@ -182,7 +182,7 @@ $dark_logo = site_settings('dark_logo', 'logo');
 							</svg>
 						</a>
 						<ul class="sub-menu">
-							<?php if (!$this->session->userdata('userid')): ?>
+							<?php if (!$this->session->userdata('user_userid')): ?>
 								<li><a href="<?= base_url(); ?>user/in">Login</a></li>
 								<li><a href="<?= base_url(); ?>user/re">Register</a></li>
 							<?php else: ?>

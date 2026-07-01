@@ -12,7 +12,7 @@ class Earnings extends CI_Controller
 
     public function index()
     {
-        $user_id = (int) $this->session->userdata('userid');
+        $user_id = (int) $this->session->userdata('user_userid');
         if (!$user_id) {
             redirect('login');
             return;
@@ -38,7 +38,7 @@ class Earnings extends CI_Controller
 
     public function do_method($code)
     {
-        $user_id = (int) $this->session->userdata('userid');
+        $user_id = (int) $this->session->userdata('user_userid');
         if (!$user_id) {
             redirect('login');
             return;
@@ -81,7 +81,7 @@ class Earnings extends CI_Controller
 
     public function claim_task($code)
     {
-        $user_id = (int) $this->session->userdata('userid');
+        $user_id = (int) $this->session->userdata('user_userid');
         if (!$user_id) {
             redirect('login');
             return;
@@ -118,7 +118,7 @@ class Earnings extends CI_Controller
 
     public function verify_task($code)
     {
-        $user_id = (int) $this->session->userdata('userid');
+        $user_id = (int) $this->session->userdata('user_userid');
         if (!$user_id) {
             redirect('login');
             return;

@@ -23,7 +23,7 @@ class Login extends CI_Controller {
 		$this->load->helper('cookie');
 		$this->load->helper('captcha');
 
-        if($this->session->userdata('logged_in') && $this->session->userdata('admin_login')) {
+        if($this->session->userdata('admin_logged_in') && $this->session->userdata('admin_login')) {
             redirect('admin');
          } 
 
@@ -232,21 +232,18 @@ class Login extends CI_Controller {
 
 					$result = $this->db->query("SELECT * FROM admin_members where id = '".$admin_id."' ")->row();
 					$array = array(
-					"logged_in" => TRUE,
-					"full_name" => $result->admin_name,
-					"userid" => $result->id,
-					"Email" => $result->admin_email,
-					"UserLevel" => $result->admin_roll,
-					"admin_login" => TRUE,
-					"user_login" => FALSE
+					"admin_logged_in" => TRUE,
+					"admin_full_name" => $result->admin_name,
+					"admin_userid" => $result->id,
+					"admin_email" => $result->admin_email,
+					"admin_userlevel" => $result->admin_roll,
+					"admin_login" => TRUE
 					);
 
 					$userarray = array(
-					"userid" => $result->id,
-					"logindate" => date('Y-m-d H:i:s'),
-					"LoggedIn" => $result->id,
-					"admin_user"=> $result->id,
-					"ip_address"=>$_SERVER['REMOTE_ADDR']
+					"admin_userid" => $result->id,
+					"admin_logindate" => date('Y-m-d H:i:s'),
+					"admin_ip_address"=>$_SERVER['REMOTE_ADDR']
 					);
 
 
@@ -316,7 +313,12 @@ class Login extends CI_Controller {
 	}
 
 	public function logout() {
-		$this->session->sess_destroy();
+		// Clear only the admin session keys so a logged-in user in another tab stays logged in.
+		$this->session->unset_userdata(array(
+			'admin_logged_in', 'admin_userid', 'admin_full_name',
+			'admin_email', 'admin_userlevel', 'admin_login',
+			'admin_logindate', 'admin_ip_address'
+		));
 		redirect('admin/login');
 	}
 

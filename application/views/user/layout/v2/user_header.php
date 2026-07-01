@@ -1,5 +1,5 @@
 <?php
-$uid = $this->session->userdata('userid') ?? '';
+$uid = $this->session->userdata('user_userid') ?? '';
 ?>
 <style>
   .user-dropdown {
@@ -90,7 +90,7 @@ $uid = $this->session->userdata('userid') ?? '';
     <div class="user-dropdown" id="userDropdown">
       <button class="user-pill" id="userDropdownBtn" type="button">
         <img src="<?php echo user_profile_image($uid); ?>" alt="user" />
-        <span><?php echo $this->session->userdata('full_name') ? ucfirst(strtolower($this->session->userdata('full_name'))) : 'Lucas'; ?></span>
+        <span><?php echo $this->session->userdata('user_full_name') ? ucfirst(strtolower($this->session->userdata('user_full_name'))) : 'Lucas'; ?></span>
         <i class="ph ph-caret-down" style="font-size:16px;"></i>
       </button>
 

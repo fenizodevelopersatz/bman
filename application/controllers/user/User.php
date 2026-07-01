@@ -8,7 +8,7 @@ class User extends CI_Controller
 	{
 		parent::__construct();
 
-		if ($this->session->userdata('logged_in') && $this->session->userdata('user_login')) {
+		if ($this->session->userdata('user_logged_in') && $this->session->userdata('user_login')) {
 			$this->lang->load('common', $this->session->userdata('language'));
 		} else {
 			redirect('user/in');
@@ -25,9 +25,9 @@ class User extends CI_Controller
 	public function index()
 	{
 
-		if ($this->session->userdata('logged_in')) {
+		if ($this->session->userdata('user_logged_in')) {
 
-			$userid = $this->session->userdata('userid');
+			$userid = $this->session->userdata('user_userid');
 			$userinfo = $this->db->query("SELECT * FROM users where id = '" . $userid . "' ")->row();
 
 			$username = $userinfo->username;
@@ -83,7 +83,11 @@ class User extends CI_Controller
 
 	public function logout()
 	{
-		$this->session->sess_destroy();
+		// Clear only the user session keys so a logged-in admin in another tab stays logged in.
+		$this->session->unset_userdata(array(
+			'user_logged_in', 'user_userid', 'user_full_name',
+			'user_email', 'user_login', 'user_logindate', 'user_ip_address'
+		));
 		redirect('/');
 	}
 
@@ -1196,7 +1200,7 @@ class User extends CI_Controller
 
 	public function recentCommissionsAjax()
 	{
-		$user_id = (int) ($this->session->userdata('userid') ?? 0);
+		$user_id = (int) ($this->session->userdata('user_userid') ?? 0);
 		if ($user_id <= 0) {
 			return $this->_json(['status' => false, 'message' => 'Unauthorized']);
 		}

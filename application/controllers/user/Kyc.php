@@ -13,7 +13,7 @@ class Kyc extends MY_Controller
 
     public function index()
     {
-        $uid = (int) $this->session->userdata('userid');
+        $uid = (int) $this->session->userdata('user_userid');
         if (!$uid)
             redirect('auth/login');
 
@@ -21,7 +21,7 @@ class Kyc extends MY_Controller
         $status = $current['status'] ?? 'none';
         $readOnly = in_array($status, ['pending', 'approved'], true);
 
-        $userid = $this->session->userdata('userid');
+        $userid = $this->session->userdata('user_userid');
 
         $data = [
             'kyc' => $current,
@@ -42,7 +42,7 @@ class Kyc extends MY_Controller
         if (!$this->input->is_ajax_request())
             show_404();
 
-        $uid = (int) $this->session->userdata('userid');
+        $uid = (int) $this->session->userdata('user_userid');
         if (!$uid)
             return $this->_json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
@@ -103,7 +103,7 @@ class Kyc extends MY_Controller
                 return [false, strip_tags($this->upload->display_errors('', ''))];
             }
             $data = $this->upload->data();
-            $uid = (int) $this->session->userdata('userid');
+            $uid = (int) $this->session->userdata('user_userid');
             return [true, base_url('uploads/kyc/' . $uid . '/' . $data['file_name'])];
         };
 
@@ -191,7 +191,7 @@ class Kyc extends MY_Controller
     {
         if (!$this->input->is_ajax_request())
             show_404();
-        $uid = $this->session->userdata('userid');
+        $uid = $this->session->userdata('user_userid');
         if (!$uid)
             return $this->_json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 

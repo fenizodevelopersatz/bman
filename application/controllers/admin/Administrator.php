@@ -6,7 +6,7 @@ class Administrator extends CI_Controller {
 	public function __construct() {
 		parent::__construct();
 
-		if($this->session->userdata('logged_in') && $this->session->userdata('admin_login')) {
+		if($this->session->userdata('admin_logged_in') && $this->session->userdata('admin_login')) {
 			$this->lang->load('common',$this->session->userdata('language'));
 		} else {
 			redirect('admin/login');
@@ -17,7 +17,7 @@ class Administrator extends CI_Controller {
 	public function index()
 	{
 		
-		if($this->session->userdata('logged_in')) {
+		if($this->session->userdata('admin_logged_in')) {
 
 			$this->data['title'] = "Dashboard";
 			$this->data['card_tilte'] = "Dashboard";

@@ -10,7 +10,7 @@ class CommissionCalculator extends CI_Controller {
         $this->load->database();
 
         // TODO: adapt to your admin auth
-        if (!$this->session->userdata('logged_in')) redirect('admin/login');
+        if (!$this->session->userdata('admin_logged_in')) redirect('admin/login');
     }
 
     public function index() {

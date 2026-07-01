@@ -13,7 +13,7 @@ class Profile extends MY_Controller
         $this->load->helper(['url', 'form']);
         $this->load->database();
 
-        if (!($this->session->userdata('logged_in') && $this->session->userdata('user_login'))) {
+        if (!($this->session->userdata('user_logged_in') && $this->session->userdata('user_login'))) {
             redirect('user/in');
         }
 
@@ -28,7 +28,7 @@ class Profile extends MY_Controller
     // ----------------------------- PAGE -----------------------------
     public function settings()
     {
-        $uid = (int) $this->session->userdata('userid');
+        $uid = (int) $this->session->userdata('user_userid');
         $user = $this->Users_model->get_user($uid);
 
         $kyc = $this->Users_model->get_kyc($uid);
@@ -61,7 +61,7 @@ class Profile extends MY_Controller
         $status = $current['status'] ?? 'none';
         $readOnly = in_array($status, ['pending', 'approved'], true);
 
-        $userid = $this->session->userdata('userid');
+        $userid = $this->session->userdata('user_userid');
         // $data['kyc'] = $kyc;
         $data = [
             'kyc' => $current,
@@ -124,7 +124,7 @@ class Profile extends MY_Controller
         if (!$this->input->is_ajax_request())
             show_404();
 
-        $uid = (int) $this->session->userdata('userid');
+        $uid = (int) $this->session->userdata('user_userid');
         if (!$uid)
             return $this->_json(["status" => "error", "message" => "Not logged in"], 401);
 
@@ -184,7 +184,7 @@ class Profile extends MY_Controller
         if (!$this->input->is_ajax_request())
             show_404();
 
-        $uid = (int) $this->session->userdata('userid');
+        $uid = (int) $this->session->userdata('user_userid');
         if (!$uid)
             return $this->_json(["status" => "error", "message" => "Not logged in"], 401);
 
@@ -271,7 +271,7 @@ class Profile extends MY_Controller
         if (!$this->input->is_ajax_request())
             show_404();
 
-        $uid = (int) $this->session->userdata('userid');
+        $uid = (int) $this->session->userdata('user_userid');
         if (!$uid)
             return $this->_json(["status" => "error", "message" => "Not logged in"], 401);
 
@@ -307,7 +307,7 @@ class Profile extends MY_Controller
         if (!$this->input->is_ajax_request())
             show_404();
 
-        $uid = (int) $this->session->userdata('userid');
+        $uid = (int) $this->session->userdata('user_userid');
         if (!$uid)
             return $this->_json(['status' => 'error', 'message' => 'Not logged in'], 401);
 
@@ -344,7 +344,7 @@ class Profile extends MY_Controller
         if (!$this->input->is_ajax_request())
             show_404();
 
-        $uid = (int) $this->session->userdata('userid');
+        $uid = (int) $this->session->userdata('user_userid');
         if (!$uid)
             return $this->_json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
@@ -380,7 +380,7 @@ class Profile extends MY_Controller
         if (DEMOVERSION === true)
             return $this->_json(['status' => 'error', 'message' => 'This feature is disabled in demo mode'], 403);
 
-        $uid = (int) $this->session->userdata('userid');
+        $uid = (int) $this->session->userdata('user_userid');
         if (!$uid)
             return $this->_json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
@@ -407,7 +407,7 @@ class Profile extends MY_Controller
         if (DEMOVERSION === true)
             return $this->_json(['status' => 'error', 'message' => 'This feature is disabled in demo mode'], 403);
 
-        $uid = (int) $this->session->userdata('userid');
+        $uid = (int) $this->session->userdata('user_userid');
         if (!$uid)
             return $this->_json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 

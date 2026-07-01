@@ -8,7 +8,7 @@ class  Historycontroller extends CI_Controller {
         $this->load->library('session');
         $this->load->helper('url');
 
-        if($this->session->userdata('logged_in') && $this->session->userdata('user_login')) {
+        if($this->session->userdata('user_logged_in') && $this->session->userdata('user_login')) {
 			$this->lang->load('common',$this->session->userdata('language'));
 		} else {
 			redirect('user/in');
@@ -27,7 +27,7 @@ class  Historycontroller extends CI_Controller {
 */
 // public function index()
 // {
-//     $userid = (int)$this->session->userdata('userid');
+//     $userid = (int)$this->session->userdata('user_userid');
 
 //     $this->data['user_id']    = $userid;
 //     $this->data['title']      = "Earnings & Bonuses";
@@ -43,7 +43,7 @@ class  Historycontroller extends CI_Controller {
 
     public function index()
     {
-        $userid = (int)$this->session->userdata('userid');
+        $userid = (int)$this->session->userdata('user_userid');
         if (!$userid) {
             redirect('user/login');
             return;
@@ -131,7 +131,7 @@ class  Historycontroller extends CI_Controller {
 public function historyprofit()
 {
     try {
-        $userId = (int)$this->session->userdata('userid');
+        $userId = (int)$this->session->userdata('user_userid');
         if (!$userId) {
             echo json_encode(['status'=>false,'message'=>'Unauthorized']); return;
         }
@@ -275,7 +275,7 @@ public function historyprofit()
 
 
 public function lendingRankHistory(){
-    $userId = $this->session->userdata('userid');
+    $userId = $this->session->userdata('user_userid');
 
     try {
 
@@ -354,7 +354,7 @@ public function lendingRankHistory(){
 
 
 public function lendingTeamHistory(){
-    $userId = $this->session->userdata('userid');
+    $userId = $this->session->userdata('user_userid');
 
     try {
 
@@ -439,7 +439,7 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
     
     public function lendingPoolHistory(){
         
-         $user_id = $this->session->userdata('userid');
+         $user_id = $this->session->userdata('user_userid');
 
         try {
 
@@ -501,7 +501,7 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
 
     public function lendingReferralHistory(){
 
-        $userId = $this->session->userdata('userid');
+        $userId = $this->session->userdata('user_userid');
 
         $token_info = token_info(); 
         $decimalPlaces = isset($token_info->decimal) ? $token_info->decimal : 2;
@@ -539,7 +539,7 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
 
     public function lendingBinaryHistory(){
 
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
 
         $this->db->where(['user_id' => $user_id, 'type' => 'binary_commission']);
         $binary_history = $this->db->get('history')->result_array();
@@ -613,7 +613,7 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
 
     // public function lendingMywalletHistory(){
 
-    //     $user_id = $this->session->userdata('userid');
+    //     $user_id = $this->session->userdata('user_userid');
 
     //     $this->data['title'] = "View My wallet";
     //     $this->data['card_title'] = "Wallet information";
@@ -629,7 +629,7 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
 
     public function lendingMywalletHistory()
     {
-        $user_id = (int) $this->session->userdata('userid');
+        $user_id = (int) $this->session->userdata('user_userid');
         if (!$user_id) {
             redirect('user/login');
             return;
@@ -677,7 +677,7 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
 
     public function myreferralHistory()
     {
-        $user_id = (int)$this->session->userdata('userid');
+        $user_id = (int)$this->session->userdata('user_userid');
 
         $this->data['title'] = "My Referral";
         $this->data['card_title'] = "Referral Information";
@@ -727,7 +727,7 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
 
       public function mydexHistory(){
 
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
         $this->data['title'] = "My Dex wallet";
         $this->data['card_title'] = "Dex wallet Information";
         $user_usd_balance = site_wallet_balance($user_id);
@@ -768,7 +768,7 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
 
     public function myllendinglist(){
 
-        $user_id = $this->session->userdata('userid');
+        $user_id = $this->session->userdata('user_userid');
         $this->data['title'] = "My Lending Information";
         $this->data['card_title'] = "Lending Information";
          $this->data['user_id'] = $user_id;
@@ -910,7 +910,7 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
 
     public function investment_info($id){
 
-            $user_id = $this->session->userdata('userid');
+            $user_id = $this->session->userdata('user_userid');
             $this->data['title'] = "My Lending Earnings Information";
             $this->data['card_title'] = "Lending Earnings Information";
             $this->data['user_id'] = $user_id;
@@ -1024,7 +1024,7 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
 
     public function lendingProfitHistory()
     {
-        $userId = $this->session->userdata('userid');
+        $userId = $this->session->userdata('user_userid');
 
         try {
 

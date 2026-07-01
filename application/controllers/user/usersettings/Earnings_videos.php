@@ -13,7 +13,7 @@ class Earnings_videos extends CI_Controller
 
     private function requireLogin()
     {
-        $user_id = (int) $this->session->userdata('userid');
+        $user_id = (int) $this->session->userdata('user_userid');
         if (!$user_id) {
             redirect('login');
             exit;

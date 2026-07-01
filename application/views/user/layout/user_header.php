@@ -94,7 +94,7 @@
 
                             <?php 
                             
-                                $userid = $this->session->userdata('userid');
+                                $userid = $this->session->userdata('user_userid');
                                 $userinfo = $this->db->query("SELECT * FROM users where id = '".$userid."' ")->row();
 
                                 $username = $userinfo->username;
