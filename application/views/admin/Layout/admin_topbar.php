@@ -1,5 +1,8 @@
 <?php
-$sitelogo = site_settings('image', 'logo');
+$admin_logo_file = site_settings('image', 'logo');
+$admin_mobile_logo_file = site_settings('image', 'mobile_logo');
+$admin_logo_src = $admin_logo_file ? base_url('assets/images/' . rawurlencode($admin_logo_file)) : base_url('assets/images/logo-whites.png');
+$admin_mobile_logo_src = $admin_mobile_logo_file ? base_url('assets/images/' . rawurlencode($admin_mobile_logo_file)) : $admin_logo_src;
 ?>
 <script>
     window.APP_CONFIG = window.APP_CONFIG || {};
@@ -15,6 +18,37 @@ $sitelogo = site_settings('image', 'logo');
 
     .cke_notifications {
         display: none !important;
+    }
+
+    .bman-admin-header-logo {
+        height: 44px;
+        max-width: 168px;
+        width: auto;
+        object-fit: contain;
+    }
+
+    .bman-admin-user-logo {
+        width: 35px;
+        height: 35px;
+        object-fit: contain;
+        background: #fff;
+        padding: 3px;
+    }
+
+    .bman-admin-dropdown-logo {
+        width: 50px;
+        height: 50px;
+        object-fit: contain;
+        background: #fff;
+        padding: 4px;
+        border-radius: 10px;
+    }
+
+    @media (max-width: 575.98px) {
+        .bman-admin-header-logo {
+            height: 34px;
+            max-width: 118px;
+        }
     }
 </style>
 <div id="kt_app_header" class="app-header " data-kt-sticky="true" data-kt-sticky-activate="{default: true, lg: true}"
@@ -37,9 +71,7 @@ $sitelogo = site_settings('image', 'logo');
         <!--begin::Mobile logo-->
         <div class="d-flex align-items-center flex-grow-1 flex-lg-grow-0">
             <a href="<?php echo base_url('admin'); ?>" class="d-lg-none">
-                <img alt="Logo"
-                    src="<?php echo base_url('assets/images/nexman_technologies_software_company_logo.jpg'); ?>"
-                    class="h-30px">
+                <img alt="Logo" src="<?php echo $admin_mobile_logo_src; ?>" class="bman-admin-header-logo">
             </a>
         </div>
         <!--end::Mobile logo-->
@@ -151,7 +183,7 @@ $sitelogo = site_settings('image', 'logo');
                     <div class="cursor-pointer symbol symbol-35px bg-info ps-3"
                         data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-attach="parent"
                         data-kt-menu-placement="bottom-end">
-                        <img src="<?php echo base_url(); ?>assets/images/<?php echo $sitelogo; ?>" class="rounded-3"
+                        <img src="<?php echo $admin_logo_src; ?>" class="rounded-3 bman-admin-user-logo"
                             alt="user">
                     </div>
 
@@ -163,8 +195,7 @@ $sitelogo = site_settings('image', 'logo');
                             <div class="menu-content d-flex align-items-center px-3">
                                 <!--begin::Avatar-->
                                 <div class="symbol symbol-50px me-5">
-                                    <img alt="Logo"
-                                        src="<?php echo base_url(); ?>assets/images/<?php echo $sitelogo; ?>">
+                                    <img alt="Logo" src="<?php echo $admin_logo_src; ?>" class="bman-admin-dropdown-logo">
                                 </div>
                                 <!--end::Avatar-->
 

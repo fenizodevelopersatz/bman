@@ -12,6 +12,19 @@
 
     <style>
     body{ background:#0b0b23 url('<?php echo base_url();?>assets/img/banner/hero_bg.svg') center center / cover no-repeat fixed; }
+    html[data-bs-theme="light"] body{ background:#f5f7fb; }
+    .lpx-theme-toggle{ position:fixed; right:24px; top:24px; z-index:20; width:44px; height:44px; border:0; border-radius:12px;
+        display:flex; align-items:center; justify-content:center; color:#fff; background:rgba(255,255,255,.1); box-shadow:0 10px 28px rgba(0,0,0,.18); }
+    html[data-bs-theme="light"] .lpx-theme-toggle{ color:#19213a; background:#fff; border:1px solid rgba(20,30,54,.08); }
+    .lpx-theme-toggle .icon-sun{ display:none; }
+    html[data-bs-theme="dark"] .lpx-theme-toggle .icon-sun{ display:block; }
+    html[data-bs-theme="dark"] .lpx-theme-toggle .icon-moon{ display:none; }
+    html[data-bs-theme="light"] .lpx-form-side, html[data-bs-theme="light"] .lpx-form-side h1,
+    html[data-bs-theme="light"] .lpx-form-side .text-gray-900, html[data-bs-theme="light"] .lpx-form-side .text-gray-800,
+    html[data-bs-theme="light"] .lpx-form-side .text-gray-700{ color:#10182f !important; }
+    html[data-bs-theme="light"] .lpx-form-side .text-gray-500, html[data-bs-theme="light"] .lpx-form-side .text-gray-600,
+    html[data-bs-theme="light"] .lpx-form-side .text-muted{ color:#64708a !important; }
+    html[data-bs-theme="light"] .lpx-form-side .form-control{ background:#fff !important; border-color:#dbe2ee !important; color:#10182f !important; }
 
     /* ---- Webze split layout (design only) ---- */
     .lpx-auth{ display:flex; min-height:100vh; align-items:center; justify-content:center; gap:30px;
@@ -47,6 +60,10 @@
     </style>
 
     <div class="d-flex flex-column flex-root" id="kt_app_root">
+      <button class="lpx-theme-toggle" type="button" id="lpx_theme_toggle" aria-label="Toggle theme">
+        <i class="bi bi-sun icon-sun"></i>
+        <i class="bi bi-moon icon-moon"></i>
+      </button>
       <div class="lpx-auth">
 
         <!-- ===================== FORM SIDE ===================== -->
@@ -150,6 +167,26 @@
     </div>
 
     <?php $this->load->view('user/layout/common_script'); ?>
+    <script>
+    (function () {
+        var root = document.documentElement;
+        var saved = localStorage.getItem('site-theme') || localStorage.getItem('data-bs-theme') || root.getAttribute('data-bs-theme') || 'dark';
+        function resolved(theme) {
+            return (theme === 'auto' || theme === 'system') ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme;
+        }
+        function apply(theme) {
+            theme = resolved(theme);
+            root.setAttribute('data-bs-theme', theme);
+            localStorage.setItem('site-theme', theme);
+            localStorage.setItem('data-bs-theme', theme);
+        }
+        apply(saved);
+        var toggle = document.getElementById('lpx_theme_toggle');
+        if (toggle) toggle.addEventListener('click', function () {
+            apply(root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark');
+        });
+    })();
+    </script>
     <script src="<?php echo base_url();?>assets/user/js/custom/authentication/sign-up/general.js?version=2.4"></script>
     </body>
 

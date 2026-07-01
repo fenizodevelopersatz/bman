@@ -1,6 +1,11 @@
-<?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
+$error404_default_theme = site_settings('landing', 'theme_mode') ?: 'dark';
+if (!in_array($error404_default_theme, array('light', 'dark'), true)) {
+    $error404_default_theme = 'dark';
+}
+?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="<?= html_escape($error404_default_theme) ?>">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -19,6 +24,17 @@
             --c2:#8a5cff;   /* violet*/
             --c3:#28e0c8;   /* teal  */
         }
+        html[data-theme="light"]{
+            --bg-0:#f4f7fb;
+            --bg-1:#ffffff;
+            --card:rgba(255,255,255,.88);
+            --stroke:rgba(12,22,44,.1);
+            --txt:#10182f;
+            --muted:#5f6b86;
+            --c1:#2563eb;
+            --c2:#7c3aed;
+            --c3:#0891b2;
+        }
         *{box-sizing:border-box;margin:0;padding:0}
         html,body{height:100%}
         body{
@@ -30,6 +46,11 @@
             min-height:100dvh;
             display:flex;align-items:center;justify-content:center;
             padding:24px;overflow:hidden;position:relative;
+        }
+        html[data-theme="light"] body{
+            background:radial-gradient(1000px 680px at 15% -10%,rgba(37,99,235,.16) 0%,transparent 55%),
+                       radial-gradient(900px 620px at 110% 20%,rgba(124,58,237,.13) 0%,transparent 50%),
+                       linear-gradient(160deg,var(--bg-1),var(--bg-0));
         }
         /* floating gradient orbs */
         .orb{position:fixed;border-radius:50%;filter:blur(60px);opacity:.5;z-index:0;pointer-events:none;
@@ -58,6 +79,9 @@
         @keyframes rise{from{opacity:0;transform:translateY(22px) scale(.98)}to{opacity:1;transform:none}}
 
         .logo{height:38px;width:auto;margin-bottom:26px;opacity:.95}
+        .logo-dark{display:none}
+        html[data-theme="light"] .logo-light{display:none}
+        html[data-theme="light"] .logo-dark{display:inline-block}
         .badge{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.14em;
             text-transform:uppercase;color:var(--muted);border:1px solid var(--stroke);
             padding:6px 14px;border-radius:999px;margin-bottom:22px}
@@ -104,7 +128,9 @@
     <span class="orb c"></span>
 
     <main class="card" role="main">
-        <img class="logo" src="<?= base_url('assets/images/logo-whites.png') ?>" alt="BMAN"
+        <img class="logo logo-light" src="<?= base_url('assets/images/logo-whites.png') ?>" alt="BMAN"
+             onerror="this.style.display='none'">
+        <img class="logo logo-dark" src="<?= base_url('assets/images/black_logo.png') ?>" alt="BMAN"
              onerror="this.style.display='none'">
 
         <div class="badge"><span class="dot"></span> Error 404</div>
@@ -125,5 +151,15 @@
             </a>
         </div>
     </main>
+    <script>
+    (function () {
+        var saved = localStorage.getItem('site-theme');
+        var theme = saved || document.documentElement.getAttribute('data-theme') || 'dark';
+        if (theme === 'auto' || theme === 'system') {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+    })();
+    </script>
 </body>
 </html>

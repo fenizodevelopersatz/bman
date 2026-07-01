@@ -1,5 +1,8 @@
 <?php
 $logo_info = site_settings('image', 'logo');
+$mobile_logo_info = site_settings('image', 'mobile_logo');
+$logo_src = $logo_info ? base_url('assets/images/' . rawurlencode($logo_info)) : base_url('assets/images/logo-whites.png');
+$mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode($mobile_logo_info)) : $logo_src;
 ?>
 
 <!--begin::Sidebar-->
@@ -10,10 +13,9 @@ $logo_info = site_settings('image', 'logo');
 
   <div class="app-sidebar-logo px-6" id="kt_app_sidebar_logo">
     <a href="<?php echo base_url(); ?>">
-      <img alt="Logo" src="<?php echo base_url() . "assets/images/" . $logo_info; ?>"
-        class="h-25px app-sidebar-logo-default">
-      <img alt="Logo" src="<?php echo base_url() . "assets/images/" . $logo_info; ?>"
-        class="h-20px app-sidebar-logo-minimize">
+      <img alt="Logo" src="<?php echo $logo_src; ?>" class="app-sidebar-logo-default bman-admin-logo">
+      <img alt="Logo" src="<?php echo $mobile_logo_src; ?>" class="bman-admin-logo-mobile">
+      <img alt="Logo" src="<?php echo $logo_src; ?>" class="app-sidebar-logo-minimize bman-admin-logo-mini">
     </a>
     <div id="kt_app_sidebar_toggle"
       class="app-sidebar-toggle btn btn-icon btn-shadow btn-sm btn-color-muted btn-active-color-primary h-30px w-30px position-absolute top-50 start-100 translate-middle rotate "
@@ -24,6 +26,22 @@ $logo_info = site_settings('image', 'logo');
           class="path2"></span></i>
     </div>
   </div>
+
+  <style>
+    .bman-admin-logo{height:38px;max-width:150px;width:auto;object-fit:contain}
+    .bman-admin-logo-mobile{display:none;height:48px;max-width:190px;width:auto;object-fit:contain}
+    .bman-admin-logo-mini{height:28px;max-width:44px;width:auto;object-fit:contain}
+    .bman-admin-logout{margin-top:12px;border-top:1px solid rgba(255,255,255,.08);padding-top:12px}
+    .bman-admin-logout .menu-link{color:#ff5a7a}
+    .bman-admin-logout .menu-link:hover{background:rgba(255,90,122,.1);color:#ff8aa1}
+    @media (max-width:991.98px){
+      #kt_app_sidebar_logo{height:auto;min-height:76px;padding-top:14px;padding-bottom:14px}
+      #kt_app_sidebar_logo a{display:flex;align-items:center}
+      .bman-admin-logo{display:none}
+      .bman-admin-logo-mobile{display:block}
+      .bman-admin-logo-mini{display:none}
+    }
+  </style>
 
 
   <!--begin::sidebar menu-->
@@ -487,6 +505,17 @@ $logo_info = site_settings('image', 'logo');
             </div>
           </div>
 
+          <div class="menu-item bman-admin-logout">
+            <a href="<?php echo base_url(); ?>logout" class="menu-link">
+              <span class="menu-icon">
+                <i class="ki-duotone ki-exit-right fs-2">
+                  <span class="path1"></span>
+                  <span class="path2"></span>
+                </i>
+              </span>
+              <span class="menu-title">Logout</span>
+            </a>
+          </div>
 
         </div>
         <!--end::Menu-->
