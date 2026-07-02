@@ -36,3 +36,50 @@ pubspec.lock
 docs/
 IMPLEMENTATION_SUMMARY.md
 hoppr_tmp/
+
+
+
+vendor/
+node_modules/
+application/logs/
+application/cache/
+uploads/
+user_guide/
+.git/
+.vscode/
+.idea/
+*.log
+*.zip
+.env
+
+
+# Dependencies
+vendor/
+node_modules/
+
+# CodeIgniter runtime
+application/logs/
+application/cache/
+uploads/
+
+# Ignore framework/custom libraries
+application/third_party/
+application/libraries/smtp/
+application/libraries/InfiQr/
+application/models/member/ETH_MASTER/
+application/models/member/smtp/
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/
+
+# Environment
+.env
+
+# Temporary files
+*.log
+*.zip
+*.tmp

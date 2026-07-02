@@ -293,11 +293,109 @@
                                </div>
                                </form>
 
-                              
+
 
 
                     </div>
                     </div>
+
+                    <?php if (!empty($staking_plans)) { ?>
+                    <!-- Staking Plan Withdraw Rules — single withdraw page for the whole
+                         platform. These are the per-plan BMAN staking rules (proposal §5)
+                         previously edited on Admin ▸ Staking ▸ Plans. -->
+                    <div class="card mb-5 mb-xl-10">
+                        <div class="card-header border-0 p-3">
+                            <div class="card-title m-0">
+                                <div class="me-3 d-flex justify-content-between text-center align-items-center gap-4">
+                                    <div class="d-flex flex-center w-60px h-60px rounded-3 bg-light-primary bg-opacity-90">
+                                        <i class="ki-duotone ki-chart-pie-simple text-primary fs-3x"><span class="path1"></span><span class="path2"></span></i>
+                                    </div>
+                                    <h3 class="fw-bold m-0">Staking Plan Withdraw Rules (BMAN)</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-body border-top p-9">
+                            <div class="text-muted fs-7 mb-6">
+                                Per-plan withdrawal rules for staking ROI (proposal §5): Regular/Combo
+                                withdraw once every window (30 days), between the min and max amounts.
+                                The <b>Fixed</b> plan allows withdrawal only after maturity and needs no
+                                limits here. These values were previously on the Staking Plans page —
+                                this is now the single place to edit them.
+                            </div>
+
+                            <?php foreach ($staking_plans as $sp) { ?>
+                            <form class="stk-wd-form border rounded p-6 mb-6" data-id="<?php echo (int)$sp['id']; ?>">
+                                <div class="d-flex align-items-center mb-4">
+                                    <h4 class="fw-bold mb-0 me-3"><?php echo html_escape($sp['name']); ?></h4>
+                                    <span class="badge badge-light-info text-uppercase"><?php echo html_escape($sp['code']); ?></span>
+                                    <?php if (!$sp['is_active']) { ?><span class="badge badge-light-danger ms-2">plan disabled</span><?php } ?>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-2 mb-4">
+                                        <label class="form-label fw-semibold fs-7">Withdraw window (days)</label>
+                                        <input type="number" min="0" name="withdraw_frequency_days"
+                                            class="form-control form-control-solid"
+                                            value="<?php echo (int)$sp['withdraw_frequency_days']; ?>" />
+                                    </div>
+                                    <div class="col-md-2 mb-4">
+                                        <label class="form-label fw-semibold fs-7">Min (BMAN)</label>
+                                        <input type="number" step="0.0001" min="0" name="min_withdraw_bman"
+                                            class="form-control form-control-solid"
+                                            value="<?php echo $sp['min_withdraw_bman'] !== null ? (float)$sp['min_withdraw_bman'] : ''; ?>" />
+                                    </div>
+                                    <div class="col-md-2 mb-4">
+                                        <label class="form-label fw-semibold fs-7">Max (BMAN)</label>
+                                        <input type="number" step="0.0001" min="0" name="max_withdraw_bman"
+                                            class="form-control form-control-solid"
+                                            value="<?php echo $sp['max_withdraw_bman'] !== null ? (float)$sp['max_withdraw_bman'] : ''; ?>" />
+                                    </div>
+                                    <div class="col-md-2 mb-4">
+                                        <label class="form-label fw-semibold fs-7">Min (USDT)</label>
+                                        <input type="number" step="0.0001" min="0" name="min_withdraw_usdt"
+                                            class="form-control form-control-solid"
+                                            value="<?php echo $sp['min_withdraw_usdt'] !== null ? (float)$sp['min_withdraw_usdt'] : ''; ?>" />
+                                    </div>
+                                    <div class="col-md-2 mb-4">
+                                        <label class="form-label fw-semibold fs-7">Max (USDT)</label>
+                                        <input type="number" step="0.0001" min="0" name="max_withdraw_usdt"
+                                            class="form-control form-control-solid"
+                                            value="<?php echo $sp['max_withdraw_usdt'] !== null ? (float)$sp['max_withdraw_usdt'] : ''; ?>" />
+                                    </div>
+                                    <div class="col-md-2 mb-4 d-flex align-items-end">
+                                        <button type="submit" class="btn btn-primary btn-sm w-100">Save</button>
+                                    </div>
+                                </div>
+                            </form>
+                            <?php } ?>
+
+                            <script>
+                            document.addEventListener('DOMContentLoaded', function () {
+                                document.querySelectorAll('.stk-wd-form').forEach(function (form) {
+                                    form.addEventListener('submit', async function (e) {
+                                        e.preventDefault();
+                                        var btn = form.querySelector('button[type=submit]');
+                                        btn.disabled = true;
+                                        var res = await fetch('<?php echo base_url(); ?>admin/staking/plans/save/' + form.dataset.id, {
+                                            method: 'POST',
+                                            body: new FormData(form),
+                                            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                                        });
+                                        var j = {};
+                                        try { j = await res.json(); } catch (err) { j = { message: 'Server error.' }; }
+                                        btn.disabled = false;
+                                        var ok = res.ok && j.status === 'success';
+                                        if (window.Swal) {
+                                            Swal.fire({ text: j.message || '', icon: ok ? 'success' : 'error',
+                                                buttonsStyling: false, confirmButtonText: 'Ok',
+                                                customClass: { confirmButton: 'btn btn-primary' } });
+                                        } else { alert(j.message || ''); }
+                                    });
+                                });
+                            });
+                            </script>
+                        </div>
+                    </div>
+                    <?php } ?>
                                 </div>
 
                                 <!--begin::Footer-->

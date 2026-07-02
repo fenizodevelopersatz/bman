@@ -5,7 +5,13 @@ Design/pre-plan for managing **Staking Packages**, **Staking Plans** and the
 `Client_requirements/BMAN STAKING MASTER PROPOSAL DETAILS.pdf` (§4 Packages,
 §5 Plans, §6 ROI, §7 Bonus, §12 Group Ceiling).
 
-> Status: **planning** (tables proposed, not yet created). Links:
+> Status: **admin side delivered** (2026-07-02) — tables created + seeded.
+> Live screens: **Admin → Staking Management** (Packages · Plans · ROI
+> Structure · Rank Achievement · Rank Power & Incentive · Bonus & Matching),
+> **Admin → Master → Coin Distribution** (§3A) and the single
+> **Withdraw Settings** page (global + staking plan rules). User purchase
+> flow, engines/crons and reports remain planned — see the task board in
+> [0_INDEX.md](0_INDEX.md). Links:
 > [0_INDEX.md](0_INDEX.md) · [3_CHANGELOG.md](3_CHANGELOG.md).
 > Legend: ✅ done · 🟡 in progress · ⬜ planned.
 
@@ -269,8 +275,10 @@ layout & `admin/settings/*` pattern):
    reorder, one-click enable/disable. Delete blocked if stakes exist (soft
    disable instead).
 2. **Plans** — one card per plan (Fixed / Regular / Combo) with its rule fields;
-   tick which durations (2/3/5) are offered. Withdraw min/max shown as editable
-   fields (proposal says these can be increased/decreased).
+   tick which durations (2/3/5) are offered. *(Update 2026-07-02: the withdraw
+   window and min/max fields are edited on the single **Withdraw Settings**
+   page — the Plans cards show them read-only with a link, so withdraw config
+   is never split across two pages.)*
 3. **ROI Structure** — the centrepiece: an **inline-editable grid** that mirrors
    the proposal table (rows = packages, columns = Fixed 2/3/5 + Regular 2/3/5).
    Type a new number → cell turns amber (unsaved) → **Save** writes a new
@@ -394,11 +402,115 @@ Admin ▸ Staking ▸ ROI Structure     Effective from: [2026-07-01]  (Super-Adm
 
 ## 10. Implementation checklist (CI3, matches existing structure)
 
-- ⬜ Migration: 7 tables (§4) + seed (§5)
-- ⬜ Model `Staking_model` — packages/plans CRUD, `resolveRoi($pkg,$plan,$dur)`, versioned ROI write + audit
-- ⬜ Controller `admin/staking/Packages`, `admin/staking/Plans`, `admin/staking/Roistructure`
-- ⬜ Views (Metronic): packages table, plans cards, ROI grid editor (JS inline edit → AJAX save)
-- ⬜ Routes under `admin/staking/*` (mirror `admin/settings/*`)
+- ✅ Migration: 7 tables (§4) **+ 2 rank tables** (`staking_ranks`,
+  `staking_rank_requirements`) + seed (§5 + proposal §10) —
+  `db/staking_module.sql` (idempotent, applied to `e-commerce-mlm-v2`)
+- ✅ Model `Staking_model` — packages/plans CRUD, `resolveRoi($pkg,$plan,$dur)`
+  (combo returns both halves), versioned ROI write + audit, plan-term toggles,
+  ranks CRUD + qualification-requirements editor
+- ✅ Controllers `admin/staking/Packages`, `admin/staking/Plans`,
+  `admin/staking/Roistructure`, `admin/staking/Ranks` (session guard +
+  `staking_management` permission; ROI saves additionally need
+  `staking_roi_edit` for restricted sub-admins — Super-Admin-only rule)
+- ✅ Views (Metronic, `views/admin/staking/*`): packages table (add/edit modal,
+  ▲▼ reorder, enable/disable, guarded delete), plans cards (withdraw rules,
+  credit days, combo split live-sum, duration ticks), ROI grid editor (amber
+  dirty cells → bulk AJAX save, per-cell version history modal, audit-log
+  modal), ranks table (incentive/benefits modal + Plan-1/2/3 requirements
+  editor with OR-options)
+- ✅ Routes under `admin/staking/*` + sidebar group **Staking Management**
 - ⬜ User purchase flow writes `user_stakes` (snapshot) + 25% bonus
 - ⬜ Cron: Regular/Combo monthly credit (5/15/25) + Fixed maturity credit → `staking_roi_payouts`
 - ⬜ Reports: Staking report, ROI paid report (PDF/Excel/CSV per §18)
+
+### 10.1 Rank Achievement admin (proposal §10) — delivered with this phase
+
+- 11 permanent ranks seeded (UN RANK → CHALLENGER) with group incentives
+  (1,000 → 5,00,00,000) in `staking_ranks`.
+- Qualification matrix seeded in `staking_rank_requirements`: per rank up to
+  three alternative plans; rows in the same `(plan_no, option_no)` are AND-ed
+  (Left + Right), different `option_no` inside a plan are OR options (used for
+  PLATINUM Plan-1: *L2+R1 GOLD or L1+R2 GOLD*).
+- Benefits flags per rank: Badge / Certificate / Reward / Recognition
+  (+ badge colour), all editable; ranks can be enabled/disabled.
+- Achievement *evaluation engine* (cron that scans the binary tree and awards
+  ranks) is part of the user-side phase, not this admin phase.
+
+### 10.2 Rank Power System (§11) & Group Incentive Ceiling (§12) — admin side
+
+Screen **Admin → Staking Management → Rank Power & Incentive**
+(`admin/staking/rank-power`), delivered 2026-07-02. SQL:
+`db/staking_rank_power.sql` (idempotent).
+
+- **Rules config** (`staking_rank_power_settings`, single row): system
+  enable/disable, reset cycle in days (default **60**, §11), whether power
+  rank *controls group-incentive qualification*, minimum power tier required
+  to qualify (0 = any), auto-open-next-cycle flag for the future cron.
+- **Cycle management** (`staking_rank_power_cycles`): current-cycle card with
+  days remaining, cycle history with member counts, and a **Reset Now**
+  button — closes the open cycle (everyone's power rank resets, §11) and
+  opens the next window of `cycle_days`.
+- **Per-user power** (`user_rank_power`): one row per user per cycle
+  (`power_rank_id` reuses the `staking_ranks` tier scale + `qualified` flag).
+  Created now for the evaluation engine; filled in the user-side phase.
+- **Group Incentive Ceiling editor** (§12): amber-dirty inline grid of
+  stake → ceiling. Values live on `staking_packages.group_ceiling` (same field
+  the Packages screen edits), so there is a single source of truth.
+- Rank Power is intentionally **separate from Achievement Rank** — achievement
+  ranks are permanent (`staking_ranks` + user assignment later), power ranks
+  exist only inside a cycle and vanish on reset.
+
+### 10.3 Bonus Coin System (§7) & Binary Matching Bonus (§9) — admin side
+
+Screen **Admin → Staking Management → Bonus & Matching**
+(`admin/staking/bonus-settings`), delivered 2026-07-02. SQL:
+`db/staking_bonus_settings.sql` (idempotent, single-row settings).
+
+- **Staking Bonus (§7):** global default bonus % (25) with an *apply to all
+  packages* helper; per-package override stays on the Packages screen.
+- **Bonus Reduction (§7):** enable/disable + interval days (60) + reduction %
+  (50) — the future bonus-wallet reduction cron reads these.
+- **Bonus Transfer (§7):** enable/disable, allowed recipients (direct Left /
+  direct Right sponsored member), security toggles (email OTP, transfer
+  password). Guard: transfer can't be enabled with both sides disallowed.
+- **Binary Matching Bonus (§9):** total % (10) split into Earning Coin % (8)
+  + Staking Coin % (2); live sum hint + server guard *earning + staking =
+  total*.
+- §8 (Binary MLM) needs no new admin settings — tree/genealogy/team views are
+  existing platform features.
+
+With this, **all admin-side setups for proposal §4–§12 are complete**
+(§4 Packages · §5 Plans · §6 ROI · §7 Bonus · §9 Matching · §10 Ranks ·
+§11 Rank Power · §12 Ceiling). Remaining work is user-side + engines
+(purchase flow, ROI credit cron, bonus reduction cron, rank/power evaluation,
+matching payout, reports).
+
+### 10.4 Coin Distribution Master (§3A) — delivered 2026-07-02
+
+Screen **Admin → Master → Coin Distribution**
+(`admin/master/coin-distribution`). SQL: `db/coin_distribution.sql`.
+
+- 7 allocation options seeded (Exchange/Earning/Staking/Bonus %, each = 100,
+  Option 1 default). List page with Status/Default filters, search, CSV
+  export; add/edit modal with a live total-must-be-100 check.
+- Rules: only one default (auto-clears the previous); the default can't be
+  disabled or deleted; options used by purchases can't be deleted; Super
+  Admin (`admin_roll = 1`) adds/edits/deletes/sets default, other admins
+  view + enable/disable. Every change → `coin_distribution_audit`.
+- Purchase integration: Make-Investment has an option selector + live split
+  preview; confirmation snapshots option id + percentages + amounts into
+  `coin_distribution_histories` and credits the four wallets via the
+  extended `wallet_transactions` ledger (`source='coin_distribution'`).
+
+### 10.5 Single Withdraw Settings page — delivered 2026-07-02
+
+`withdraw-settings` is the **only** withdraw page: global rules (status,
+min/max, fee, daily/monthly limits, %-or-fiat, notifications) plus a
+**Staking Plan Withdraw Rules (BMAN)** card for the Regular/Combo window and
+min/max BMAN/USDT (saved via `admin/staking/plans/save/{id}`). The Staking
+Plans page shows these read-only with a link. No SQL change.
+
+> **Task tracking:** the working task board for the remaining phases lives in
+> [0_INDEX.md](0_INDEX.md) → *Task board — BMAN Staking project*. Every landed
+> change is also logged in [3_CHANGELOG.md](3_CHANGELOG.md) with files +
+> how-to-apply.

@@ -185,6 +185,33 @@
                                 </div>
 
                                 
+                                <!-- §3A Coin Distribution: allocation option + live preview -->
+                                <div class="row mb-6 mb-3">
+                                <label class="col-lg-4 col-form-label fw-semibold fs-6"> Coin Distribution </label>
+                                <div class="col-lg-8 fv-row">
+                                <select class="form-select form-select-solid mb-2" name="distribution_option_id" id="distribution_option_id">
+                                    <?php if (!empty($distributions)) { foreach ($distributions as $d) { ?>
+                                        <option value="<?php echo (int)$d['id']; ?>"
+                                            data-exchange="<?php echo (float)$d['exchange_percentage']; ?>"
+                                            data-earning="<?php echo (float)$d['earning_percentage']; ?>"
+                                            data-staking="<?php echo (float)$d['staking_percentage']; ?>"
+                                            data-bonus="<?php echo (float)$d['bonus_percentage']; ?>"
+                                            <?php echo $d['is_default'] ? 'selected' : ''; ?>>
+                                            <?php echo html_escape($d['option_name']); ?>
+                                            (Ex <?php echo (float)$d['exchange_percentage']; ?> / Earn <?php echo (float)$d['earning_percentage']; ?>
+                                            / Stake <?php echo (float)$d['staking_percentage']; ?> / Bonus <?php echo (float)$d['bonus_percentage']; ?>)
+                                            <?php echo $d['is_default'] ? ' — Default' : ''; ?>
+                                        </option>
+                                    <?php } } else { ?>
+                                        <option value="">No active distribution options</option>
+                                    <?php } ?>
+                                </select>
+                                <div class="text-muted fs-8" id="distribution_preview">
+                                    Enter an amount to preview the wallet split.
+                                </div>
+                                </div>
+                                </div>
+
                                 <div class="row mb-6 mb-3">
                                 <label class="col-lg-4 col-form-label fw-semibold fs-6">
                                 Investment Date <span class="text-danger"> * </span>
@@ -266,6 +293,36 @@
                 const base_url = '<?php echo base_url();?>';
             </script>
             <script src="<?php echo base_url();?>/assets/admin/js/custom/authentication/sign-in/add-deposit.js?ver=2.9"></script>
+
+            <script>
+            // §3A Coin Distribution — live wallet-split preview
+            (function () {
+                var sel = document.getElementById('distribution_option_id');
+                var amt = document.getElementById('bonus_amount');
+                var box = document.getElementById('distribution_preview');
+                if (!sel || !amt || !box) return;
+                function fmt(n) { return (Math.round(n * 10000) / 10000).toLocaleString(); }
+                function refresh() {
+                    var o = sel.options[sel.selectedIndex];
+                    var a = parseFloat(amt.value) || 0;
+                    if (!o || !o.value || a <= 0) {
+                        box.textContent = 'Enter an amount to preview the wallet split.';
+                        return;
+                    }
+                    var ex = a * (parseFloat(o.dataset.exchange) || 0) / 100;
+                    var er = a * (parseFloat(o.dataset.earning) || 0) / 100;
+                    var st = a * (parseFloat(o.dataset.staking) || 0) / 100;
+                    var bo = a * (parseFloat(o.dataset.bonus) || 0) / 100;
+                    box.innerHTML = 'Preview for <b>' + fmt(a) + '</b> — ' +
+                        'Exchange Wallet <b>' + fmt(ex) + '</b> · ' +
+                        'Earning Wallet <b>' + fmt(er) + '</b> · ' +
+                        'Staking Wallet <b>' + fmt(st) + '</b> · ' +
+                        'Bonus Wallet <b>' + fmt(bo) + '</b>';
+                }
+                sel.addEventListener('change', refresh);
+                amt.addEventListener('input', refresh);
+            })();
+            </script>
 
             
     </body>

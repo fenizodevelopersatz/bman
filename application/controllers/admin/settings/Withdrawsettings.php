@@ -53,9 +53,18 @@ class  Withdrawsettings extends CI_Controller {
         $this->data['withdraw_page'] = 'active';
         $this->data['token_withdraw_page'] = '';
 
+        // Staking plan withdraw rules (Regular / Combo) — managed here so all
+        // withdraw configuration lives on ONE page (the Staking Plans page
+        // links here instead of duplicating these fields).
+        $this->load->model('Staking_model', 'staking');
+        $this->data['staking_plans'] = array_values(array_filter(
+            $this->staking->plans(),
+            function ($p) { return in_array($p['code'], ['regular', 'combo'], true); }
+        ));
+
         $this->data['action'] = base_url().'withdraw-settings-update';
         $this->data['redirect'] = base_url().'withdraw-settings';
-        
+
         $this->load->view('admin/settings/withdraw-edit-settings', $this->data);
     }
     /*

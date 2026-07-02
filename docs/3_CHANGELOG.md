@@ -5,6 +5,198 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-02 — Single Withdraw Settings page (merged staking plan rules)
+
+- **What:** withdraw configuration was split confusingly across two pages —
+  the global `withdraw-settings` (status, min/max, fee, daily/monthly limits,
+  %-or-fiat fee type, user/admin notifications) and the per-plan withdraw
+  fields on **Admin → Staking → Plans**. Now **`withdraw-settings` is the
+  single withdraw page**:
+  - It gained a **"Staking Plan Withdraw Rules (BMAN)"** card — one row per
+    Regular/Combo plan with withdraw window (days) and min/max in BMAN and
+    USDT, saved via the existing `admin/staking/plans/save/{id}` endpoint
+    (same validation: min ≤ max, no negatives). Fixed plan needs no limits
+    (withdraw after maturity only).
+  - The Staking Plans page **no longer edits withdraw fields** — its cards
+    keep credit days / durations / combo split and show the current withdraw
+    rule read-only with a link to Withdraw Settings.
+- All the existing withdraw features stay as-is on the same page: Withdraw
+  Status, Min/Max Withdraw, Withdraw Fee, Daily Limit (0 = unlimited),
+  Monthly Limit (0 = unlimited), Fee type Percentage/Fiat, Notification to
+  User, Notification to Admin.
+- **Files:** `controllers/admin/settings/Withdrawsettings.php` (passes the
+  Regular/Combo plans), `views/admin/settings/withdraw-edit-settings.php`
+  (new card + AJAX save), `views/admin/staking/plans.php` (withdraw fields
+  removed, link added). No SQL, no route changes.
+
+---
+
+## 2026-07-02 — Coin Distribution Master (§3A) + purchase-flow integration
+
+- **What:** new **Master → Coin Distribution** module
+  (`admin/master/coin-distribution`) managing how purchased amounts split
+  across the Exchange / Earning / Staking / Bonus wallets, plus integration
+  into the existing purchase module. No new project, no architecture change —
+  existing layout, auth, CRUD, wallet ledger and purchase flow reused.
+- **List page:** ID, name (+description), the four wallet %, computed Total %,
+  Default badge, Status switch, Created At, Actions — with Status / Default
+  filters, debounced search, and CSV export honouring the current filters.
+- **Add/Edit modal:** name, description, four percentages, Active, Default.
+  Live total indicator; the Save button is disabled until the total is
+  exactly 100.
+- **Rules enforced server-side:** each % ≥ 0; total must equal exactly 100;
+  unique name; only one default (setting a new default clears the old one
+  atomically); the default cannot be disabled or deleted; an option already
+  used by purchases cannot be deleted (disable instead). Role split: Super
+  Admin (`admin_roll = 1`) may add / edit / delete / set default; other
+  admins view + enable/disable only (server returns 403 otherwise).
+- **Audit:** every create / edit / percentage_changed / enable / disable /
+  default_changed / delete writes `coin_distribution_audit` (old + new JSON
+  snapshots, admin, timestamp) — viewable from the page's Audit Log modal.
+- **Purchase integration** (`Walletmanagement::makeinvestment_post`): the
+  Make-Investment form gained a Coin Distribution selector (default option
+  preselected) with a live preview (e.g. 100 → Exchange 80 · Earning 10 ·
+  Staking 10 · Bonus 0). On confirmation the system snapshots option id +
+  percentages + computed amounts into `coin_distribution_histories`
+  (purchase_id = investment id) and credits the wallets through the existing
+  `wallet_transactions` ledger (`source='coin_distribution'`). Requests
+  without the field fall back to the default option — fully backward
+  compatible; existing history/commission writes untouched.
+- **DB:** `db/coin_distribution.sql` (idempotent, applied) —
+  `coin_distribution_options` (7 options seeded from §3A, Option 1 default),
+  `coin_distribution_histories`, `coin_distribution_audit`, plus a
+  backward-compatible extension of `wallet_transactions.tx_type` enum
+  (added `exchange`,`earning`,`staking`; existing values untouched, and
+  bonus credits keep flowing into `Wallet_model::getBonusBalance()`).
+- **Files:** `models/Coindistribution_model.php`,
+  `controllers/admin/master/Coindistribution.php`,
+  `views/admin/master/coin_distribution.php`,
+  `controllers/admin/wallet/Walletmanagement.php` (selector data + snapshot/
+  credit block), `views/admin/wallet/investment_management.php` (selector +
+  preview), `config/routes.php`, sidebar: new **Master** group.
+- **Also fixed:** ROI-structure edit gate — `admin_roll = 1` is this app's
+  Super Admin (per `admin_members` seed), so ROI editing is now allowed for
+  roll 1 and read-only for sub-admins (previously inverted).
+- **Validated:** CLI smoke test — total≠100 / negative / duplicate-name
+  rejected; create-as-default clears previous default (single default
+  verified); disabling/deleting the default rejected; preview of 100 split
+  60/20/10/10; history row + 4 ledger rows written; delete of a used option
+  rejected; audit shows create → default_changed → percentage_changed. Test
+  data fully cleaned; route redirects unauthenticated → `admin/login`.
+- **How to apply:** run `db/coin_distribution.sql`, deploy the PHP files.
+  Optional sub-admin permission key: `coin_distribution_master` (the
+  existing `wallet_management` key also grants page access).
+
+---
+
+## 2026-07-02 — Staking module: Bonus Coin (§7) & Binary Matching (§9) admin
+
+> Full reference: [6_STAKING_PACKAGES_PLANS_ROI.md](6_STAKING_PACKAGES_PLANS_ROI.md) §10.3.
+
+- **What:** new screen **Admin → Staking Management → Bonus & Matching**
+  (`admin/staking/bonus-settings`) — completes the admin-side setups for
+  proposal §4–§12. Four cards:
+  1. **Staking Bonus (§7)** — default bonus % (25) + "apply to all packages".
+  2. **Bonus Coin Reduction (§7)** — enabled, interval days (60), reduction %
+     (50); consumed by the future reduction cron.
+  3. **Bonus Coin Transfer (§7)** — enabled, allowed recipients (direct
+     Left/Right sponsored member), email-OTP + transfer-password toggles;
+     guard against enabling transfer with no recipient side.
+  4. **Binary Matching Bonus (§9)** — total % (10) = Earning % (8) +
+     Staking % (2), live sum hint + server-side equality guard.
+- **DB:** `db/staking_bonus_settings.sql` (idempotent, applied) —
+  `staking_bonus_settings` single-row config seeded with proposal values.
+- **Files:** `models/Staking_model.php` (bonusSettings/saveBonusSettings/
+  applyBonusDefaultToPackages), `controllers/admin/staking/Bonussettings.php`,
+  `views/admin/staking/bonus_settings.php`, `config/routes.php`
+  (`admin/staking/bonus-settings*`), sidebar entry **Bonus & Matching**
+  (permission: `staking_management` OR legacy `commission_settings`).
+- **Validated:** CLI smoke test — bad matching split (7+2≠10) rejected,
+  interval >365 rejected, transfer-without-recipient rejected, bonus >100
+  rejected, apply-to-packages works; values reverted to proposal defaults;
+  route redirects unauthenticated → `admin/login`.
+- **How to apply:** run `db/staking_bonus_settings.sql`, deploy the PHP files.
+
+---
+
+## 2026-07-02 — Staking module: Rank Power (§11) & Group Incentive Ceiling (§12) admin
+
+> Full reference: [6_STAKING_PACKAGES_PLANS_ROI.md](6_STAKING_PACKAGES_PLANS_ROI.md) §10.2.
+
+- **What:** new screen **Admin → Staking Management → Rank Power & Incentive**
+  (`admin/staking/rank-power`) with three cards:
+  1. **Rank Power rules (§11)** — enable/disable, reset cycle days (default
+     60), "controls group-incentive qualification" toggle, minimum power tier
+     to qualify (Tier 0–10 dropdown from `staking_ranks`), auto-open-next-cycle
+     flag for the future cron.
+  2. **Power Cycle** — current-cycle card (window + days left), cycle history
+     with per-cycle member counts, **Reset Now** button (closes the open cycle
+     → power ranks reset, opens the next `cycle_days` window). Power rank is
+     kept fully separate from the permanent Achievement Rank.
+  3. **Group Incentive Ceiling (§12)** — inline stake → ceiling grid (amber
+     unsaved cells, bulk AJAX save). Writes `staking_packages.group_ceiling` —
+     the same field the Packages screen edits (single source of truth).
+- **DB:** `db/staking_rank_power.sql` (idempotent, applied) —
+  `staking_rank_power_settings` (seeded: enabled, 60 days, controls
+  qualification), `staking_rank_power_cycles`, `user_rank_power` (per-user
+  power rank per cycle; filled by the future evaluation engine).
+- **Files:** `models/Staking_model.php` (powerSettings/savePowerSettings/
+  currentPowerCycle/powerCycles/resetPowerCycle/saveCeilings),
+  `controllers/admin/staking/Rankpower.php`,
+  `views/admin/staking/rank_power.php`, `config/routes.php`
+  (`admin/staking/rank-power*`), sidebar entry **Rank Power & Incentive**.
+- **Validated:** CLI smoke test — settings guards (cycle 1–365), first-cycle
+  start, reset (close #1 → open #2), ceiling update + negative-value guard +
+  revert; route redirects to `admin/login` unauthenticated.
+- **How to apply:** run `db/staking_rank_power.sql`, deploy the PHP files.
+
+---
+
+## 2026-07-02 — Staking module: admin side (Packages · Plans · ROI · Ranks)
+
+> Full reference: [6_STAKING_PACKAGES_PLANS_ROI.md](6_STAKING_PACKAGES_PLANS_ROI.md).
+
+- **What:** delivered the admin side of the staking proposal — four new screens
+  under **Admin → Staking Management**:
+  1. **Staking Packages** — CRUD for the 9 stake amounts (5,000 → 500,000
+     BMAN) with bonus % (§7, default 25), group-incentive ceiling (§12),
+     ▲▼ reorder, enable/disable; delete blocked while stakes exist.
+  2. **Staking Plans** — Fixed / Regular / Combo cards: monthly credit days
+     (5,15,25), 30-day withdraw window, min/max withdraw BMAN (3000/10000) &
+     USDT (30/100) all admin-adjustable, combo 50/50 split (must total 100),
+     duration ticks (2/3/5y), enable/disable.
+  3. **ROI Structure** — inline-editable 9×6 matrix (Fixed 2/3/5Y total %,
+     Regular 2/3/5Y monthly %). Edited cells turn amber; Save writes a **new
+     effective-dated version** (old row kept, `is_active=0`) plus a
+     `staking_roi_audit` entry (old → new, who, note, when). Per-cell version
+     history modal + global audit-log modal. Editing gated: restricted
+     sub-admins need the `staking_roi_edit` permission key (Super-Admin rule).
+  4. **Rank Achievement** — the 11 permanent ranks (UN RANK → CHALLENGER) with
+     group incentives, benefits (Badge/Certificate/Reward/Recognition), badge
+     colour, enable/disable, and a Plan-1/2/3 qualification-requirements editor
+     (left/right counts of lower ranks; OR options supported — PLATINUM P1).
+- **DB:** `db/staking_module.sql` (idempotent) — 9 tables:
+  `staking_packages`, `staking_plans`, `staking_plan_terms`,
+  `staking_roi_structure`, `staking_roi_audit`, `user_stakes`,
+  `staking_roi_payouts`, `staking_ranks`, `staking_rank_requirements` + full
+  seed from the proposal (9 packages, 3 plans ×3 terms, 54 ROI cells,
+  11 ranks, 58 requirement rows). Applied to `e-commerce-mlm-v2`.
+- **Files:** `models/Staking_model.php`,
+  `controllers/admin/staking/{Packages,Plans,Roistructure,Ranks}.php`,
+  `views/admin/staking/{packages,plans,roi_structure,ranks}.php`,
+  `config/routes.php` (`admin/staking/*`),
+  `views/admin/Layout/admin_sidebar.php` (new **Staking Management** group).
+- **Validated:** CLI smoke test — resolveRoi (incl. combo = fixed+regular
+  halves), versioned save + audit + revert, guards (negative %, combo ≠ 100,
+  duplicate stake amount, requirement dupes) all pass; pages behind admin
+  login (unauthenticated → redirect `admin/login`).
+- **How to apply:** run `db/staking_module.sql`, deploy the PHP files. New
+  permission keys (optional for sub-admins): `staking_management`,
+  `staking_roi_edit` (legacy `package_settings` / `rank_management` also
+  accepted for page view).
+
+---
+
 ## 2026-07-01 — Auth pages: use dynamic Site-Settings logo
 
 - **What:** login (`user/in`) and register (`user/re`) brand panel now shows the

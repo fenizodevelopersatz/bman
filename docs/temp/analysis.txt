@@ -786,3 +786,13 @@ Array
 
 
 echo "<pre>";print_r($this->session->all_userdata());exit;
+
+
+Completed:
+
+Today KYC completed user & admin side & files migrated
+Analysis and make the plan for package + Staking plan + ROI Matrices & create the mysql table structures
+Analysis the web3 on codeigniter 3 and any external wallet moniter/streams for wallet address
+
+
+

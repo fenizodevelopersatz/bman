@@ -105,7 +105,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/bank-verification">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Members Bank</span>
+                    class="menu-title">Members Wallet Bank</span>
                 </a>
               </div>
 
@@ -182,6 +182,85 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
           <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
             class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention">
             <span class="menu-link"><span class="menu-icon">
+                <i class="ki-duotone ki-chart-pie-simple fs-2">
+                  <span class="path1"></span>
+                  <span class="path2"></span>
+                </i>
+              </span><span class="menu-title">Staking Management</span><span class="menu-arrow"></span></span>
+            <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto">
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/packages">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Staking Packages</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/plans">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Staking Plans</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/roi-structure">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">ROI Structure</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/ranks">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Rank Achievement</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/rank-power">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Rank Power & Incentive</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/bonus-settings">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Bonus & Matching</span>
+                </a>
+              </div>
+
+            </div>
+          </div>
+
+
+          <!--end::Scroll wrapper-->
+          <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
+            class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention">
+            <span class="menu-link"><span class="menu-icon">
+                <i class="ki-duotone ki-abstract-26 fs-2">
+                  <span class="path1"></span>
+                  <span class="path2"></span>
+                </i>
+              </span><span class="menu-title">Master</span><span class="menu-arrow"></span></span>
+            <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto">
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/master/coin-distribution">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Coin Distribution</span>
+                </a>
+              </div>
+
+            </div>
+          </div>
+
+
+          <!--end::Scroll wrapper-->
+          <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
+            class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention">
+            <span class="menu-link"><span class="menu-icon">
 
                 <i class="ki-duotone ki-feather">
                   <span class="path1"></span>
@@ -190,12 +269,20 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               </span><span class="menu-title">Content Management</span><span class="menu-arrow"></span></span>
             <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto">
 
-              <div class="menu-item">
+             <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>landing-page-cms">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Home Page Settings</span>
+                </a>
+              </div>
+
+
+              <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>website-content-cms">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Website Content</span>
                 </a>
-              </div>
+              </div> -->
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>announcement-cms">
@@ -218,12 +305,12 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div>
 
-              <div class="menu-item">
+              <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>slider-cms">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Sliders Image</span>
                 </a>
-              </div>
+              </div> -->
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>faq-cms">
@@ -232,13 +319,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div>
 
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>landing-page-cms">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Landing Page Settings</span>
-                </a>
-              </div>
-
+             
             </div>
           </div>
 
@@ -287,7 +368,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
 
 
           <!--end::Scroll wrapper-->
-          <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
+          <!-- <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
             class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention">
             <span class="menu-link"><span class="menu-icon">
                 <i class="ki-duotone ki-brifecase-timer">
@@ -344,7 +425,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
 
 
             </div>
-          </div>
+          </div> -->
 
 
 
@@ -404,26 +485,26 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div>
 
-              <div class="menu-item">
+              <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>package-settings">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Package Settings</span>
                 </a>
-              </div>
+              </div> -->
 
-              <div class="menu-item">
+              <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>commission-settings">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Commission Settings</span>
                 </a>
-              </div>
+              </div> -->
 
-              <div class="menu-item">
+              <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>rank-settings">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">Rank
                     Settings</span>
                 </a>
-              </div>
+              </div> -->
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>payment-settings">
@@ -451,7 +532,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
     </a>
     </div> -->
 
-              <div class="menu-item">
+              <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/earning-ads">
                   <span class=" menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Earning Ads Settings</span>
@@ -470,11 +551,11 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                   <span class=" menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Earning Methods Settings</span>
                 </a>
-              </div>
+              </div> -->
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>mail-settings">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">Mail
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">E-Mail
                     Settings</span>
                 </a>
               </div>
@@ -538,7 +619,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
         <img src="<?php echo base_url(); ?>/assets/admin/media/illustrations/misc/upgrade.svg" />
         <br>
         <span class="label">
-          <b>Demo Version 7.1</b>
+          <b>Nexman Version 1.0</b>
         </span>
       </div>
 

@@ -603,6 +603,50 @@ $route['admin/kyc/decision/(:num)']['post'] = 'admin/AdminKyc/decision/$1';
 $route['admin/kyc/export']['get'] = 'admin/AdminKyc/export_csv';
 
 
+/**************** Staking Module — Admin (docs/6_STAKING_PACKAGES_PLANS_ROI.md) */
+// Packages (stake amounts, bonus %, group ceiling, enable/disable, reorder)
+$route['admin/staking/packages'] = 'admin/staking/Packages';
+$route['admin/staking/packages/save']['post'] = 'admin/staking/Packages/save';
+$route['admin/staking/packages/toggle/(:num)']['post'] = 'admin/staking/Packages/toggle/$1';
+$route['admin/staking/packages/delete/(:num)']['post'] = 'admin/staking/Packages/delete/$1';
+$route['admin/staking/packages/reorder']['post'] = 'admin/staking/Packages/reorder';
+// Plans (Fixed / Regular / Combo rules, withdraw limits, durations 2/3/5y)
+$route['admin/staking/plans'] = 'admin/staking/Plans';
+$route['admin/staking/plans/save/(:num)']['post'] = 'admin/staking/Plans/save/$1';
+$route['admin/staking/plans/toggle/(:num)']['post'] = 'admin/staking/Plans/toggle/$1';
+// ROI matrix (inline grid; versioned + audited saves; history & audit viewers)
+$route['admin/staking/roi-structure'] = 'admin/staking/Roistructure';
+$route['admin/staking/roi-structure/save']['post'] = 'admin/staking/Roistructure/save';
+$route['admin/staking/roi-structure/history']['get'] = 'admin/staking/Roistructure/history';
+$route['admin/staking/roi-structure/audit']['get'] = 'admin/staking/Roistructure/audit';
+// Rank Achievement (11 permanent ranks, incentives, qualification matrix)
+$route['admin/staking/ranks'] = 'admin/staking/Ranks';
+$route['admin/staking/ranks/save/(:num)']['post'] = 'admin/staking/Ranks/save/$1';
+$route['admin/staking/ranks/toggle/(:num)']['post'] = 'admin/staking/Ranks/toggle/$1';
+$route['admin/staking/ranks/requirements/(:num)']['post'] = 'admin/staking/Ranks/requirements/$1';
+// Rank Power (§11: 60-day reset cycles, incentive qualification) + Group
+// Incentive Ceiling editor (§12)
+$route['admin/staking/rank-power'] = 'admin/staking/Rankpower';
+$route['admin/staking/rank-power/save-settings']['post'] = 'admin/staking/Rankpower/save_settings';
+$route['admin/staking/rank-power/reset-cycle']['post'] = 'admin/staking/Rankpower/reset_cycle';
+$route['admin/staking/rank-power/save-ceilings']['post'] = 'admin/staking/Rankpower/save_ceilings';
+// Bonus Coin System (§7: 25% bonus, 60-day 50% reduction, transfer rules) +
+// Binary Matching Bonus (§9: 10% = 8% Earning + 2% Staking)
+$route['admin/staking/bonus-settings'] = 'admin/staking/Bonussettings';
+$route['admin/staking/bonus-settings/save']['post'] = 'admin/staking/Bonussettings/save';
+$route['admin/staking/bonus-settings/apply-to-packages']['post'] = 'admin/staking/Bonussettings/apply_to_packages';
+
+/**************** Master — Coin Distribution (proposal §3A) */
+$route['admin/master/coin-distribution'] = 'admin/master/Coindistribution';
+$route['admin/master/coin-distribution/list']['get'] = 'admin/master/Coindistribution/list';
+$route['admin/master/coin-distribution/save']['post'] = 'admin/master/Coindistribution/save';
+$route['admin/master/coin-distribution/toggle/(:num)']['post'] = 'admin/master/Coindistribution/toggle/$1';
+$route['admin/master/coin-distribution/set-default/(:num)']['post'] = 'admin/master/Coindistribution/set_default/$1';
+$route['admin/master/coin-distribution/delete/(:num)']['post'] = 'admin/master/Coindistribution/delete/$1';
+$route['admin/master/coin-distribution/audit']['get'] = 'admin/master/Coindistribution/audit';
+$route['admin/master/coin-distribution/export']['get'] = 'admin/master/Coindistribution/export_csv';
+
+
 /************************WITHDRAW REQUESTS */
 $route['withdraw-requests'] = 'admin/withdraw/Withdraw';
 $route['withdraw-request-list'] = 'admin/withdraw/Withdraw/list';

@@ -432,6 +432,9 @@ class Walletmanagement extends CI_Controller
         $this->data['card_title'] = "Add Investment To User";
         $this->data['users'] = $this->db->query("SELECT * FROM users where status = '1' ")->result();
         $this->data['package'] = $this->db->query("SELECT * FROM package_config WHERE status = '1'")->result();
+        // §3A Coin Distribution: active options for the allocation selector
+        $this->load->model('Coindistribution_model', 'dist');
+        $this->data['distributions'] = $this->dist->activeOptions();
         $this->data['action'] = base_url() . "make-investment-post";
         $this->data['redirect_url'] = base_url() . "make-investment";
         $this->load->view('admin/wallet/investment_management', $this->data);
@@ -904,6 +907,26 @@ class Walletmanagement extends CI_Controller
                             );
                             $insert = $this->db->insert("history", $deposit_data);
 
+                            // §3A Coin Distribution: snapshot the selected
+                            // option (id + percentages) permanently and credit
+                            // the Exchange/Earning/Staking/Bonus wallets.
+                            // Falls back to the default option when the form
+                            // sends none (backward compatible). Later admin
+                            // edits never affect this purchase — amounts and
+                            // percentages are stored on the history row.
+                            $this->load->model('Coindistribution_model', 'dist');
+                            $dist_option_id = (int)$this->input->post('distribution_option_id');
+                            if (!$dist_option_id) {
+                                $dist_default = $this->dist->defaultOption();
+                                $dist_option_id = $dist_default ? (int)$dist_default['id'] : 0;
+                            }
+                            if ($dist_option_id) {
+                                $split = $this->dist->preview($dist_option_id, (float)$bonus_amount);
+                                if ($split) {
+                                    $this->dist->writeHistory((int)$user_id, (int)$invest_id, $split);
+                                    $this->dist->creditWallets((int)$user_id, $split);
+                                }
+                            }
 
                             $this->load->model('finance/CommissionEngine_model', 'CommissionEngine');
 
