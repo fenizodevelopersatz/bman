@@ -91,6 +91,12 @@ New tasks get added to the correct phase below.
       (internal credit/debit/move); on-chain only at withdrawal. See
       [7_TOKEN_WALLET_INTEGRATION.md](7_TOKEN_WALLET_INTEGRATION.md)
 - [x] Token Settings edit popup — concrete BSC placeholders on every field
+- [x] Token logo preview fix — Edit modal shows the uploaded BMAN logo + live preview
+- [x] Admin Member Profile card — all §1 fields (name/email/mobile/gender/DOB/
+      address1/2/state/country/pin) on `view-user/{id}`; added `users.state` +
+      `users.address_line2` (`db/user_profile_fields.sql`)
+- [x] User profile form (`user/profile`) — captures gender/DOB/address1/2/state/
+      pin; saves to `users`, shown on the admin Member Profile card
 
 ### Phase B — User side + engines (⬜ next)
 

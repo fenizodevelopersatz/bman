@@ -5,6 +5,53 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-02 — User profile form: capture all §1 fields (→ shown in admin)
+
+- **What:** the member **Profile Settings** page (`user/profile`) now captures
+  the full proposal §1 profile: existing First/Last Name, Email, Phone,
+  Country, Timezone **plus new** Gender, Date of Birth, Address Line 1,
+  Address Line 2, State, Pin Code. Saving them writes to the `users` table,
+  so they immediately appear on the admin **Member Profile** card
+  (`view-user/{id}`) — completing the loop user-entry → admin-display.
+- **Mapping:** Address Line 1 = `address`, Pin Code = `zipcode`,
+  Mobile = `contact`; State + Address Line 2 = the columns added in
+  `db/user_profile_fields.sql`. Gender normalised to male/female/other; Pin
+  validated (3–12 alphanumerics). New fields are optional — existing required
+  rules (name/contact/country/timezone) unchanged, fully backward compatible.
+- **Files:** `controllers/user/usersettings/Profile.php` (`profile_update()`
+  now saves gender/dob/address/address_line2/state/zipcode),
+  `views/user/profile/view.php` (new form fields).
+- **Validated:** DB round-trip via `Users_model::update_user()` — all six
+  fields persist and restore. User page → `user/in`, admin pages → `admin/login`
+  when unauthenticated (guards intact).
+- **Admin history / user management:** already in place — Members Management
+  (`network-member`) list → **View** → the Member Profile card renders every
+  field. No further change needed there.
+
+---
+
+## 2026-07-02 — Admin: Member Profile card (all §1 profile fields)
+
+- **What:** the admin **View User Profile** page (`view-user/{id}` →
+  `admin/member/profile`) now shows a read-only **Member Profile** card at the
+  top with every proposal §1 field: Full Name, Email ID, Mobile Number,
+  Gender, Date of Birth, Address Line 1, Address Line 2, State, Country, Pin
+  Code — plus Username/Referral ID, Sponsor, Placement, Registered date, and
+  Active + KYC status badges. Previously the page was wallet/commission
+  dashboards only and never displayed the personal fields.
+- **DB:** `db/user_profile_fields.sql` (guarded, applied) adds the two missing
+  columns `users.state` + `users.address_line2` (nullable, backward
+  compatible). Full Name reads `first_name last_name`, falling back to
+  `name`/`username`; Address Line 1 = existing `address`; Pin Code =
+  `zipcode`; Mobile = `contact`.
+- **Files:** `controllers/admin/member/Membermanagement.php` (`viewuser()`
+  now passes the full user row + sponsor), `views/admin/member/profile.php`
+  (new card), `db/user_profile_fields.sql`.
+- **How to apply:** run `db/user_profile_fields.sql`; open any member via
+  Members Management → View. No route change.
+
+---
+
 ## 2026-07-02 — Fix: BMAN token logo preview in Token Settings edit modal
 
 - **Bug:** the uploaded BMAN logo saved and served correctly (list showed it,

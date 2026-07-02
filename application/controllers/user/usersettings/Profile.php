@@ -147,6 +147,24 @@ class Profile extends MY_Controller
             'updated_date' => date('Y-m-d H:i:s')
         ];
 
+        // Proposal §1 profile fields (optional). Address Line 1 = address,
+        // Pin Code = zipcode; State + Address Line 2 are the new columns.
+        $gender = strtolower((string) $this->input->post('gender', true));
+        if (in_array($gender, ['male', 'female', 'other'], true)) {
+            $data['gender'] = $gender;
+        } elseif ($this->input->post('gender', true) === '') {
+            $data['gender'] = null;
+        }
+        foreach (['dob', 'address', 'address_line2', 'state', 'zipcode'] as $f) {
+            $v = $this->input->post($f, true);
+            if ($v !== null) {
+                $data[$f] = trim($v);
+            }
+        }
+        if (!empty($data['zipcode']) && !preg_match('/^[A-Za-z0-9 \-]{3,12}$/', $data['zipcode'])) {
+            return $this->_json(["status" => "error", "message" => "Enter a valid Pin/ZIP code."], 422);
+        }
+
         // upload avatar
         if (!empty($_FILES['profile_img']['name'])) {
 

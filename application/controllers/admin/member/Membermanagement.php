@@ -285,8 +285,17 @@ class  Membermanagement extends CI_Controller {
     $this->data['title'] = "View User Profile";
     $this->data['card_tilte'] = "User Profile";
     $this->data['user_id'] = $id;
-    $user_name = $this->db->query("SELECT * FROM users where id = '".$id."' ")->row()->username;
+    $user_row = $this->db->query("SELECT * FROM users where id = '".$id."' ")->row();
+    $user_name = $user_row ? $user_row->username : '';
     $this->data['first_letter'] = substr($user_name, 0, 1);
+
+    // Full profile row (proposal §1 fields) for the read-only Profile card.
+    $this->data['profile'] = $user_row;
+    if ($user_row && (int)$user_row->sponser > 0) {
+        $this->data['sponser_row'] = $this->db->query("SELECT referral_id, email FROM users where id = '".(int)$user_row->sponser."'")->row();
+    } else {
+        $this->data['sponser_row'] = null;
+    }
 
     $this->data['currency_info'] = currency_info();
     $this->data['token_info'] = token_info();

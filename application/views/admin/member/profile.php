@@ -72,6 +72,65 @@
                                             <?php $this->load->view('notification'); ?>
 
 
+    <?php
+    // ---- User Profile (proposal §1): all personal fields, read-only ----
+    $p = isset($profile) ? $profile : null;
+    $full_name = $p ? trim(($p->first_name ?? '').' '.($p->last_name ?? '')) : '';
+    if ($p && $full_name === '') $full_name = $p->name ?: $p->username;
+    $dash = '<span class="text-muted">—</span>';
+    $val = function ($v) use ($dash) {
+        $v = is_string($v) ? trim($v) : $v;
+        return ($v === null || $v === '' ) ? $dash : html_escape($v);
+    };
+    $status_badge = '';
+    if ($p) {
+        $status_badge = ((int)$p->status === 1)
+            ? '<span class="badge badge-light-success">Active</span>'
+            : '<span class="badge badge-light-danger">Inactive</span>';
+    }
+    if ($p):
+    ?>
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card mb-5 mb-xxl-8">
+                <div class="card-header border-transparent pt-6">
+                    <h3 class="card-title fw-bold">Member Profile</h3>
+                    <div class="card-toolbar gap-2">
+                        <?php echo $status_badge; ?>
+                        <span class="badge badge-light-primary">KYC: <?php echo strtoupper(html_escape($p->kyc_status)); ?></span>
+                    </div>
+                </div>
+                <div class="card-body pt-4 pb-8">
+                    <div class="row g-6">
+                        <div class="col-md-4"><div class="text-muted fs-8 text-uppercase">Full Name</div><div class="fw-bold fs-6"><?php echo $val($full_name); ?></div></div>
+                        <div class="col-md-4"><div class="text-muted fs-8 text-uppercase">Email ID</div><div class="fw-bold fs-6"><?php echo $val($p->email); ?></div></div>
+                        <div class="col-md-4"><div class="text-muted fs-8 text-uppercase">Mobile Number</div><div class="fw-bold fs-6"><?php echo $val($p->contact); ?></div></div>
+
+                        <div class="col-md-4"><div class="text-muted fs-8 text-uppercase">Gender</div><div class="fw-bold fs-6"><?php echo $val($p->gender ? ucfirst($p->gender) : ''); ?></div></div>
+                        <div class="col-md-4"><div class="text-muted fs-8 text-uppercase">Date of Birth</div><div class="fw-bold fs-6"><?php echo $val($p->dob); ?></div></div>
+                        <div class="col-md-4"><div class="text-muted fs-8 text-uppercase">Username / Referral ID</div><div class="fw-bold fs-6"><?php echo $val($p->username); ?> <span class="text-muted">/ <?php echo $val($p->referral_id); ?></span></div></div>
+
+                        <div class="col-md-6"><div class="text-muted fs-8 text-uppercase">Address Line 1</div><div class="fw-bold fs-6"><?php echo $val($p->address); ?></div></div>
+                        <div class="col-md-6"><div class="text-muted fs-8 text-uppercase">Address Line 2</div><div class="fw-bold fs-6"><?php echo $val($p->address_line2 ?? ''); ?></div></div>
+
+                        <div class="col-md-4"><div class="text-muted fs-8 text-uppercase">State</div><div class="fw-bold fs-6"><?php echo $val($p->state ?? ''); ?></div></div>
+                        <div class="col-md-4"><div class="text-muted fs-8 text-uppercase">Country</div><div class="fw-bold fs-6"><?php echo $val($p->country); ?></div></div>
+                        <div class="col-md-4"><div class="text-muted fs-8 text-uppercase">Pin Code</div><div class="fw-bold fs-6"><?php echo $val($p->zipcode); ?></div></div>
+
+                        <div class="col-md-4"><div class="text-muted fs-8 text-uppercase">Sponsor</div><div class="fw-bold fs-6"><?php
+                            echo isset($sponser_row) && $sponser_row
+                                ? html_escape($sponser_row->referral_id).' <span class="text-muted">('.html_escape($sponser_row->email).')</span>'
+                                : '<span class="text-muted">Main - Admin</span>'; ?></div></div>
+                        <div class="col-md-4"><div class="text-muted fs-8 text-uppercase">Placement</div><div class="fw-bold fs-6"><?php echo $val($p->position ? ucfirst($p->position) : ''); ?></div></div>
+                        <div class="col-md-4"><div class="text-muted fs-8 text-uppercase">Registered</div><div class="fw-bold fs-6"><?php echo $val($p->register_date); ?></div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+
     <div class="row">
         <div class="col-lg-12">
             <div class="card mb-5 mb-xxl-8">

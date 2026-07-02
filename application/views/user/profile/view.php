@@ -1132,6 +1132,43 @@ function badgeClassPro($st)
                       placeholder="Asia/Kolkata">
                   </div>
 
+                  <div class="field">
+                    <label><i class="ph ph-gender-intersex"></i> Gender</label>
+                    <?php $ug = strtolower($user->gender ?? ''); ?>
+                    <select class="inp" name="gender">
+                      <option value="" <?= $ug === '' ? 'selected' : ''; ?>>Select gender</option>
+                      <option value="male" <?= $ug === 'male' ? 'selected' : ''; ?>>Male</option>
+                      <option value="female" <?= $ug === 'female' ? 'selected' : ''; ?>>Female</option>
+                      <option value="other" <?= $ug === 'other' ? 'selected' : ''; ?>>Other</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label><i class="ph ph-cake"></i> Date of Birth</label>
+                    <input class="inp" type="date" name="dob" value="<?= htmlspecialchars($user->dob ?? ''); ?>">
+                  </div>
+
+                  <div class="field full">
+                    <label><i class="ph ph-map-pin"></i> Address Line 1</label>
+                    <input class="inp" name="address" value="<?= htmlspecialchars($user->address ?? ''); ?>"
+                      placeholder="House / street">
+                  </div>
+                  <div class="field full">
+                    <label><i class="ph ph-map-pin"></i> Address Line 2</label>
+                    <input class="inp" name="address_line2" value="<?= htmlspecialchars($user->address_line2 ?? ''); ?>"
+                      placeholder="Area / landmark (optional)">
+                  </div>
+
+                  <div class="field">
+                    <label><i class="ph ph-map-trifold"></i> State</label>
+                    <input class="inp" name="state" value="<?= htmlspecialchars($user->state ?? ''); ?>"
+                      placeholder="State">
+                  </div>
+                  <div class="field">
+                    <label><i class="ph ph-mailbox"></i> Pin Code</label>
+                    <input class="inp" name="zipcode" value="<?= htmlspecialchars($user->zipcode ?? ''); ?>"
+                      placeholder="Pin / ZIP code">
+                  </div>
+
                   <div class="field full">
                     <div class="upload">
                       <div>
