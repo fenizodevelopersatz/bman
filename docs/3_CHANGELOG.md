@@ -5,6 +5,46 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-02 — Fix: BMAN token logo preview in Token Settings edit modal
+
+- **Bug:** the uploaded BMAN logo saved and served correctly (list showed it,
+  file on disk, HTTP 200) but the **Edit modal never previewed it** — the file
+  input is (correctly) skipped when re-filling the form and there was no
+  `<img>` to show the existing `bman_logo`, so it looked like the upload was
+  lost.
+- **Fix:** added a logo preview thumbnail in section 2. `fillForm()` now sets
+  it from the saved `bman_logo` (with a "choose a file only to replace it"
+  note) on edit, clears it on Add, and a `change` listener shows a live local
+  preview when a new file is picked. Upload/persist path was already correct —
+  no controller/model change.
+- **File:** `views/admin/master/token_settings.php`.
+
+---
+
+## 2026-07-02 — Custodial wallet ledger + Token Settings placeholders
+
+- **Custodial question answered** ("give BMAN without the admin private key"):
+  new doc [7_TOKEN_WALLET_INTEGRATION.md](7_TOKEN_WALLET_INTEGRATION.md)
+  explains the model — BMAN is custodial, so giving a user tokens (purchase,
+  ROI, bonus, matching, admin grant) is an **internal ledger credit with no
+  private key and no blockchain**. A key is needed **only** at withdrawal, and
+  it's the treasury/gas key (via `Web3bman::sendToken()`), never a per-user key.
+- **New model** `Custodialwallet_model` — single place for internal BMAN
+  balances across the four §3A wallets (exchange/earning/staking/bonus) on the
+  existing `wallet_transactions` ledger: `credit()`, `debit()` (overdraw-
+  guarded), `move()` (e.g. Exchange → Staking on stake purchase), `balance()`,
+  `balances()`. Validated by CLI: +100 exchange → move 40 to staking →
+  exchange 60 / staking 40, +25 bonus, overdraw blocked.
+- **Token Settings edit popup** — concrete BSC placeholders on every field
+  (RPC `https://bsc-dataseed.binance.org`, chain 56/97, USDT
+  `0x55d3…7955`, decimals 18, rate `500`, gas 210000/5 gwei, wallet fields
+  `0x…`, per-wallet purpose hints). No behaviour change; guidance only.
+- **Files:** `models/Custodialwallet_model.php`,
+  `views/admin/master/token_settings.php` (placeholders),
+  `docs/7_TOKEN_WALLET_INTEGRATION.md` (+ index entry).
+
+---
+
 ## 2026-07-02 — Web3 integration: BEP-20 wallet + signed transfers (reads Token Settings)
 
 - **What:** installed a real web3 stack and a CI library so the platform can

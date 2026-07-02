@@ -21,6 +21,7 @@ trackable. Update the **Status** column as features land.
 | 4 | [4_LANDING_ROADMAP.md](4_LANDING_ROADMAP.md) | Phased backlog (all 18 enhancement items) |
 | 5 | [5_KYC_STATE_MACHINE.md](5_KYC_STATE_MACHINE.md) | KYC module + controlled status state machine |
 | 6 | [6_STAKING_PACKAGES_PLANS_ROI.md](6_STAKING_PACKAGES_PLANS_ROI.md) | Pre-plan: staking packages, plans & ROI structure (fields, DDL, flowcharts) |
+| 7 | [7_TOKEN_WALLET_INTEGRATION.md](7_TOKEN_WALLET_INTEGRATION.md) | Custodial vs on-chain: giving BMAN without a key, deposit→stake→withdraw, treasury-key handling |
 
 ---
 
@@ -86,6 +87,10 @@ New tasks get added to the correct phase below.
 - [x] Web3 library (`Web3bman`) — isolated web3p/ethereum-tx stack; wallet gen,
       balances, offline-signed BEP-20/BNB sends, all from active Token Settings
       (`application/third_party/web3bman/`, `libraries/Web3bman.php`)
+- [x] Custodial ledger (`Custodialwallet_model`) — give BMAN with NO private key
+      (internal credit/debit/move); on-chain only at withdrawal. See
+      [7_TOKEN_WALLET_INTEGRATION.md](7_TOKEN_WALLET_INTEGRATION.md)
+- [x] Token Settings edit popup — concrete BSC placeholders on every field
 
 ### Phase B — User side + engines (⬜ next)
 

@@ -183,11 +183,13 @@
                                                             </div>
                                                             <div class="col-md-6 mb-4">
                                                                 <label class="form-label required fs-7">RPC URL</label>
-                                                                <input type="url" name="rpc_url" class="form-control form-control-solid" required />
+                                                                <input type="url" name="rpc_url" class="form-control form-control-solid"
+                                                                    placeholder="https://bsc-dataseed.binance.org (testnet: https://data-seed-prebsc-1-s1.binance.org:8545)" required />
                                                             </div>
                                                             <div class="col-md-4 mb-4">
                                                                 <label class="form-label required fs-7">Explorer URL</label>
-                                                                <input type="url" name="explorer_url" class="form-control form-control-solid" required />
+                                                                <input type="url" name="explorer_url" class="form-control form-control-solid"
+                                                                    placeholder="https://bscscan.com (testnet: https://testnet.bscscan.com)" required />
                                                             </div>
                                                             <div class="col-md-2 mb-4 d-flex align-items-end">
                                                                 <button type="button" class="btn btn-light-info btn-sm w-100" id="tkm-test-rpc">Test RPC</button>
@@ -200,31 +202,36 @@
                                                         <div class="row">
                                                             <div class="col-md-4 mb-4">
                                                                 <label class="form-label required fs-7">Token Name</label>
-                                                                <input type="text" name="bman_name" class="form-control form-control-solid" required />
+                                                                <input type="text" name="bman_name" class="form-control form-control-solid" placeholder="BMAN Token" required />
                                                             </div>
                                                             <div class="col-md-2 mb-4">
                                                                 <label class="form-label required fs-7">Symbol</label>
-                                                                <input type="text" name="bman_symbol" class="form-control form-control-solid" required />
+                                                                <input type="text" name="bman_symbol" class="form-control form-control-solid" placeholder="BMAN" required />
                                                             </div>
                                                             <div class="col-md-2 mb-4">
                                                                 <label class="form-label required fs-7">Decimals</label>
-                                                                <input type="number" name="bman_decimals" min="0" max="36" class="form-control form-control-solid" required />
+                                                                <input type="number" name="bman_decimals" min="0" max="36" class="form-control form-control-solid" placeholder="18" required />
                                                             </div>
                                                             <div class="col-md-4 mb-4">
                                                                 <label class="form-label fs-7">Contract Address</label>
-                                                                <input type="text" name="bman_contract" placeholder="0x…" class="form-control form-control-solid tkm-addr" />
+                                                                <input type="text" name="bman_contract" placeholder="0x1234abcd…ef56 (your deployed BEP-20)" class="form-control form-control-solid tkm-addr" />
                                                             </div>
                                                             <div class="col-md-4 mb-4">
                                                                 <label class="form-label fs-7">Token Logo</label>
-                                                                <input type="file" name="bman_logo_file" accept="image/*" class="form-control form-control-solid" />
+                                                                <div class="d-flex align-items-center gap-3">
+                                                                    <img id="tkm-logo-preview" src="" alt="logo"
+                                                                        class="w-40px h-40px rounded-circle border border-gray-300 d-none" style="object-fit:cover;background:#fff" />
+                                                                    <input type="file" name="bman_logo_file" id="tkm-logo-file" accept="image/*" class="form-control form-control-solid" />
+                                                                </div>
+                                                                <div class="text-muted fs-8 mt-1" id="tkm-logo-note"></div>
                                                             </div>
                                                             <div class="col-md-3 mb-4">
                                                                 <label class="form-label fs-7">Minimum Transfer</label>
-                                                                <input type="number" step="0.0001" min="0" name="bman_min_transfer" class="form-control form-control-solid" />
+                                                                <input type="number" step="0.0001" min="0" name="bman_min_transfer" class="form-control form-control-solid" placeholder="1.0000" />
                                                             </div>
                                                             <div class="col-md-3 mb-4">
                                                                 <label class="form-label fs-7">Maximum Transfer <span class="text-muted fs-9">(0 = unlimited)</span></label>
-                                                                <input type="number" step="0.0001" min="0" name="bman_max_transfer" class="form-control form-control-solid" />
+                                                                <input type="number" step="0.0001" min="0" name="bman_max_transfer" class="form-control form-control-solid" placeholder="0.0000" />
                                                             </div>
                                                             <div class="col-md-2 mb-4 d-flex align-items-end">
                                                                 <div class="form-check form-switch form-check-custom form-check-solid">
@@ -240,31 +247,31 @@
                                                         <div class="row">
                                                             <div class="col-md-4 mb-4">
                                                                 <label class="form-label required fs-7">Token Name</label>
-                                                                <input type="text" name="usdt_name" class="form-control form-control-solid" required />
+                                                                <input type="text" name="usdt_name" class="form-control form-control-solid" placeholder="Tether USD" required />
                                                             </div>
                                                             <div class="col-md-2 mb-4">
                                                                 <label class="form-label required fs-7">Symbol</label>
-                                                                <input type="text" name="usdt_symbol" class="form-control form-control-solid" required />
+                                                                <input type="text" name="usdt_symbol" class="form-control form-control-solid" placeholder="USDT" required />
                                                             </div>
                                                             <div class="col-md-2 mb-4">
                                                                 <label class="form-label required fs-7">Decimals</label>
-                                                                <input type="number" name="usdt_decimals" min="0" max="36" class="form-control form-control-solid" required />
+                                                                <input type="number" name="usdt_decimals" min="0" max="36" class="form-control form-control-solid" placeholder="18" required />
                                                             </div>
                                                             <div class="col-md-4 mb-4">
                                                                 <label class="form-label fs-7">Contract Address</label>
-                                                                <input type="text" name="usdt_contract" placeholder="0x…" class="form-control form-control-solid tkm-addr" />
+                                                                <input type="text" name="usdt_contract" placeholder="0x55d398326f99059fF775485246999027B3197955 (BSC USDT)" class="form-control form-control-solid tkm-addr" />
                                                             </div>
                                                             <div class="col-md-3 mb-4">
                                                                 <label class="form-label fs-7">Minimum Deposit</label>
-                                                                <input type="number" step="0.0001" min="0" name="minimum_deposit" class="form-control form-control-solid" />
+                                                                <input type="number" step="0.0001" min="0" name="minimum_deposit" class="form-control form-control-solid" placeholder="10.0000" />
                                                             </div>
                                                             <div class="col-md-3 mb-4">
                                                                 <label class="form-label fs-7">Minimum Withdrawal</label>
-                                                                <input type="number" step="0.0001" min="0" name="minimum_withdrawal" class="form-control form-control-solid" />
+                                                                <input type="number" step="0.0001" min="0" name="minimum_withdrawal" class="form-control form-control-solid" placeholder="20.0000" />
                                                             </div>
                                                             <div class="col-md-3 mb-4">
                                                                 <label class="form-label fs-7">Maximum Withdrawal <span class="text-muted fs-9">(0 = unlimited)</span></label>
-                                                                <input type="number" step="0.0001" min="0" name="maximum_withdrawal" class="form-control form-control-solid" />
+                                                                <input type="number" step="0.0001" min="0" name="maximum_withdrawal" class="form-control form-control-solid" placeholder="1000.0000" />
                                                             </div>
                                                             <div class="col-md-2 mb-4 d-flex align-items-end">
                                                                 <div class="form-check form-switch form-check-custom form-check-solid">
@@ -288,7 +295,7 @@
                                                             <div class="col-md-4 mb-4">
                                                                 <label class="form-label required fs-7">Current Exchange Rate</label>
                                                                 <input type="number" step="0.00000001" min="0.00000001" name="exchange_rate"
-                                                                    class="form-control form-control-solid" id="tkm-ex-rate" required />
+                                                                    class="form-control form-control-solid" id="tkm-ex-rate" placeholder="500 (1 USDT = 500 BMAN)" required />
                                                             </div>
                                                             <div class="col-md-4 mb-4">
                                                                 <label class="form-label fs-7">Effective From</label>
@@ -305,13 +312,16 @@
                                                         <h5 class="fw-bold mb-4">5 · Wallet Addresses</h5>
                                                         <div class="row">
                                                             <?php foreach ([
-                                                                'treasury_wallet' => 'Treasury Wallet', 'deposit_wallet' => 'Deposit Wallet',
-                                                                'gas_wallet' => 'Gas Wallet', 'bonus_wallet' => 'Bonus Wallet',
-                                                                'reserve_wallet' => 'Reserve Wallet', 'cold_wallet' => 'Cold Wallet',
-                                                            ] as $f => $lbl): ?>
+                                                                'treasury_wallet' => ['Treasury Wallet', 'holds BMAN reserve — pays out withdrawals'],
+                                                                'deposit_wallet'  => ['Deposit Wallet', 'users deposit USDT here'],
+                                                                'gas_wallet'      => ['Gas Wallet', 'holds BNB to pay transaction fees'],
+                                                                'bonus_wallet'    => ['Bonus Wallet', 'bonus-coin pool'],
+                                                                'reserve_wallet'  => ['Reserve Wallet', 'cold reserve'],
+                                                                'cold_wallet'     => ['Cold Wallet', 'offline vault'],
+                                                            ] as $f => $meta): ?>
                                                             <div class="col-md-6 mb-4">
-                                                                <label class="form-label fs-7"><?php echo $lbl; ?></label>
-                                                                <input type="text" name="<?php echo $f; ?>" placeholder="0x…"
+                                                                <label class="form-label fs-7"><?php echo $meta[0]; ?> <span class="text-muted fs-9">— <?php echo $meta[1]; ?></span></label>
+                                                                <input type="text" name="<?php echo $f; ?>" placeholder="0xAbC0000000000000000000000000000000000123"
                                                                     class="form-control form-control-solid tkm-addr" />
                                                             </div>
                                                             <?php endforeach; ?>
@@ -328,7 +338,7 @@
                                                             ] as $f => $lbl): ?>
                                                             <div class="col-md-6 mb-4">
                                                                 <label class="form-label fs-7"><?php echo $lbl; ?></label>
-                                                                <input type="text" name="<?php echo $f; ?>" placeholder="0x…"
+                                                                <input type="text" name="<?php echo $f; ?>" placeholder="0x… (leave blank if not deployed yet)"
                                                                     class="form-control form-control-solid tkm-addr" />
                                                             </div>
                                                             <?php endforeach; ?>
@@ -340,23 +350,23 @@
                                                         <div class="row">
                                                             <div class="col-md-2 mb-4">
                                                                 <label class="form-label fs-7">Min Confirmations</label>
-                                                                <input type="number" min="0" name="minimum_confirmations" class="form-control form-control-solid" />
+                                                                <input type="number" min="0" name="minimum_confirmations" class="form-control form-control-solid" placeholder="15" />
                                                             </div>
                                                             <div class="col-md-3 mb-4">
                                                                 <label class="form-label fs-7">Gas Limit</label>
-                                                                <input type="number" min="0" name="gas_limit" class="form-control form-control-solid" />
+                                                                <input type="number" min="0" name="gas_limit" class="form-control form-control-solid" placeholder="210000" />
                                                             </div>
                                                             <div class="col-md-3 mb-4">
                                                                 <label class="form-label fs-7">Gas Price (gwei)</label>
-                                                                <input type="text" name="gas_price" class="form-control form-control-solid" />
+                                                                <input type="text" name="gas_price" class="form-control form-control-solid" placeholder="5" />
                                                             </div>
                                                             <div class="col-md-2 mb-4">
                                                                 <label class="form-label fs-7">Tx Timeout (s)</label>
-                                                                <input type="number" min="0" name="transaction_timeout" class="form-control form-control-solid" />
+                                                                <input type="number" min="0" name="transaction_timeout" class="form-control form-control-solid" placeholder="300" />
                                                             </div>
                                                             <div class="col-md-2 mb-4">
                                                                 <label class="form-label fs-7">Retry Count</label>
-                                                                <input type="number" min="0" name="retry_count" class="form-control form-control-solid" />
+                                                                <input type="number" min="0" name="retry_count" class="form-control form-control-solid" placeholder="3" />
                                                             </div>
                                                         </div>
                                                     </div>
@@ -481,6 +491,20 @@
         function fillForm(s) {
             form.reset();
             form.elements.id.value = s ? s.id : 0;
+
+            // logo preview: show the already-uploaded logo when editing
+            const prev = document.getElementById('tkm-logo-preview');
+            const note = document.getElementById('tkm-logo-note');
+            if (s && s.bman_logo) {
+                prev.src = base + s.bman_logo;
+                prev.classList.remove('d-none');
+                note.textContent = 'Current logo — choose a file only if you want to replace it.';
+            } else {
+                prev.removeAttribute('src');
+                prev.classList.add('d-none');
+                note.textContent = s ? 'No logo uploaded yet.' : '';
+            }
+
             if (!s) return;
             Object.keys(s).forEach(k => {
                 const el = form.elements[k];
@@ -489,6 +513,22 @@
                 else el.value = s[k] == null ? '' : s[k];
             });
         }
+
+        /* live preview when a new logo file is picked */
+        (function () {
+            const file = document.getElementById('tkm-logo-file');
+            if (!file) return;
+            file.addEventListener('change', () => {
+                const prev = document.getElementById('tkm-logo-preview');
+                const note = document.getElementById('tkm-logo-note');
+                const f = file.files && file.files[0];
+                if (f) {
+                    prev.src = URL.createObjectURL(f);
+                    prev.classList.remove('d-none');
+                    note.textContent = 'New logo selected (saved when you click Save Configuration).';
+                }
+            });
+        })();
 
         /* add / edit */
         const addBtn = document.getElementById('tkm-add-btn');
