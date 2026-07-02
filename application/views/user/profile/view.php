@@ -20,6 +20,12 @@ $user = (object) array_merge([
   'referral_id' => '',
   'rank_id' => '',
   'twofa_status' => 0,
+  'gender' => '',
+  'dob' => '',
+  'address' => '',
+  'address_line2' => '',
+  'state' => '',
+  'zipcode' => '',
 ], $userArr);
 
 // user_kyc table fields
@@ -35,9 +41,45 @@ $kyc = (object) array_merge([
   'pincode' => '',
   'pan_doc' => '',
   'aadhaar_doc' => '',
+  'country_iso2' => 'IN',
+  'full_name' => '',
+  'gender' => 'unspecified',
+  'nationality_iso2' => 'IN',
+  'addr_line1' => '',
+  'addr_line2' => '',
+  'addr_city' => '',
+  'addr_region' => '',
+  'addr_postal' => '',
+  'doc_type' => 'passport',
+  'doc_number' => '',
+  'doc_issue_country' => 'IN',
+  'doc_issue_date' => '',
+  'doc_expiry_date' => '',
+  'doc_front_url' => '',
+  'doc_back_url' => '',
+  'selfie_url' => '',
+  'proof_address_url' => '',
+  'consent' => 0,
+  'review_notes' => '',
   'reviewer_note' => '',
   'submitted_at' => '',
 ], $kycArr);
+
+if (empty($kyc->full_name)) {
+  $kyc->full_name = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) ?: ($user->name ?? $user->username ?? '');
+}
+if (empty($kyc->addr_line1)) {
+  $kyc->addr_line1 = $user->address ?? '';
+}
+if (empty($kyc->addr_line2)) {
+  $kyc->addr_line2 = $user->address_line2 ?? '';
+}
+if (empty($kyc->addr_region)) {
+  $kyc->addr_region = $user->state ?? '';
+}
+if (empty($kyc->addr_postal)) {
+  $kyc->addr_postal = $user->zipcode ?? '';
+}
 
 // user_bank table fields
 $bank = (object) array_merge([
@@ -87,6 +129,76 @@ function badgeClassPro($st)
   if ($st === 'rejected' || $st === 'resubmit')
     return 'b-bad';
   return 'b-soft';
+}
+
+function profileUploadUrl($path, $fallbackDir = '')
+{
+  $path = trim((string) $path);
+  if ($path === '') {
+    return '';
+  }
+  if (preg_match('#^https?://#i', $path)) {
+    return $path;
+  }
+  return base_url(ltrim($fallbackDir . $path, '/'));
+}
+
+function profileFileName($url)
+{
+  $path = parse_url((string) $url, PHP_URL_PATH);
+  return basename($path ?: (string) $url);
+}
+
+function isPreviewImage($url)
+{
+  return (bool) preg_match('/\.(jpe?g|png|webp|gif)$/i', parse_url((string) $url, PHP_URL_PATH) ?: '');
+}
+
+function docTypeLabel($type)
+{
+  $labels = ['passport' => 'Passport', 'national_id' => 'Aadhaar ID', 'driver_license' => 'Driver License'];
+  return $labels[$type] ?? ucwords(str_replace('_', ' ', (string) $type));
+}
+
+function kycDisplayStatus($status)
+{
+  $status = strtolower(trim((string) $status));
+  if ($status === '' || $status === 'none') {
+    return 'Not submitted';
+  }
+  if ($status === 'under_review') {
+    return 'Under review';
+  }
+  if ($status === 'resubmitted') {
+    return 'Pending';
+  }
+  if ($status === 'rejected' || $status === 'resubmit') {
+    return 'Resubmit required';
+  }
+  return ucwords(str_replace('_', ' ', $status));
+}
+
+function renderExistingPreview($url, $title)
+{
+  $url = profileUploadUrl($url);
+  if ($url === '') {
+    return;
+  }
+  $name = profileFileName($url);
+  ?>
+  <div class="kyc-preview existing-preview">
+    <?php if (isPreviewImage($url)): ?>
+      <img class="kyc-thumb" src="<?php echo html_escape($url); ?>" alt="<?php echo html_escape($title); ?>">
+    <?php else: ?>
+      <div class="kyc-thumb file-thumb"><i class="ph ph-file-pdf"></i></div>
+    <?php endif; ?>
+    <div class="meta">
+      <div class="name"><?php echo html_escape($title); ?></div>
+      <div class="size"><?php echo html_escape($name); ?></div>
+      <a class="js-view" target="_blank" href="<?php echo html_escape($url); ?>">View uploaded</a>
+    </div>
+  </div>
+  <?php
 }
 ?>
 <!DOCTYPE html>
@@ -280,6 +392,23 @@ function badgeClassPro($st)
       gap: 12px;
     }
 
+    .profile-grid {
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      align-items: start;
+    }
+
+    .profile-grid .field {
+      grid-column: span 4;
+    }
+
+    .profile-grid .field.span-6 {
+      grid-column: span 6;
+    }
+
+    .profile-grid .field.span-12 {
+      grid-column: 1/-1;
+    }
+
     .field {
       display: grid;
       gap: 6px;
@@ -430,6 +559,43 @@ function badgeClassPro($st)
 
     .upload input {
       max-width: 220px;
+    }
+
+    .upload-preview {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid #f1f1f6;
+      background: #fff;
+      border-radius: 16px;
+    }
+
+    .upload-preview img {
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
+      object-fit: cover;
+      border: 1px solid #efedf7;
+      background: #f7f7fb;
+      flex: 0 0 72px;
+    }
+
+    .upload-preview b {
+      display: block;
+      font-size: 12px;
+      font-weight: 1100;
+      color: #111;
+    }
+
+    .upload-preview a,
+    .upload-preview small {
+      display: inline-block;
+      margin-top: 4px;
+      font-size: 11px;
+      font-weight: 900;
+      color: var(--primary);
     }
 
     .switch-row {
@@ -715,6 +881,15 @@ function badgeClassPro($st)
       font-size: 16px;
     }
 
+    .status-pill small {
+      display: block;
+      margin-top: 2px;
+      font-size: 10px;
+      color: inherit;
+      opacity: .72;
+      font-weight: 900;
+    }
+
     .status-none {
       color: #475569;
     }
@@ -966,6 +1141,15 @@ function badgeClassPro($st)
     }
 
     @media(max-width: 900px) {
+      .profile-grid .field,
+      .profile-grid .field.span-6 {
+        grid-column: span 6;
+      }
+
+      .profile-grid .field.span-12 {
+        grid-column: 1/-1;
+      }
+
       .col-6 {
         grid-column: span 12;
       }
@@ -976,6 +1160,18 @@ function badgeClassPro($st)
 
       .col-3 {
         grid-column: span 12;
+      }
+    }
+
+    @media(max-width: 640px) {
+      .profile-grid .field,
+      .profile-grid .field.span-6 {
+        grid-column: 1/-1;
+      }
+
+      .upload {
+        align-items: flex-start;
+        flex-direction: column;
       }
     }
 
