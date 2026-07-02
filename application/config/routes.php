@@ -636,6 +636,16 @@ $route['admin/staking/bonus-settings'] = 'admin/staking/Bonussettings';
 $route['admin/staking/bonus-settings/save']['post'] = 'admin/staking/Bonussettings/save';
 $route['admin/staking/bonus-settings/apply-to-packages']['post'] = 'admin/staking/Bonussettings/apply_to_packages';
 
+/**************** Master — Token Settings (blockchain single source of truth) */
+$route['admin/master/token-settings'] = 'admin/master/Tokenmaster';
+$route['admin/master/token-settings/save']['post'] = 'admin/master/Tokenmaster/save';
+$route['admin/master/token-settings/activate/(:num)']['post'] = 'admin/master/Tokenmaster/activate/$1';
+$route['admin/master/token-settings/toggle/(:num)']['post'] = 'admin/master/Tokenmaster/toggle/$1';
+$route['admin/master/token-settings/audit']['get'] = 'admin/master/Tokenmaster/audit';
+$route['admin/master/token-settings/test-rpc']['post'] = 'admin/master/Tokenmaster/test_rpc';
+$route['admin/master/token-settings/generate-wallet']['post'] = 'admin/master/Tokenmaster/generate_wallet';
+$route['admin/master/token-settings/check-balance']['post'] = 'admin/master/Tokenmaster/check_balance';
+
 /**************** Master — Coin Distribution (proposal §3A) */
 $route['admin/master/coin-distribution'] = 'admin/master/Coindistribution';
 $route['admin/master/coin-distribution/list']['get'] = 'admin/master/Coindistribution/list';

@@ -5,6 +5,123 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-02 — Web3 integration: BEP-20 wallet + signed transfers (reads Token Settings)
+
+- **What:** installed a real web3 stack and a CI library so the platform can
+  generate wallets, read on-chain balances and send BMAN/USDT (BEP-20) or BNB
+  with a private key — all driven by the **active Token Settings** row (no
+  hardcoded chain id, RPC, contract, decimals or gas).
+- **Library stack (isolated):** `application/third_party/web3bman/` has its
+  own composer vendor with `web3p/web3.php` + `web3p/ethereum-tx`
+  (RLP + secp256k1 + EIP-155 signing), `simplito/elliptic-php`,
+  `kornrunner/keccak`. Kept separate from the CI root and the existing
+  `ETH_MASTER` vendor to avoid dependency conflicts.
+- **CI library** `application/libraries/Web3bman.php`:
+  - `generateWallet()` — offline address + private key (EIP-55 checksum).
+  - `addressFromPrivate()`, `toChecksum()`.
+  - `getBnbBalance($addr)`, `getTokenBalance($addr[, $contract])` — read-only.
+  - `sendToken($fromPrivateKey, $to, $amount[, $contract])` — builds the
+    `transfer(address,uint256)` call, fetches nonce + gas, signs OFFLINE with
+    the configured chain id, broadcasts via `eth_sendRawTransaction`.
+  - `sendBnb($fromPrivateKey, $to, $amount)` — native transfer (gas funding).
+  - `toUnits()/fromUnits()` — bcmath scaling by token decimals.
+  - `encryptKey()/decryptKey()` — AES-256 (CI `encryption_key`) for storing a
+    sending key encrypted. **Keys are never persisted by the library**; the
+    caller decrypts just-in-time. Wallet *addresses* (public) live in Token
+    Settings; private keys do not.
+- **Admin tools on Token Settings** (safe operations only): **Check Balance**
+  (read-only BNB + BMAN for any address) and **Generate Wallet** (Super Admin;
+  key shown once, never stored; audited as `wallet_generated`). No
+  "send funds" button is wired — on-chain transfers belong to the future
+  payout/withdrawal engine (which will call `sendToken()`), guarded and
+  confirmed there rather than fired from a settings page.
+- **Files:** `third_party/web3bman/composer.json` (+ vendor),
+  `libraries/Web3bman.php`, `controllers/admin/master/Tokenmaster.php`
+  (generate_wallet / check_balance), `views/admin/master/token_settings.php`
+  (Wallet Tools card), `config/routes.php`.
+- **Validated:** CLI self-test — wallet gen + address round-trip, known test
+  vector `0x4f3e…3b1d → 0x90F8bf6A…c9C1`, amount round-trips (25 → 25×10¹⁸),
+  offline BEP-20 transfer signing (valid 346-char EIP-155 raw tx). Live BSC
+  read confirmed: `eth_getBalance` + `eth_call balanceOf` decode real
+  BNB/USDT balances. Broadcast (`eth_sendRawTransaction`) intentionally not
+  fired with real funds — signing path proven; sending is ready for the
+  payout engine.
+- **How to apply:** `composer install` in `application/third_party/web3bman/`
+  (done); set `$config['encryption_key']` before storing any sending key;
+  set the real BMAN contract address in Token Settings to enable token reads.
+- **Note — Binary Matching Bonus (§9):** the *setting* (10% = 8% Earning + 2%
+  Staking) is complete on **Bonus & Matching**; the payout *engine* that
+  credits binary pairs is the Phase-B task (task board in
+  [0_INDEX.md](0_INDEX.md)), not yet built.
+
+---
+
+## 2026-07-02 — Token Settings Master (blockchain single source of truth) + Master menu restructure
+
+- **What:** new **Master → Token Settings** module
+  (`admin/master/token-settings`) — the single source of truth for all
+  blockchain configuration; no more hardcoded values. Plus the Master menu
+  was restructured to the recommended 9-item layout.
+- **List page:** ID, Network (blockchain + chain id), Token (BMAN/USDT with
+  logo), Contract Address (shortened + one-click copy), Exchange Rate (with
+  effective-from), Status (single ACTIVE badge), Last Updated, Updated By,
+  Actions.
+- **Edit form (7 sections):** ① Network (mainnet/testnet, blockchain, chain
+  id, RPC URL, explorer URL, **Test RPC** button — live JSON-RPC
+  `eth_chainId` check with latency + chain-id match), ② BMAN token (name,
+  symbol, decimals, contract, logo upload, min/max transfer, enable),
+  ③ USDT token (name, symbol, decimals, contract, min deposit, min/max
+  withdrawal, enable), ④ Exchange rate (method: 1 USDT = X BMAN or
+  1 BMAN = X USDT, rate, effective-from, live wording preview), ⑤ Wallets
+  (treasury, deposit, gas, bonus, reserve, cold), ⑥ Smart contracts
+  (staking, bonus, referral, ROI), ⑦ Blockchain params (min confirmations,
+  gas limit, gas price, tx timeout, retry count).
+- **Rules enforced server-side:** RPC/Explorer/decimals required; exchange
+  rate > 0; every contract/wallet must be a valid `0x…` (40-hex) address;
+  unique network + chain id; **only one active configuration** (activating
+  one deactivates the rest); the active config cannot be disabled. Super
+  Admin (`admin_roll = 1`) modifies rate/contracts/wallets/RPC/chain; other
+  admins view + enable/disable (server 403 otherwise).
+- **Rate bridge (backward compatibility):** the ACTIVE row's exchange rate
+  is mirrored into the legacy `token_config.currency_value`, so every
+  existing flow (`token_info()`, Make-Investment, commission engine) uses
+  the latest active rate with **zero code changes**. Old purchases are
+  unaffected — the rate is already snapshotted per purchase
+  (`user_investment.csq_price`). New purchases use the latest active rate.
+  Package module untouched (packages stay BMAN-only).
+- **Model helpers for engines:** `Tokenmaster_model::activeSettings()` and
+  `convertUsdtToBman($amount)` (handles both calculation methods) — the
+  deposit → convert → credit flow must read these, never hardcode.
+- **Audit:** every create / edit / rate_changed / activate writes
+  `token_settings_audit` with old + new JSON, admin, **IP address** and
+  date — viewable in the page's Audit Log modal.
+- **Master menu restructured** (responsibilities separated, no duplicate
+  entries): Master → Token Settings · Coin Distribution · Staking Packages ·
+  Staking Plans · ROI Settings · Bonus Coin Settings · Wallet Settings
+  (→ single withdraw page) · Blockchain Settings (→ token settings §1/§7) ·
+  System Settings (→ site settings). **Staking Management** now holds only
+  Rank Achievement + Rank Power & Incentive.
+- **DB:** `db/token_settings.sql` (idempotent, applied) — `token_settings`
+  (all spec fields; seeded with one active BSC-mainnet row whose rate was
+  taken from the live `token_config.currency_value`, so nothing changed for
+  users) + `token_settings_audit`.
+- **Files:** `models/Tokenmaster_model.php`,
+  `controllers/admin/master/Tokenmaster.php`,
+  `views/admin/master/token_settings.php`, `config/routes.php`
+  (`admin/master/token-settings*`), `views/admin/Layout/admin_sidebar.php`
+  (Master 9 items, Staking Management slimmed).
+- **Validated:** CLI smoke test — rate ≤ 0 / empty RPC / malformed address /
+  duplicate network+chain all rejected; testnet config created + activated →
+  single-active enforced, legacy rate bridged (20 → 500 → restored 20),
+  conversion helper correct (100 USDT → 2000 BMAN @20, 50000 @500); active
+  config can't be disabled; audit logs create/activate/rate_changed with IP.
+  Test data fully removed; route redirects unauthenticated → `admin/login`.
+- **How to apply:** run `db/token_settings.sql`, deploy the PHP files.
+  Optional sub-admin key: `token_settings_master` (legacy `payment_settings`
+  also grants page access).
+
+---
+
 ## 2026-07-02 — Single Withdraw Settings page (merged staking plan rules)
 
 - **What:** withdraw configuration was split confusingly across two pages —

@@ -189,26 +189,8 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               </span><span class="menu-title">Staking Management</span><span class="menu-arrow"></span></span>
             <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto">
 
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/packages">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Staking Packages</span>
-                </a>
-              </div>
-
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/plans">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Staking Plans</span>
-                </a>
-              </div>
-
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/roi-structure">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">ROI Structure</span>
-                </a>
-              </div>
+              <!-- Packages / Plans / ROI / Bonus / Wallet settings moved to the
+                   Master group (single place for configuration masters). -->
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/ranks">
@@ -221,13 +203,6 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/rank-power">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Rank Power & Incentive</span>
-                </a>
-              </div>
-
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/bonus-settings">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Bonus & Matching</span>
                 </a>
               </div>
 
@@ -247,9 +222,65 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
             <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto">
 
               <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/master/token-settings">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Token Settings</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/master/coin-distribution">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Coin Distribution</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/packages">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Staking Packages</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/plans">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Staking Plans</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/roi-structure">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">ROI Settings</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/bonus-settings">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Bonus Coin Settings</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>withdraw-settings">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Wallet Settings</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/master/token-settings">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Blockchain Settings</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>site-settings">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">System Settings</span>
                 </a>
               </div>
 

@@ -1,0 +1,13 @@
+{
+    "name": "bman/web3bman",
+    "description": "Isolated web3 + ethereum tx-signing stack for BMAN BEP-20 payouts. Kept out of the CI root and ETH_MASTER vendors to avoid dependency conflicts.",
+    "type": "project",
+    "require": {
+        "php": ">=7.2",
+        "web3p/web3.php": "^0.3",
+        "web3p/ethereum-tx": "^0.4"
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}

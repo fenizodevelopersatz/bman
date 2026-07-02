@@ -50,9 +50,9 @@ $isSettings = ($uri === 'user/view-profile' || $uri === 'user/edit-profile');
             class="nav-item <?php echo $isRankRewards ? 'active' : ''; ?>"><i class="ph ph-identification-card"></i>
             Rank &
             Rewards</a>
-        <a href="<?php echo base_url('user/earn_more'); ?>"
+        <!-- <a href="<?php echo base_url('user/earn_more'); ?>"
             class="nav-item <?php echo $isEarnMore ? 'active' : ''; ?>"><i class="ph ph-rocket-launch"></i> Earn
-            More</a>
+            More</a> -->
         <a href="<?php echo base_url('user/chat'); ?>" class="nav-item <?php echo $isChat ? 'active' : ''; ?>"><i
                 class="ph ph-chat-circle-dots"></i> Chat</a>
         <a href="<?php echo base_url('user/support'); ?>" class="nav-item <?php echo $isSupport ? 'active' : ''; ?>"><i

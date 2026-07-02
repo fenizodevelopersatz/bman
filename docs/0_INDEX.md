@@ -35,6 +35,9 @@ trackable. Update the **Status** column as features land.
 | Bonus Coin (§7) + Binary Matching Bonus (§9) — **admin side** | ✅ Done | Bonus %, 60d/50% reduction, transfer rules, 10=8+2 matching split — §4–§12 admin setups complete |
 | Coin Distribution Master (§3A) + purchase snapshot | ✅ Done | Master → Coin Distribution; 7 options, one-default rule, audit; Make-Investment credits 4 wallets + permanent history |
 | Single Withdraw Settings page (global + staking plan rules) | ✅ Done | `withdraw-settings` is the only withdraw page; Plans page links there (no duplicate fields) |
+| Token Settings Master (blockchain single source of truth) | ✅ Done | Master → Token Settings; network/tokens/rate/wallets/contracts, RPC test, IP-audited; active rate bridged to legacy `token_config` |
+| Master menu restructure (9 items, responsibilities separated) | ✅ Done | Token · Coin Distribution · Packages · Plans · ROI · Bonus · Wallet · Blockchain · System; Staking Management keeps rank pages only |
+| Web3 integration — BEP-20 wallet + signed transfers | ✅ Done | `Web3bman` library (reads Token Settings); generate wallet, balances, sign+send BMAN/USDT/BNB. Admin: check balance + generate wallet. Broadcast wired for the payout engine |
 | Staking user purchase flow + ROI cron + reports | ⬜ Planned | Next phase of [6_STAKING_PACKAGES_PLANS_ROI.md](6_STAKING_PACKAGES_PLANS_ROI.md) |
 | Dynamic landing module (17 sections, repeaters, versioning) | ✅ Done | Phase 1 |
 | Admin editor `/landing-page-cms` + permission fallback | ✅ Done | Phase 1 |
@@ -75,11 +78,23 @@ New tasks get added to the correct phase below.
 - [x] Coin Distribution Master (§3A) — list/filters/export, add/edit, one-default,
       audit log, purchase snapshot + 4-wallet credit in Make-Investment
 - [x] Single Withdraw Settings page — global rules + staking plan windows/limits merged
+- [x] Token Settings Master — network/BMAN/USDT/rate/wallets/contracts/chain params,
+      one active config, RPC test, IP-audited, legacy `token_config` rate bridge
+      (`db/token_settings.sql`)
+- [x] Master menu restructure — 9 items (Token · Coin Distribution · Packages ·
+      Plans · ROI · Bonus · Wallet · Blockchain · System); no duplicate entries
+- [x] Web3 library (`Web3bman`) — isolated web3p/ethereum-tx stack; wallet gen,
+      balances, offline-signed BEP-20/BNB sends, all from active Token Settings
+      (`application/third_party/web3bman/`, `libraries/Web3bman.php`)
 
 ### Phase B — User side + engines (⬜ next)
 
+- [ ] USDT deposit → BMAN conversion flow — read active Token Settings
+      (`Tokenmaster_model::activeSettings()` / `convertUsdtToBman()`), credit
+      Exchange Wallet; never hardcode the rate
 - [ ] User stake purchase flow — resolve ROI cell, snapshot to `user_stakes`,
-      credit 25% bonus coin, coin-distribution selection (§3A user side)
+      credit 25% bonus coin, coin-distribution selection (§3A user side),
+      move BMAN Exchange → Staking wallet
 - [ ] ROI credit cron — Regular/Combo on 5/15/25 monthly + Fixed at maturity
       → `staking_roi_payouts`
 - [ ] Bonus reduction cron — every `reduction_interval_days`, reduce Bonus Wallet
@@ -92,6 +107,9 @@ New tasks get added to the correct phase below.
       qualify group incentive, auto-open next cycle
 - [ ] Group incentive payout — ceiling-capped (`staking_packages.group_ceiling`),
       gated by rank power qualification
+- [ ] On-chain withdrawal payout — approve → `Web3bman::sendToken()` (BEP-20)
+      from the treasury/gas wallet; store tx hash; retry per Token Settings
+      (uses the web3 library, decrypt sending key just-in-time)
 
 ### Phase C — Reports & polish (⬜ later)
 
