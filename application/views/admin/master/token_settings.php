@@ -8,6 +8,10 @@
     .tkm-section h5 { color: #009ef7; }
     .tkm-copy { cursor: pointer; }
     .tkm-settings-dialog { max-width: min(1200px, calc(100vw - 2rem)); }
+    /* Mask the Treasury secret WITHOUT a password input, so the browser never
+       offers to save the private key in its password manager. */
+    .tkm-mask { -webkit-text-security: disc; text-security: disc; }
+    .tkm-mask.tkm-show { -webkit-text-security: none; text-security: none; }
 </style>
 
 <body id="kt_app_body" data-kt-app-layout="dark-sidebar" data-kt-app-header-fixed="true"
@@ -159,7 +163,7 @@
                                                 </div>
                                             </div>
                                             <div class="modal-body scroll-y mh-650px">
-                                                <form id="tkm-form" enctype="multipart/form-data">
+                                                <form id="tkm-form" enctype="multipart/form-data" autocomplete="off">
                                                     <input type="hidden" name="id" value="0" />
 
                                                     <div class="tkm-section">
@@ -326,44 +330,47 @@
                                                     </div>
 
                                                     <div class="tkm-section">
-                                                        <h5 class="fw-bold mb-4">5 · Wallet Addresses</h5>
+                                                        <h5 class="fw-bold mb-4">5 · Platform Wallets &amp; Treasury Key</h5>
+                                                        <div class="text-muted fs-8 mb-3">
+                                                            USDT → BMAN is a single flow signed by the <b>Treasury</b> key.
+                                                            Enter the Treasury <b>private key</b> or <b>mnemonic phrase</b> —
+                                                            the wallet address is <b>derived automatically</b> and shown
+                                                            below. The secret is stored <b>AES-encrypted</b> and never
+                                                            shown again. Users deposit USDT to the <b>Deposit</b> wallet.
+                                                        </div>
                                                         <div class="row">
-                                                            <?php foreach ([
-                                                                'treasury_wallet' => ['Treasury Wallet', 'holds BMAN reserve — pays out withdrawals'],
-                                                                'deposit_wallet'  => ['Deposit Wallet', 'users deposit USDT here'],
-                                                                'gas_wallet'      => ['Gas Wallet', 'holds BNB to pay transaction fees'],
-                                                                'bonus_wallet'    => ['Bonus Wallet', 'bonus-coin pool'],
-                                                                'reserve_wallet'  => ['Reserve Wallet', 'cold reserve'],
-                                                                'cold_wallet'     => ['Cold Wallet', 'offline vault'],
-                                                            ] as $f => $meta): ?>
+                                                            <div class="col-md-12 mb-2">
+                                                                <label class="form-label fs-7">Treasury Private Key or Mnemonic Phrase
+                                                                    <span class="text-danger fs-9">(encrypted · leave blank to keep the current key)</span>
+                                                                    <span class="badge badge-light-success ms-2 d-none" id="tkm-pk-set">key stored</span></label>
+                                                                <div class="input-group">
+                                                                    <input type="text" name="treasury_secret" id="tkm-secret"
+                                                                        autocomplete="off" data-lpignore="true" data-form-type="other"
+                                                                        spellcheck="false" autocapitalize="off"
+                                                                        placeholder="64-hex private key (0x…) OR 12/24-word mnemonic phrase"
+                                                                        class="form-control form-control-solid tkm-addr tkm-mask" />
+                                                                    <button type="button" class="btn btn-icon btn-light" id="tkm-eye" tabindex="-1" title="Show / hide">
+                                                                        <i class="ki-outline ki-eye fs-2"></i></button>
+                                                                    <button type="button" class="btn btn-light-info" id="tkm-derive">Derive Address</button>
+                                                                </div>
+                                                                <div class="text-muted fs-8 mt-1" id="tkm-secret-note">Used only server-side to sign BMAN sends — never displayed. The address appears below as you type.</div>
+                                                            </div>
                                                             <div class="col-md-6 mb-4">
-                                                                <label class="form-label fs-7"><?php echo $meta[0]; ?> <span class="text-muted fs-9">— <?php echo $meta[1]; ?></span></label>
-                                                                <input type="text" name="<?php echo $f; ?>" placeholder="0xAbC0000000000000000000000000000000000123"
+                                                                <label class="form-label fs-7">Treasury Wallet <span class="text-muted fs-9">— derived from the key/phrase above</span></label>
+                                                                <input type="text" name="treasury_wallet" id="tkm-treasury-addr" readonly
+                                                                    placeholder="derived automatically from your key / phrase"
+                                                                    class="form-control form-control-solid tkm-addr" style="background:#f5f8fa" />
+                                                            </div>
+                                                            <div class="col-md-6 mb-4">
+                                                                <label class="form-label fs-7">Deposit Wallet <span class="text-muted fs-9">— users deposit USDT here</span></label>
+                                                                <input type="text" name="deposit_wallet" placeholder="0xAbC0000000000000000000000000000000000123"
                                                                     class="form-control form-control-solid tkm-addr" />
                                                             </div>
-                                                            <?php endforeach; ?>
                                                         </div>
                                                     </div>
 
                                                     <div class="tkm-section">
-                                                        <h5 class="fw-bold mb-4">6 · Smart Contracts</h5>
-                                                        <div class="text-muted fs-8 mb-3">BMAN token contract is set in section 2.</div>
-                                                        <div class="row">
-                                                            <?php foreach ([
-                                                                'staking_contract' => 'Staking Contract', 'bonus_contract' => 'Bonus Contract',
-                                                                'referral_contract' => 'Referral Contract', 'roi_contract' => 'ROI Contract',
-                                                            ] as $f => $lbl): ?>
-                                                            <div class="col-md-6 mb-4">
-                                                                <label class="form-label fs-7"><?php echo $lbl; ?></label>
-                                                                <input type="text" name="<?php echo $f; ?>" placeholder="0x… (leave blank if not deployed yet)"
-                                                                    class="form-control form-control-solid tkm-addr" />
-                                                            </div>
-                                                            <?php endforeach; ?>
-                                                        </div>
-                                                    </div>
-
-                                                    <div class="tkm-section">
-                                                        <h5 class="fw-bold mb-4">7 · Blockchain Settings</h5>
+                                                        <h5 class="fw-bold mb-4">6 · Blockchain Settings</h5>
                                                         <div class="row">
                                                             <div class="col-md-2 mb-4">
                                                                 <label class="form-label fs-7">Min Confirmations</label>
@@ -475,6 +482,8 @@
     (function () {
         const base = '<?php echo base_url(); ?>';
         const isSuper = <?php echo $is_super ? 'true' : 'false'; ?>;
+        // rows are already sanitised in the controller (no treasury_pk_enc;
+        // has_treasury_key + treasury_pk_last5 present)
         const SETTINGS = <?php echo json_encode(array_map(function ($s) {
             unset($s['updated_by_name']);
             return $s;
@@ -522,13 +531,88 @@
                 note.textContent = s ? 'No logo uploaded yet.' : '';
             }
 
+            // Treasury key: on edit show a "stored" badge with the last-5 hint;
+            // never prefill the secret. Placeholder shows the masked last 5.
+            var pkBadge = document.getElementById('tkm-pk-set');
+            var secretEl = form.elements.treasury_secret;
+            if (secretEl) secretEl.value = '';
+            if (pkBadge) {
+                var hasKey = s && Number(s.has_treasury_key) === 1;
+                pkBadge.classList.toggle('d-none', !hasKey);
+                if (hasKey) pkBadge.textContent = 'key stored ···' + (s.treasury_pk_last5 || '');
+                if (secretEl) secretEl.placeholder = hasKey
+                    ? ('current key ends in ···' + (s.treasury_pk_last5 || '') + ' — enter a new key/phrase to replace')
+                    : '64-hex private key (0x…) OR 12/24-word mnemonic phrase';
+            }
+
             if (!s) return;
             Object.keys(s).forEach(k => {
                 const el = form.elements[k];
-                if (!el || el.type === 'file' || el.type === 'hidden') return;
+                if (!el || el.type === 'file' || el.type === 'hidden' || k === 'treasury_secret') return;
                 if (el.type === 'checkbox') el.checked = Number(s[k]) === 1;
                 else el.value = s[k] == null ? '' : s[k];
             });
+        }
+
+        /* Eye toggle — reveal / mask the secret (CSS only; the field stays a
+           text input so the browser never offers to save it as a password). */
+        var eyeBtn = document.getElementById('tkm-eye');
+        var secretInput = document.getElementById('tkm-secret');
+        if (eyeBtn && secretInput) eyeBtn.addEventListener('click', () => {
+            const shown = secretInput.classList.toggle('tkm-show');
+            eyeBtn.querySelector('i').className = shown ? 'ki-outline ki-eye-slash fs-2' : 'ki-outline ki-eye fs-2';
+        });
+
+        /* Derive the Treasury address from a key/phrase and fill the box.
+           Shared by the button and the live (debounced) input handler. */
+        async function deriveTreasury(silent) {
+            const secret = (secretInput.value || '').trim();
+            const addrBox = document.getElementById('tkm-treasury-addr');
+            const note = document.getElementById('tkm-secret-note');
+            if (!secret) {
+                if (!silent) toast('Enter a private key or mnemonic phrase first.', false);
+                return;
+            }
+            const fd = new FormData(); fd.append('treasury_secret', secret);
+            const res = await fetch(base + 'admin/master/token-settings/derive-treasury', {
+                method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            let j = {}; try { j = await res.json(); } catch (e) {}
+            if (j.status === 'success') {
+                addrBox.value = j.address;
+                if (note) { note.textContent = '✓ Valid — address derived from your key/phrase.'; note.style.color = '#50cd89'; }
+                if (!silent) toast('Treasury address derived: ' + j.address, true);
+            } else {
+                addrBox.value = '';
+                if (note) { note.textContent = '✗ ' + (j.message || 'Not a valid key/phrase yet.'); note.style.color = '#f1416c'; }
+                if (!silent) toast(j.message || 'Could not derive address.', false);
+            }
+        }
+
+        var deriveBtn = document.getElementById('tkm-derive');
+        if (deriveBtn) deriveBtn.addEventListener('click', () => deriveTreasury(false));
+
+        /* Instant derive as the admin types / pastes (debounced). Only fires
+           once the input looks complete: a 64-hex key or a 12+ word phrase. */
+        if (secretInput) {
+            let _t;
+            const maybeDerive = () => {
+                clearTimeout(_t);
+                _t = setTimeout(() => {
+                    const v = (secretInput.value || '').trim();
+                    const hex = v.replace(/^0x/, '');
+                    const looksKey = /^[a-fA-F0-9]{64}$/.test(hex);
+                    const looksPhrase = v.split(/\s+/).filter(Boolean).length >= 12;
+                    if (looksKey || looksPhrase) deriveTreasury(true);
+                    else {
+                        document.getElementById('tkm-treasury-addr').value = '';
+                        const note = document.getElementById('tkm-secret-note');
+                        if (v && note) { note.textContent = 'Keep typing a full 64-hex key or a 12/24-word phrase…'; note.style.color = ''; }
+                    }
+                }, 350);
+            };
+            secretInput.addEventListener('input', maybeDerive);
+            secretInput.addEventListener('paste', () => setTimeout(maybeDerive, 10));
         }
 
         /* live preview when a new logo file is picked */

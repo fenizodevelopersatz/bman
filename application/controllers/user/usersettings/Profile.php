@@ -229,6 +229,34 @@ class Profile extends MY_Controller
         return $this->_json(["status" => "success", "message" => "Profile updated"]);
     }
 
+    // ------------------ SECURITY: set/change transfer password ------------
+    // The transfer password (PIN) authorizes internal wallet transfers
+    // (doc 9). Verified against the login password before it is set/changed.
+    public function set_transfer_password()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $uid = (int) $this->session->userdata('user_userid');
+        if (!$uid) return $this->_json(['status' => 'error', 'message' => 'Not logged in'], 401);
+
+        $login = (string) $this->input->post('login_password', true);
+        $new   = (string) $this->input->post('new_transfer_password', true);
+        $conf  = (string) $this->input->post('confirm_transfer_password', true);
+
+        $user = $this->Users_model->get_user($uid);
+        if (!$user) return $this->_json(['status' => 'error', 'message' => 'User not found.'], 404);
+        if (!(password_verify($login, $user['password']) || md5($login) === $user['password'])) {
+            return $this->_json(['status' => 'error', 'message' => 'Incorrect login password.'], 422);
+        }
+        if (strlen($new) < 4) return $this->_json(['status' => 'error', 'message' => 'Transfer password must be at least 4 characters.'], 422);
+        if ($new !== $conf)   return $this->_json(['status' => 'error', 'message' => 'Passwords do not match.'], 422);
+
+        $this->db->where('id', $uid)->update('users', [
+            'transfer_password' => password_hash($new, PASSWORD_DEFAULT),
+            'transfer_password_set_at' => date('Y-m-d H:i:s'),
+        ]);
+        return $this->_json(['status' => 'success', 'message' => 'Transfer password saved.']);
+    }
+
     // ----------------------------- KYC SUBMIT -----------------------------
     public function kyc_submit()
     {

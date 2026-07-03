@@ -41,7 +41,8 @@ trackable. Update the **Status** column as features land.
 | Token Settings Master (blockchain single source of truth) | ✅ Done | Master → Token Settings; network/tokens/rate/wallets/contracts, RPC test, IP-audited; active rate bridged to legacy `token_config` |
 | Master menu restructure (9 items, responsibilities separated) | ✅ Done | Token · Coin Distribution · Packages · Plans · ROI · Bonus · Wallet · Blockchain · System; Staking Management keeps rank pages only |
 | Web3 integration — BEP-20 wallet + signed transfers | ✅ Done | `Web3bman` library (reads Token Settings); generate wallet, balances, sign+send BMAN/USDT/BNB. Admin: check balance + generate wallet. Broadcast wired for the payout engine |
-| Internal wallet transfer module (user → wallet) — `wallet_transfer`, ledger, audit | ⬜ Planned | See [9_INTERNAL_WALLET_TRANSFER.md](9_INTERNAL_WALLET_TRANSFER.md); 3 new tables + model + controller + admin grid |
+| Internal wallet transfer module (user → own wallets) — ledger, admin grid | ✅ Done | `wallet_internal_transfer` + `wallet_ledger`; `Transfer_wallet` user page, admin Finance → Internal Wallet Transfers. USDT excluded. See [9_INTERNAL_WALLET_TRANSFER.md](9_INTERNAL_WALLET_TRANSFER.md) |
+| Token Settings §5/§6 simplify — Treasury+Deposit wallet, encrypted Treasury key, drop contracts | ✅ Done | USDT→BMAN signed by one Treasury key (AES-encrypted, never shown); gas/bonus/reserve/cold + smart-contract fields removed |
 | Staking user purchase flow + ROI cron + reports | ⬜ Planned | Next phase of [6_STAKING_PACKAGES_PLANS_ROI.md](6_STAKING_PACKAGES_PLANS_ROI.md) |
 | Dynamic landing module (17 sections, repeaters, versioning) | ✅ Done | Phase 1 |
 | Admin editor `/landing-page-cms` + permission fallback | ✅ Done | Phase 1 |

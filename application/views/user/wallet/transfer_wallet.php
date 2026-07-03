@@ -592,9 +592,10 @@
   </style>
 </head>
 <body>
-<?php $this->load->view('user/layout/v2/user_sidebar'); ?>
-<div class="main-wrapper">
-  <?php $this->load->view('user/layout/v2/user_header'); ?>
+  <div class="app-container">
+    <?php $this->load->view('user/layout/v2/user_sidebar'); ?>
+    <main class="main-content">
+      <?php $this->load->view('user/layout/v2/user_header'); ?>
 
   <div class="content-area" style="padding:16px 20px 40px;">
 
@@ -602,7 +603,7 @@
     <div class="page-titlebar">
       <div>
         <h2><i class="ph-fill ph-arrows-left-right"></i> Wallet Transfer</h2>
-        <p class="sub">Move balances between your internal wallets instantly. USDT is excluded (blockchain only).</p>
+        <p class="sub">Send balance to another member's account instantly. USDT is excluded (blockchain only).</p>
       </div>
       <?php if (!$has_transfer_password): ?>
       <button class="btn-transfer" style="width:auto;padding:10px 18px;font-size:13px;" onclick="openSetPinModal()">
@@ -663,7 +664,7 @@
 
           <form id="transferForm" autocomplete="off">
 
-            <!-- FROM / TO wallet selects -->
+            <!-- Send FROM my wallet  →  TO another member -->
             <div class="wt-select-row">
               <div>
                 <label class="wt-field-label">From Wallet</label>
@@ -671,19 +672,30 @@
                   <option value="">— Select —</option>
                   <option value="exchange">Exchange Wallet</option>
                   <option value="earning">Earning Wallet</option>
-                  <option value="staking">Staking Wallet</option>
                   <option value="bonus">Bonus Wallet</option>
                 </select>
               </div>
-              <div class="wt-select-arrow" onclick="swapWallets()" title="Swap wallets">
-                <i class="ph ph-arrows-left-right"></i>
+              <div class="wt-select-arrow" title="Send to member">
+                <i class="ph ph-arrow-right"></i>
               </div>
-              <div>
-                <label class="wt-field-label">To Wallet</label>
-                <select class="wt-select" id="toWallet" name="to_wallet">
-                  <option value="">— Select From first —</option>
-                </select>
+              <div style="position:relative;">
+                <label class="wt-field-label">Recipient (Referral ID / Username / Email)</label>
+                <input class="wt-select" type="text" id="recipient" name="recipient"
+                       placeholder="Select or search a member…" autocomplete="off"
+                       onfocus="openRecipientList()" oninput="onRecipientInput()">
+                <div id="recipientDrop" class="rcpt-drop" style="display:none;"></div>
+                <div id="recipientName" style="font-size:12px;font-weight:700;margin-top:4px;"></div>
               </div>
+              <style>
+                .rcpt-drop{position:absolute;left:0;right:0;top:100%;z-index:50;background:#fff;border:1px solid #e6e8ef;
+                  border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.10);max-height:280px;overflow-y:auto;margin-top:4px}
+                .rcpt-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid #f1f3f9}
+                .rcpt-item:last-child{border-bottom:0}
+                .rcpt-item:hover,.rcpt-item.active{background:#f4f7ff}
+                .rcpt-item b{font-size:13px;display:block}
+                .rcpt-item small{color:#7a7f9a;font-size:11px}
+                .rcpt-empty{padding:12px;color:#7a7f9a;font-size:12px;text-align:center}
+              </style>
             </div>
 
             <!-- Amount -->
@@ -779,15 +791,16 @@
               <tr>
                 <th>#</th>
                 <th>Reference</th>
-                <th>From</th>
-                <th>To</th>
+                <th>Type</th>
+                <th>Wallet</th>
+                <th>Counterparty</th>
                 <th>Amount</th>
                 <th>Status</th>
                 <th>Date</th>
               </tr>
             </thead>
             <tbody>
-              <?php foreach ($history as $i => $tx): ?>
+              <?php foreach ($history as $i => $tx): $sent = ($tx['direction'] ?? 'sent') === 'sent'; ?>
               <tr>
                 <td style="color:var(--text-muted);font-size:12px;"><?= ($page - 1) * $per_page + $i + 1 ?></td>
                 <td>
@@ -795,18 +808,19 @@
                         title="Click to copy"><?= htmlspecialchars($tx['ref']) ?></span>
                 </td>
                 <td>
-                  <span class="wallet-badge wb-<?= $tx['from_wallet'] ?>">
-                    <i class="ph-fill ph-arrow-up-right"></i>
-                    <?= ucfirst($tx['from_wallet']) ?>
+                  <span class="wallet-badge" style="background:<?= $sent ? '#fdecec;color:#c0392b' : '#e7f9ef;color:#149a55' ?>">
+                    <i class="ph-fill <?= $sent ? 'ph-arrow-up-right' : 'ph-arrow-down-left' ?>"></i>
+                    <?= $sent ? 'Sent' : 'Received' ?>
                   </span>
                 </td>
                 <td>
-                  <span class="wallet-badge wb-<?= $tx['to_wallet'] ?>">
-                    <i class="ph-fill ph-arrow-down-left"></i>
-                    <?= ucfirst($tx['to_wallet']) ?>
+                  <span class="wallet-badge wb-<?= $tx['wallet'] ?? $tx['from_wallet'] ?>">
+                    <?= ucfirst($tx['wallet'] ?? $tx['from_wallet']) ?>
                   </span>
                 </td>
-                <td class="amt-cell"><?= number_format((float)$tx['amount'], 4) ?></td>
+                <td style="font-size:13px;font-weight:700;"><?= htmlspecialchars($tx['counterparty'] ?? '—') ?></td>
+                <td class="amt-cell" style="color:<?= $sent ? '#c0392b' : '#149a55' ?>">
+                  <?= ($sent ? '−' : '+') . number_format((float)$tx['amount'], 4) ?></td>
                 <td>
                   <span class="st-badge st-<?= $tx['status'] ?>">
                     <?php if ($tx['status'] === 'completed'): ?><i class="ph-fill ph-check-circle"></i><?php
@@ -858,12 +872,13 @@
       </div><!-- /history-card -->
     </div><!-- /transfer-layout -->
   </div><!-- /content-area -->
-</div><!-- /main-wrapper -->
+    </main><!-- /main-content -->
+  </div><!-- /app-container -->
 
 <!-- ═══════════════════════════════════════════════════════════════
      MODAL: Set / Change Transfer Password
 ════════════════════════════════════════════════════════════════ -->
-<div class="wt-modal-overlay" id="setPinModal" onclick="closePinModalOutside(event)">
+<div class="wt-modal-overlay" id="setPinModal">
   <div class="wt-modal-box">
     <div class="wt-modal-head">
       <h4><i class="ph-fill ph-lock-key"></i>
@@ -934,57 +949,96 @@ const WL = {
   bonus:    'Bonus Wallet',
 };
 
-/* ===== From wallet change ===== */
+/* ===== From wallet change (member → member: only balance hint) ===== */
 function onFromChange() {
   const from = document.getElementById('fromWallet').value;
-  const toSel = document.getElementById('toWallet');
-  toSel.innerHTML = '<option value="">— Select To Wallet —</option>';
-  if (!from || !ALLOWED_PAIRS[from]) {
-    updatePreview(); return;
+  if (from) {
+    const bal = liveBalances[from] ?? 0;
+    document.getElementById('balHint').textContent = bal.toFixed(4) + ' ' + (WL[from] || from);
+  } else {
+    document.getElementById('balHint').textContent = '—';
   }
-  ALLOWED_PAIRS[from].forEach(function(w) {
-    const opt = document.createElement('option');
-    opt.value = w;
-    opt.textContent = WL[w];
-    toSel.appendChild(opt);
-  });
-  // update balance hint
-  const bal = liveBalances[from] ?? 0;
-  document.getElementById('balHint').textContent = bal.toFixed(4) + ' ' + (from.charAt(0).toUpperCase() + from.slice(1));
   updatePreview();
 }
 
-/* ===== Swap wallets ===== */
-function swapWallets() {
-  const fromSel = document.getElementById('fromWallet');
-  const toSel   = document.getElementById('toWallet');
-  const curTo   = toSel.value;
-  if (!curTo) return;
-  fromSel.value = curTo;
-  onFromChange();
+/* ===== Recipient picker: default 20 members (name + email), searchable ===== */
+let RECIPIENT_OK = false;
+let _rcptTimer = null;
+
+function csrfPair(fd) { fd.append('<?= $this->security->get_csrf_token_name() ?>', '<?= $this->security->get_csrf_hash() ?>'); return fd; }
+
+function fetchRecipients(q) {
+  const drop = document.getElementById('recipientDrop');
+  drop.innerHTML = '<div class="rcpt-empty">Loading…</div>';
+  drop.style.display = 'block';
+  const fd = new FormData(); fd.append('q', q || '');
+  fetch(BASE_URL + 'user/transfer_wallet/search_recipients', { method:'POST', body: csrfPair(fd), headers:{'X-Requested-With':'XMLHttpRequest'} })
+    .then(r => r.json())
+    .then(function(res){
+      const rows = (res && res.rows) || [];
+      if (!rows.length) { drop.innerHTML = '<div class="rcpt-empty">No members found.</div>'; return; }
+      drop.innerHTML = rows.map(function(u){
+        const ref = u.referral_id || ('#' + u.id);
+        return '<div class="rcpt-item" data-ref="' + ref + '" data-name="' + (u.username||'') + '">' +
+               '<b>' + (u.username || ref) + '</b>' +
+               '<small>' + ref + (u.email ? ' · ' + u.email : '') + '</small></div>';
+      }).join('');
+    })
+    .catch(function(){ drop.innerHTML = '<div class="rcpt-empty">Could not load members.</div>'; });
 }
+
+function openRecipientList() {
+  const v = (document.getElementById('recipient').value || '').trim();
+  fetchRecipients(v);       // default (empty) shows the first 20
+}
+
+function onRecipientInput() {
+  RECIPIENT_OK = false;
+  document.getElementById('recipientName').textContent = '';
+  updatePreview();
+  clearTimeout(_rcptTimer);
+  const v = (document.getElementById('recipient').value || '').trim();
+  _rcptTimer = setTimeout(function(){ fetchRecipients(v); }, 250);
+}
+
+function pickRecipient(ref, name) {
+  const inp = document.getElementById('recipient');
+  inp.value = ref;
+  document.getElementById('recipientDrop').style.display = 'none';
+  const box = document.getElementById('recipientName');
+  box.style.color = '#149a55';
+  box.textContent = '✓ ' + (name || ref) + ' (' + ref + ')';
+  RECIPIENT_OK = true;
+  updatePreview();
+}
+
+// event delegation: pick on mousedown (fires before input blur)
+document.addEventListener('mousedown', function(e){
+  const item = e.target.closest('.rcpt-item');
+  if (item) { e.preventDefault(); pickRecipient(item.dataset.ref, item.dataset.name); return; }
+  // click outside → close
+  if (!e.target.closest('#recipient') && !e.target.closest('#recipientDrop')) {
+    const d = document.getElementById('recipientDrop'); if (d) d.style.display = 'none';
+  }
+});
 
 /* ===== Preview update ===== */
 function updatePreview() {
   const from   = document.getElementById('fromWallet').value;
-  const to     = document.getElementById('toWallet').value;
+  const rcpt   = (document.getElementById('recipient').value || '').trim();
   const amount = parseFloat(document.getElementById('amountInput').value) || 0;
   const preview = document.getElementById('transferPreview');
   const previewText = document.getElementById('previewText');
 
-  if (from && to && amount > 0) {
+  if (from && rcpt && amount > 0) {
     preview.style.display = 'flex';
-    previewText.textContent =
-      amount.toFixed(4) + ' from ' + WL[from] + ' → ' + WL[to];
+    previewText.textContent = amount.toFixed(4) + ' ' + (WL[from] || from) + ' → ' + rcpt;
   } else {
     preview.style.display = 'none';
   }
-
-  // Update balance hint
   if (from) {
     const bal = liveBalances[from] ?? 0;
-    document.getElementById('balHint').textContent =
-      bal.toFixed(4) + ' available in ' + WL[from];
+    document.getElementById('balHint').textContent = bal.toFixed(4) + ' available in ' + (WL[from] || from);
   }
 }
 
@@ -1003,12 +1057,12 @@ function submitTransfer() {
 
   const form = document.getElementById('transferForm');
   const from   = document.getElementById('fromWallet').value;
-  const to     = document.getElementById('toWallet').value;
+  const rcpt   = (document.getElementById('recipient').value || '').trim();
   const amount = document.getElementById('amountInput').value;
   const pin    = document.getElementById('pinInput').value;
 
-  if (!from) { toast('Select a From wallet.', 'warn'); return; }
-  if (!to)   { toast('Select a To wallet.', 'warn'); return; }
+  if (!from) { toast('Select the wallet to send from.', 'warn'); return; }
+  if (!rcpt) { toast('Enter the recipient (Referral ID / Username / Email).', 'warn'); return; }
   if (!amount || parseFloat(amount) <= 0) { toast('Enter a valid amount.', 'warn'); return; }
   if (!pin)  { toast('Enter your Transfer Password.', 'warn'); return; }
 
@@ -1038,7 +1092,7 @@ function submitTransfer() {
       }
       // Reset form
       form.reset();
-      document.getElementById('toWallet').innerHTML = '<option value="">— Select From first —</option>';
+      var rn = document.getElementById('recipientName'); if (rn) rn.textContent = '';
       document.getElementById('balHint').textContent = '—';
       document.getElementById('transferPreview').style.display = 'none';
       // Reload history after short delay
@@ -1107,9 +1161,9 @@ function openSetPinModal() {
 function closeSetPinModal() {
   document.getElementById('setPinModal').classList.remove('show');
 }
-function closePinModalOutside(e) {
-  if (e.target === document.getElementById('setPinModal')) closeSetPinModal();
-}
+/* Modal closes ONLY via the ✕ / Cancel button — clicking outside does not
+   dismiss it (prevents losing input while setting the transfer password). */
+function closePinModalOutside(e) { /* intentionally no-op */ }
 
 /* ===== Toggle password visibility ===== */
 function togglePin(btn, inputId) {

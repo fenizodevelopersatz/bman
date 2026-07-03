@@ -1912,6 +1912,31 @@ function renderExistingPreview($url, $title)
                     </div>
                   </div>
 
+                  <!-- Transfer Password — required before an internal wallet transfer -->
+                  <div class="field full">
+                    <div class="upload" style="align-items:flex-start;flex-direction:column;gap:12px">
+                      <div>
+                        <b><i class="ph ph-key"></i> Transfer Password
+                          <?php if (!empty($user->transfer_password)): ?>
+                            <span class="badge badgeClassPro" style="background:#e7f9ef;color:#149a55;padding:2px 8px;border-radius:20px;font-size:11px">SET</span>
+                          <?php else: ?>
+                            <span class="badge" style="background:#fff4e0;color:#b5730a;padding:2px 8px;border-radius:20px;font-size:11px">NOT SET</span>
+                          <?php endif; ?>
+                        </b>
+                        <small>A separate PIN used to authorize <b>internal wallet transfers</b> (different from your login password).</small>
+                      </div>
+                      <form id="transferPwForm" style="width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:10px" onsubmit="return false;">
+                        <input type="hidden" name="<?= $csrfName; ?>" value="<?= $csrfHash; ?>">
+                        <input class="inp" type="password" id="tpw_login" placeholder="Login password" autocomplete="current-password">
+                        <input class="inp" type="password" id="tpw_new" placeholder="New transfer password (min 4)" autocomplete="new-password">
+                        <input class="inp" type="password" id="tpw_confirm" placeholder="Confirm" autocomplete="new-password">
+                      </form>
+                      <button class="btn-main" type="button" onclick="saveTransferPassword()"><i class="ph ph-check"></i>
+                        <?= !empty($user->transfer_password) ? 'Update Transfer Password' : 'Set Transfer Password'; ?></button>
+                      <div class="hint" id="tpw_msg"></div>
+                    </div>
+                  </div>
+
                   <div class="field full">
                     <div class="upload">
                       <div>
@@ -2458,6 +2483,40 @@ async function freezeWithdraw() {
 }
 
     function logoutAll() { toastMini("Logout all (API not connected)"); }
+
+    // ---------- Transfer Password (authorizes internal wallet transfers) ----------
+    async function saveTransferPassword() {
+      const login = document.getElementById('tpw_login').value;
+      const npw   = document.getElementById('tpw_new').value;
+      const conf  = document.getElementById('tpw_confirm').value;
+      const msg   = document.getElementById('tpw_msg');
+      msg.style.color = '';
+      if (!login) { msg.textContent = 'Enter your login password.'; msg.style.color = '#b5730a'; return; }
+      if (npw.length < 4) { msg.textContent = 'Transfer password must be at least 4 characters.'; msg.style.color = '#b5730a'; return; }
+      if (npw !== conf) { msg.textContent = 'Passwords do not match.'; msg.style.color = '#c0392b'; return; }
+
+      const fd = new FormData();
+      fd.append('login_password', login);
+      fd.append('new_transfer_password', npw);
+      fd.append('confirm_transfer_password', conf);
+      fd.append('<?= $csrfName; ?>', '<?= $csrfHash; ?>');
+      msg.textContent = 'Saving…';
+      try {
+        const r = await fetch("<?= site_url('member/profile/set_transfer_password'); ?>", {
+          method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const j = await r.json();
+        const ok = j.status === 'success';
+        msg.textContent = j.message || '';
+        msg.style.color = ok ? '#149a55' : '#c0392b';
+        if (ok) {
+          document.getElementById('tpw_login').value = '';
+          document.getElementById('tpw_new').value = '';
+          document.getElementById('tpw_confirm').value = '';
+          if (window.toastMini) toastMini('Transfer password saved');
+        }
+      } catch (e) { msg.textContent = 'Network error.'; msg.style.color = '#c0392b'; }
+    }
 
     // ---------- Toast ----------
     function toastMini(msg) {

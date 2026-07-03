@@ -595,6 +595,7 @@ $route['user/verify_email_otp'] = 'user/usersettings/Profile/verify_email_otp';
 $route['user/password_update'] = 'user/usersettings/Profile/update_password';
 $route['user/twofa/toggle'] = 'user/usersettings/Profile/twofa_toggle';
 $route['user/update_email_preferences'] = 'user/usersettings/Profile/update_email_preferences';
+$route['member/profile/set_transfer_password'] = 'user/usersettings/Profile/set_transfer_password'; // POST
 $route['user/wallet-check'] = 'user/usersettings/Profile/wallet_check';   // POST — on-chain vs DB
 $route['member/profile/wallet_check'] = 'user/usersettings/Profile/wallet_check';
 
@@ -654,6 +655,15 @@ $route['admin/wallet-monitor/log']['get'] = 'admin/wallet/Walletmonitor/log';
 $route['admin/wallet-monitor/scan-deposits']['post'] = 'admin/wallet/Walletmonitor/scan_deposits';
 $route['admin/wallet-monitor/deposits']['get'] = 'admin/wallet/Walletmonitor/deposits';
 
+/**************** Internal Wallet Transfer (user → own wallets, doc 9) */
+$route['user/transfer_wallet'] = 'user/Transfer_wallet/index';                       // GET page
+$route['user/transfer_wallet/do_transfer'] = 'user/Transfer_wallet/do_transfer';     // POST AJAX
+$route['user/transfer_wallet/set_transfer_password'] = 'user/Transfer_wallet/set_transfer_password'; // POST AJAX
+$route['user/transfer_wallet/lookup_recipient'] = 'user/Transfer_wallet/lookup_recipient';           // POST AJAX
+$route['user/transfer_wallet/search_recipients'] = 'user/Transfer_wallet/search_recipients';         // POST AJAX
+$route['admin/finance/internal-transfers'] = 'admin/wallet/Internaltransfers';
+$route['admin/finance/internal-transfers/detail'] = 'admin/wallet/Internaltransfers/detail';
+
 /**************** Master — Token Settings (blockchain single source of truth) */
 $route['admin/master/token-settings'] = 'admin/master/Tokenmaster';
 $route['admin/master/token-settings/save']['post'] = 'admin/master/Tokenmaster/save';
@@ -662,6 +672,7 @@ $route['admin/master/token-settings/toggle/(:num)']['post'] = 'admin/master/Toke
 $route['admin/master/token-settings/audit']['get'] = 'admin/master/Tokenmaster/audit';
 $route['admin/master/token-settings/test-rpc']['post'] = 'admin/master/Tokenmaster/test_rpc';
 $route['admin/master/token-settings/generate-wallet']['post'] = 'admin/master/Tokenmaster/generate_wallet';
+$route['admin/master/token-settings/derive-treasury']['post'] = 'admin/master/Tokenmaster/derive_treasury';
 $route['admin/master/token-settings/check-balance']['post'] = 'admin/master/Tokenmaster/check_balance';
 
 /**************** Master — Coin Distribution (proposal §3A) */

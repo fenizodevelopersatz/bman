@@ -131,6 +131,39 @@ class Web3bman
         return array_merge(['private_key' => '0x'.$priv], $this->addressFromPrivate($priv));
     }
 
+    /**
+     * Import a Treasury secret: accepts EITHER a 64-hex private key OR a
+     * 12/15/18/21/24-word mnemonic phrase. Returns
+     * ['private_key' => 0x…(64 hex), 'address' => 0x…checksum].
+     * Mnemonic derivation uses the ETH_MASTER BIP39/BIP44 wallet (default
+     * Ethereum path m/44'/60'/0'/0/0) — the same library that generated the
+     * existing user wallets.
+     */
+    public function importSecret($secret)
+    {
+        $secret = trim((string)$secret);
+        if ($secret === '') throw new InvalidArgumentException('Enter a private key or mnemonic phrase.');
+
+        $hex = preg_replace('/^0x/', '', $secret);
+        if (preg_match('/^[a-fA-F0-9]{64}$/', $hex)) {
+            return ['private_key' => '0x'.strtolower($hex),
+                    'address' => $this->addressFromPrivate($hex)['address']];
+        }
+
+        $words = preg_split('/\s+/', $secret, -1, PREG_SPLIT_NO_EMPTY);
+        if (!in_array(count($words), [12,15,18,21,24], true)) {
+            throw new InvalidArgumentException('Enter a 64-hex private key or a 12/15/18/21/24-word mnemonic phrase.');
+        }
+        $auto = APPPATH.'models/member/ETH_MASTER/vendor/autoload.php';
+        if (!is_file($auto)) throw new RuntimeException('Mnemonic library not available.');
+        require_once $auto;
+        $w = new \Web3p\EthereumWallet\Wallet();
+        $w->fromMnemonic(implode(' ', $words));
+        $pk = ltrim($w->getPrivateKey(), '0x');
+        return ['private_key' => '0x'.strtolower($pk),
+                'address' => $this->toChecksum($w->getAddress())];
+    }
+
     /** Derive the checksummed address from a private key (hex, with/without 0x). */
     public function addressFromPrivate($privateKey)
     {

@@ -935,23 +935,59 @@ If you did not initiate this transfer, please contact support immediately.
 
 ---
 
-## 16. Status — built vs planned
+## 16. Status — ✅ BUILT (2026-07-03) & verified
 
-**Planned (this phase):**
-- `db/wallet_internal_transfer.sql` — idempotent migration (3 tables)
-- `Wallettransfer_model` — validate, execute, history, historyCount, detail, adminList
-- `User::transfer_wallet()` + `transfer_wallet_post()` + `get_transfer_detail()` — user routes
-- `user/wallet/transfer_wallet.php` — two-tab view (New Transfer + History + detail modal)
-- `Internaltransfers.php` + `admin/wallet/internal_transfers.php` — admin grid + modal
-- `admin_sidebar.php` — Finance → Internal Wallet Transfers menu item
-- `docs/0_INDEX.md` — row 9 + status dashboard entry
+### 16A. As-built schema note (consolidation)
 
-**Deferred:**
-- OTP service integration (hook point exists in controller, awaits OTP model)
-- Admin reversal flow — creates offsetting `wallet_transfer` + `wallet_transfer_ledger` rows
-- PDF statement export including transfer history
-- Per-day / per-amount transfer caps (extend `validate()`)
-- Rate-limiting on POST endpoint
+The implementation follows `db/wallet_internal_transfer.sql`, which consolidates
+the design to **one header table + the existing double-entry ledger** rather
+than three parallel tables:
+
+- **`wallet_internal_transfer`** — the transfer header (`ref` = `WTF-YYYYMMDD-
+  XXXXXXXX`, from/to wallet, amount, fee, net_amount, status, `debit_ledger_id`,
+  `credit_ledger_id`, ip/user_agent).
+- **`wallet_ledger`** (existing) — the actual money movement: two rows per
+  transfer (debit + credit) each carrying `balance_after`. The header links to
+  both via `debit_ledger_id` / `credit_ledger_id`, so a separate
+  `wallet_transfer_ledger` mirror is redundant and was not created.
+- **`users.transfer_password`** (+ `transfer_password_set_at`) — hashed PIN.
+
+Audit is provided by the ledger rows + the header; the standalone
+`wallet_transfer_audit` was folded in. All other rules (allowed pairs, USDT
+exclusion, validation, security) are exactly as specified above.
+
+### 16B. Delivered
+
+- [x] `db/wallet_internal_transfer.sql` — applied (header table + `transfer_password`).
+- [x] `application/models/wallet/Wallettransfer_model.php` — `validate`,
+      `execute`, `history`, `historyCount`, `detail`, `adminList`, `pairs`.
+- [x] `application/controllers/user/Transfer_wallet.php` — `index` (page),
+      `do_transfer` (AJAX), `set_transfer_password` (AJAX). Member-auth guarded.
+- [x] `application/views/user/wallet/transfer_wallet.php` — two-tab UI (New
+      Transfer + History), renders inside the member layout.
+- [x] `application/controllers/admin/wallet/Internaltransfers.php` +
+      `views/admin/wallet/internal_transfers.php` — admin grid + filters +
+      detail modal, route `admin/finance/internal-transfers`.
+- [x] `admin_sidebar.php` — Finance → Internal Wallet Transfers.
+- [x] Routes: `user/transfer_wallet[/do_transfer|/set_transfer_password]`.
+
+### 16C. Verified (CLI, live DB)
+
+| Test | Result |
+|---|---|
+| exchange → bonus 250 | ✅ moved; ref `WTF-YYYYMMDD-XXXXXXXX` |
+| USDT as from/to | ✅ blocked ("Invalid source wallet") |
+| same wallet | ✅ blocked |
+| disallowed pair earning → staking | ✅ blocked |
+| allowed pair bonus → staking | ✅ moved |
+| insufficient balance | ✅ blocked |
+| history / detail (2 ledger rows) / adminList | ✅ correct |
+
+### 16D. Deferred
+
+- OTP-on-transfer (transfer-password PIN is enforced; OTP is a later add).
+- Admin reversal flow (offsetting ledger + header status `reversed`).
+- PDF statement export; per-day / per-amount caps; POST rate-limiting.
 
 > Task board: [0_INDEX.md](0_INDEX.md). Every shipped change is logged in
 > [3_CHANGELOG.md](3_CHANGELOG.md).

@@ -28,8 +28,10 @@ class Tokenmaster_model extends CI_Model
         'usdt_name','usdt_symbol','usdt_decimals','usdt_contract',
         'minimum_deposit','minimum_withdrawal','maximum_withdrawal','usdt_enabled',
         'exchange_rate','exchange_type','rate_effective_from',
-        'treasury_wallet','deposit_wallet','gas_wallet','bonus_wallet','reserve_wallet','cold_wallet',
-        'staking_contract','bonus_contract','referral_contract','roi_contract',
+        // §5 simplified: only Treasury + Deposit wallets are used. Gas/Bonus/
+        // Reserve/Cold wallets and the §6 smart-contract fields were removed —
+        // USDT→BMAN is one flow signed by the Treasury key (treasury_pk_enc).
+        'treasury_wallet','deposit_wallet',
         'minimum_confirmations','gas_limit','gas_price','transaction_timeout','retry_count',
     ];
 
@@ -53,6 +55,41 @@ class Tokenmaster_model extends CI_Model
     public function activeSettings()
     {
         return $this->db->get_where('token_settings', ['status' => 1])->row_array() ?: null;
+    }
+
+    /**
+     * Decrypted Treasury private key for the payout engine (USDT→BMAN auto
+     * return / withdrawals). Returns null if not set. NEVER expose this to any
+     * view/response — call it only inside a server-side signing step.
+     */
+    public function treasuryPrivateKey($id = null)
+    {
+        $cfg = $id ? $this->setting($id) : $this->activeSettings();
+        if (!$cfg || empty($cfg['treasury_pk_enc'])) return null;
+        $this->load->library('web3bman');
+        try { return $this->web3bman->decryptKey($cfg['treasury_pk_enc']); }
+        catch (Exception $e) { return null; }
+    }
+
+    /**
+     * Strip the secret before sending a settings row to the browser, but
+     * expose a small hint: whether a key is stored and its LAST 5 characters
+     * (so the admin can recognise the saved key without revealing it).
+     */
+    public function publicRow($row)
+    {
+        if (!is_array($row)) return $row;
+        $row['has_treasury_key']  = !empty($row['treasury_pk_enc']) ? 1 : 0;
+        $row['treasury_pk_last5'] = '';
+        if (!empty($row['treasury_pk_enc'])) {
+            $this->load->library('web3bman');
+            try {
+                $pk = $this->web3bman->decryptKey($row['treasury_pk_enc']);
+                $row['treasury_pk_last5'] = substr(preg_replace('/^0x/', '', $pk), -5);
+            } catch (Exception $e) { /* leave blank */ }
+        }
+        unset($row['treasury_pk_enc']);
+        return $row;
     }
 
     /** USDT → BMAN conversion using the active settings (purchase flow §). */
@@ -124,11 +161,28 @@ class Tokenmaster_model extends CI_Model
         if (isset($row['exchange_type']) && !in_array($row['exchange_type'], ['usdt_to_bman','bman_to_usdt'], true)) {
             return [false, 'Invalid exchange calculation method.'];
         }
-        // EVM address shape for any provided contract / wallet
-        foreach (['bman_contract','usdt_contract','staking_contract','bonus_contract','referral_contract','roi_contract',
-                  'treasury_wallet','deposit_wallet','gas_wallet','bonus_wallet','reserve_wallet','cold_wallet'] as $f) {
+        // EVM address shape for any provided contract / wallet (§5 simplified)
+        foreach (['bman_contract','usdt_contract','treasury_wallet','deposit_wallet'] as $f) {
             if (!empty($row[$f]) && !preg_match('/^0x[a-fA-F0-9]{40}$/', $row[$f])) {
                 return [false, str_replace('_', ' ', $f).' must be a valid 0x… address (40 hex chars).'];
+            }
+        }
+
+        // Treasury secret (optional): a private key OR a mnemonic phrase. The
+        // Treasury WALLET ADDRESS is DERIVED from it (the admin never types the
+        // address). The private key is stored AES-encrypted and NEVER returned;
+        // only overwritten when the admin actually enters a new secret.
+        if (array_key_exists('treasury_secret', $data)) {
+            $secret = trim((string)$data['treasury_secret']);
+            if ($secret !== '') {
+                $this->load->library('web3bman');
+                try {
+                    $imp = $this->web3bman->importSecret($secret);
+                } catch (Exception $e) {
+                    return [false, $e->getMessage()];
+                }
+                $row['treasury_wallet']  = $imp['address'];                       // derived, authoritative
+                $row['treasury_pk_enc']  = $this->web3bman->encryptKey(preg_replace('/^0x/', '', $imp['private_key']));
             }
         }
         foreach (['bman_min_transfer','bman_max_transfer','minimum_deposit','minimum_withdrawal','maximum_withdrawal'] as $f) {

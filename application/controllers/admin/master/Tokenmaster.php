@@ -65,7 +65,8 @@ class Tokenmaster extends CI_Controller
     {
         $data['title']      = 'Token Settings';
         $data['card_tilte'] = 'Token Settings (Master)';
-        $data['settings']   = $this->tokens->settingsList();
+        // sanitise: strip the encrypted key, add has_treasury_key + last-5 hint
+        $data['settings']   = array_map([$this->tokens, 'publicRow'], $this->tokens->settingsList());
         $data['is_super']   = $this->is_super;
         $this->load->view('admin/master/token_settings', $data);
     }
@@ -151,6 +152,22 @@ class Tokenmaster extends CI_Controller
             return $this->_json(['status' => 'success', 'address' => $w['address'], 'private_key' => $w['private_key']]);
         } catch (Exception $e) {
             return $this->_json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /* ------- AJAX: derive the Treasury address from a phrase/key --------- *
+     * Live preview only — returns the derived address; stores nothing.       */
+    public function derive_treasury()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        if (!$this->_requireSuper()) return;
+        $secret = (string)$this->input->post('treasury_secret', true);
+        try {
+            $this->load->library('web3bman');
+            $imp = $this->web3bman->importSecret($secret);
+            return $this->_json(['status' => 'success', 'address' => $imp['address']]);
+        } catch (Exception $e) {
+            return $this->_json(['status' => 'error', 'message' => $e->getMessage()], 422);
         }
     }
 

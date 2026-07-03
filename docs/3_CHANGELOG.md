@@ -5,6 +5,187 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-03 — Transfer page: recipient picker (default 20 members, name + email)
+
+- **What:** the Recipient field on `user/transfer_wallet` is now a searchable
+  dropdown. On focus it shows up to **20 active members** (username, referral
+  ID · email); typing filters live (debounced). Picking a row fills the
+  referral ID and shows a ✓ confirmation; the sender is excluded and manual
+  entry of a valid ID still works (the server validates on submit).
+- **Files:** `controllers/user/Transfer_wallet.php` (`search_recipients` — 20
+  active users, optional query, excl. self), `config/routes.php`,
+  `views/user/wallet/transfer_wallet.php` (dropdown UI + JS).
+- **Verified (CLI):** default returns ≤ 20 (self excluded), query filters
+  correctly; route guards to login.
+
+---
+
+## 2026-07-03 — Internal transfer changed to MEMBER → MEMBER (send to another user)
+
+- **What:** per clarification, the internal wallet transfer is **not** self
+  (own-wallet → own-wallet); it **sends a digital amount to another member's
+  account**. Sender picks one of their wallets (Exchange / Earning / Bonus —
+  Staking is excluded as it's locked in a stake) and a recipient (by referral
+  ID / username / email); the recipient's **same wallet** is credited. Money
+  moves via the double-entry ledger (atomic, row-locked).
+- **Model** `wallet/Wallettransfer_model`: `sendToUser($from, $recipient,
+  $wallet, $amount, …)`, `resolveRecipient()`. Validates: sendable wallet,
+  amount > 0, recipient exists + active + not self, sufficient balance; debits
+  sender + credits recipient (net of optional fee), records
+  `wallet_internal_transfer` with the new `to_user_id`. `history()` now shows
+  both **sent** and **received** with direction + counterparty; `adminList()`
+  joins sender + recipient.
+- **User page** (`user/transfer_wallet`): "To Wallet" replaced by a
+  **Recipient** field with a live name lookup (`lookup_recipient`); From Wallet
+  keeps only sendable wallets; preview reads "amount Wallet → recipient";
+  history table shows Type (Sent/Received ±), Wallet, Counterparty.
+- **Admin grid** (Finance → Internal Wallet Transfers): columns now Sender ·
+  Recipient · Wallet · Amount.
+- **DB:** `wallet_internal_transfer` gained `to_user_id` (recipient).
+- **Verified (CLI):** send 120 Exchange A→B (A −120, B +120); self-send,
+  unknown recipient, non-sendable Staking, insufficient balance all blocked;
+  A's history = Sent→B, B's history = Received←A; admin list shows sender →
+  recipient. DB restored.
+- **Files:** `models/wallet/Wallettransfer_model.php`,
+  `controllers/user/Transfer_wallet.php` (do_transfer → sendToUser +
+  lookup_recipient), `views/user/wallet/transfer_wallet.php` (recipient UI +
+  history), `views/admin/wallet/internal_transfers.php`, `config/routes.php`.
+
+---
+
+## 2026-07-03 — Security: stop the browser saving the Treasury private key
+
+- **Problem:** Chrome's "Save password?" prompt appeared on the Treasury key
+  field (it treated the derived address as a username and the key as a
+  password) — a serious leak: the private key would land in the browser's
+  password manager / sync.
+- **Fix:** the Treasury secret is no longer a `type="password"` input. It is a
+  `type="text"` field visually masked with CSS `-webkit-text-security:disc`
+  (+ `autocomplete="off"`, `data-lpignore`, `data-form-type="other"`,
+  `spellcheck="off"`; the form is `autocomplete="off"`). With no password field
+  present, no browser offers to save it. The eye toggle now flips the CSS mask
+  (reveal/hide) instead of the input type. Masking, live-derive and the last-5
+  hint all still work.
+- **Files:** `views/admin/master/token_settings.php`.
+
+---
+
+## 2026-07-03 — Treasury key field: show/hide, live derive, last-5 hint
+
+- **Show/hide (eye) toggle** on the Treasury key/phrase input.
+- **Instant address derivation** — as the admin types or pastes, once the value
+  is a full 64-hex key or a 12/24-word phrase the wallet address auto-fills the
+  read-only box below (debounced 350 ms), with a ✓ valid / ✗ invalid note. The
+  Derive Address button still works too.
+- **Last-5 hint after save** — a stored key is shown only as its **last 5
+  characters** (`key stored ···2ff80`, and the input placeholder "current key
+  ends in ···2ff80 — enter a new key/phrase to replace"). The full key is never
+  sent to the browser. Model `publicRow()` decrypts server-side to expose only
+  the last 5; the controller sanitises every row before render.
+- **Update rule:** leaving the field blank keeps the current key; entering a
+  new value updates it **only if it's a valid key/phrase** — an invalid entry
+  makes the save fail (no overwrite). Verified: last-5 matches the stored key,
+  encrypted key stripped from the browser payload.
+- **Files:** `models/Tokenmaster_model.php` (`publicRow` last-5),
+  `controllers/admin/master/Tokenmaster.php` (sanitise rows),
+  `views/admin/master/token_settings.php` (eye toggle, live derive, hint).
+
+---
+
+## 2026-07-03 — Token Settings: Treasury by key/phrase, address auto-derived
+
+- **What:** in Token Settings §5 the admin no longer types the Treasury wallet
+  address. They enter **only** the Treasury **private key** (64-hex) **or a
+  mnemonic phrase** (12/15/18/21/24 words); the wallet **address is derived
+  automatically** and shown in a read-only field. A **Derive Address** button
+  previews it live before saving.
+- **How:** `Web3bman::importSecret($secret)` accepts a hex key or a phrase
+  (phrase via the existing ETH_MASTER BIP39/BIP44 wallet, default Ethereum path)
+  and returns `{private_key, address}`. `Tokenmaster_model::saveSetting` now
+  takes `treasury_secret`, derives the address (sets `treasury_wallet`) and
+  stores the AES-encrypted key (`treasury_pk_enc`) — the secret is never
+  returned to the browser (a "key stored" badge shows instead; blank keeps the
+  current key). New AJAX `derive_treasury` powers the live preview.
+- **Verified (CLI):** phrase → checksummed address + 64-hex key; private key →
+  matching address; invalid input rejected; saving a phrase derives + stores
+  the address, and the decrypted key derives back to the same address. DB
+  restored after test.
+- **Files:** `libraries/Web3bman.php` (`importSecret`),
+  `models/Tokenmaster_model.php` (treasury_secret → derive),
+  `controllers/admin/master/Tokenmaster.php` (`derive_treasury`),
+  `views/admin/master/token_settings.php` (key/phrase input + Derive button +
+  read-only derived address), `config/routes.php`.
+
+---
+
+## 2026-07-03 — Fix: transfer page blank + transfer password on Security tab
+
+- **Fix (blank transfer page):** `user/transfer_wallet` rendered blank because
+  the view wrapped content in `.main-wrapper`/`.content-area` — classes the v2
+  member theme doesn't define — so the fixed sidebar overlapped an unstyled
+  content block. Changed to the theme's real structure
+  (`<div class="app-container"> … <main class="main-content"> …`), matching the
+  working KYC/dashboard pages. Verified: renders 50 KB with all content, no
+  errors. Controller now also passes `$user`.
+- **Transfer password on Profile → Security:** added a **Transfer Password**
+  card (SET / NOT SET badge) that collects login password + new PIN + confirm
+  and saves the hashed PIN to `users.transfer_password` via
+  `member/profile/set_transfer_password` (verifies the login password first,
+  min 4 chars). This is the PIN required to authorize internal wallet transfers
+  (doc 9) — users can now set it from the profile Security tab as well as the
+  transfer page.
+- **Files:** `views/user/wallet/transfer_wallet.php` (wrapper fix),
+  `controllers/user/Transfer_wallet.php` (`$user`),
+  `views/user/profile/view.php` (Security-tab card + `saveTransferPassword()`),
+  `controllers/user/usersettings/Profile.php` (`set_transfer_password`),
+  `config/routes.php`.
+
+---
+
+## 2026-07-03 — Token Settings simplify (§5/§6) + Internal Wallet Transfer (doc 9)
+
+> Reference: [9_INTERNAL_WALLET_TRANSFER.md](9_INTERNAL_WALLET_TRANSFER.md).
+
+- **Token Settings §5 simplified** (per screenshot): Section 5 now has only the
+  **Treasury** and **Deposit** wallets plus a **Treasury Private Key** field —
+  AES-encrypted on save (`token_settings.treasury_pk_enc`), validated to match
+  the Treasury address, **never returned to the browser** (a "key stored" badge
+  shows instead), blank keeps the existing key. Removed Gas / Bonus / Reserve /
+  Cold wallet fields and the whole **§6 Smart Contracts** section (USDT→BMAN is
+  one flow signed by the Treasury key; per-purpose contracts aren't needed).
+  Model exposes `treasuryPrivateKey()` (server-side signing only) + `publicRow()`
+  (strips the secret). Verified: encrypt/validate/decrypt/no-leak/blank-keeps.
+- **Recheck** (as requested): wallet transfer (Exchange→Staking, overdraw
+  guarded) and **USDT→BMAN deposit** (25 USDT → 500 BMAN @ rate 20, credited
+  once, no double-credit) both re-verified. Withdrawal confirmed as a **manual
+  admin request** (doc 8 §5) — no server key needed to start (admin pastes the
+  on-chain hash on approval).
+- **Internal Wallet Transfer (doc 9)** — user moves balance between their OWN
+  four internal wallets (exchange/earning/staking/bonus); **USDT excluded**
+  (blockchain asset). Money moves via `Walletledger` (atomic, row-locked,
+  `balance_after`), recorded in `wallet_internal_transfer` (`ref`
+  `WTF-YYYYMMDD-XXXXXXXX`, links to the two ledger rows). Allowed-pair matrix
+  enforced (Exchange→Earning/Staking/Bonus · Earning→Exchange/Bonus ·
+  Bonus→Exchange/Staking · Staking→Exchange/Bonus). Transfer password (hashed
+  PIN, new `users.transfer_password`) required.
+  - Files: `db/wallet_internal_transfer.sql`,
+    `models/wallet/Wallettransfer_model.php`,
+    `controllers/user/Transfer_wallet.php` (index / do_transfer /
+    set_transfer_password), `views/user/wallet/transfer_wallet.php` (two-tab UI),
+    `controllers/admin/wallet/Internaltransfers.php` +
+    `views/admin/wallet/internal_transfers.php` (Finance → Internal Wallet
+    Transfers grid + detail modal), `config/routes.php`, sidebar.
+  - As-built note: consolidated to one header table + the existing double-entry
+    ledger (the separate `wallet_transfer_ledger`/`wallet_transfer_audit` mirror
+    tables were redundant — the ledger already carries both rows + balance_after).
+  - Validated (CLI): allowed/blocked pairs, USDT exclusion, same-wallet,
+    insufficient-balance, WTF ref, history/detail/adminList — all pass.
+- **How to apply:** run `db/wallet_internal_transfer.sql`; set the Treasury key
+  in Token Settings when ready to automate BMAN sends (not needed for transfers
+  or deposit detection).
+
+---
+
 ## 2026-07-02 — Production wallet: double-entry ledger + auto deposit listener
 
 > Full reference + deep-dive: [8_WALLET_DEPOSIT_WITHDRAW.md](8_WALLET_DEPOSIT_WITHDRAW.md).
