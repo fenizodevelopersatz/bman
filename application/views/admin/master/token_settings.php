@@ -194,6 +194,23 @@
                                                             <div class="col-md-2 mb-4 d-flex align-items-end">
                                                                 <button type="button" class="btn btn-light-info btn-sm w-100" id="tkm-test-rpc">Test RPC</button>
                                                             </div>
+                                                            <div class="col-md-4 mb-4">
+                                                                <label class="form-label fs-7">Deposit scan mode</label>
+                                                                <select name="deposit_scan_mode" class="form-select form-select-solid">
+                                                                    <option value="bscscan">BscScan / Etherscan API (recommended)</option>
+                                                                    <option value="rpc">RPC eth_getLogs (log-capable node)</option>
+                                                                </select>
+                                                            </div>
+                                                            <div class="col-md-4 mb-4">
+                                                                <label class="form-label fs-7">Explorer API URL</label>
+                                                                <input type="text" name="explorer_api_url" class="form-control form-control-solid"
+                                                                    placeholder="https://api.etherscan.io/v2/api" />
+                                                            </div>
+                                                            <div class="col-md-4 mb-4">
+                                                                <label class="form-label fs-7">Explorer API Key <span class="text-muted fs-9">(free — enables auto-deposit)</span></label>
+                                                                <input type="text" name="explorer_api_key" class="form-control form-control-solid tkm-addr"
+                                                                    placeholder="your BscScan/Etherscan API key" />
+                                                            </div>
                                                         </div>
                                                     </div>
 

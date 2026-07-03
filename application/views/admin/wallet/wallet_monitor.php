@@ -49,7 +49,11 @@
                                         <h3 class="card-title fw-bold"><?php echo $card_tilte; ?></h3>
                                         <div class="card-toolbar gap-2">
                                             <button type="button" class="btn btn-light btn-sm" id="wm-log-btn">Monitor Log</button>
-                                            <button type="button" class="btn btn-primary btn-sm" id="wm-scan-all">Scan All (on-chain)</button>
+                                            <button type="button" class="btn btn-light btn-sm" id="wm-dep-btn">Deposits</button>
+                                            <button type="button" class="btn btn-light btn-sm" id="wm-scan-all">Balance Scan</button>
+                                            <?php if ($is_super): ?>
+                                            <button type="button" class="btn btn-primary btn-sm" id="wm-scan-dep">Detect Deposits (auto)</button>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                     <div class="card-body pt-3 pb-9">
@@ -101,6 +105,18 @@
                                                     <?php endif; ?>
                                                 </tbody>
                                             </table>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="modal fade" id="wm-dep-modal" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered mw-900px">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h3 class="modal-title">Detected Deposits</h3>
+                                                <div class="btn btn-sm btn-icon" data-bs-dismiss="modal"><i class="ki-outline ki-cross fs-1"></i></div>
+                                            </div>
+                                            <div class="modal-body scroll-y mh-500px" id="wm-dep-body">Loading…</div>
                                         </div>
                                     </div>
                                 </div>
@@ -185,6 +201,32 @@
             btn.disabled = true; btn.textContent = 'Scanning…';
             for (const tr of rows) { await checkRow(tr); }   // sequential — avoids RPC rate limits
             btn.disabled = false; btn.textContent = 'Scan All (on-chain)';
+        });
+
+        const scanDep = document.getElementById('wm-scan-dep');
+        if (scanDep) scanDep.addEventListener('click', async () => {
+            scanDep.disabled = true; scanDep.textContent = 'Detecting…';
+            const { ok, j } = await post('admin/wallet-monitor/scan-deposits');
+            scanDep.disabled = false; scanDep.textContent = 'Detect Deposits (auto)';
+            toast(j.message || '', ok);
+        });
+
+        document.getElementById('wm-dep-btn').addEventListener('click', async () => {
+            const m = bootstrap.Modal.getOrCreateInstance(document.getElementById('wm-dep-modal'));
+            const body = document.getElementById('wm-dep-body'); body.innerHTML = 'Loading…'; m.show();
+            const res = await fetch(base + 'admin/wallet-monitor/deposits', { headers:{ 'X-Requested-With':'XMLHttpRequest' } });
+            const j = await res.json();
+            const rows = (j.rows||[]).map(r =>
+                '<tr><td>#'+esc(r.user_id)+'</td>'+
+                '<td class="wm-addr">'+esc(String(r.tx_hash).slice(0,16))+'…</td>'+
+                '<td class="text-end">'+esc(r.amount_usdt)+' USDT</td>'+
+                '<td class="text-end">'+esc(r.amount_bman)+' BMAN</td>'+
+                '<td class="text-center">'+esc(r.confirmations)+'</td>'+
+                '<td><span class="badge '+(r.status==='credited'?'badge-light-success':(r.status==='failed'||r.status==='expired'?'badge-light-danger':'badge-light-warning'))+'">'+esc(String(r.status).toUpperCase())+'</span></td>'+
+                '<td class="text-muted fs-8">'+esc(r.created_at)+'</td></tr>').join('');
+            body.innerHTML = rows
+                ? '<table class="table table-row-dashed fs-7"><thead><tr class="fw-bold text-muted"><th>User</th><th>Tx</th><th class="text-end">USDT</th><th class="text-end">BMAN</th><th class="text-center">Confs</th><th>Status</th><th>When</th></tr></thead><tbody>'+rows+'</tbody></table>'
+                : '<div class="text-muted">No deposits detected yet. Set a BscScan API key in Token Settings, then Detect Deposits.</div>';
         });
 
         document.getElementById('wm-log-btn').addEventListener('click', async () => {

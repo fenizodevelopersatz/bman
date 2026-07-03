@@ -644,6 +644,8 @@ $route['admin/wallet-monitor/check/(:num)']['post'] = 'admin/wallet/Walletmonito
 $route['admin/wallet-monitor/reconcile/(:num)']['post'] = 'admin/wallet/Walletmonitor/reconcile/$1';
 $route['admin/wallet-monitor/generate/(:num)']['post'] = 'admin/wallet/Walletmonitor/generate/$1';
 $route['admin/wallet-monitor/log']['get'] = 'admin/wallet/Walletmonitor/log';
+$route['admin/wallet-monitor/scan-deposits']['post'] = 'admin/wallet/Walletmonitor/scan_deposits';
+$route['admin/wallet-monitor/deposits']['get'] = 'admin/wallet/Walletmonitor/deposits';
 
 /**************** Master — Token Settings (blockchain single source of truth) */
 $route['admin/master/token-settings'] = 'admin/master/Tokenmaster';

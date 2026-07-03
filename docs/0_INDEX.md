@@ -22,6 +22,7 @@ trackable. Update the **Status** column as features land.
 | 5 | [5_KYC_STATE_MACHINE.md](5_KYC_STATE_MACHINE.md) | KYC module + controlled status state machine |
 | 6 | [6_STAKING_PACKAGES_PLANS_ROI.md](6_STAKING_PACKAGES_PLANS_ROI.md) | Pre-plan: staking packages, plans & ROI structure (fields, DDL, flowcharts) |
 | 7 | [7_TOKEN_WALLET_INTEGRATION.md](7_TOKEN_WALLET_INTEGRATION.md) | Custodial vs on-chain: giving BMAN without a key, deposit→stake→withdraw, treasury-key handling |
+| 8 | [8_WALLET_DEPOSIT_WITHDRAW.md](8_WALLET_DEPOSIT_WITHDRAW.md) | Production wallet: double-entry ledger, deposit listener deep-dive, statuses, "works with no private key" verification |
 
 ---
 
@@ -101,6 +102,12 @@ New tasks get added to the correct phase below.
       (check-or-create, local gen + QR), 5-wallet balances, QR+copy on Bank tab,
       deposit/withdraw history + log; admin **Wallet Monitor** (on-chain vs DB,
       Scan All, Reconcile). `db/custodial_wallets.sql`; sets `encryption_key`
+- [x] Production wallet architecture — double-entry `wallet_ledger` (unique
+      tx_hash, balance_after, row-lock), `wallet_deposits` tracking, auto
+      **deposit listener** (BscScan API / eth_getLogs) → confirm → credit
+      Exchange @ rate, `Depositcron`, runtime client-side QR, admin **Detect
+      Deposits**. Verified end-to-end **with no private key**.
+      `db/wallet_production.sql`. See [8_WALLET_DEPOSIT_WITHDRAW.md](8_WALLET_DEPOSIT_WITHDRAW.md)
 
 ### Phase B — User side + engines (⬜ next)
 
@@ -128,6 +135,12 @@ New tasks get added to the correct phase below.
 - [ ] Deposit auto-sweep + cron monitor — poll `custodial_deposits` addresses,
       auto-reconcile confirmed deposits, sweep user address → treasury
       (`Custodialwallet_model::monitor/reconcile` already power the manual tool)
+- [ ] Frontend WalletConnect / MetaMask deposit (approve+transfer, push hash);
+      full Wallet page tabs (Deposit/Withdraw/History/Statements) + PDF statements
+- [ ] Withdraw request UI + admin approve-with-hash / reject-with-reason screens
+      (backend `withdrawals` table + statuses exist; see [8_WALLET_DEPOSIT_WITHDRAW.md](8_WALLET_DEPOSIT_WITHDRAW.md) §5)
+- [ ] Set BscScan/Etherscan API key in Token Settings to enable live auto-detect
+      (or point scan mode at a log-capable RPC) — config, not code
 
 ### Phase C — Reports & polish (⬜ later)
 

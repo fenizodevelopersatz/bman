@@ -852,3 +852,852 @@ Deep explain the above task on my project & carefully analysis and complete the 
  Notify User                              Notify User
 
 
+## Recommended architecture for BMAN
+
+For your staking platform, I recommend:
+
+- **Users deposit USDT (BEP-20) only**.
+- **Platform detects deposits automatically using BscScan/RPC**.
+- **Backend credits the user's internal Exchange Wallet** according to the configured exchange rate.
+- **When needed, the backend transfers BMAN from the Treasury Wallet by signing transactions with the Treasury private key stored securely on the server**.
+- **Users never see or control the Treasury private key**, and they do not need individual BMAN private keys unless you intentionally build a fully non-custodial system.
+
+This architecture is simpler, more secure, and aligns well with how most centralized staking and MLM platforms operate.
+
+
+Custodial (Recommended for MLM/Staking)
+
+This is how Binance, KuCoin, and most staking platforms work.
+
+Users deposit USDT only.
+
+The platform owns all BMAN wallets.
+
+The user never receives a BMAN private key.
+
+User Wallet (MetaMask)
+
+      |
+      | 100 USDT
+      V
+
+Deposit Wallet (Platform)
+
+      |
+      | Backend detects payment
+      V
+
+Database
+Exchange Wallet = +100 BMAN
+
+      |
+User purchases staking
+
+      |
+Treasury Wallet signs transaction
+      |
+      V
+
+BMAN Contract
+
+In this model:
+
+User has USDT wallet.
+Platform has Treasury Wallet.
+Treasury Wallet owns all BMAN.
+Backend sends BMAN.
+
+Only the platform knows the Treasury private key.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Your architecture is close, but for a production BSC staking platform there are several improvements needed. The biggest change is that users should never send USDT directly to an admin wallet without proper transaction tracking. Every deposit, blockchain transaction, internal wallet credit, and admin action must be stored separately.
+Below is a complete architecture and implementation guide for Claude/Codex.
+Wallet Management Module (Production Architecture)
+
+```
+                     WALLET MANAGEMENT
+
+                ┌─────────────────────────┐
+                │    USER PROFILE         │
+                │  Deposit | Withdraw     │
+                └──────────┬──────────────┘
+                           │
+          ┌────────────────┴────────────────┐
+          │                                 │
+     Deposit Module                  Withdraw Module
+          │                                 │
+          ▼                                 ▼
+ Generate Custodial Wallet          Withdraw Request
+          │                                 │
+          ▼                                 ▼
+ Show QR + Wallet Address          Validate User
+          │                                 │
+          ▼                                 ▼
+ Listen Blockchain               KYC + Wallet Balance
+          │                                 │
+          ▼                                 ▼
+ Detect Incoming USDT            Admin Review
+          │                                 │
+          ▼                                 ▼
+ Verify Confirmation             Approve / Reject
+          │                                 │
+          ▼                                 ▼
+ Credit Internal Wallet          Send Blockchain Tx
+          │                                 │
+          ▼                                 ▼
+ Save Ledger                     Save Hash
+          │                                 │
+          ▼                                 ▼
+ Notify User                     Notify User
+
+```
+
+User Wallet Page
+Instead of a Bank page, show:
+
+```
+Wallet
+
+----------------------------------------
+
+Deposit
+
+Withdraw
+
+History
+
+Statements
+
+----------------------------------------
+
+```
+
+Deposit Tab
+Display
+
+```
+Your Deposit Wallet
+
+Network
+
+BSC (BEP20)
+
+Wallet Address
+
+0x6A6E......
+
+Copy
+
+QR Code
+
+Minimum Deposit
+
+10 USDT
+
+Detected Balance
+
+Current Status
+
+Waiting for Deposit
+
+```
+
+Deposit Methods
+Method 1
+Wallet Address
+User copies address
+Sends USDT
+Backend listens
+Auto credits
+Method 2
+QR Code
+Scan
+Pay
+Backend detects
+Method 3 (Recommended)
+Wallet Connect
+
+```
+Connect MetaMask
+
+Connect Trust Wallet
+
+Connect Binance Wallet
+
+WalletConnect
+
+```
+
+After connection
+
+```
+Enter Amount
+
+10 USDT
+
+Buy BMAN
+
+```
+
+Popup
+
+```
+Approve USDT
+
+↓
+
+Transfer USDT
+
+↓
+
+Success
+
+```
+
+Backend receives hash immediately.
+Deposit Flow
+
+```
+User
+
+↓
+
+Connect Wallet
+
+↓
+
+MetaMask
+
+↓
+
+Approve USDT
+
+↓
+
+Transfer
+
+↓
+
+BSC
+
+↓
+
+Backend detects Tx
+
+↓
+
+Wait 15 confirmations
+
+↓
+
+Verified
+
+↓
+
+Credit Exchange Wallet
+
+↓
+
+Save History
+
+↓
+
+Notify
+
+```
+
+Auto Detect Transaction
+Never ask user to submit hash manually.
+Background service
+Every 15 seconds
+
+```
+BscScan API
+
+or
+
+RPC Node
+
+↓
+
+Read Transfer Events
+
+↓
+
+Find Admin Wallet
+
+↓
+
+Find User Wallet
+
+↓
+
+Match Pending Deposit
+
+↓
+
+Confirm
+
+↓
+
+Credit Wallet
+
+```
+
+Database
+
+```
+wallet_deposits
+
+id
+
+user_id
+
+wallet_address
+
+tx_hash
+
+block_number
+
+token
+
+amount_usdt
+
+amount_bman
+
+status
+
+confirmations
+
+network
+
+credited_at
+
+created_at
+
+```
+
+BMAN Conversion
+Admin Settings
+
+```
+1 USDT = ?
+
+Example
+
+1 USDT = 100 BMAN
+
+```
+
+If
+
+```
+User Deposits
+
+10 USDT
+
+```
+
+Automatically
+
+```
+1000 BMAN
+
+```
+
+Then
+Coin Distribution
+Example
+Option 4
+80%
+10%
+10%
+↓
+Exchange
+800
+Earning
+100
+Staking
+100
+
+```
+
+History stores
+
+Original USDT
+
+Original BMAN
+
+Distribution
+
+---
+
+# Deposit Status
+
+
+```
+
+Pending
+Waiting Confirmation
+Confirmed
+Credited
+Failed
+Expired
+
+```
+
+---
+
+# Withdraw Tab
+
+User enters
+
+
+```
+
+Withdraw Wallet
+0x....
+Amount
+Transfer Password
+Email OTP
+Submit
+
+```
+
+Status
+
+
+```
+
+Pending
+
+```
+
+No blockchain transaction yet.
+
+---
+
+Database
+
+
+```
+
+withdraw_requests
+id
+user_id
+wallet_type
+amount
+wallet_address
+status
+remarks
+tx_hash
+requested_at
+approved_at
+
+```
+
+---
+
+# Admin Withdraw
+
+Admin
+
+Withdraw Queue
+
+
+```
+
+User
+Wallet
+Amount
+Balance
+KYC
+Status
+
+```
+
+Buttons
+
+
+```
+
+Approve
+Reject
+View
+
+```
+
+---
+
+Approve
+
+Admin sends blockchain transaction
+
+Paste Hash
+
+
+```
+
+0x73ab.....
+Approve
+
+```
+
+Saved
+
+
+```
+
+Approved
+Hash
+Date
+Admin
+
+```
+
+---
+
+Reject
+
+Reason required
+
+
+```
+
+Incorrect Wallet
+Low Balance
+KYC Pending
+Suspicious Activity
+Manual Review
+Other
+
+```
+
+User sees
+
+
+```
+
+Rejected
+Reason
+Incorrect Wallet Address
+
+```
+
+---
+
+# Withdraw Status
+
+
+```
+
+Pending
+Under Review
+Approved
+Rejected
+Processing
+Completed
+
+```
+
+---
+
+# History Page
+
+Tabs
+
+
+```
+
+Deposit History
+Withdraw History
+Transfer History
+Statements
+
+```
+
+Each row
+
+
+```
+
+Date
+Network
+Hash
+Amount
+Status
+Explorer
+Download PDF
+
+```
+
+---
+
+# BscScan Explorer
+
+Admin Setting
+
+
+```
+
+Mode
+○ Testnet
+○ Mainnet
+
+```
+
+Automatically
+
+Testnet
+
+
+```
+
+https://testnet.bscscan.com/tx/
+
+```
+
+Mainnet
+
+
+```
+
+https://bscscan.com/tx/
+
+```
+
+History
+
+
+```
+
+View Explorer
+
+```
+
+---
+
+# Wallet Connect
+
+Support
+
+
+```
+
+MetaMask
+Trust Wallet
+Binance Wallet
+WalletConnect
+
+```
+
+Flow
+
+
+```
+
+Connect
+↓
+Approve USDT
+↓
+Transfer
+↓
+Receive Tx Hash
+↓
+Backend Verify
+↓
+Credit Wallet
+
+```
+
+---
+
+# Internal Wallets
+
+Every user owns
+
+
+```
+
+USDT Wallet
+Exchange Wallet
+Earning Wallet
+Staking Wallet
+Bonus Wallet
+
+```
+
+Recommended schema:
+
+
+```
+
+user_wallets
+id user_id
+exchange_balance earning_balance staking_balance bonus_balance
+total_deposit_usdt total_withdraw_usdt
+created_at updated_at
+
+```
+
+Keep **USDT deposits** separate from **internal BMAN balances**.
+
+---
+
+# Wallet Ledger (Most Important)
+
+Never update balances directly.
+
+Every movement creates a ledger entry.
+
+
+```
+
+wallet_ledger
+id
+user_id
+wallet_type
+credit
+debit
+balance_after
+reference_type
+reference_id
+description
+tx_hash
+created_at
+
+```
+
+Reference types include:
+
+- Deposit
+- Withdrawal
+- Stake Purchase
+- ROI
+- Bonus
+- Binary Commission
+- Rank Reward
+- Wallet Transfer
+- Admin Adjustment
+
+This provides a complete audit trail.
+
+---
+
+# Security
+
+- Generate one custodial BSC wallet per user at registration.
+- Encrypt the user's private key using AES-256 with a server-side master key stored outside the database (e.g., in environment configuration or a secure secret manager).
+- Never display or expose the private key or recovery phrase in the UI.
+- Require Email OTP and Transfer Password for withdrawals.
+- Verify KYC approval before allowing withdrawals.
+- Use row-level locking/transactions when crediting balances to prevent duplicate credits.
+- Prevent double-crediting by enforcing a unique constraint on `tx_hash`.
+
+---
+
+This design is scalable, auditable, and aligns well with your BMAN staking platform's requirements while keeping blockchain interactions (USDT on BSC) cleanly separated from your internal BMAN accounting and wallet system.
+
+```
+
+carefully work & update the status on docs md file & index md if posible to run time qr generate and show & 
+
+Deep explain how to listern the wallet moniter & before check the admin side all are good or not because we are not set the admin private key
+
+## Recommended architecture for BMAN
+
+For your staking platform, I recommend:
+
+- **Users deposit USDT (BEP-20) only**.
+- **Platform detects deposits automatically using BscScan/RPC**.
+- **Backend credits the user's internal Exchange Wallet** according to the configured exchange rate.
+- **When needed, the backend transfers BMAN from the Treasury Wallet by signing transactions with the Treasury private key stored securely on the server**.
+- **Users never see or control the Treasury private key**, and they do not need individual BMAN private keys unless you intentionally build a fully non-custodial system.
+
+This architecture is simpler, more secure, and aligns well with how most centralized staking and MLM platforms operate.
+
+
+Custodial (Recommended for MLM/Staking)
+
+This is how Binance, KuCoin, and most staking platforms work.
+
+Users deposit USDT only.
+
+The platform owns all BMAN wallets.
+
+The user never receives a BMAN private key.
+
+User Wallet (MetaMask)
+
+      |
+      | 100 USDT
+      V
+
+Deposit Wallet (Platform)
+
+      |
+      | Backend detects payment
+      V
+
+Database
+Exchange Wallet = +100 BMAN
+
+      |
+User purchases staking
+
+      |
+Treasury Wallet signs transaction
+      |
+      V
+
+BMAN Contract
+
+In this model:
+
+User has USDT wallet.
+Platform has Treasury Wallet.
+Treasury Wallet owns all BMAN.
+Backend sends BMAN.
+
+Only the platform knows the Treasury private key(http://192.168.29.7:9000/admin/master/token-settings)

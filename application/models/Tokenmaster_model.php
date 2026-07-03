@@ -22,6 +22,7 @@ class Tokenmaster_model extends CI_Model
     /** editable columns (everything except id/audit columns) */
     private $fields = [
         'network','blockchain','chain_id','rpc_url','explorer_url',
+        'explorer_api_url','explorer_api_key','deposit_scan_mode',
         'bman_name','bman_symbol','bman_decimals','bman_contract','bman_logo',
         'bman_min_transfer','bman_max_transfer','bman_enabled',
         'usdt_name','usdt_symbol','usdt_decimals','usdt_contract',

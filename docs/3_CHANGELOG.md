@@ -5,6 +5,58 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-02 — Production wallet: double-entry ledger + auto deposit listener
+
+> Full reference + deep-dive: [8_WALLET_DEPOSIT_WITHDRAW.md](8_WALLET_DEPOSIT_WITHDRAW.md).
+
+- **Why:** production feedback — balances must never be updated ad-hoc; every
+  deposit, chain tx, internal credit and admin action is tracked separately;
+  deposits must be auto-detected (no manual hash entry) and never double-credited.
+- **Double-entry ledger** (`wallet_ledger` + `Walletledger_model`): every
+  movement appends a row (credit XOR debit) with `balance_after`, updating the
+  `user_wallets` column in one transaction with `SELECT … FOR UPDATE`.
+  `UNIQUE(tx_hash, wallet_type)` makes double-crediting a tx impossible; debits
+  are overdraw-guarded. Wallets usdt/exchange/earning/staking/bonus; reference
+  types deposit/withdrawal/stake_purchase/roi/bonus/binary_commission/
+  rank_reward/wallet_transfer/admin_adjustment. `credit/debit/transfer/statement`.
+- **Deposit listener** (`Depositlistener_model` + `Depositcron`): detects
+  incoming USDT to custodial addresses and credits confirmed deposits — **no
+  private key**. Two providers via Token Settings `deposit_scan_mode`:
+  **bscscan** (Etherscan-v2 token-transfer API, free key — public dataseed RPCs
+  block `eth_getLogs`, confirmed live) and **rpc** (`eth_getLogs` on a
+  log-capable node, with `wallet_scan_state` cursor). Flow: detect
+  (`wallet_deposits`, unique tx) → confirmations vs `minimum_confirmations` →
+  credit USDT + convert USDT→BMAN @ active rate → credit Exchange, each keyed by
+  tx_hash so it happens exactly once.
+- **Admin Wallet Monitor:** added **Detect Deposits (auto)** (runs the listener,
+  Super-Admin) + **Deposits** list (tx, USDT, BMAN, confirmations, status).
+- **Runtime QR:** deposit-address QR now generated in-browser
+  (`assets/js/vendor/qrcode.min.js`) — no reliance on a pre-generated PNG
+  (server InfiQr PNG kept as fallback). Address + Copy + BSC network shown.
+- **Token Settings:** new Section-1 fields — deposit scan mode, Explorer API URL,
+  Explorer API Key (columns added to `token_settings`; wired into the model).
+- **Admin-side works with NO private key — verified.** Balance reads, deposit
+  detection and crediting are all read-only chain + DB. CLI proof: mock
+  confirmed 10 USDT → 200 BMAN credited (rate 20), re-run credited 0 (no
+  double-credit), ledger double-entry/overdraw/transfer correct, live scan
+  returns a clear "set a BscScan API key" message. Only *sending BMAN out*
+  (withdrawals) needs the Treasury key — deferred; admins can meanwhile approve
+  by pasting the tx hash.
+- **DB:** `db/wallet_production.sql` (idempotent, applied) — `wallet_ledger`,
+  `wallet_deposits`, `wallet_scan_state`, `user_wallets` balance columns +
+  lifetime totals; `token_settings` scan columns.
+- **Files:** `models/Walletledger_model.php`, `models/Depositlistener_model.php`,
+  `controllers/Depositcron.php`, `controllers/admin/wallet/Walletmonitor.php`
+  (scan_deposits/deposits), `views/admin/wallet/wallet_monitor.php`,
+  `views/admin/master/token_settings.php`, `models/Tokenmaster_model.php`,
+  `views/user/profile/view.php` (runtime QR), `assets/js/vendor/qrcode.min.js`,
+  `config/routes.php`.
+- **How to apply:** run `db/wallet_production.sql`; add a free BscScan/Etherscan
+  API key in Token Settings (or set scan mode to a log-capable RPC) to enable
+  live auto-detect; schedule `php index.php depositcron run` (~15 s).
+
+---
+
 ## 2026-07-02 — Custodial wallet management: unique deposit address, QR, on-chain monitor
 
 - **Reviewed first:** wallet generation already exists (`Mlm_model::create_wallet`,

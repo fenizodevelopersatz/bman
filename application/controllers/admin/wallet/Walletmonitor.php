@@ -117,4 +117,30 @@ class Walletmonitor extends CI_Controller
         if (!$this->input->is_ajax_request()) show_404();
         return $this->_json(['status' => 'success', 'rows' => $this->cw->monitorLog(0, 200)]);
     }
+
+    /* ------------- AJAX: run the deposit listener (auto-detect) ---------- *
+     * Detects incoming USDT via BscScan API / RPC and credits confirmed
+     * deposits. No private key involved. Super-Admin (writes the ledger).    */
+    public function scan_deposits()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        if (!$this->is_super) {
+            return $this->_json(['status' => 'error', 'message' => 'Super Admin only.'], 403);
+        }
+        $this->load->model('Depositlistener_model', 'listener');
+        $only = (int)$this->input->post('user_id');
+        $res = $this->listener->scan($only ?: null);
+        return $this->_json([
+            'status'  => !empty($res['ok']) ? 'success' : 'error',
+            'message' => $res['message'] ?? 'done',
+        ], !empty($res['ok']) ? 200 : 422);
+    }
+
+    /* ------------------------ AJAX: deposits list ----------------------- */
+    public function deposits()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->load->model('Depositlistener_model', 'listener');
+        return $this->_json(['status' => 'success', 'rows' => $this->listener->deposits(0, 200)]);
+    }
 }

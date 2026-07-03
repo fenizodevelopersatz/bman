@@ -1807,10 +1807,11 @@ function renderExistingPreview($url, $title)
                   <!-- Deposit address + QR + copy -->
                   <?php if ($waddr): ?>
                   <div class="wl-dep">
-                    <?php if ($wqr): ?><img src="<?= htmlspecialchars($wqr); ?>" alt="Deposit QR"
-                         onerror="this.style.display='none'"><?php endif; ?>
+                    <div id="wlQr" data-addr="<?= htmlspecialchars($waddr); ?>" data-fallback="<?= htmlspecialchars($wqr); ?>"
+                         title="Scan to deposit USDT (BEP-20)"
+                         style="width:132px;height:132px;border-radius:10px;border:1px solid #e6e8ef;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden"></div>
                     <div style="flex:1;min-width:220px">
-                      <small class="muted">Your USDT / BMAN deposit address (BEP-20)</small>
+                      <small class="muted">Your USDT / BMAN deposit address (BEP-20) · Network: BSC (BEP20)</small>
                       <div class="wl-addr" id="wlAddr"><?= htmlspecialchars($waddr); ?></div>
                       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
                         <button type="button" class="btn-main" id="wlCopy"><i class="ph ph-copy"></i> Copy Address</button>
@@ -1822,70 +1823,23 @@ function renderExistingPreview($url, $title)
                   <?php else: ?>
                   <div class="wl-dep"><div class="muted">A deposit address will appear here shortly. Refresh the page.</div></div>
                   <?php endif; ?>
-
-                  <!-- Deposit & Withdraw history + log -->
-                  <div class="wl-tables">
-                    <div>
-                      <b>Deposit History</b>
-                      <table class="wl-tbl">
-                        <thead><tr><th>Date</th><th>Token</th><th>Amount</th><th>Status</th></tr></thead>
-                        <tbody>
-                          <?php if (!empty($deposits)): foreach ($deposits as $d): ?>
-                          <tr>
-                            <td><?= htmlspecialchars($d['detected_at']); ?></td>
-                            <td><?= htmlspecialchars($d['token']); ?></td>
-                            <td><?= $fmt($d['amount']); ?></td>
-                            <td><span class="wl-badge <?= $d['credited'] ? 'wl-ok' : 'wl-warn'; ?>"><?= $d['credited'] ? 'CREDITED' : 'PENDING'; ?></span></td>
-                          </tr>
-                          <?php endforeach; else: ?>
-                          <tr><td colspan="4" class="muted">No deposits yet.</td></tr>
-                          <?php endif; ?>
-                        </tbody>
-                      </table>
-                    </div>
-                    <div>
-                      <b>Withdraw History</b>
-                      <table class="wl-tbl">
-                        <thead><tr><th>Date</th><th>Amount</th><th>Fee</th><th>Status</th></tr></thead>
-                        <tbody>
-                          <?php if (!empty($withdraws)): foreach ($withdraws as $wd): ?>
-                          <tr>
-                            <td><?= htmlspecialchars($wd['created_at']); ?></td>
-                            <td><?= $fmt($wd['amount']); ?></td>
-                            <td><?= $fmt($wd['fee']); ?></td>
-                            <td><span class="wl-badge wl-mut"><?= htmlspecialchars(strtoupper($wd['status'])); ?></span></td>
-                          </tr>
-                          <?php endforeach; else: ?>
-                          <tr><td colspan="4" class="muted">No withdrawals yet.</td></tr>
-                          <?php endif; ?>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <div style="margin-top:18px">
-                    <b>Wallet Monitor Log</b>
-                    <table class="wl-tbl">
-                      <thead><tr><th>Date</th><th>Action</th><th>On-chain</th><th>Our DB</th><th>Difference</th></tr></thead>
-                      <tbody>
-                        <?php if (!empty($wallet_log)): foreach ($wallet_log as $lg): ?>
-                        <tr>
-                          <td><?= htmlspecialchars($lg['created_at']); ?></td>
-                          <td><span class="wl-badge <?= $lg['action']==='reconcile' ? 'wl-ok' : 'wl-mut'; ?>"><?= htmlspecialchars(strtoupper($lg['action'])); ?></span></td>
-                          <td><?= $fmt($lg['onchain_balance']); ?></td>
-                          <td><?= $fmt($lg['db_balance']); ?></td>
-                          <td><?= $fmt($lg['difference']); ?></td>
-                        </tr>
-                        <?php endforeach; else: ?>
-                        <tr><td colspan="5" class="muted">No monitor activity yet. Click “Check On-chain Balance”.</td></tr>
-                        <?php endif; ?>
-                      </tbody>
-                    </table>
-                  </div>
                 </div>
 
+                <script src="<?= base_url('assets/js/vendor/qrcode.min.js'); ?>"></script>
                 <script>
                 (function () {
+                  // Runtime QR: render the deposit address to a QR in-browser
+                  // (no dependency on a pre-generated PNG). Server PNG is fallback.
+                  var qrBox = document.getElementById('wlQr');
+                  if (qrBox && qrBox.dataset.addr) {
+                    try {
+                      new QRCode(qrBox, { text: qrBox.dataset.addr, width: 128, height: 128,
+                        correctLevel: (window.QRCode && QRCode.CorrectLevel ? QRCode.CorrectLevel.M : 0) });
+                    } catch (e) {
+                      if (qrBox.dataset.fallback) qrBox.innerHTML =
+                        '<img src="'+qrBox.dataset.fallback+'" style="width:100%;height:100%" alt="QR">';
+                    }
+                  }
                   var addrEl = document.getElementById('wlAddr');
                   var copyBtn = document.getElementById('wlCopy');
                   var checkBtn = document.getElementById('wlCheck');
