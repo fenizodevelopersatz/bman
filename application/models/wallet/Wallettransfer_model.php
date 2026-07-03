@@ -18,16 +18,17 @@ class Wallettransfer_model extends CI_Model
     /** Wallets eligible for internal transfer. USDT is intentionally absent. */
     private $allowed = ['exchange', 'earning', 'staking', 'bonus'];
 
-    /** Permitted from => to pairs (doc §2B). */
-    private $pairs = [
-        'exchange' => ['earning', 'staking', 'bonus'],
-        'earning'  => ['exchange', 'bonus'],
-        'bonus'    => ['exchange', 'staking'],
-        'staking'  => ['exchange', 'bonus'],
-    ];
-
-    public function pairs() { return $this->pairs; }
     public function allowed() { return $this->allowed; }
+
+    /** Any internal wallet → any OTHER internal wallet (Wallet Rules Table). */
+    public function pairs()
+    {
+        $out = [];
+        foreach ($this->allowed as $w) {
+            $out[$w] = array_values(array_filter($this->allowed, function ($x) use ($w) { return $x !== $w; }));
+        }
+        return $out;
+    }
 
     /* ================= MEMBER → MEMBER TRANSFER (primary) ================ *
      * Send an internal balance to ANOTHER user's account. Sender's wallet is
@@ -58,47 +59,57 @@ class Wallettransfer_model extends CI_Model
     /**
      * Member → member transfer. Returns [true, $ref] or [false, $error].
      */
-    public function sendToUser($fromUid, $recipientIdentifier, $wallet, $amount, $note = null, $ip = null, $ua = null)
+    public function sendToUser($fromUid, $recipientIdentifier, $wallet, $amount, $note = null, $ip = null, $ua = null, $opts = [])
     {
         $fromUid = (int)$fromUid;
         $amount  = (string)$amount;
+        $skipKyc = !empty($opts['skip_kyc']);   // admin override
+        $via     = !empty($opts['via']) ? $opts['via'] : 'user';
 
         if (!in_array($wallet, $this->sendable, true))
             return [false, 'This wallet cannot be transferred to another member.'];
         if (!is_numeric($amount) || bccomp($amount, '0', 8) <= 0)
             return [false, 'Amount must be greater than zero.'];
+        if (!$this->precisionOk($amount))
+            return [false, 'Amount has too many decimal places (max 8).'];
 
-        $sender = $this->db->select('status')->get_where('users', ['id' => $fromUid])->row_array();
-        if (!$sender || $sender['status'] != '1') return [false, 'Your account is inactive.'];
+        $sender = $this->db->select('status, kyc_status')->get_where('users', ['id' => $fromUid])->row_array();
+        if (!$sender || $sender['status'] != '1') return [false, 'Sender account is inactive.'];
+        if (!$skipKyc && strtolower((string)($sender['kyc_status'] ?? '')) !== 'approved') {
+            return [false, 'Your KYC must be approved before you can transfer funds.'];
+        }
 
         $to = $this->resolveRecipient($recipientIdentifier);
         if (!$to) return [false, 'Recipient not found. Check the referral ID / username / email.'];
         $toUid = (int)$to['id'];
-        if ($toUid === $fromUid) return [false, 'You cannot transfer to your own account.'];
+        if ($toUid === $fromUid) return [false, 'Sender and recipient cannot be the same account.'];
 
         $this->load->model('Walletledger_model', 'L');
-        if (bccomp($this->L->balance($fromUid, $wallet), $amount, 8) < 0)
-            return [false, 'Insufficient balance in your '.ucfirst($wallet).' Wallet.'];
+        $fromBefore = $this->L->balance($fromUid, $wallet);
+        $toBefore   = $this->L->balance($toUid, $wallet);
+        if (bccomp($fromBefore, $amount, 8) < 0)
+            return [false, 'Insufficient balance in the '.ucfirst($wallet).' Wallet.'];
 
         $fee = bcdiv(bcmul($amount, (string)$this->fee_percent, 8), '100', 8);
         $net = bcsub($amount, $fee, 8);
         if (bccomp($net, '0', 8) <= 0) return [false, 'Amount too small after fee.'];
 
         $ref = $this->generateReference();
+        $uid8 = $this->generateTxnUid();
         $this->db->trans_begin();
-        // debit sender
         list($okD, $rD) = $this->L->debit($fromUid, $wallet, $amount, 'wallet_transfer',
-            ['reference_id' => $ref, 'description' => 'Sent to user #'.$toUid.' ('.$wallet.')']);
+            ['reference_id' => $ref, 'description' => 'Sent to user #'.$toUid.' ('.$wallet.') ['.$uid8.']']);
         if (!$okD) { $this->db->trans_rollback(); return [false, $rD]; }
-        // credit recipient (same wallet), net of fee
         list($okC, $rC) = $this->L->credit($toUid, $wallet, $net, 'wallet_transfer',
-            ['reference_id' => $ref, 'description' => 'Received from user #'.$fromUid.' ('.$wallet.')']);
+            ['reference_id' => $ref, 'description' => 'Received from user #'.$fromUid.' ('.$wallet.') ['.$uid8.']']);
         if (!$okC) { $this->db->trans_rollback(); return [false, $rC]; }
 
         $this->db->insert('wallet_internal_transfer', [
-            'ref' => $ref, 'user_id' => $fromUid, 'to_user_id' => $toUid,
+            'ref' => $ref, 'txn_uid' => $uid8, 'user_id' => $fromUid, 'to_user_id' => $toUid,
             'from_wallet' => $wallet, 'to_wallet' => $wallet,
-            'amount' => $amount, 'fee' => $fee, 'net_amount' => $net, 'status' => 'completed',
+            'amount' => $amount, 'fee' => $fee, 'net_amount' => $net, 'status' => 'completed', 'via' => $via,
+            'from_before' => $fromBefore, 'from_after' => bcsub($fromBefore, $amount, 8),
+            'to_before' => $toBefore, 'to_after' => bcadd($toBefore, $net, 8),
             'description' => $note ? substr($note, 0, 255) : null,
             'debit_ledger_id' => (int)$rD, 'credit_ledger_id' => (int)$rC,
             'ip_address' => $ip, 'user_agent' => $ua ? substr((string)$ua, 0, 255) : null,
@@ -108,20 +119,41 @@ class Wallettransfer_model extends CI_Model
         return [true, $ref];
     }
 
+    /** Globally-unique 8-digit numeric tracking id. */
+    private function generateTxnUid()
+    {
+        for ($i = 0; $i < 8; $i++) {
+            $uid = (string)random_int(10000000, 99999999);
+            if ($this->db->where('txn_uid', $uid)->count_all_results('wallet_internal_transfer') === 0) return $uid;
+        }
+        return (string)random_int(10000000, 99999999);
+    }
+
     /* ------------------------------ validate --------------------------- */
 
-    public function validate($userId, $from, $to, $amount)
+    /** Amount must not carry more than 8 decimal places (ledger precision). */
+    private function precisionOk($amount)
     {
-        if (!in_array($from, $this->allowed, true)) return [false, 'Invalid source wallet.'];
-        if (!in_array($to, $this->allowed, true))   return [false, 'Invalid destination wallet.'];
+        $s = (string)$amount;
+        return !(strpos($s, '.') !== false && strlen(substr($s, strpos($s, '.') + 1)) > 8);
+    }
+
+    public function validate($userId, $from, $to, $amount, $skipKyc = false)
+    {
+        // USDT is never a from/to wallet (blockchain asset). Any of the four
+        // internal wallets may transfer to any OTHER internal wallet.
+        if (!in_array($from, $this->allowed, true)) return [false, 'Invalid source wallet (USDT is not transferable).'];
+        if (!in_array($to, $this->allowed, true))   return [false, 'Invalid destination wallet (USDT is not transferable).'];
         if ($from === $to)                          return [false, 'Source and destination wallet must be different.'];
-        if (!in_array($to, $this->pairs[$from] ?? [], true))
-            return [false, 'Transfer from '.ucfirst($from).' to '.ucfirst($to).' is not allowed.'];
         if (!is_numeric($amount) || bccomp((string)$amount, '0', 8) <= 0)
             return [false, 'Amount must be greater than zero.'];
+        if (!$this->precisionOk($amount))
+            return [false, 'Amount has too many decimal places (max 8).'];
 
-        $user = $this->db->select('status')->get_where('users', ['id' => (int)$userId])->row_array();
+        $user = $this->db->select('status, kyc_status')->get_where('users', ['id' => (int)$userId])->row_array();
         if (!$user || $user['status'] != '1') return [false, 'Account is inactive.'];
+        if (!$skipKyc && strtolower((string)($user['kyc_status'] ?? '')) !== 'approved')
+            return [false, 'Your KYC must be approved before you can transfer funds.'];
 
         $this->load->model('Walletledger_model', 'L');
         if (bccomp($this->L->balance($userId, $from), (string)$amount, 8) < 0)
@@ -194,6 +226,13 @@ class Wallettransfer_model extends CI_Model
         $this->_histWhere($userId, $f);
         $rows = $this->db->order_by('t.id', 'DESC')->limit((int)$limit, (int)$offset)->get()->result_array();
         foreach ($rows as &$r) {
+            if (empty($r['to_user_id'])) {
+                // self transfer: between my own wallets
+                $r['direction'] = 'self';
+                $r['wallet'] = $r['from_wallet'];
+                $r['counterparty'] = ucfirst($r['from_wallet']).' → '.ucfirst($r['to_wallet']);
+                continue;
+            }
             $r['direction'] = ((int)$r['user_id'] === $userId) ? 'sent' : 'received';
             $r['wallet'] = $r['from_wallet'];
             $r['counterparty'] = $r['direction'] === 'sent'

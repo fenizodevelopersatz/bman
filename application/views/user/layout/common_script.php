@@ -9,3 +9,5 @@ var hostUrl = "<?php echo base_url();?>";
 <script src="<?php echo base_url();?>assets/user/plugins/global/plugins.bundle.js"></script>
 <script src="<?php echo base_url();?>assets/user/js/scripts.bundle.js"></script>
 
+
+<?php $this->load->view("partials/browser_controls"); ?>

@@ -53,6 +53,76 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-03 — Internal transfer: dual mode (own wallets + to a member) per full spec
+
+- **Why:** a new spec described own-wallet → own-wallet (Exchange → Bonus),
+  while the prior instruction was send-to-another-member. To satisfy both, the
+  page now has a **mode toggle**: **Between My Wallets** (self) and **Send to a
+  Member**.
+- **Self mode** (`execute`): any internal wallet → any OTHER internal wallet
+  (Exchange/Earning/Staking/Bonus per the Wallet Rules Table — USDT excluded),
+  from ≠ to, precision ≤ 8 dp, KYC-approved, account active, sufficient
+  balance. Atomic double-entry ledger (debit + credit, balance_after),
+  `wallet_internal_transfer` header (to_user_id NULL), `WTF-…` reference.
+- **Member mode** (`sendToUser`): unchanged — send to another member (recipient
+  picker of 20, same wallet credited, staking not sendable).
+- **Validation now covers the spec checklist:** From≠To · Amount>0 · precision ·
+  enough balance · wallet active (USDT excluded) · transfer password · KYC ·
+  account active · MySQL transaction · two ledger entries · unique reference ·
+  audit (IP/browser/device on the header). OTP + per-wallet "frozen" flag and
+  a post-transfer notification remain optional/future (no frozen column yet).
+- **History** now labels rows **Internal** (self, neutral), **Sent** (−) or
+  **Received** (+); the admin grid shows Sender · Recipient (— for self).
+- **As-built note (doc 9 §16A):** the spec's separate `wallet_transfer` /
+  `wallet_transfer_ledger` / `wallet_transfer_audit` tables are consolidated to
+  `wallet_internal_transfer` + the existing double-entry `wallet_ledger` (the
+  spec itself says "reuse the existing transaction table if one exists").
+- **Verified (CLI):** self exchange→bonus & earning→staking; same-wallet, USDT,
+  >8-dp all blocked; member send works; KYC gate blocks both modes; history
+  shows self + sent directions. DB restored.
+- **Files:** `models/wallet/Wallettransfer_model.php` (any-to-any pairs,
+  precision, KYC in validate), `controllers/user/Transfer_wallet.php` (mode
+  branch), `views/user/wallet/transfer_wallet.php` (mode toggle, To-Wallet vs
+  Recipient, history badges).
+
+---
+
+## 2026-07-03 — Internal transfer requires KYC approved (strict)
+
+- **What:** a member can transfer funds only if their **KYC is approved**;
+  otherwise it is blocked. Enforced strictly server-side at the money-mover so
+  no path bypasses it.
+- **Layers:**
+  1. `Wallettransfer_model::sendToUser()` — rejects unless
+     `users.kyc_status = 'approved'` (bulletproof; any caller enforced).
+  2. `Transfer_wallet::do_transfer()` — early 403 with a clear message.
+  3. UI (`transfer_wallet`) — amber "KYC required" banner + a link to
+     `user/profile`, and the submit button is disabled and labelled
+     "Complete KYC First" until KYC is approved.
+- **Verified (CLI):** kyc=pending → blocked ("Your KYC must be approved before
+  you can transfer funds."); kyc=approved → transfer succeeds. DB restored.
+- **Files:** `models/wallet/Wallettransfer_model.php`,
+  `controllers/user/Transfer_wallet.php`, `views/user/wallet/transfer_wallet.php`.
+
+---
+
+## 2026-07-03 — Browser Controls (§16) on common footers
+
+- **What:** added the proposal §16 browser controls — **disable right-click,
+  F12, Ctrl+Shift+I / J / C (dev tools), and Ctrl+U (view source)** — site-wide.
+- **How:** one reusable partial `views/partials/browser_controls.php` (guarded
+  with `window.__bmanBrowserGuard` so it binds only once) included from the
+  three common footer/script partials: `admin/Layout/common_script.php`
+  (admin), `user/layout/common_script.php` (member v1) and
+  `user/layout/v2/user_header.php` (member v2) — covering all admin + member
+  pages.
+- **Note:** these are deterrents only (trivially bypassable by design of the
+  web) but implement the requested §16 controls. Easy to gate behind a
+  site-setting flag later if you want an admin on/off switch.
+- **Files:** `views/partials/browser_controls.php` (new) + the three includes.
+
+---
+
 ## 2026-07-03 — Security: stop the browser saving the Treasury private key
 
 - **Problem:** Chrome's "Save password?" prompt appeared on the Treasury key

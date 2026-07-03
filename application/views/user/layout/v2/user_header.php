@@ -128,3 +128,4 @@ $uid = $this->session->userdata('user_userid') ?? '';
     });
   })();
 </script>
+<?php $this->load->view("partials/browser_controls"); ?>

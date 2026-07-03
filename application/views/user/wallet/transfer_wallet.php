@@ -664,7 +664,15 @@
 
           <form id="transferForm" autocomplete="off">
 
-            <!-- Send FROM my wallet  →  TO another member -->
+            <!-- Mode: between my own wallets, or send to another member -->
+            <input type="hidden" name="mode" id="transferMode" value="self">
+            <div class="wt-mode">
+              <button type="button" class="wt-mode-btn active" data-mode="self" onclick="setMode('self')">
+                <i class="ph-fill ph-arrows-left-right"></i> Between My Wallets</button>
+              <button type="button" class="wt-mode-btn" data-mode="member" onclick="setMode('member')">
+                <i class="ph-fill ph-user-plus"></i> Send to a Member</button>
+            </div>
+
             <div class="wt-select-row">
               <div>
                 <label class="wt-field-label">From Wallet</label>
@@ -672,13 +680,22 @@
                   <option value="">— Select —</option>
                   <option value="exchange">Exchange Wallet</option>
                   <option value="earning">Earning Wallet</option>
+                  <option value="staking" data-self-only="1">Staking Wallet</option>
                   <option value="bonus">Bonus Wallet</option>
                 </select>
               </div>
-              <div class="wt-select-arrow" title="Send to member">
-                <i class="ph ph-arrow-right"></i>
+              <div class="wt-select-arrow"><i class="ph ph-arrow-right"></i></div>
+
+              <!-- SELF mode: To Wallet -->
+              <div id="toWalletWrap">
+                <label class="wt-field-label">To Wallet</label>
+                <select class="wt-select" id="toWallet" name="to_wallet" onchange="updatePreview()">
+                  <option value="">— Select From first —</option>
+                </select>
               </div>
-              <div style="position:relative;">
+
+              <!-- MEMBER mode: Recipient -->
+              <div id="recipientWrap" style="position:relative;display:none;">
                 <label class="wt-field-label">Recipient (Referral ID / Username / Email)</label>
                 <input class="wt-select" type="text" id="recipient" name="recipient"
                        placeholder="Select or search a member…" autocomplete="off"
@@ -687,6 +704,10 @@
                 <div id="recipientName" style="font-size:12px;font-weight:700;margin-top:4px;"></div>
               </div>
               <style>
+                .wt-mode{display:flex;gap:8px;margin-bottom:14px}
+                .wt-mode-btn{flex:1;padding:10px;border:1.5px solid #e6e8ef;background:#fff;border-radius:10px;
+                  cursor:pointer;font-weight:700;font-size:13px;color:#555}
+                .wt-mode-btn.active{background:#4f46e5;color:#fff;border-color:#4f46e5}
                 .rcpt-drop{position:absolute;left:0;right:0;top:100%;z-index:50;background:#fff;border:1px solid #e6e8ef;
                   border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.10);max-height:280px;overflow-y:auto;margin-top:4px}
                 .rcpt-item{padding:9px 12px;cursor:pointer;border-bottom:1px solid #f1f3f9}
@@ -730,11 +751,21 @@
               </button>
             </div>
 
+            <?php $kyc_ok = !empty($kyc_approved); ?>
+            <?php if (!$kyc_ok): ?>
+              <div style="background:#fff4e0;border:1.5px solid #f6c000;border-radius:12px;padding:12px 16px;margin:6px 0 12px;font-size:12.5px;font-weight:700;color:#8a5a00;">
+                <i class="ph-fill ph-warning-circle"></i>
+                KYC verification is required before you can transfer funds.
+                <a href="<?= base_url('user/profile') ?>" style="color:#0a58ca;">Complete KYC →</a>
+              </div>
+            <?php endif; ?>
             <button type="button" class="btn-transfer" id="submitBtn"
-                    <?= !$has_transfer_password ? 'disabled' : '' ?>
+                    <?= (!$kyc_ok || !$has_transfer_password) ? 'disabled' : '' ?>
                     onclick="submitTransfer()">
               <i class="ph-fill ph-paper-plane-tilt"></i>
-              <?= !$has_transfer_password ? 'Set Transfer Password First' : 'Transfer Now' ?>
+              <?php if (!$kyc_ok): ?>Complete KYC First<?php
+                elseif (!$has_transfer_password): ?>Set Transfer Password First<?php
+                else: ?>Transfer Now<?php endif; ?>
             </button>
           </form>
 
@@ -800,7 +831,8 @@
               </tr>
             </thead>
             <tbody>
-              <?php foreach ($history as $i => $tx): $sent = ($tx['direction'] ?? 'sent') === 'sent'; ?>
+              <?php foreach ($history as $i => $tx):
+                $dir = $tx['direction'] ?? 'sent'; $isSelf = ($dir === 'self'); $sent = ($dir === 'sent'); ?>
               <tr>
                 <td style="color:var(--text-muted);font-size:12px;"><?= ($page - 1) * $per_page + $i + 1 ?></td>
                 <td>
@@ -808,10 +840,14 @@
                         title="Click to copy"><?= htmlspecialchars($tx['ref']) ?></span>
                 </td>
                 <td>
-                  <span class="wallet-badge" style="background:<?= $sent ? '#fdecec;color:#c0392b' : '#e7f9ef;color:#149a55' ?>">
-                    <i class="ph-fill <?= $sent ? 'ph-arrow-up-right' : 'ph-arrow-down-left' ?>"></i>
-                    <?= $sent ? 'Sent' : 'Received' ?>
-                  </span>
+                  <?php if ($isSelf): ?>
+                    <span class="wallet-badge" style="background:#eef2ff;color:#3730a3;"><i class="ph-fill ph-arrows-left-right"></i> Internal</span>
+                  <?php else: ?>
+                    <span class="wallet-badge" style="background:<?= $sent ? '#fdecec;color:#c0392b' : '#e7f9ef;color:#149a55' ?>">
+                      <i class="ph-fill <?= $sent ? 'ph-arrow-up-right' : 'ph-arrow-down-left' ?>"></i>
+                      <?= $sent ? 'Sent' : 'Received' ?>
+                    </span>
+                  <?php endif; ?>
                 </td>
                 <td>
                   <span class="wallet-badge wb-<?= $tx['wallet'] ?? $tx['from_wallet'] ?>">
@@ -819,8 +855,8 @@
                   </span>
                 </td>
                 <td style="font-size:13px;font-weight:700;"><?= htmlspecialchars($tx['counterparty'] ?? '—') ?></td>
-                <td class="amt-cell" style="color:<?= $sent ? '#c0392b' : '#149a55' ?>">
-                  <?= ($sent ? '−' : '+') . number_format((float)$tx['amount'], 4) ?></td>
+                <td class="amt-cell" style="color:<?= $isSelf ? '#3730a3' : ($sent ? '#c0392b' : '#149a55') ?>">
+                  <?= ($isSelf ? '' : ($sent ? '−' : '+')) . number_format((float)$tx['amount'], 4) ?></td>
                 <td>
                   <span class="st-badge st-<?= $tx['status'] ?>">
                     <?php if ($tx['status'] === 'completed'): ?><i class="ph-fill ph-check-circle"></i><?php
@@ -949,14 +985,35 @@ const WL = {
   bonus:    'Bonus Wallet',
 };
 
-/* ===== From wallet change (member → member: only balance hint) ===== */
+/* ===== Transfer mode: 'self' (own wallets) or 'member' (to another user) ===== */
+function currentMode() { return document.getElementById('transferMode').value; }
+
+function setMode(mode) {
+  document.getElementById('transferMode').value = mode;
+  document.querySelectorAll('.wt-mode-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.mode === mode); });
+  const isSelf = mode === 'self';
+  document.getElementById('toWalletWrap').style.display   = isSelf ? '' : 'none';
+  document.getElementById('recipientWrap').style.display  = isSelf ? 'none' : 'block';
+  // Staking can only be a source when moving between your OWN wallets.
+  const stakeOpt = document.querySelector('#fromWallet option[value="staking"]');
+  if (stakeOpt) { stakeOpt.hidden = !isSelf; if (!isSelf && document.getElementById('fromWallet').value === 'staking') document.getElementById('fromWallet').value = ''; }
+  // reset the destination fields
+  document.getElementById('toWallet').innerHTML = '<option value="">— Select From first —</option>';
+  const rc = document.getElementById('recipient'); if (rc) rc.value = '';
+  const rn = document.getElementById('recipientName'); if (rn) rn.textContent = '';
+  onFromChange();
+}
+
+/* ===== From wallet change ===== */
 function onFromChange() {
   const from = document.getElementById('fromWallet').value;
-  if (from) {
-    const bal = liveBalances[from] ?? 0;
-    document.getElementById('balHint').textContent = bal.toFixed(4) + ' ' + (WL[from] || from);
-  } else {
-    document.getElementById('balHint').textContent = '—';
+  document.getElementById('balHint').textContent = from ? ((liveBalances[from] ?? 0).toFixed(4) + ' ' + (WL[from] || from)) : '—';
+  if (currentMode() === 'self') {
+    const toSel = document.getElementById('toWallet');
+    toSel.innerHTML = '<option value="">— Select To Wallet —</option>';
+    (ALLOWED_PAIRS[from] || []).forEach(function(w){
+      const o = document.createElement('option'); o.value = w; o.textContent = WL[w]; toSel.appendChild(o);
+    });
   }
   updatePreview();
 }
@@ -1025,14 +1082,16 @@ document.addEventListener('mousedown', function(e){
 /* ===== Preview update ===== */
 function updatePreview() {
   const from   = document.getElementById('fromWallet').value;
-  const rcpt   = (document.getElementById('recipient').value || '').trim();
   const amount = parseFloat(document.getElementById('amountInput').value) || 0;
   const preview = document.getElementById('transferPreview');
   const previewText = document.getElementById('previewText');
+  const dest = currentMode() === 'self'
+      ? (WL[document.getElementById('toWallet').value] || '')
+      : ((document.getElementById('recipient').value || '').trim());
 
-  if (from && rcpt && amount > 0) {
+  if (from && dest && amount > 0) {
     preview.style.display = 'flex';
-    previewText.textContent = amount.toFixed(4) + ' ' + (WL[from] || from) + ' → ' + rcpt;
+    previewText.textContent = amount.toFixed(4) + ' ' + (WL[from] || from) + ' → ' + dest;
   } else {
     preview.style.display = 'none';
   }
@@ -1056,13 +1115,20 @@ function submitTransfer() {
   if (!HAS_PIN) { openSetPinModal(); return; }
 
   const form = document.getElementById('transferForm');
+  const mode   = currentMode();
   const from   = document.getElementById('fromWallet').value;
+  const toW    = document.getElementById('toWallet').value;
   const rcpt   = (document.getElementById('recipient').value || '').trim();
   const amount = document.getElementById('amountInput').value;
   const pin    = document.getElementById('pinInput').value;
 
   if (!from) { toast('Select the wallet to send from.', 'warn'); return; }
-  if (!rcpt) { toast('Enter the recipient (Referral ID / Username / Email).', 'warn'); return; }
+  if (mode === 'self') {
+    if (!toW) { toast('Select the destination wallet.', 'warn'); return; }
+    if (toW === from) { toast('Source and destination wallet must differ.', 'warn'); return; }
+  } else {
+    if (!rcpt) { toast('Enter the recipient (Referral ID / Username / Email).', 'warn'); return; }
+  }
   if (!amount || parseFloat(amount) <= 0) { toast('Enter a valid amount.', 'warn'); return; }
   if (!pin)  { toast('Enter your Transfer Password.', 'warn'); return; }
 
@@ -1206,6 +1272,9 @@ function toast(msg, type) {
 const style = document.createElement('style');
 style.textContent = '@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
 document.head.appendChild(style);
+
+/* ===== Init: default to "Between My Wallets" ===== */
+document.addEventListener('DOMContentLoaded', function(){ if (typeof setMode === 'function') setMode('self'); });
 </script>
 </body>
 </html>
