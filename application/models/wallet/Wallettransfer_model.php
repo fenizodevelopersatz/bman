@@ -3,9 +3,11 @@
 /**
  * Wallettransfer_model — internal wallet-to-wallet transfer (doc 9).
  * -------------------------------------------------------------------
- * A user moves balance between their OWN four internal wallets
- * (exchange · earning · staking · bonus). USDT is NEVER a from/to wallet — it
- * is a blockchain asset and must not move on the internal ledger.
+ * A user moves balance between their internal wallets (exchange · earning ·
+ * bonus). USDT is NEVER a from/to wallet — it is a blockchain asset. The
+ * STAKING wallet is also excluded: it holds LOCKED BMAN that may only be
+ * credited by a successful staking purchase, never by an internal transfer
+ * (business rule 2026-07, items 10 & 11).
  *
  * The actual money movement is done by Walletledger_model::transfer(), which
  * runs inside one DB transaction with SELECT … FOR UPDATE (atomic, row-locked,
@@ -15,8 +17,8 @@
  */
 class Wallettransfer_model extends CI_Model
 {
-    /** Wallets eligible for internal transfer. USDT is intentionally absent. */
-    private $allowed = ['exchange', 'earning', 'staking', 'bonus'];
+    /** Wallets eligible for internal transfer. USDT + STAKING are excluded. */
+    private $allowed = ['exchange', 'earning', 'bonus'];
 
     public function allowed() { return $this->allowed; }
 

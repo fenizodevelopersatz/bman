@@ -5,6 +5,268 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-03 — On-chain BMAN delivery to the user's address (return the coin)
+
+The swap credited BMAN internally (Exchange/Bonus) but wasn't sending it on-chain
+to the user. Now it does — the internal credit backs an on-chain BMAN balance in
+the user's custodial address (same model as USDT deposits).
+
+- **Enabled:** `swap_bonus_onchain=1` → new swaps also send BMAN + 25% bonus
+  on-chain (treasury → user address) after the USDT settles + internal credit.
+- **Deliver method:** `Swapengine::deliverBman($orderId)` (idempotent — skips if
+  `bman_tx_hash` set) + `deliverPending()` for a batch. Signed by the treasury
+  key; **treasury must hold BMAN + BNB gas**.
+- **Triggers for already-completed orders** (bman_tx_hash null):
+  - **Admin:** Swap Orders page → **Send BMAN** button (per order).
+  - **Auto/cron:** `/deliver-bman-cron?token=<cron_token>` (or
+    `php index.php admin/staking/swaporders deliver_cron`).
+- **Files:** `models/staking/Swapengine_model.php`,
+  `controllers/admin/staking/Swaporders.php`,
+  `views/admin/staking/swap_orders.php`, `config/routes.php`.
+- **Verified (dry-run):** deliverBman sets bman/bonus tx and blocks a second
+  delivery (idempotent).
+
+---
+
+## 2026-07-03 — Automatic deposit crediting + swap modal wording
+
+- **Auto-credit deposits (no admin step):** `Depositcron` now runs the on-chain
+  listener over CLI **or** HTTP (token-gated) at route `credit-deposits-cron`. It
+  detects confirmed USDT deposits to custodial addresses and credits the internal
+  USDT wallet idempotently — clearing "NEW DEPOSIT PENDING — admin will credit".
+  Also, opening the Buy modal (`stake_quote`) now runs a best-effort per-user
+  scan so a just-confirmed deposit appears immediately.
+  - Verified: one cron run detected + credited 38 pending deposits; a stuck user
+    (FENIZO557554) went from USDT 0 → **1.50**, unblocking their swap.
+  - **Schedule it** every 1–3 min: `php index.php depositcron run` (Windows Task
+    Scheduler / cron), or hit `/credit-deposits-cron?token=…` from an uptime pinger.
+  - HTTP token set: `config['cron_token'] = 'dcron_9f27ab5c3e8140d6'` (change it).
+    URL: `/credit-deposits-cron?token=dcron_9f27ab5c3e8140d6` (`&user_id=N` optional).
+- **Manual "update wallet":** the profile's *Check On-chain Balance*
+  (`member/profile/wallet_check`) now also **credits** the user's confirmed
+  deposits (runs `scan($uid)`) and returns the credited count — one click funds
+  the USDT wallet. File: `controllers/user/usersettings/Profile.php`.
+- **Swap modal wording:** in swap mode the modal now reads "Buy BMAN (Swap)",
+  "BMAN → Exchange Wallet" and "Confirm & Swap" (was staking language); the card
+  button reads "Buy BMAN". Files: `views/user/wallet/_staking_packages.php`,
+  `controllers/Depositcron.php`, `controllers/user/usersettings/Lendingcontroller.php`,
+  `config/routes.php`.
+
+---
+
+## 2026-07-03 — Swap finalised: USDT→admin on-chain, BMAN→Exchange + 25%→Bonus (ENABLED)
+
+Per the final spec ("admin sends USDT → returns equal BMAN to the user, shown on
+the Exchange wallet, + 25% bonus BMAN"): the swap now moves real value one way
+on-chain and delivers BMAN into the user's **internal wallets** so it's visible.
+
+- **Swap now does, per purchase:** debit the user's **USDT wallet**; credit the
+  equal **BMAN to the Exchange wallet**; credit **25% BMAN to the Bonus wallet**
+  (all internal, one transaction — this is what the wallet page shows). The
+  **USDT settles on-chain** user deposit address → admin wallet (`Web3bman`,
+  user's key). Example at 1 USDT = 1 BMAN: 100 USDT → 100 BMAN (Exchange) + 25
+  BMAN (Bonus).
+- **BMAN stays custodial** (Exchange/Bonus wallets) by default —
+  `swap_bonus_onchain=0` — so there is no double delivery. Set it to 1 to *also*
+  push BMAN on-chain to the user's own address.
+- **ENABLED:** `swap_enabled=1` (package purchase now routes through the swap),
+  `swap_dry_run=1` (the on-chain **USDT** leg is still simulated until a live
+  test — internal credits are real so the flow is fully usable now).
+- **Files:** `models/staking/Swapengine_model.php` (internal Exchange/Bonus
+  credits + USDT debit; on-chain BMAN gated off), `db/staking_swap.sql`.
+- **Verified (CLI):** 5,000 BMAN package → USDT −5,000, Exchange +5,000 BMAN,
+  Bonus +1,250 BMAN, order `completed`, on-chain USDT = `DRYRUN`; balances
+  restored; DB clean.
+- **To make the USDT leg real:** fund BNB gas on the user deposit addresses, then
+  set `swap_dry_run=0`.
+
+### LIVE (2026-07-03): `swap_dry_run=0`
+- On-chain USDT sends are now **real** (mainnet). Safe ordering: the engine sends
+  USDT on-chain FIRST; BMAN (Exchange) + 25% (Bonus) are credited **only after**
+  the USDT send succeeds — a gas/RPC failure returns "USDT settlement failed —
+  nothing credited" (no free BMAN). A ledger error *after* a settled USDT parks
+  the order `failed_credit` for admin reconciliation.
+- **PREREQUISITE — fund BNB gas** on each user deposit address (they sign their
+  own USDT send). Without gas, every live swap fails cleanly at the USDT leg.
+- Rollback to safe mode any time: `UPDATE token_settings SET swap_dry_run=1`.
+
+### Auto BNB gas top-up (2026-07-03)
+- Before the USDT leg, `Swapengine::_ensureGas()` checks the user deposit
+  address's BNB. If below the cost of one BEP-20 transfer (gasLimit×gasPrice
+  ×1.5), it sends BNB from the **treasury/gas wallet** (top-up to ~2×) and polls
+  until spendable (~3s BSC blocks, capped ~24s). Users never hit the gas wall.
+- Config `token_settings.swap_auto_gas` (default 1); the top-up tx is recorded in
+  `staking_swap_orders.gas_tx_hash`. If gas can't be funded the swap aborts
+  `failed_gas` **before** any USDT/BMAN moves (safe). **The treasury wallet must
+  hold BNB** to fund top-ups.
+- Verified (dry-run): gas step is skipped (`gas_tx=none`), swap completes, wallets
+  credit; flags remain live (swap_enabled=1, swap_dry_run=0, swap_auto_gas=1).
+
+### Admin Swap Orders screen + retry (2026-07-03)
+- **Page:** `admin/staking/swap-orders` — lists every swap order (ref, user,
+  USDT/BMAN/bonus, status, gas/usdt/bman tx, error) with a mode banner
+  (LIVE / DRY-RUN / OFF, auto-gas on/off) and a **Retry** button on parked orders.
+- **Resume:** `Swapengine_model::resume($id)` safely continues a parked order —
+  re-sends USDT **only** if it never settled (`usdt_tx_hash` empty), and credits
+  the wallets **only if not already credited** for that ref (idempotent). So
+  `failed_credit` (USDT already on-chain) just re-applies the credit;
+  `failed_gas`/`failed_usdt` redo the settlement.
+- **Files:** `controllers/admin/staking/Swaporders.php`,
+  `views/admin/staking/swap_orders.php`, `models/staking/Swapengine_model.php`
+  (`resume()`), `config/routes.php`.
+- **Verified (CLI):** a `failed_credit` order → retry credited Exchange +5,000,
+  Bonus +1,250, marked `completed`, USDT **not** re-sent; a second retry was
+  blocked ("already completed") with **no double-credit**; DB clean.
+
+---
+
+## 2026-07-03 — On-chain USDT⇄BMAN swap (model "A", dry-run gated)
+
+Per the chosen model **A**: a package purchase is a **real two-leg on-chain swap**
+(everything on-chain, no internal locking):
+  - **Leg 1 — USDT:** user deposit address → Admin (treasury) wallet
+  - **Leg 2 — BMAN:** Admin wallet → user deposit address (at the admin rate)
+  - **Leg 3 — BMAN:** optional 25% bonus, Admin → user
+
+- **Engine:** `Swapengine_model` — `quote()` (BMAN/USDT/bonus + addresses + real
+  on-chain USDT balance) and `execute()` (validate → create order → Leg 1 signed
+  with the **user's** encrypted deposit key → Leg 2/3 signed with the **treasury**
+  key). Uses `Web3bman::sendToken`/`getTokenBalance`. Leg 2/3 fire only after
+  Leg 1 succeeds; partial failures are parked (`failed_usdt`/`failed_bman`) with
+  the tx hash for retry. New `Tokenmaster_model::convertBmanToUsdt()` reused.
+- **SAFETY (critical):** gated by `token_settings.swap_enabled` (**default 0**)
+  and `swap_dry_run` (**default 1**). In dry-run the engine records exactly what
+  it *would* broadcast (`DRYRUN-…` tx hashes) and sends **nothing** on-chain. The
+  real-balance guard is enforced for live swaps only. Nothing goes live until an
+  admin flips both flags after a funded live test (gas on signers + BMAN
+  liquidity in treasury). Real mainnet contracts are already set (USDT `0x55d3…`,
+  BMAN `0xDe76…`, admin `0x3088…`).
+- **Wiring:** `user/lending/swap_purchase` (POST) + `Lendingcontroller::swap_purchase()`;
+  the package modal's Confirm posts to the swap endpoint when `swap_enabled=1`,
+  else the internal staking purchase (so nothing breaks pre-launch).
+- **Files:** `models/staking/Swapengine_model.php` (new),
+  `models/Tokenmaster_model.php`, `controllers/user/usersettings/Lendingcontroller.php`,
+  `views/user/wallet/_staking_packages.php`, `views/user/wallet/lending_managment.php`,
+  `config/routes.php`, `db/staking_swap.sql` (new — `staking_swap_orders` +
+  `token_settings.swap_enabled/swap_dry_run/swap_bonus_onchain`).
+- **Verified (CLI, dry-run):** 5,000 BMAN package → order `completed`, dry_run=1:
+  Leg 1 USDT 5,000 user `0x0861…`→admin `0x3088…`; Leg 2 BMAN 5,000 admin→user;
+  Leg 3 bonus 1,250 BMAN; the real-balance guard correctly blocked a live swap on
+  a 0-USDT address; flags remain 0 / 1 (off). No real transaction broadcast.
+- **To go live:** fund BNB gas on user deposit addresses + the treasury signer,
+  hold BMAN liquidity in the treasury wallet, run one real swap with a tiny
+  amount, then set `swap_enabled=1`, `swap_dry_run=0`.
+
+---
+
+## 2026-07-03 — Purchase flow refinements: Treasury payment record + BMAN balances in modal
+
+Confirming/tightening the intended flow: *USDT income → USDT Wallet → package →
+plan → validate USDT → send to Admin Treasury → return BMAN (locked) → instant 25%*.
+
+- **(1) No BMAN return on deposit — confirmed:** `convertUsdtToBman()` is now used
+  only for the read-only "≈ BMAN" display on the lending card; nothing converts or
+  returns BMAN at deposit time. Deposits credit the USDT wallet only.
+- **(2) Validate USDT + show BMAN in the purchase modal:** `stake_quote` now also
+  returns the four BMAN wallet balances; the modal lists **Exchange / Staking /
+  Bonus / Earning** under the USDT balance so the user sees both before confirming.
+- **(3) USDT → Admin Treasury recorded explicitly:** `purchaseStake()` writes a
+  `staking_treasury_payments` row (user, stake, ref, USDT taken, BMAN returned,
+  rate snapshot, treasury wallet, tx_hash) inside the purchase transaction — an
+  admin-facing "money received" ledger alongside the user's USDT debit.
+- **(4) Instant 25% bonus → Bonus wallet:** unchanged (already live).
+- **Files:** `models/Staking_model.php`,
+  `controllers/user/usersettings/Lendingcontroller.php`,
+  `views/user/wallet/_staking_packages.php`, `db/staking_treasury.sql` (new table).
+- **Verified (CLI):** purchase of 5,000 BMAN (fixed/3y) → 5,000 USDT debited, 5,000
+  BMAN locked, 1,250 bonus, and a `staking_treasury_payments` row (usdt 5,000 →
+  bman 5,000, rate 1, treasury `0x3088…d321`) linked to the stake; balances
+  restored after the test.
+
+---
+
+## 2026-07-03 — Staking Binary Matching Bonus + rank-volume processor (separate)
+
+- **What:** the separate engine that turns staking business volume into income.
+  Runs after purchases (each purchase drops a `binary_volume_ledger` row):
+  1. **Propagate** — walk each un-processed stake's BV up the `binary_placement`
+     tree, adding it to every upline's LEFT/RIGHT leg in **`binary_carry`**
+     (reducible, consumed by matching) and **`staking_group_volume`**
+     (cumulative, for rank achievement); mark the row `processed=1` (idempotent).
+  2. **Pay matching** — for each user whose two legs both carry volume, match
+     `min(left,right)` and pay `matching_total_percent` (10%) split per
+     `staking_bonus_settings`: **8% → Earning wallet, 2% → Staking wallet**; the
+     matched volume is subtracted from both legs (carry forward). Audited in
+     `staking_matching_payouts` + `wallet_ledger` (`binary_matching`).
+- **Files:** `models/staking/Stakingmatching_model.php` (new),
+  `controllers/admin/staking/Matching.php` (new — admin `run` [AJAX] + `cron`
+  [CLI/token]), `config/routes.php`, `db/staking_matching.sql` (new — adds
+  `binary_volume_ledger.processed`, tables `staking_group_volume`,
+  `staking_matching_payouts`).
+- **How to apply:** run `db/staking_matching.sql` (idempotent). Trigger:
+  `admin/staking/matching/run` (POST, admin) or
+  `php index.php admin/staking/matching cron` (schedule every N min/hours).
+- **Verified (CLI):** 3-node tree (A=5,000 left, B=3,000 right under root R):
+  propagated 2 rows; matched 3,000; paid R **240 BMAN earning + 60 BMAN staking**;
+  carry → left 2,000 / right 0; cumulative group volume 5,000 / 3,000; a second
+  run propagated 0 / paid 0 (idempotent); balances restored after the test.
+- **Note:** this pays the binary **matching bonus** and accumulates **rank
+  volume** (`staking_group_volume`). Final **rank achievement/qualification**
+  (tier promotion, group incentive) remains the existing separate Rank Power
+  cycle system (`admin/staking/rank-power`), which now has cumulative group
+  volume to read.
+
+---
+
+## 2026-07-03 — Wallet/staking business rules: deposit = USDT-only, purchase = conversion point
+
+Major reshaping of the money model per the new business rules. USDT and BMAN are
+now cleanly separated: **deposits only ever touch the USDT Wallet**, and the
+**only** place USDT converts to BMAN is a **Staking Package Purchase**.
+
+- **Deposit → USDT Wallet ONLY:** `Depositlistener_model::creditConfirmed()` no
+  longer converts USDT→BMAN or credits the Exchange wallet. A confirmed on-chain
+  deposit credits just the USDT wallet (idempotent via unique tx_hash) and writes
+  `wallet_deposits` (deposit history) + `wallet_ledger` (wallet transaction). No
+  staking / ROI / bonus / binary / rank side effects at deposit time.
+- **Staking wallet is un-transferable:** `Wallettransfer_model $allowed` now
+  `[exchange, earning, bonus]` (staking removed). The Staking wallet holds LOCKED
+  BMAN and can be credited only by a successful purchase. Staking option removed
+  from the user (`transfer_wallet`) and admin (`internal_transfers`) forms.
+- **Lending page wallet card:** "Available Balance" → **"Available USDT Balance"**
+  (USDT + ≈ BMAN at the admin rate), with a strip of the four BMAN wallet
+  balances (Exchange / Staking / Bonus / Earning) below. Only USDT buys packages.
+- **Staking Purchase engine** — `Staking_model::purchaseStake($ctx)` (one MySQL
+  transaction, full audit): validate account active + KYC + package/plan/term
+  active + ROI cell + USDT balance + configured rate → **debit USDT** (payment
+  routed to Treasury wallet, tx_hash optional) → **convert** BMAN package price at
+  the admin `exchange_rate` → **create `user_stakes`** order → **credit LOCKED
+  BMAN** to Staking wallet → **25% Bonus** to Bonus wallet → **ROI schedule** to
+  `staking_roi_payouts` (fixed = total at maturity; regular = monthly on the
+  plan's credit day; combo = 50/50) → **binary volume** to `binary_volume_ledger`
+  (feeds the rank/matching cron) → activate. New helper
+  `Tokenmaster_model::convertBmanToUsdt()`.
+- **Endpoints (user):** `user/lending/stake_quote` (POST, price/bonus/balance) and
+  `user/lending/purchase_stake` (POST) in `Lendingcontroller`; a **Stake Now**
+  button + purchase modal (plan + term picker, live quote, insufficient-balance
+  guard) on each staking package card.
+- **Files:** `models/Depositlistener_model.php`, `models/wallet/Wallettransfer_model.php`,
+  `models/Staking_model.php`, `models/Tokenmaster_model.php`,
+  `controllers/user/usersettings/Lendingcontroller.php`,
+  `views/user/wallet/lending_managment.php`, `views/user/wallet/_staking_packages.php`,
+  `views/user/wallet/transfer_wallet.php`, `views/admin/wallet/internal_transfers.php`,
+  `config/routes.php`. Reused existing tables (`user_stakes`, `staking_roi_payouts`,
+  `binary_volume_ledger`, `wallet_ledger`, `wallet_deposits`) — no new tables.
+- **Verified (CLI):** deposit credits USDT only (no exchange/BMAN); staking removed
+  from transfers (validate rejects). Purchase engine end-to-end on the 5,000 BMAN
+  package: **fixed/3y** → −5,000 USDT, +5,000 locked BMAN, +1,250 bonus, 1 ROI row
+  = 10,000 BMAN at maturity, binary volume 5,000, Exchange untouched;
+  **regular/2y** → 24 monthly rows × 115 (=2,760); **combo/5y** → 61 rows
+  (10,000 fixed + 60×75 = 14,500); insufficient USDT correctly blocked; balances
+  restored after tests.
+
+---
+
 ## 2026-07-03 — /user/lending: show BMAN staking packages + explain details
 
 - **What:** the lending page now displays the **BMAN staking packages** (from the

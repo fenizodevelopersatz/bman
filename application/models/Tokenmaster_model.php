@@ -104,6 +104,23 @@ class Tokenmaster_model extends CI_Model
             : (float)$usdt_amount / $rate;
     }
 
+    /**
+     * BMAN → USDT conversion using the active settings. Used to price a
+     * BMAN-denominated staking package in USDT at purchase time. Returns null
+     * when no active rate is configured.
+     */
+    public function convertBmanToUsdt($bman_amount)
+    {
+        $s = $this->activeSettings();
+        if (!$s || (float)$s['exchange_rate'] <= 0) return null;
+        $rate = (float)$s['exchange_rate'];
+        // usdt_to_bman: 1 USDT = rate BMAN → USDT = BMAN / rate
+        // bman_to_usdt: 1 BMAN = rate USDT → USDT = BMAN * rate
+        return $s['exchange_type'] === 'usdt_to_bman'
+            ? (float)$bman_amount / $rate
+            : (float)$bman_amount * $rate;
+    }
+
     /* ---------------------------- audit helper --------------------------- */
 
     private function audit($setting_id, $action, $old, $new, $admin_id, $ip)

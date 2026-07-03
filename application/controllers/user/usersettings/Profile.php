@@ -110,11 +110,26 @@ class Profile extends MY_Controller
             return $this->_json(["status" => "error", "message" => "Not logged in"], 401);
 
         $this->load->model('Custodialwallet_model', 'cw');
+
+        // Manual "update wallet": credit this user's confirmed USDT deposits
+        // (same engine as the cron) so clicking the button funds the USDT wallet.
+        $credited = 0;
+        try {
+            $this->load->model('Depositlistener_model', 'listener');
+            $r = $this->listener->scan($uid);
+            $credited = (int)($r['credited'] ?? 0);
+        } catch (Exception $e) { /* best effort — cron will catch up */ }
+
         try {
             $m = $this->cw->monitor($uid);
             if (!$m)
                 return $this->_json(["status" => "error", "message" => "No wallet address yet."], 404);
-            return $this->_json(["status" => "success", "data" => $m]);
+            return $this->_json([
+                "status"   => "success",
+                "credited" => $credited,
+                "message"  => $credited > 0 ? ($credited.' deposit(s) credited.') : 'Wallet up to date.',
+                "data"     => $m,
+            ]);
         } catch (Exception $e) {
             return $this->_json(["status" => "error", "message" => "Chain read failed: " . $e->getMessage()], 502);
         }

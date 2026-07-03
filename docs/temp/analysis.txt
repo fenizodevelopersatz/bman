@@ -1734,3 +1734,149 @@ Wallet Types
 
 on the user transfer page, user can sellect the wallet type except Usdt wallet & manage the history of wallet transfer 
 generate the file of mysql table (if existing take it otherwise to create the tables ) & make the clear audit of internal trasaction
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+1. Only checking the users usdt balance and update only on their USDT wallet, To avoid the bman return given function because staking is only when we purchase time only to given.
+
+2. I want to selectable package then next go to plan(Fixed Plan, Regular Plan, Combo Plan), to before the validate the usdt is available or not and any bman is available also
+
+3. Then staking of usdt to bman convertion which is the choosen packages(users usdt amount to send the admin wallet)
+
+4. Give the instant 25% bman based on the package selected on bonus wallet only
+
+USDT income to USDT Wallet -> Package select -> Plan select -> Validate USDT balance -> Send to Admin Hot Wallet(blockchain equal to bman=usdt) use the instantly because only verify the usdt -> Return to BMAN coin to appropriate user(usdt=bman rate on admin by internally digital values) -> Instant 25% 
+
+
+
+
+
+
+
+
+
+
+Modify the existing wallet module according to the new business rules.
+
+1. Remove the automatic USDT → BMAN conversion after deposit.
+2. After blockchain verification, credit ONLY the user's USDT Wallet.
+3. Do NOT credit Exchange Wallet after deposit.
+4. Do NOT create staking records after deposit.
+5. Do NOT generate ROI, Bonus Coin, Binary Volume, Matching Bonus, or Rank Volume from deposits.
+6. Save the verified deposit in deposit_history and wallet_transactions (USDT Wallet only).
+7. Update the Wallet page to show the USDT Wallet balance, deposit history, withdrawal history, QR code, transaction hash, confirmations, and status.
+8. BMAN conversion must happen ONLY during Staking Package Purchase.
+9. During staking purchase:
+   - Validate USDT Wallet balance.
+   - Deduct USDT from the USDT Wallet.
+   - Read the admin-configured exchange rate.
+   - Convert USDT to the equivalent BMAN.
+   - Create the staking order.
+   - Credit the locked BMAN into the Staking Wallet.
+   - Generate the 25% Bonus Coin.
+   - Generate Binary Volume and ROI schedule.
+10. The Staking Wallet must never be credited manually or by internal wallet transfer.
+11. Remove all wallet transfer options involving the Staking Wallet. Internal transfers are allowed only between Exchange, Earning, and Bonus wallets.
+12. Keep all changes backward compatible with the existing CodeIgniter 3 project, reuse existing tables where possible, use MySQL transactions, and maintain complete audit logs.
+
+
+Modify the existing CodeIgniter 3 staking flow according to the following business rules.
+
+1. Deposit Module
+- User deposits USDT (BEP-20) to their unique custodial wallet.
+- Backend continuously monitors the blockchain.
+- After sufficient confirmations, credit ONLY the user's USDT Wallet.
+- Do NOT automatically convert USDT to BMAN.
+- Do NOT credit Exchange Wallet.
+- Do NOT create staking, ROI, bonus, binary volume, or rank records after deposit.
+
+2. Staking Purchase Flow
+User Flow:
+Deposit USDT → USDT Wallet → Select Package → Select Plan → Validate → Purchase Stake
+
+3. Package Selection
+Display only predefined packages:
+- 5,000
+- 10,000
+- 20,000
+- 25,000
+- 50,000
+- 100,000
+- 200,000
+- 300,000
+- 500,000 BMAN
+
+4. Plan Selection
+After package selection, display:
+- Fixed Plan (2Y, 3Y, 5Y)
+- Regular Plan (2Y, 3Y, 5Y)
+- Combo Plan (50% Fixed + 50% Regular)
+
+5. Purchase Validation
+Before confirming purchase:
+- Verify user account is active.
+- Verify KYC if enabled.
+- Verify selected package and plan are active.
+- Verify sufficient USDT Wallet balance.
+- Verify admin-configured USDT ⇄ BMAN exchange rate exists.
+- Use MySQL transaction to prevent partial updates.
+
+6. Purchase Processing
+After successful validation:
+- Deduct the required USDT from the user's USDT Wallet.
+- Record the payment to the Admin Treasury Wallet (blockchain reference/hash if applicable).
+- Read the admin exchange rate (example: 1 USDT = 100 BMAN).
+- Convert only the purchased amount into BMAN.
+- Create the staking order.
+- Credit the converted BMAN into the user's Staking Wallet as LOCKED balance.
+- Generate ROI schedule based on the selected plan.
+- Generate binary business volume.
+- Generate rank volume.
+- Activate the stake.
+
+7. Bonus
+Immediately credit 25% of the purchased BMAN amount into the Bonus Wallet.
+Example:
+Package = 10,000 BMAN
+Bonus Wallet = +2,500 BMAN
+
+8. Wallet Rules
+USDT Wallet
+- Deposit
+- Stake Purchase (Debit)
+- Withdrawal
+
+Staking Wallet
+- Locked BMAN only
+- Credit only through successful staking purchase
+- No manual transfer allowed
+
+Bonus Wallet
+- Receives 25% staking bonus
+- Subject to existing reduction rules
+
+9. Transaction History
+Maintain complete audit logs for:
+- USDT Deposit
+- Stake Purchase
+- USDT Debit
+- BMAN Credit
+- Bonus Credit
+- ROI Schedule
+- Binary Volume
+- Blockchain Transaction Hash
+- Admin Treasury Payment
+- User Notifications
+
+Implement this by modifying the existing modules without breaking the current CodeIgniter 3 project structure, reusing existing tables where possible and creating new tables only if required. all are admin side based 

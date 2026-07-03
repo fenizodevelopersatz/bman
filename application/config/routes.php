@@ -353,6 +353,7 @@ $route['update-commission-settings'] = 'admin/settings/Commissionsettings/update
 
 
 /*************** CRON ****************/
+$route['credit-deposits-cron'] = 'Depositcron/run';   // auto-credit confirmed USDT deposits (token-gated over HTTP)
 $route['earn-cron-made'] = 'Cron/run_roi';
 $route['rank-cron-made'] = 'Cron/update_all_users_rank';
 $route['binary-cron-made'] = 'Cron/binary_commission_call';
@@ -459,6 +460,9 @@ $route['user/tranfer'] = 'user/usersettings/tranfercontroller';
 $route['user/swap'] = 'user/usersettings/tranfercontroller/internel_swap';
 $route['user/lending'] = 'user/usersettings/lendingcontroller';
 $route['user/investments/details_ajax'] = 'user/usersettings/lendingcontroller/details_ajax';
+$route['user/lending/stake_quote']['post']    = 'user/usersettings/lendingcontroller/stake_quote';
+$route['user/lending/purchase_stake']['post'] = 'user/usersettings/lendingcontroller/purchase_stake';
+$route['user/lending/swap_purchase']['post']  = 'user/usersettings/lendingcontroller/swap_purchase';
 
 $route['user/genealogy'] = 'user/usersettings/genealogycontroller';
 $route['user/binary_tree'] = 'user/usersettings/genealogycontroller';
@@ -649,6 +653,15 @@ $route['admin/staking/rank-power/save-ceilings']['post'] = 'admin/staking/Rankpo
 $route['admin/staking/bonus-settings'] = 'admin/staking/Bonussettings';
 $route['admin/staking/bonus-settings/save']['post'] = 'admin/staking/Bonussettings/save';
 $route['admin/staking/bonus-settings/apply-to-packages']['post'] = 'admin/staking/Bonussettings/apply_to_packages';
+// Binary Matching Bonus processor (propagate volume → pay 8% Earning + 2% Staking)
+$route['admin/staking/matching/run']['post'] = 'admin/staking/Matching/run';
+$route['admin/staking/matching/cron'] = 'admin/staking/Matching/cron';
+// On-chain swap orders viewer + retry parked orders
+$route['admin/staking/swap-orders'] = 'admin/staking/Swaporders';
+$route['admin/staking/swap-orders/retry/(:num)']['post'] = 'admin/staking/Swaporders/retry/$1';
+$route['admin/staking/swap-orders/deliver/(:num)']['post'] = 'admin/staking/Swaporders/deliver/$1';
+// auto-deliver BMAN on-chain for completed orders (CLI or ?token=)
+$route['deliver-bman-cron'] = 'admin/staking/Swaporders/deliver_cron';
 
 /**************** Finance — Custodial Wallet Monitor (on-chain vs DB) */
 $route['admin/wallet-monitor'] = 'admin/wallet/Walletmonitor';

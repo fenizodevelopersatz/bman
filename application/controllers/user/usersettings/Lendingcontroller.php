@@ -29,8 +29,29 @@ class Lendingcontroller extends CI_Controller
         $this->data['title'] = "Make Lending";
         $this->data['card_title'] = "Add Lending";
 
-        // Wallet (numeric)
+        // Wallet (numeric) — legacy currency balance, kept for backward compat.
         $this->data['wallet_balance_usd'] = (float) site_wallet_balance_without_format($userid);
+
+        // Custodial wallet balances (single source of truth). Staking purchases
+        // use the USDT Wallet ONLY; the four BMAN wallets are shown for context.
+        $this->load->model('Walletledger_model', 'ledger');
+        $bal = $this->ledger->balances($userid);   // usdt/exchange/earning/staking/bonus
+        $this->data['wallet_usdt']     = (float) $bal['usdt'];
+        $this->data['wallet_bman']     = [
+            'exchange' => (float) $bal['exchange'],
+            'staking'  => (float) $bal['staking'],
+            'bonus'    => (float) $bal['bonus'],
+            'earning'  => (float) $bal['earning'],
+        ];
+        // ≈ BMAN the USDT balance could buy, at the admin exchange rate.
+        $this->load->model('Tokenmaster_model', 'tokens');
+        $conv = $this->tokens->convertUsdtToBman($this->data['wallet_usdt']);
+        $this->data['wallet_usdt_in_bman'] = ($conv === null) ? null : (float) $conv;
+
+        // On-chain swap mode flag (Token Settings). When ON, package purchase is
+        // a real USDT<->BMAN on-chain swap; when OFF, the internal staking flow.
+        $ts = $this->db->select('swap_enabled')->get_where('token_settings', ['status'=>1])->row_array();
+        $this->data['swap_enabled'] = (int)($ts['swap_enabled'] ?? 0);
 
         // Packages (map DB fields -> view fields)
         $this->data['packages'] = $this->getPackagesForView();
@@ -50,6 +71,99 @@ class Lendingcontroller extends CI_Controller
         $this->data['redirect_url'] = base_url("user/lending");
 
         $this->load->view('user/wallet/lending_managment', $this->data);
+    }
+
+    /**
+     * AJAX: quote a staking package (USDT price at the admin rate + bonus),
+     * so the purchase modal can show the cost before confirming.
+     */
+    public function stake_quote()
+    {
+        $userId = (int) $this->session->userdata('user_userid');
+        if (!$userId) { echo json_encode(['status'=>false,'message'=>'Unauthorized']); return; }
+
+        // Opportunistic: credit this user's confirmed USDT deposits before quoting,
+        // so a just-arrived deposit shows up without waiting for the cron. Best
+        // effort — never let a chain/RPC hiccup break the quote.
+        try { $this->load->model('Depositlistener_model','listener'); $this->listener->scan($userId); }
+        catch (Exception $e) { /* ignore — the scheduled cron will catch it */ }
+
+        $pkgId = (int) $this->input->post('package_id');
+        $pkg = $this->db->get_where('staking_packages', ['id'=>$pkgId, 'is_active'=>1])->row_array();
+        if (!$pkg) { echo json_encode(['status'=>false,'message'=>'Package not available.']); return; }
+
+        $this->load->model('Tokenmaster_model', 'tokens');
+        $this->load->model('Walletledger_model', 'ledger');
+        $bman = (float) $pkg['stake_amount'];
+        $usdt = $this->tokens->convertBmanToUsdt($bman);
+        if ($usdt === null) { echo json_encode(['status'=>false,'message'=>'Exchange rate not configured.']); return; }
+
+        $bal = $this->ledger->balances($userId);   // usdt + 4 BMAN wallets
+        echo json_encode([
+            'status'      => true,
+            'bman'        => $bman,
+            'usdt'        => round($usdt, 8),
+            'bonus'       => round($bman * (float)$pkg['bonus_percent'] / 100, 4),
+            'bonus_pct'   => (float)$pkg['bonus_percent'],
+            'usdt_balance'=> (float) $bal['usdt'],
+            'bman_wallets'=> [
+                'exchange' => (float) $bal['exchange'],
+                'staking'  => (float) $bal['staking'],
+                'bonus'    => (float) $bal['bonus'],
+                'earning'  => (float) $bal['earning'],
+            ],
+            'name'        => $pkg['name'],
+        ]);
+    }
+
+    /**
+     * AJAX: purchase a staking package (business rules §5–§9). Delegates the
+     * whole transactional flow to Staking_model::purchaseStake().
+     */
+    public function purchase_stake()
+    {
+        $userId = (int) $this->session->userdata('user_userid');
+        if (!$userId) { echo json_encode(['status'=>false,'message'=>'Unauthorized']); return; }
+
+        $this->load->model('Staking_model');
+        list($ok, $res) = $this->Staking_model->purchaseStake([
+            'user_id'        => $userId,
+            'package_id'     => (int) $this->input->post('package_id'),
+            'plan_code'      => (string) $this->input->post('plan_code', true),
+            'duration_years' => (int) $this->input->post('duration_years'),
+            'ip'             => $this->input->ip_address(),
+        ]);
+
+        if (!$ok) { echo json_encode(['status'=>false,'message'=>$res]); return; }
+        echo json_encode([
+            'status'  => true,
+            'message' => 'Stake activated. '.number_format($res['bman']).' BMAN locked · '.number_format($res['bonus']).' BMAN bonus.',
+            'data'    => $res,
+        ]);
+    }
+
+    /**
+     * AJAX: on-chain USDT<->BMAN swap purchase (business model "A").
+     * Delegates to Swapengine_model. Honours the Token Settings swap flags
+     * (swap_enabled / swap_dry_run) — off + dry-run by default, so nothing is
+     * broadcast until an admin turns it on after a live test.
+     */
+    public function swap_purchase()
+    {
+        $userId = (int) $this->session->userdata('user_userid');
+        if (!$userId) { echo json_encode(['status'=>false,'message'=>'Unauthorized']); return; }
+
+        $this->load->model('staking/Swapengine_model', 'SW');
+        list($ok, $res) = $this->SW->execute($userId, (int)$this->input->post('package_id'));
+        if (!$ok) { echo json_encode(['status'=>false,'message'=>$res]); return; }
+
+        $dry = !empty($res['dry_run']);
+        echo json_encode([
+            'status'  => true,
+            'message' => ($dry ? '[DRY-RUN] ' : '').'Swap '.$res['status'].'. USDT '.$res['usdt_amount'].
+                         ' → BMAN '.$res['bman_amount'].' (+'.$res['bonus_bman'].' bonus).',
+            'data'    => $res,
+        ]);
     }
 
     public function details_ajax()

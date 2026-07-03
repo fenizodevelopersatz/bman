@@ -329,6 +329,10 @@ $config['cache_query_string'] = FALSE;
 */
 $config['encryption_key'] = 'a1b7f4d2e9c83056b1fae274c0d9386fa5c21e7b8d40f963';
 
+// Token required to trigger cron endpoints over HTTP (deposit-credit, matching).
+// Change this to your own secret. Used by /credit-deposits-cron?token=...
+$config['cron_token'] = 'dcron_9f27ab5c3e8140d6';
+
 /*
 |--------------------------------------------------------------------------
 | Session Variables

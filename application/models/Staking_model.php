@@ -566,4 +566,197 @@ class Staking_model extends CI_Model
         }
         return [true, $updated ? $updated.' ceiling(s) updated.' : 'No values changed.'];
     }
+
+    /* =================== STAKING PACKAGE PURCHASE (2026-07) ================= *
+     * The ONLY place USDT→BMAN conversion happens. Everything runs in one MySQL
+     * transaction. Order of effects (business rules §5–§9):
+     *   validate → debit USDT → convert at admin rate → create stake →
+     *   credit LOCKED BMAN to Staking wallet → 25% Bonus → ROI schedule →
+     *   binary business volume → activate. Complete audit via wallet_ledger.  */
+
+    /**
+     * @param array $ctx  user_id, package_id, plan_code(fixed|regular|combo),
+     *                    duration_years(2|3|5), [tx_hash], [ip],
+     *                    [skip_kyc] (admin/testing bypass).
+     * @return array [true, ['stake_id'=>, 'usdt'=>, 'bman'=>, 'bonus'=>]] | [false, error]
+     */
+    public function purchaseStake(array $ctx)
+    {
+        $userId   = (int)($ctx['user_id'] ?? 0);
+        $pkgId    = (int)($ctx['package_id'] ?? 0);
+        $planCode = (string)($ctx['plan_code'] ?? '');
+        $years    = (int)($ctx['duration_years'] ?? 0);
+        $skipKyc  = !empty($ctx['skip_kyc']);
+        $ip       = $ctx['ip'] ?? null;
+
+        // ---- 1. account + KYC ----
+        $user = $this->db->select('status, kyc_status')->get_where('users', ['id' => $userId])->row_array();
+        if (!$user || (string)$user['status'] !== '1') return [false, 'Your account is not active.'];
+        if (!$skipKyc && strtolower((string)($user['kyc_status'] ?? '')) !== 'approved')
+            return [false, 'KYC must be approved before purchasing a stake.'];
+
+        // ---- 2. package ----
+        $pkg = $this->db->get_where('staking_packages', ['id' => $pkgId, 'is_active' => 1])->row_array();
+        if (!$pkg) return [false, 'Selected package is not available.'];
+
+        // ---- 3. plan + term ----
+        if (!in_array($planCode, ['fixed','regular','combo'], true)) return [false, 'Invalid plan.'];
+        if (!in_array($years, [2,3,5], true))                        return [false, 'Invalid term.'];
+        $plan = $this->db->get_where('staking_plans', ['code' => $planCode, 'is_active' => 1])->row_array();
+        if (!$plan) return [false, 'Selected plan is not available.'];
+        $term = $this->db->get_where('staking_plan_terms',
+            ['plan_id' => $plan['id'], 'duration_years' => $years, 'is_active' => 1])->row_array();
+        if (!$term) return [false, ucfirst($planCode).' plan does not offer a '.$years.'-year term.'];
+
+        // ---- 4. ROI cell(s) ----
+        $roi = $this->resolveRoi($pkgId, $planCode, $years);
+        if (!$roi) return [false, 'ROI is not configured for this package / plan / term.'];
+
+        // ---- 5. exchange rate + USDT price of this BMAN package ----
+        $this->load->model('Tokenmaster_model', 'tokens');
+        $bman = (float)$pkg['stake_amount'];
+        $usdt = $this->tokens->convertBmanToUsdt($bman);
+        if ($usdt === null || $usdt <= 0) return [false, 'Exchange rate is not configured. Contact admin.'];
+        $usdt = round($usdt, 8);
+
+        // ---- 6. USDT wallet balance ----
+        $this->load->model('Walletledger_model', 'L');
+        $usdtBal = (float)$this->L->balance($userId, 'usdt');
+        if ($usdtBal + 1e-8 < $usdt)
+            return [false, 'Insufficient USDT balance. Need '.rtrim(rtrim(number_format($usdt,8,'.',''),'0'),'.').' USDT.'];
+
+        $bonusPct   = (float)$pkg['bonus_percent'];
+        $bonusBman  = round($bman * $bonusPct / 100, 4);
+        $cfg        = $this->tokens->activeSettings();
+        $treasury   = $cfg['treasury_wallet'] ?? '';
+        $txHash     = !empty($ctx['tx_hash']) ? substr((string)$ctx['tx_hash'],0,120) : null;
+        $start      = date('Y-m-d');
+        $maturity   = date('Y-m-d', strtotime('+'.$years.' years'));
+        $ref        = 'STK-'.date('Ymd').'-'.strtoupper(substr(bin2hex(random_bytes(4)),0,8));
+
+        // header ROI snapshot (combo stores the fixed half as representative)
+        if ($planCode === 'combo') { $hdrPct = (float)$roi['fixed']['roi_percent']; $hdrBasis = 'total'; }
+        else                        { $hdrPct = (float)$roi['roi_percent'];        $hdrBasis = $roi['roi_basis']; }
+
+        // ============================ TRANSACTION ============================
+        $this->db->trans_begin();
+
+        // 6a. debit USDT (payment routed to Treasury wallet)
+        list($okD, $rD) = $this->L->debit($userId, 'usdt', $usdt, 'stake_purchase', [
+            'reference_id' => $ref, 'tx_hash' => $txHash,
+            'description'  => 'Stake purchase '.number_format($bman).' BMAN ('.$planCode.'/'.$years.'y) → Treasury '.($treasury ?: 'n/a').' ['.$ref.']',
+        ]);
+        if (!$okD) { $this->db->trans_rollback(); return [false, $rD]; }
+
+        // 6a-ii. record the USDT payment routed to the Admin Treasury Wallet
+        //        (admin-facing "money received" ledger; user debit is above).
+        if ($this->db->table_exists('staking_treasury_payments')) {
+            $this->db->insert('staking_treasury_payments', [
+                'user_id' => $userId, 'stake_id' => 0, 'ref' => $ref,
+                'usdt_amount' => $usdt, 'bman_amount' => $bman,
+                'exchange_rate' => (float)($cfg['exchange_rate'] ?? 0),
+                'exchange_type' => $cfg['exchange_type'] ?? 'usdt_to_bman',
+                'treasury_wallet' => $treasury ?: null, 'tx_hash' => $txHash,
+            ]);
+            $treasuryPayId = (int)$this->db->insert_id();
+        } else { $treasuryPayId = 0; }
+
+        // 6b. create the stake order
+        $this->db->insert('user_stakes', [
+            'user_id' => $userId, 'package_id' => $pkgId, 'plan_id' => (int)$plan['id'],
+            'plan_code' => $planCode, 'duration_years' => $years,
+            'stake_amount' => $bman, 'roi_percent' => $hdrPct, 'roi_basis' => $hdrBasis,
+            'bonus_amount' => $bonusBman, 'start_date' => $start, 'maturity_date' => $maturity,
+            'status' => 'active',
+        ]);
+        $stakeId = (int)$this->db->insert_id();
+        if (!$stakeId) { $this->db->trans_rollback(); return [false, 'Could not create the stake order.']; }
+        if (!empty($treasuryPayId)) {
+            $this->db->where('id', $treasuryPayId)->update('staking_treasury_payments', ['stake_id' => $stakeId]);
+        }
+
+        // 6c. credit LOCKED BMAN into the Staking wallet
+        list($okS) = $this->L->credit($userId, 'staking', $bman, 'stake_purchase', [
+            'reference_id' => $ref, 'description' => 'Locked '.number_format($bman).' BMAN — stake #'.$stakeId,
+        ]);
+        if (!$okS) { $this->db->trans_rollback(); return [false, 'Could not credit the Staking wallet.']; }
+
+        // 6d. 25% Bonus Coin → Bonus wallet
+        if ($bonusBman > 0) {
+            list($okB) = $this->L->credit($userId, 'bonus', $bonusBman, 'bonus', [
+                'reference_id' => $ref, 'description' => number_format($bonusPct,0).'% staking bonus — stake #'.$stakeId,
+            ]);
+            if (!$okB) { $this->db->trans_rollback(); return [false, 'Could not credit the Bonus wallet.']; }
+        }
+
+        // 6e. ROI schedule → staking_roi_payouts (pending)
+        $this->_generateRoiSchedule($stakeId, $userId, $bman, $planCode, $years, $roi, $plan, $start, $maturity);
+
+        // 6f. binary business volume (consumed by the rank / matching cron)
+        if ($this->db->table_exists('binary_volume_ledger')) {
+            $this->db->insert('binary_volume_ledger', [
+                'user_id' => $userId, 'invest_id' => $stakeId,
+                'pv' => 0, 'bv' => $bman, 'source_amount' => $bman,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        if ($this->db->trans_status() === false) { $this->db->trans_rollback(); return [false, 'Database error — purchase rolled back.']; }
+        $this->db->trans_commit();
+
+        return [true, [
+            'stake_id' => $stakeId, 'ref' => $ref,
+            'usdt' => $usdt, 'bman' => $bman, 'bonus' => $bonusBman,
+            'maturity' => $maturity,
+        ]];
+    }
+
+    /**
+     * Build the ROI payout rows for a stake.
+     *  - fixed  (total)   : one payout at maturity  = stake * pct%.
+     *  - regular(monthly) : one payout per month    = stake * pct% (credited on
+     *                       the plan's first credit day).
+     *  - combo            : fixed on 50% of stake + regular on the other 50%.
+     * Rows land in staking_roi_payouts (wallet 'earning', status 'pending').
+     */
+    private function _generateRoiSchedule($stakeId, $userId, $bman, $planCode, $years, $roi, $plan, $start, $maturity)
+    {
+        $rows = [];
+        $creditDay = 1;
+        if (!empty($plan['credit_days'])) {
+            $parts = array_map('intval', array_filter(explode(',', $plan['credit_days'])));
+            if ($parts) $creditDay = min($parts);
+        }
+
+        $addFixed = function ($amountBase, $pct) use (&$rows, $stakeId, $userId, $maturity) {
+            $rows[] = ['stake_id'=>$stakeId,'user_id'=>$userId,
+                'amount'=>round($amountBase * $pct / 100, 4),
+                'credit_date'=>$maturity,'wallet'=>'earning','status'=>'pending',
+                'created_at'=>date('Y-m-d H:i:s')];
+        };
+        $addRegular = function ($amountBase, $monthlyPct) use (&$rows, $stakeId, $userId, $years, $start, $creditDay) {
+            $months = $years * 12;
+            for ($m = 1; $m <= $months; $m++) {
+                $d = date('Y-m-', strtotime($start.' +'.$m.' months'));
+                $day = str_pad((string)$creditDay, 2, '0', STR_PAD_LEFT);
+                $rows[] = ['stake_id'=>$stakeId,'user_id'=>$userId,
+                    'amount'=>round($amountBase * $monthlyPct / 100, 4),
+                    'credit_date'=>$d.$day,'wallet'=>'earning','status'=>'pending',
+                    'created_at'=>date('Y-m-d H:i:s')];
+            }
+        };
+
+        if ($planCode === 'fixed') {
+            $addFixed($bman, (float)$roi['roi_percent']);
+        } elseif ($planCode === 'regular') {
+            $addRegular($bman, (float)$roi['roi_percent']);
+        } else { // combo: 50/50 split
+            $half = $bman / 2;
+            $addFixed($half, (float)$roi['fixed']['roi_percent']);
+            $addRegular($half, (float)$roi['regular']['roi_percent']);
+        }
+
+        if ($rows) $this->db->insert_batch('staking_roi_payouts', $rows);
+        return count($rows);
+    }
 }

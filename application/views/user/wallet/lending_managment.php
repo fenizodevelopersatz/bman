@@ -978,8 +978,11 @@ $hero_progress = 48;
       <div class="kpi-grid">
         <div class="kpi-card">
           <div class="kpi-icon"><i class="ph ph-wallet"></i></div>
-          <small>Available Balance</small>
-          <b><?= moneyUSD($wallet_balance_usd); ?></b>
+          <small>Available USDT Balance</small>
+          <b><?= number_format((float)($wallet_usdt ?? 0), 2) ?> <span style="font-size:13px;font-weight:900;color:var(--muted);">USDT</span></b>
+          <?php if (!empty($wallet_usdt_in_bman)): ?>
+            <span style="font-size:11.5px;font-weight:900;color:var(--muted);">≈ <?= number_format((float)$wallet_usdt_in_bman) ?> BMAN</span>
+          <?php endif; ?>
           <svg class="spark" viewBox="0 0 120 36" preserveAspectRatio="none">
             <path d="M0,26 C14,16 22,30 34,22 C45,14 52,18 66,12 C78,6 88,18 100,10 C110,4 116,8 120,6" fill="none"
               stroke="currentColor" stroke-width="3" stroke-linecap="round" opacity=".45" />
@@ -1037,10 +1040,42 @@ $hero_progress = 48;
         </div>
       </div>
 
+      <!-- BMAN WALLET STRIP (context only — staking purchases use USDT) -->
+      <?php
+      $wallet_bman = $wallet_bman ?? ['exchange'=>0,'staking'=>0,'bonus'=>0,'earning'=>0];
+      $wstrip = [
+        'exchange' => ['Exchange Wallet', 'ph-swap',        '#6366f1'],
+        'staking'  => ['Staking Wallet',  'ph-lock-key',    '#10b981'],
+        'bonus'    => ['Bonus Wallet',    'ph-gift',        '#f59e0b'],
+        'earning'  => ['Earning Wallet',  'ph-trend-up',    '#0ea5e9'],
+      ];
+      ?>
+      <style>
+        .wstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:4px 0 22px;}
+        .wstrip .wtile{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid rgba(15,23,42,.08);
+          border-radius:16px;padding:14px 16px;box-shadow:0 6px 18px rgba(15,23,42,.04);}
+        .wstrip .wico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:20px;flex:0 0 auto;}
+        .wstrip .wlbl{font-size:11.5px;font-weight:900;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:.3px;}
+        .wstrip .wval{font-size:18px;font-weight:1200;color:#0b1220;line-height:1.1;}
+        .wstrip .wval small{font-size:11px;font-weight:900;color:var(--muted,#6b7280);}
+      </style>
+      <div class="wstrip">
+        <?php foreach ($wstrip as $k => $m): ?>
+        <div class="wtile">
+          <div class="wico" style="background:<?= $m[2] ?>1a;color:<?= $m[2] ?>;"><i class="ph <?= $m[1] ?>"></i></div>
+          <div>
+            <div class="wlbl"><?= $m[0] ?></div>
+            <div class="wval"><?= number_format((float)($wallet_bman[$k] ?? 0)) ?> <small>BMAN</small></div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+
       <!-- BMAN STAKING PACKAGES (from staking system) -->
       <?php $this->load->view('user/wallet/_staking_packages', [
         'staking_packages' => $staking_packages ?? [],
         'staking_plans'    => $staking_plans ?? [],
+        'swap_enabled'     => $swap_enabled ?? 0,
       ]); ?>
 
       <!-- Legacy "Select Your Plan" packages + ROI calculator removed (staking packages shown above). -->

@@ -216,13 +216,18 @@ class Depositlistener_model extends CI_Model
     }
 
     /**
-     * Move deposits through confirming → confirmed → credited. Crediting posts
-     * to the ledger (USDT wallet) and, per the default coin-distribution option,
-     * converts USDT→BMAN and credits the Exchange wallet. Exactly once each.
+     * Move deposits through confirming → confirmed → credited.
+     *
+     * BUSINESS RULE (2026-07): a confirmed deposit credits the user's **USDT
+     * Wallet ONLY**. There is NO automatic USDT→BMAN conversion, NO Exchange
+     * wallet credit, and NO staking / ROI / bonus / binary / rank side effects.
+     * USDT→BMAN conversion happens exclusively during a Staking Package Purchase.
+     *
+     * The ledger row (wallet_ledger) is the wallet_transaction; wallet_deposits
+     * is the deposit_history. Crediting is idempotent (unique tx_hash,wallet).
      */
     private function creditConfirmed($current, $minConf, $cfg, $only_user = null)
     {
-        $this->load->model('Tokenmaster_model', 'tokens');
         $this->load->model('Walletledger_model', 'ledger');
 
         $this->db->where_in('status', ['pending','confirming','confirmed'])
@@ -238,23 +243,16 @@ class Depositlistener_model extends CI_Model
                 ['confirmations' => $conf, 'status' => $status]);
             if ($conf < $minConf) continue;
 
-            // convert USDT → BMAN at the active rate
-            $bman = $this->tokens->convertUsdtToBman($d['amount_usdt']);
-            if ($bman === null) $bman = $d['amount_usdt'];
-
-            // credit USDT wallet (records total_deposit_usdt), then Exchange in BMAN
+            // Credit the USDT wallet ONLY (records total_deposit_usdt in the ledger).
             list($ok1) = $this->ledger->credit($d['user_id'], 'usdt', $d['amount_usdt'], 'deposit', [
                 'tx_hash' => $d['tx_hash'], 'reference_id' => (string)$d['id'],
-                'description' => 'USDT deposit '.$d['amount_usdt'],
+                'description' => 'USDT deposit '.$d['amount_usdt'].' (BEP-20)',
             ]);
-            list($ok2) = $this->ledger->credit($d['user_id'], 'exchange', $bman, 'deposit', [
-                // distinct tx_hash key per wallet is enforced by (tx_hash,wallet_type)
-                'tx_hash' => $d['tx_hash'], 'reference_id' => (string)$d['id'],
-                'description' => 'Exchange credit '.$bman.' BMAN from deposit',
-            ]);
+            if (!$ok1) continue;
 
+            // amount_bman stays 0 — no conversion at deposit time.
             $this->db->where('id', $d['id'])->update('wallet_deposits', [
-                'amount_bman' => $bman, 'status' => 'credited', 'credited_at' => date('Y-m-d H:i:s'),
+                'amount_bman' => 0, 'status' => 'credited', 'credited_at' => date('Y-m-d H:i:s'),
             ]);
             $credited++;
         }

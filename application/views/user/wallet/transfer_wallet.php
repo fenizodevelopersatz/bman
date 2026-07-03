@@ -680,7 +680,6 @@
                   <option value="">— Select —</option>
                   <option value="exchange">Exchange Wallet</option>
                   <option value="earning">Earning Wallet</option>
-                  <option value="staking" data-self-only="1">Staking Wallet</option>
                   <option value="bonus">Bonus Wallet</option>
                 </select>
               </div>
@@ -1008,9 +1007,7 @@ function setMode(mode) {
   const isSelf = mode === 'self';
   document.getElementById('toWalletWrap').style.display   = isSelf ? '' : 'none';
   document.getElementById('recipientWrap').style.display  = isSelf ? 'none' : 'block';
-  // Staking can only be a source when moving between your OWN wallets.
-  const stakeOpt = document.querySelector('#fromWallet option[value="staking"]');
-  if (stakeOpt) { stakeOpt.hidden = !isSelf; if (!isSelf && document.getElementById('fromWallet').value === 'staking') document.getElementById('fromWallet').value = ''; }
+  // Staking wallet is locked BMAN — never transferable (rule 10/11).
   // reset the destination fields
   document.getElementById('toWallet').innerHTML = '<option value="">— Select From first —</option>';
   const rc = document.getElementById('recipient'); if (rc) rc.value = '';

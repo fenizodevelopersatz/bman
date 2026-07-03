@@ -66,14 +66,14 @@
                           <label class="form-label fw-semibold fs-7">From Wallet</label>
                           <select class="form-select form-select-solid" name="from_wallet" id="it-from">
                             <option value="exchange">Exchange</option><option value="earning">Earning</option>
-                            <option value="staking">Staking</option><option value="bonus">Bonus</option>
+                            <option value="bonus">Bonus</option>
                           </select>
                         </div>
                         <div class="col-md-3" id="it-to-wrap">
                           <label class="form-label fw-semibold fs-7">To Wallet</label>
                           <select class="form-select form-select-solid" name="to_wallet" id="it-to">
                             <option value="bonus">Bonus</option><option value="exchange">Exchange</option>
-                            <option value="earning">Earning</option><option value="staking">Staking</option>
+                            <option value="earning">Earning</option>
                           </select>
                         </div>
                         <div class="col-md-4 d-none" id="it-recipient-wrap">
