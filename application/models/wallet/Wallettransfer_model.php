@@ -47,13 +47,12 @@ class Wallettransfer_model extends CI_Model
     {
         $identifier = trim((string)$identifier);
         if ($identifier === '') return null;
-        return $this->db->group_start()
-                        ->where('referral_id', $identifier)
-                        ->or_where('username', $identifier)
-                        ->or_where('email', $identifier)
-                        ->group_end()
-                        ->where('status', '1')
-                        ->get('users')->row_array() ?: null;
+        $this->db->group_start()
+                 ->where('referral_id', $identifier)
+                 ->or_where('username', $identifier)
+                 ->or_where('email', $identifier);
+        if (ctype_digit($identifier)) $this->db->or_where('id', (int)$identifier);
+        return $this->db->group_end()->where('status', '1')->get('users')->row_array() ?: null;
     }
 
     /**
@@ -87,7 +86,9 @@ class Wallettransfer_model extends CI_Model
         $this->load->model('Walletledger_model', 'L');
         $fromBefore = $this->L->balance($fromUid, $wallet);
         $toBefore   = $this->L->balance($toUid, $wallet);
-        if (bccomp($fromBefore, $amount, 8) < 0)
+        // Admin override ($skipKyc) may send any amount — the sender may go
+        // negative. Regular members are still held to their available balance.
+        if (!$skipKyc && bccomp($fromBefore, $amount, 8) < 0)
             return [false, 'Insufficient balance in the '.ucfirst($wallet).' Wallet.'];
 
         $fee = bcdiv(bcmul($amount, (string)$this->fee_percent, 8), '100', 8);
@@ -98,7 +99,8 @@ class Wallettransfer_model extends CI_Model
         $uid8 = $this->generateTxnUid();
         $this->db->trans_begin();
         list($okD, $rD) = $this->L->debit($fromUid, $wallet, $amount, 'wallet_transfer',
-            ['reference_id' => $ref, 'description' => 'Sent to user #'.$toUid.' ('.$wallet.') ['.$uid8.']']);
+            ['reference_id' => $ref, 'allow_overdraw' => $skipKyc,
+             'description' => 'Sent to user #'.$toUid.' ('.$wallet.') ['.$uid8.']']);
         if (!$okD) { $this->db->trans_rollback(); return [false, $rD]; }
         list($okC, $rC) = $this->L->credit($toUid, $wallet, $net, 'wallet_transfer',
             ['reference_id' => $ref, 'description' => 'Received from user #'.$fromUid.' ('.$wallet.') ['.$uid8.']']);
@@ -107,7 +109,8 @@ class Wallettransfer_model extends CI_Model
         $this->db->insert('wallet_internal_transfer', [
             'ref' => $ref, 'txn_uid' => $uid8, 'user_id' => $fromUid, 'to_user_id' => $toUid,
             'from_wallet' => $wallet, 'to_wallet' => $wallet,
-            'amount' => $amount, 'fee' => $fee, 'net_amount' => $net, 'status' => 'completed', 'via' => $via,
+            'amount' => $amount, 'fee' => $fee, 'net_amount' => $net, 'status' => 'completed',
+            'txn_type' => 'member', 'via' => $via,
             'from_before' => $fromBefore, 'from_after' => bcsub($fromBefore, $amount, 8),
             'to_before' => $toBefore, 'to_after' => bcadd($toBefore, $net, 8),
             'description' => $note ? substr($note, 0, 255) : null,
@@ -156,7 +159,8 @@ class Wallettransfer_model extends CI_Model
             return [false, 'Your KYC must be approved before you can transfer funds.'];
 
         $this->load->model('Walletledger_model', 'L');
-        if (bccomp($this->L->balance($userId, $from), (string)$amount, 8) < 0)
+        // Admin override skips the balance floor (may move any amount).
+        if (!$skipKyc && bccomp($this->L->balance($userId, $from), (string)$amount, 8) < 0)
             return [false, 'Insufficient balance in '.ucfirst($from).' Wallet.'];
 
         return [true, ''];
@@ -172,33 +176,50 @@ class Wallettransfer_model extends CI_Model
         $to      = $p['to_wallet'];
         $amount  = (string)$p['amount'];
         $remarks = isset($p['remarks']) ? trim((string)$p['remarks']) : null;
+        $skipKyc = !empty($p['skip_kyc']);
+        $via     = !empty($p['via']) ? $p['via'] : 'user';
 
-        list($ok, $err) = $this->validate($userId, $from, $to, $amount);
+        list($ok, $err) = $this->validate($userId, $from, $to, $amount, $skipKyc);
         if (!$ok) return [false, $err];
 
         $this->load->model('Walletledger_model', 'L');
-        $ref = $this->generateReference();
+        $fromBefore = $this->L->balance($userId, $from);
+        $toBefore   = $this->L->balance($userId, $to);
+        $ref  = $this->generateReference();
+        $uid8 = $this->generateTxnUid();
 
-        // Atomic money move via the ledger (debit from, credit to). transfer()
-        // wraps both ledger posts in one transaction; on any failure it rolls
-        // back and nothing is recorded here.
         $this->db->trans_begin();
         list($okD, $rD) = $this->L->debit($userId, $from, $amount, 'wallet_transfer',
-            ['reference_id' => $ref, 'description' => 'Internal transfer '.$from.' → '.$to]);
+            ['reference_id' => $ref, 'allow_overdraw' => $skipKyc,
+             'description' => 'Internal transfer '.$from.' → '.$to.' ['.$uid8.']']);
         if (!$okD) { $this->db->trans_rollback(); return [false, $rD]; }
         list($okC, $rC) = $this->L->credit($userId, $to, $amount, 'wallet_transfer',
-            ['reference_id' => $ref, 'description' => 'Internal transfer '.$from.' → '.$to]);
+            ['reference_id' => $ref, 'description' => 'Internal transfer '.$from.' → '.$to.' ['.$uid8.']']);
         if (!$okC) { $this->db->trans_rollback(); return [false, $rC]; }
 
         $this->db->insert('wallet_internal_transfer', [
-            'ref' => $ref, 'user_id' => $userId, 'from_wallet' => $from, 'to_wallet' => $to,
+            'ref' => $ref, 'txn_uid' => $uid8, 'user_id' => $userId, 'from_wallet' => $from, 'to_wallet' => $to,
             'amount' => $amount, 'fee' => 0, 'net_amount' => $amount, 'status' => 'completed',
+            'txn_type' => 'self', 'via' => $via,
+            'from_before' => $fromBefore, 'from_after' => bcsub($fromBefore, $amount, 8),
+            'to_before' => $toBefore, 'to_after' => bcadd($toBefore, $amount, 8),
             'description' => $remarks, 'debit_ledger_id' => (int)$rD, 'credit_ledger_id' => (int)$rC,
             'ip_address' => $p['ip'] ?? null, 'user_agent' => isset($p['browser']) ? substr((string)$p['browser'],0,255) : null,
         ]);
         if ($this->db->trans_status() === false) { $this->db->trans_rollback(); return [false, 'Database error.']; }
         $this->db->trans_commit();
         return [true, $ref];
+    }
+
+    /** Balances of the four internal wallets for a user (admin balance view). */
+    public function walletBalances($userId)
+    {
+        $this->load->model('Walletledger_model', 'L');
+        $b = $this->L->balances($userId);
+        return [
+            'exchange' => $b['exchange'], 'earning' => $b['earning'],
+            'staking'  => $b['staking'],  'bonus'   => $b['bonus'],
+        ];
     }
 
     /* ---------------------------- reference ---------------------------- */

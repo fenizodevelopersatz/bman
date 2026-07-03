@@ -5,6 +5,100 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-03 — Admin: send any amount (overdraft override) + explicit txn_type
+
+- **What:** an admin can now send **any amount** to another user even when the
+  sender's wallet lacks the funds — the sender's balance goes negative and the
+  recipient is credited the same amount, so the double-entry ledger stays
+  balanced (sender −X / recipient +X). Regular members are **still** held to
+  their available balance (and KYC). Applies to both modes (self & member).
+- **Type clearly stored:** new `txn_type` column (`self` | `member`) records the
+  movement type explicitly, alongside the already-stored **who sent**
+  (`user_id`), **who received** (`to_user_id`), and **which wallet**
+  (`from_wallet` / `to_wallet`) — plus `via` (`user`/`admin`). The admin detail
+  modal now shows a **Type** badge and the **Direction** (User #A → User #B, or
+  "own wallets").
+- **Ledger override:** `Walletledger_model::post()` accepts
+  `opts['allow_overdraw']` (skips the insufficient-balance guard). Only the admin
+  path passes it (`skip_kyc` ⇒ `allow_overdraw`).
+- **Files:** `models/Walletledger_model.php`,
+  `models/wallet/Wallettransfer_model.php` (skip balance floor + pass overdraw +
+  set `txn_type` in `execute()`/`sendToUser()`),
+  `views/admin/wallet/internal_transfers.php` (detail modal Type + Direction),
+  `db/wallet_internal_transfer.sql` (`txn_type`, backfilled).
+- **How to apply:** re-run `db/wallet_internal_transfer.sql` (idempotent —
+  adds `txn_type`, backfills existing rows from `to_user_id`).
+- **Verified (CLI):** admin member over-send (sender 0 → −500, recipient +500,
+  `txn_type=member`, `via=admin`, sender/recipient/wallet recorded); admin self
+  over-move (`txn_type=self`); **non-admin over-send still blocked**; balances
+  restored after the run.
+
+---
+
+## 2026-07-03 — Internal transfer: Select2 AJAX member picker (lazy load)
+
+- **What:** the Source-User and Recipient dropdowns on `/internel-transfer` no
+  longer dump every member into the DOM (was `limit 500` `<option>`s). They are
+  now **Select2** inputs that fetch members **on demand via AJAX** — type to
+  search by username / referral ID / email / id, empty box shows all members
+  (paginated, 20/page, infinite scroll). Fixes page load time.
+- **Endpoint:** `Internaltransfers::users()` — GET `q`, `page`; returns
+  `{results:[{id,text}], pagination:{more}}`. Route
+  `admin/finance/internal-transfers/users` (GET). Controller `index()` no longer
+  runs the 500-user query.
+- **Files:** `controllers/admin/wallet/Internaltransfers.php`,
+  `views/admin/wallet/internal_transfers.php` (empty selects + Select2 init;
+  Select2/jQuery come from the Metronic `plugins.bundle.js`), `config/routes.php`.
+- **Verified (CLI):** empty term returns all active members; search by referral
+  prefix and by numeric id both match; `more` flag computed correctly.
+
+---
+
+## 2026-07-03 — Admin internal transfer + global 8-digit TXN ID + balance snapshots
+
+- **What:** the admin **Finance ▸ Internal Wallet Transfers** page can now
+  *initiate* transfers (not just view them), with **no user-side gates** (KYC /
+  transfer password bypassed — admins are trusted). Two modes: **Between User's
+  Wallets** (any of a user's four wallets → another) and **To Another Member**
+  (user A → user B, same wallet). Selecting a source user shows the live
+  **four wallet balances** (Exchange / Earning / Staking / Bonus), mirroring the
+  member page but validation-free.
+- **Global tracking id:** every transfer now carries a **globally-unique 8-digit
+  `txn_uid`** (shown on both admin + user grids and in the detail modal) for
+  easy cross-referencing.
+- **Balance snapshots:** each row stores `from_before / from_after / to_before /
+  to_after` ("manage the previous amount"). The admin detail modal and the user
+  history table now show *before → after* per transaction; the user grid also
+  shows the TXN ID and a **Balance After** column (before shown on hover).
+- **Model** `wallet/Wallettransfer_model`: `execute()` / `sendToUser()` accept
+  `opts['skip_kyc']` + `opts['via']` ('user'|'admin'), capture before/after,
+  generate `txn_uid` (`generateTxnUid()`); `validate($…, $skipKyc)`;
+  `walletBalances($userId)`.
+- **Controller** `admin/wallet/Internaltransfers`: `balances()` (AJAX),
+  `do_transfer()` (AJAX, mode self/member, `via='admin'`, `skip_kyc`), passes
+  `$users`; grid gains **TXN ID** + **Via** columns.
+- **Files:** `models/wallet/Wallettransfer_model.php`,
+  `controllers/admin/wallet/Internaltransfers.php`,
+  `views/admin/wallet/internal_transfers.php`,
+  `views/user/wallet/transfer_wallet.php`, `config/routes.php`,
+  `db/wallet_internal_transfer.sql` (idempotent ALTERs: `txn_uid` UNIQUE,
+  `to_user_id`, `from/to_before/after`, `via`).
+- **How to apply:** re-run `db/wallet_internal_transfer.sql` (idempotent). New
+  routes: `admin/finance/internal-transfers/balances` (POST),
+  `admin/finance/internal-transfers/do-transfer` (POST).
+- **Route repoint:** `internel-transfer` (the URL the admin actually uses) now
+  serves this **4-wallet** page (`admin/wallet/Internaltransfers`). The **legacy**
+  2-wallet (Currency/Token → `history`) transfer page is preserved at
+  `internel-transfer-legacy` for rollback — no code deleted. Both require the
+  same `wallet_management` permission, so no admin is locked out.
+- **Verified (CLI):** admin self-transfer (skip_kyc on a non-KYC user, via=admin,
+  100→90 ex / 0→10 staking, before/after correct); admin member-transfer
+  (to_user_id set, sender 90→75 / recipient 0→15); member transfer **without**
+  skip_kyc correctly **blocked** with the KYC message; `txn_uid` unique across
+  transactions; balances restored after the test run.
+
+---
+
 ## 2026-07-03 — Transfer page: recipient picker (default 20 members, name + email)
 
 - **What:** the Recipient field on `user/transfer_wallet` is now a searchable

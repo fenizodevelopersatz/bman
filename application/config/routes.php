@@ -300,7 +300,11 @@ $route['validate-package-amount'] = 'admin/wallet/Walletmanagement/validate_pack
 $route['make-investment-post'] = 'admin/wallet/Walletmanagement/makeinvestment_post';
 
 /************* USER TRNASFER */
-$route['internel-transfer'] = 'admin/wallet/Walletmanagement/internel_transfer';
+// BMAN 4-wallet admin internal transfer (Exchange/Earning/Staking/Bonus, no gates).
+// The legacy 2-wallet (Currency/Token → `history`) page is kept at
+// `internel-transfer-legacy` for reference/rollback.
+$route['internel-transfer'] = 'admin/wallet/Internaltransfers/index';
+$route['internel-transfer-legacy'] = 'admin/wallet/Walletmanagement/internel_transfer';
 $route['validate-transfer-balance'] = 'admin/wallet/Walletmanagement/validate_transfer_balance';
 $route['internel-transfer-post'] = 'admin/wallet/Walletmanagement/internel_transfer_post';
 
@@ -663,6 +667,9 @@ $route['user/transfer_wallet/lookup_recipient'] = 'user/Transfer_wallet/lookup_r
 $route['user/transfer_wallet/search_recipients'] = 'user/Transfer_wallet/search_recipients';         // POST AJAX
 $route['admin/finance/internal-transfers'] = 'admin/wallet/Internaltransfers';
 $route['admin/finance/internal-transfers/detail'] = 'admin/wallet/Internaltransfers/detail';
+$route['admin/finance/internal-transfers/users']['get'] = 'admin/wallet/Internaltransfers/users';
+$route['admin/finance/internal-transfers/balances']['post'] = 'admin/wallet/Internaltransfers/balances';
+$route['admin/finance/internal-transfers/do-transfer']['post'] = 'admin/wallet/Internaltransfers/do_transfer';
 
 /**************** Master — Token Settings (blockchain single source of truth) */
 $route['admin/master/token-settings'] = 'admin/master/Tokenmaster';

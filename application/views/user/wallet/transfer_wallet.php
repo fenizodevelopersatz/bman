@@ -821,20 +821,26 @@
             <thead>
               <tr>
                 <th>#</th>
+                <th>TXN ID</th>
                 <th>Reference</th>
                 <th>Type</th>
                 <th>Wallet</th>
                 <th>Counterparty</th>
                 <th>Amount</th>
+                <th>Balance After</th>
                 <th>Status</th>
                 <th>Date</th>
               </tr>
             </thead>
             <tbody>
               <?php foreach ($history as $i => $tx):
-                $dir = $tx['direction'] ?? 'sent'; $isSelf = ($dir === 'self'); $sent = ($dir === 'sent'); ?>
+                $dir = $tx['direction'] ?? 'sent'; $isSelf = ($dir === 'self'); $sent = ($dir === 'sent');
+                // the after-balance of the wallet shown on this row, from the user's perspective
+                if ($isSelf || $sent) { $rowBefore = $tx['from_before'] ?? null; $rowAfter = $tx['from_after'] ?? null; }
+                else                  { $rowBefore = $tx['to_before']   ?? null; $rowAfter = $tx['to_after']   ?? null; } ?>
               <tr>
                 <td style="color:var(--text-muted);font-size:12px;"><?= ($page - 1) * $per_page + $i + 1 ?></td>
+                <td style="font-size:12px;font-weight:800;letter-spacing:.5px;color:var(--primary);"><?= htmlspecialchars($tx['txn_uid'] ?? '—') ?></td>
                 <td>
                   <span class="ref-text" onclick="copyRef('<?= htmlspecialchars($tx['ref']) ?>')"
                         title="Click to copy"><?= htmlspecialchars($tx['ref']) ?></span>
@@ -857,6 +863,14 @@
                 <td style="font-size:13px;font-weight:700;"><?= htmlspecialchars($tx['counterparty'] ?? '—') ?></td>
                 <td class="amt-cell" style="color:<?= $isSelf ? '#3730a3' : ($sent ? '#c0392b' : '#149a55') ?>">
                   <?= ($isSelf ? '' : ($sent ? '−' : '+')) . number_format((float)$tx['amount'], 4) ?></td>
+                <td style="font-size:12px;white-space:nowrap;"
+                    title="<?= $rowBefore !== null ? 'Before: '.number_format((float)$rowBefore, 4) : '' ?>">
+                  <?php if ($rowAfter !== null): ?>
+                    <span style="color:var(--text-muted);"><?= number_format((float)$rowBefore, 4) ?></span>
+                    <i class="ph ph-arrow-right" style="font-size:10px;color:var(--text-muted);"></i>
+                    <b><?= number_format((float)$rowAfter, 4) ?></b>
+                  <?php else: ?>—<?php endif; ?>
+                </td>
                 <td>
                   <span class="st-badge st-<?= $tx['status'] ?>">
                     <?php if ($tx['status'] === 'completed'): ?><i class="ph-fill ph-check-circle"></i><?php

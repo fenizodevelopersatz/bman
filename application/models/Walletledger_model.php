@@ -93,7 +93,10 @@ class Walletledger_model extends CI_Model
         $credit = bccomp($amount, '0', 8) > 0 ? $amount : '0';
         $debit  = bccomp($amount, '0', 8) < 0 ? bcmul($amount, '-1', 8) : '0';
 
-        if (bccomp($debit, '0', 8) > 0 && bccomp($current, $debit, 8) < 0) {
+        // Overdraw guard. Admin overrides may pass allow_overdraw to let the
+        // balance go negative (sender debited beyond available funds).
+        if (empty($opts['allow_overdraw'])
+            && bccomp($debit, '0', 8) > 0 && bccomp($current, $debit, 8) < 0) {
             $this->db->trans_rollback();
             return [false, 'Insufficient '.$wallet.' balance.'];
         }
