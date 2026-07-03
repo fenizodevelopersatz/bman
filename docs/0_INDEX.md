@@ -23,6 +23,7 @@ trackable. Update the **Status** column as features land.
 | 6 | [6_STAKING_PACKAGES_PLANS_ROI.md](6_STAKING_PACKAGES_PLANS_ROI.md) | Pre-plan: staking packages, plans & ROI structure (fields, DDL, flowcharts) |
 | 7 | [7_TOKEN_WALLET_INTEGRATION.md](7_TOKEN_WALLET_INTEGRATION.md) | Custodial vs on-chain: giving BMAN without a key, deposit→stake→withdraw, treasury-key handling |
 | 8 | [8_WALLET_DEPOSIT_WITHDRAW.md](8_WALLET_DEPOSIT_WITHDRAW.md) | Production wallet: double-entry ledger, deposit listener deep-dive, statuses, "works with no private key" verification |
+| 9 | [9_INTERNAL_WALLET_TRANSFER.md](9_INTERNAL_WALLET_TRANSFER.md) | Internal wallet transfer (user → wallet): 3-table schema, model, controller, validation, security, UI design, admin side |
 
 ---
 
@@ -40,6 +41,7 @@ trackable. Update the **Status** column as features land.
 | Token Settings Master (blockchain single source of truth) | ✅ Done | Master → Token Settings; network/tokens/rate/wallets/contracts, RPC test, IP-audited; active rate bridged to legacy `token_config` |
 | Master menu restructure (9 items, responsibilities separated) | ✅ Done | Token · Coin Distribution · Packages · Plans · ROI · Bonus · Wallet · Blockchain · System; Staking Management keeps rank pages only |
 | Web3 integration — BEP-20 wallet + signed transfers | ✅ Done | `Web3bman` library (reads Token Settings); generate wallet, balances, sign+send BMAN/USDT/BNB. Admin: check balance + generate wallet. Broadcast wired for the payout engine |
+| Internal wallet transfer module (user → wallet) — `wallet_transfer`, ledger, audit | ⬜ Planned | See [9_INTERNAL_WALLET_TRANSFER.md](9_INTERNAL_WALLET_TRANSFER.md); 3 new tables + model + controller + admin grid |
 | Staking user purchase flow + ROI cron + reports | ⬜ Planned | Next phase of [6_STAKING_PACKAGES_PLANS_ROI.md](6_STAKING_PACKAGES_PLANS_ROI.md) |
 | Dynamic landing module (17 sections, repeaters, versioning) | ✅ Done | Phase 1 |
 | Admin editor `/landing-page-cms` + permission fallback | ✅ Done | Phase 1 |

@@ -464,6 +464,13 @@ $route['user/withdraw'] = 'user/usersettings/genealogycontroller/withdraw';
 $route['user/wallet-transfer'] = 'user/usersettings/genealogycontroller/wallet_transfer';
 $route['user/all-rank'] = 'user/usersettings/genealogycontroller/all_rank';
 
+/**************** Internal Wallet Transfer (user → user internal wallets, USDT excluded) */
+$route['user/transfer_wallet']                         = 'user/usersettings/wallettransfer/index';
+$route['user/transfer_wallet/do_transfer']['post']     = 'user/usersettings/wallettransfer/do_transfer';
+$route['user/transfer_wallet/set_transfer_password']['post'] = 'user/usersettings/wallettransfer/set_transfer_password';
+$route['user/transfer_wallet/balance_json']['get']     = 'user/usersettings/wallettransfer/balance_json';
+$route['user/transfer_wallet/history_json']['get']     = 'user/usersettings/wallettransfer/history_json';
+
 // CHATTING SYS
 $route['user/chat'] = 'user/usersettings/genealogycontroller/chat';
 $route['user/chat/send'] = 'user/usersettings/genealogycontroller/chat_send';

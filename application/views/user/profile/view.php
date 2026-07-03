@@ -1847,7 +1847,9 @@ function renderExistingPreview($url, $title)
                   if (copyBtn) copyBtn.addEventListener('click', async function () {
                     var txt = addrEl.textContent.trim();
                     try { await navigator.clipboard.writeText(txt); copyBtn.innerHTML = '<i class="ph ph-check"></i> Copied'; }
-                    catch (e) { prompt('Copy your address:', txt); }
+                    catch (e) { 
+                      // prompt('Copy your address:', txt);
+                     }
                     setTimeout(function(){ copyBtn.innerHTML = '<i class="ph ph-copy"></i> Copy Address'; }, 1500);
                   });
                   if (checkBtn) checkBtn.addEventListener('click', async function () {

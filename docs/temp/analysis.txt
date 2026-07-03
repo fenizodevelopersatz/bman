@@ -1701,3 +1701,36 @@ Treasury Wallet owns all BMAN.
 Backend sends BMAN.
 
 Only the platform knows the Treasury private key(http://192.168.29.7:9000/admin/master/token-settings)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+http://192.168.29.7:9000/user/transfer_wallet give the functionality with page design of user wallet internal trasfer
+ but here only use the platform digital values to transfer(take the 
+
+Wallet transfer
+===============
+Wallet Types
+1. USDT Wallet (IN & OUT)(connect with only blockchain)
+2. Exchange Wallet(Main internal wallet transaction)
+3. Earning Wallet
+4. Staking Wallet
+5. Bonus Wallet 
+
+
+on the user transfer page, user can sellect the wallet type except Usdt wallet & manage the history of wallet transfer 
+generate the file of mysql table (if existing take it otherwise to create the tables ) & make the clear audit of internal trasaction

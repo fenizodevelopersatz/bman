@@ -14,6 +14,7 @@ $isChat = ($uri === 'user/chat');
 $isPackage = ($uri === 'user/lending');
 $isSupport = ($uri === 'user/support' || $uri === 'user/create-ticket' || $uri === 'user/support-list');
 $isSettings = ($uri === 'user/view-profile' || $uri === 'user/edit-profile');
+$isTransfer = ($uri === 'user/transfer_wallet');
 ?>
 
 <button class="sidebar-toggle" id="sidebarToggleBtn" type="button" aria-label="Open menu">☰</button>
@@ -29,6 +30,8 @@ $isSettings = ($uri === 'user/view-profile' || $uri === 'user/edit-profile');
                 class="ph ph-coins"></i> Package</a>
         <a href="<?php echo base_url('user/wallet'); ?>" class="nav-item <?php echo $isWallet ? 'active' : ''; ?>"><i
                 class="ph ph-wallet"></i> Wallet</a>
+        <a href="<?php echo base_url('user/transfer_wallet'); ?>" class="nav-item <?php echo $isTransfer ? 'active' : ''; ?>"><i
+                class="ph ph-arrows-left-right"></i> Transfer Wallet</a>
         <a href="<?php echo base_url('user/genealogy'); ?>"
             class="nav-item <?php echo $isBinaryTree ? 'active' : ''; ?>"><i class="ph ph-tree-structure"></i> Binary
             Tree</a>
