@@ -82,9 +82,42 @@ class Profile extends MY_Controller
         $data['rankPercent'] = $rankPercent;
         $data['eligibleText'] = $eligible;
 
+        // --- Custodial wallet (proposal §3): ensure a unique deposit address,
+        //     load the five wallet balances + deposit/withdraw history + log.
+        $this->load->model('Custodialwallet_model', 'cw');
+        $data['wallet'] = $this->cw->ensureAddress($uid);          // creates one if missing
+        $data['five_wallets'] = $this->cw->fiveWallets($uid);
+        $data['deposits'] = $this->cw->deposits($uid, 20);
+        $data['wallet_log'] = $this->cw->monitorLog($uid, 20);
+        $data['withdraws'] = $this->db->where('user_id', $uid)
+                                      ->order_by('created_at', 'DESC')->limit(20)
+                                      ->get('withdrawals')->result_array();
+
         $data['csrfName'] = $this->security->get_csrf_token_name();
         $data['csrfHash'] = $this->security->get_csrf_hash();
         $this->load->view('user/profile/view', $data);
+    }
+
+    // --------------------- WALLET: live on-chain check ---------------------
+    // Reads the real on-chain balance of the user's custodial address and
+    // compares it with our DB record (difference = undeposited funds).
+    public function wallet_check()
+    {
+        if (!$this->input->is_ajax_request())
+            show_404();
+        $uid = (int) $this->session->userdata('user_userid');
+        if (!$uid)
+            return $this->_json(["status" => "error", "message" => "Not logged in"], 401);
+
+        $this->load->model('Custodialwallet_model', 'cw');
+        try {
+            $m = $this->cw->monitor($uid);
+            if (!$m)
+                return $this->_json(["status" => "error", "message" => "No wallet address yet."], 404);
+            return $this->_json(["status" => "success", "data" => $m]);
+        } catch (Exception $e) {
+            return $this->_json(["status" => "error", "message" => "Chain read failed: " . $e->getMessage()], 502);
+        }
     }
 
 

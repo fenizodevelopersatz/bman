@@ -97,6 +97,10 @@ New tasks get added to the correct phase below.
       `users.address_line2` (`db/user_profile_fields.sql`)
 - [x] User profile form (`user/profile`) — captures gender/DOB/address1/2/state/
       pin; saves to `users`, shown on the admin Member Profile card
+- [x] Custodial wallet management — unique BEP-20 deposit address per user
+      (check-or-create, local gen + QR), 5-wallet balances, QR+copy on Bank tab,
+      deposit/withdraw history + log; admin **Wallet Monitor** (on-chain vs DB,
+      Scan All, Reconcile). `db/custodial_wallets.sql`; sets `encryption_key`
 
 ### Phase B — User side + engines (⬜ next)
 
@@ -121,6 +125,9 @@ New tasks get added to the correct phase below.
 - [ ] On-chain withdrawal payout — approve → `Web3bman::sendToken()` (BEP-20)
       from the treasury/gas wallet; store tx hash; retry per Token Settings
       (uses the web3 library, decrypt sending key just-in-time)
+- [ ] Deposit auto-sweep + cron monitor — poll `custodial_deposits` addresses,
+      auto-reconcile confirmed deposits, sweep user address → treasury
+      (`Custodialwallet_model::monitor/reconcile` already power the manual tool)
 
 ### Phase C — Reports & polish (⬜ later)
 

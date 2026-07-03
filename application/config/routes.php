@@ -588,6 +588,8 @@ $route['user/verify_email_otp'] = 'user/usersettings/Profile/verify_email_otp';
 $route['user/password_update'] = 'user/usersettings/Profile/update_password';
 $route['user/twofa/toggle'] = 'user/usersettings/Profile/twofa_toggle';
 $route['user/update_email_preferences'] = 'user/usersettings/Profile/update_email_preferences';
+$route['user/wallet-check'] = 'user/usersettings/Profile/wallet_check';   // POST — on-chain vs DB
+$route['member/profile/wallet_check'] = 'user/usersettings/Profile/wallet_check';
 
 // User KYC
 $route['user/kyc']['get'] = 'user/Kyc/index';            // show form + current status
@@ -635,6 +637,13 @@ $route['admin/staking/rank-power/save-ceilings']['post'] = 'admin/staking/Rankpo
 $route['admin/staking/bonus-settings'] = 'admin/staking/Bonussettings';
 $route['admin/staking/bonus-settings/save']['post'] = 'admin/staking/Bonussettings/save';
 $route['admin/staking/bonus-settings/apply-to-packages']['post'] = 'admin/staking/Bonussettings/apply_to_packages';
+
+/**************** Finance — Custodial Wallet Monitor (on-chain vs DB) */
+$route['admin/wallet-monitor'] = 'admin/wallet/Walletmonitor';
+$route['admin/wallet-monitor/check/(:num)']['post'] = 'admin/wallet/Walletmonitor/check/$1';
+$route['admin/wallet-monitor/reconcile/(:num)']['post'] = 'admin/wallet/Walletmonitor/reconcile/$1';
+$route['admin/wallet-monitor/generate/(:num)']['post'] = 'admin/wallet/Walletmonitor/generate/$1';
+$route['admin/wallet-monitor/log']['get'] = 'admin/wallet/Walletmonitor/log';
 
 /**************** Master — Token Settings (blockchain single source of truth) */
 $route['admin/master/token-settings'] = 'admin/master/Tokenmaster';

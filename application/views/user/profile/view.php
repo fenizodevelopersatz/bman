@@ -1715,7 +1715,7 @@ function renderExistingPreview($url, $title)
 
               <!-- BANK TAB -->
               <div class="panel" id="tab-bank">
-                <div class="card-h">
+                <!-- <div class="card-h">
                   <h3>Bank Details</h3>
                   <span class="badge <?= badgeClassPro($bank->status); ?>"><i class="ph ph-bank"></i>
                     <?= htmlspecialchars($bank->status); ?></span>
@@ -1763,7 +1763,166 @@ function renderExistingPreview($url, $title)
                       <button class="btn-main" type="submit"><i class="ph ph-check"></i> Save Bank Details</button>
                     </div>
                   </div>
-                </form>
+                </form> -->
+
+                <!-- ===================== CUSTODIAL WALLET (proposal §3) ===================== -->
+                <?php
+                $fw = isset($five_wallets) ? $five_wallets : ['usdt'=>0,'exchange'=>0,'earning'=>0,'staking'=>0,'bonus'=>0];
+                $fmt = function ($v) { $v = (float)$v; return rtrim(rtrim(number_format($v, 4, '.', ','), '0'), '.') ?: '0'; };
+                $waddr = (!empty($wallet['wallet_address'])) ? $wallet['wallet_address'] : '';
+                $wqr = (!empty($wallet['wallet_qrimage'])) ? $wallet['wallet_qrimage'] : '';
+                ?>
+                <style>
+                  .wl-wrap{margin-top:26px}
+                  .wl-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:12px 0 20px}
+                  .wl-card{border:1px solid #e6e8ef;border-radius:12px;padding:12px 14px;background:#fff}
+                  .wl-card b{display:block;font-size:1.15rem}
+                  .wl-card small{color:#7a7f9a;text-transform:uppercase;font-size:.68rem;letter-spacing:.03em}
+                  .wl-dep{display:flex;gap:18px;flex-wrap:wrap;align-items:center;border:1px dashed #c9cee0;border-radius:12px;padding:16px;background:#fafbff}
+                  .wl-dep img{width:132px;height:132px;border-radius:10px;border:1px solid #e6e8ef;background:#fff}
+                  .wl-addr{font-family:monospace;word-break:break-all;background:#fff;border:1px solid #e6e8ef;border-radius:8px;padding:8px 10px}
+                  .wl-tables{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}
+                  @media(max-width:800px){.wl-tables{grid-template-columns:1fr}}
+                  .wl-tbl{width:100%;border-collapse:collapse;font-size:.82rem}
+                  .wl-tbl th,.wl-tbl td{border-bottom:1px solid #eef0f6;padding:7px 8px;text-align:left}
+                  .wl-tbl th{color:#7a7f9a;text-transform:uppercase;font-size:.66rem}
+                  .wl-badge{padding:2px 8px;border-radius:20px;font-size:.68rem;font-weight:600}
+                  .wl-ok{background:#e7f9ef;color:#149a55}.wl-warn{background:#fff4e0;color:#b5730a}.wl-mut{background:#eef0f6;color:#7a7f9a}
+                  .wl-diff-box{margin-top:12px}
+                </style>
+
+                <div class="wl-wrap">
+                  <div class="card-h"><h3><i class="ph ph-wallet"></i> Wallet & Deposit Address</h3></div>
+                  <div class="muted">Your 5 platform wallets and your unique on-chain deposit address (BEP-20). Send USDT to this address to fund your account.</div>
+
+                  <!-- 5 wallet balances -->
+                  <div class="wl-cards">
+                    <div class="wl-card"><small>USDT Wallet (IN/OUT)</small><b><?= $fmt($fw['usdt']); ?></b></div>
+                    <div class="wl-card"><small>Exchange Wallet</small><b><?= $fmt($fw['exchange']); ?></b></div>
+                    <div class="wl-card"><small>Earning Wallet</small><b><?= $fmt($fw['earning']); ?></b></div>
+                    <div class="wl-card"><small>Staking Wallet</small><b><?= $fmt($fw['staking']); ?></b></div>
+                    <div class="wl-card"><small>Bonus Wallet</small><b><?= $fmt($fw['bonus']); ?></b></div>
+                  </div>
+
+                  <!-- Deposit address + QR + copy -->
+                  <?php if ($waddr): ?>
+                  <div class="wl-dep">
+                    <?php if ($wqr): ?><img src="<?= htmlspecialchars($wqr); ?>" alt="Deposit QR"
+                         onerror="this.style.display='none'"><?php endif; ?>
+                    <div style="flex:1;min-width:220px">
+                      <small class="muted">Your USDT / BMAN deposit address (BEP-20)</small>
+                      <div class="wl-addr" id="wlAddr"><?= htmlspecialchars($waddr); ?></div>
+                      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+                        <button type="button" class="btn-main" id="wlCopy"><i class="ph ph-copy"></i> Copy Address</button>
+                        <button type="button" class="btn-dark" id="wlCheck"><i class="ph ph-arrows-clockwise"></i> Check On-chain Balance</button>
+                      </div>
+                      <div class="wl-diff-box" id="wlDiff"></div>
+                    </div>
+                  </div>
+                  <?php else: ?>
+                  <div class="wl-dep"><div class="muted">A deposit address will appear here shortly. Refresh the page.</div></div>
+                  <?php endif; ?>
+
+                  <!-- Deposit & Withdraw history + log -->
+                  <div class="wl-tables">
+                    <div>
+                      <b>Deposit History</b>
+                      <table class="wl-tbl">
+                        <thead><tr><th>Date</th><th>Token</th><th>Amount</th><th>Status</th></tr></thead>
+                        <tbody>
+                          <?php if (!empty($deposits)): foreach ($deposits as $d): ?>
+                          <tr>
+                            <td><?= htmlspecialchars($d['detected_at']); ?></td>
+                            <td><?= htmlspecialchars($d['token']); ?></td>
+                            <td><?= $fmt($d['amount']); ?></td>
+                            <td><span class="wl-badge <?= $d['credited'] ? 'wl-ok' : 'wl-warn'; ?>"><?= $d['credited'] ? 'CREDITED' : 'PENDING'; ?></span></td>
+                          </tr>
+                          <?php endforeach; else: ?>
+                          <tr><td colspan="4" class="muted">No deposits yet.</td></tr>
+                          <?php endif; ?>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div>
+                      <b>Withdraw History</b>
+                      <table class="wl-tbl">
+                        <thead><tr><th>Date</th><th>Amount</th><th>Fee</th><th>Status</th></tr></thead>
+                        <tbody>
+                          <?php if (!empty($withdraws)): foreach ($withdraws as $wd): ?>
+                          <tr>
+                            <td><?= htmlspecialchars($wd['created_at']); ?></td>
+                            <td><?= $fmt($wd['amount']); ?></td>
+                            <td><?= $fmt($wd['fee']); ?></td>
+                            <td><span class="wl-badge wl-mut"><?= htmlspecialchars(strtoupper($wd['status'])); ?></span></td>
+                          </tr>
+                          <?php endforeach; else: ?>
+                          <tr><td colspan="4" class="muted">No withdrawals yet.</td></tr>
+                          <?php endif; ?>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div style="margin-top:18px">
+                    <b>Wallet Monitor Log</b>
+                    <table class="wl-tbl">
+                      <thead><tr><th>Date</th><th>Action</th><th>On-chain</th><th>Our DB</th><th>Difference</th></tr></thead>
+                      <tbody>
+                        <?php if (!empty($wallet_log)): foreach ($wallet_log as $lg): ?>
+                        <tr>
+                          <td><?= htmlspecialchars($lg['created_at']); ?></td>
+                          <td><span class="wl-badge <?= $lg['action']==='reconcile' ? 'wl-ok' : 'wl-mut'; ?>"><?= htmlspecialchars(strtoupper($lg['action'])); ?></span></td>
+                          <td><?= $fmt($lg['onchain_balance']); ?></td>
+                          <td><?= $fmt($lg['db_balance']); ?></td>
+                          <td><?= $fmt($lg['difference']); ?></td>
+                        </tr>
+                        <?php endforeach; else: ?>
+                        <tr><td colspan="5" class="muted">No monitor activity yet. Click “Check On-chain Balance”.</td></tr>
+                        <?php endif; ?>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <script>
+                (function () {
+                  var addrEl = document.getElementById('wlAddr');
+                  var copyBtn = document.getElementById('wlCopy');
+                  var checkBtn = document.getElementById('wlCheck');
+                  var diffBox = document.getElementById('wlDiff');
+                  if (copyBtn) copyBtn.addEventListener('click', async function () {
+                    var txt = addrEl.textContent.trim();
+                    try { await navigator.clipboard.writeText(txt); copyBtn.innerHTML = '<i class="ph ph-check"></i> Copied'; }
+                    catch (e) { prompt('Copy your address:', txt); }
+                    setTimeout(function(){ copyBtn.innerHTML = '<i class="ph ph-copy"></i> Copy Address'; }, 1500);
+                  });
+                  if (checkBtn) checkBtn.addEventListener('click', async function () {
+                    checkBtn.disabled = true; checkBtn.innerHTML = '<i class="ph ph-spinner"></i> Checking…';
+                    diffBox.innerHTML = '';
+                    try {
+                      var res = await fetch("<?= site_url('member/profile/wallet_check'); ?>", {
+                        method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        body: new URLSearchParams({ '<?= $csrfName; ?>': '<?= $csrfHash; ?>' })
+                      });
+                      var j = await res.json();
+                      if (j.status === 'success') {
+                        var d = j.data;
+                        var pending = parseFloat(d.difference) > 0;
+                        diffBox.innerHTML =
+                          '<div style="font-size:.85rem;line-height:1.7">' +
+                          'On-chain USDT: <b>' + d.onchain_usdt + '</b> · BNB: <b>' + d.onchain_bnb + '</b><br>' +
+                          'Our records: <b>' + d.db_usdt + '</b> USDT · Difference: <b>' + d.difference + '</b> ' +
+                          (pending ? '<span class="wl-badge wl-warn">NEW DEPOSIT PENDING — admin will credit</span>'
+                                   : '<span class="wl-badge wl-ok">IN SYNC</span>') +
+                          '</div>';
+                      } else {
+                        diffBox.innerHTML = '<span class="wl-badge wl-warn">' + (j.message || 'Check failed') + '</span>';
+                      }
+                    } catch (e) { diffBox.innerHTML = '<span class="wl-badge wl-warn">Network error</span>'; }
+                    checkBtn.disabled = false; checkBtn.innerHTML = '<i class="ph ph-arrows-clockwise"></i> Check On-chain Balance';
+                  });
+                })();
+                </script>
               </div>
 
               <!-- SECURITY TAB -->

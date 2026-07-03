@@ -5,6 +5,57 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-02 — Custodial wallet management: unique deposit address, QR, on-chain monitor
+
+- **Reviewed first:** wallet generation already exists (`Mlm_model::create_wallet`,
+  ETH_MASTER BIP39) storing address/mnemonic/key/QR in `user_wallet`, but 5 of
+  14 users had no wallet and it encrypts keys via an external ADROX API. New
+  addresses now generate **locally** (no external dependency).
+- **Unique deposit address (check-or-create):** `Custodialwallet_model::ensureAddress($uid)`
+  returns the existing `user_wallet` row, or generates a fresh BEP-20 wallet via
+  `Web3bman` (local secp256k1), AES-encrypts the key (CI `encryption_key`),
+  renders a QR PNG with the existing **InfiQr** generator, and inserts with a
+  uniqueness guard. A `UNIQUE` index was added on `user_wallet.wallet_address`.
+  Called on the profile page load, so every user gets one when they open the
+  Bank tab.
+- **Five wallets (proposal §3):** `fiveWallets()` returns USDT (from
+  `user_wallets.usd_balance`) + Exchange/Earning/Staking/Bonus (the §3A ledger).
+- **User Bank tab** (`user/profile`): new **Wallet & Deposit Address** section —
+  the 5 wallet balances, the unique deposit address with **QR + Copy**, a
+  **Check On-chain Balance** button (live RPC read vs our DB, flags a new
+  deposit), plus Deposit History, Withdraw History and the Wallet Monitor Log.
+- **Admin Wallet Monitor** (Finance → **Wallet Monitor**, `admin/wallet-monitor`):
+  lists every custodial wallet, **Check**/**Scan All** reads real on-chain USDT/BNB
+  vs the DB record, highlights positive differences, and **Reconcile**
+  (Super-Admin) credits the difference into `user_wallets.usd_balance`, records a
+  `custodial_deposits` row and a `wallet_monitor_log` entry. This is the "free
+  wallet monitor tool" — no third-party service.
+- **On-chain reads only.** Nothing is broadcast; monitor/check are read-only,
+  reconcile is a DB credit. Withdrawals (on-chain send) remain the future payout
+  engine's job via `Web3bman::sendToken`.
+- **DB:** `db/custodial_wallets.sql` (idempotent, applied) — `custodial_deposits`,
+  `wallet_monitor_log`, unique index on `user_wallet.wallet_address`.
+- **Config:** set `$config['encryption_key']` (was empty; the app uses ADROX
+  externally and no CI Encryption elsewhere) — **required** for custodial key
+  storage. **Deploy note:** set your own key in production before generating
+  wallets; keys already stored are AES-encrypted with it.
+- **Files:** `models/Custodialwallet_model.php` (ensureAddress/monitor/reconcile/
+  fiveWallets/deposits/monitorLog), `controllers/user/usersettings/Profile.php`
+  (wallet data + `wallet_check`), `views/user/profile/view.php` (Bank tab
+  section), `controllers/admin/wallet/Walletmonitor.php`,
+  `views/admin/wallet/wallet_monitor.php`, `config/routes.php`,
+  `config/config.php` (encryption_key), sidebar (Finance → Wallet Monitor).
+- **Validated:** CLI — ensureAddress generates a unique valid `0x…` address +
+  QR, idempotent, key AES round-trips to the same address; monitor reads live
+  BSC (confirmed real BNB dust on user 1's address), diff math + reconcile guard
+  correct; admin list query returns 9 wallets. Test data removed; routes guard
+  to user/admin login.
+- **How to apply:** run `db/custodial_wallets.sql`; ensure `encryption_key` is
+  set; set the USDT + BMAN contract addresses in Token Settings to enable
+  on-chain reads.
+
+---
+
 ## 2026-07-02 — User profile form: capture all §1 fields (→ shown in admin)
 
 - **What:** the member **Profile Settings** page (`user/profile`) now captures

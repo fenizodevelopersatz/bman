@@ -796,3 +796,59 @@ Analysis the web3 on codeigniter 3 and any external wallet moniter/streams for w
 
 
 
+
+
+
+Carefully reviewed the already generate wallet address or not if not existing on bank create unique wallet address then 
+make the users plan for wallet or custodial wallet management
+
+Wallet Types
+1. USDT Wallet (IN & OUT)
+2. Exchange Wallet
+3. Earning Wallet
+4. Staking Wallet
+5. Bonus Wallet 
+make unique wallet and user wallet address of qr code and copy option to display on the bank tab below deposit & widthdaw history list & thier details of log
+
+When user qr is showing then check the real wallet balance & current our database balance difference to use the if moniter the wallet balance difference then update the our system then or make the free wallet moniter tools to implement
+
+
+Admin staking set up is over 
+User side web3 integrated and user custodial wallet address genearated
+
+
+
+
+1. redesign the deposit and withdraw two tab wise seperate and
+2. when deposite auto detect the transaction using qrcode and usdt to equal to given the bman values
+3. hash with bscscan explorare based on admin testnet or mainnet
+4. Give more option to deposit the to detect the metamask or trustwallet on view page then connect with send the our give admin address(frontend wallet connect)
+5. Withdraw manual request by user then show the pending, rejected with reason, approved with hash on admin side
+
+Deep explain the above task on my project & carefully analysis and complete the wallet management
+
+
+                            Wallet Management
+                               │
+          ┌────────────────────┴─────────────────────┐
+          │                                          │
+      Deposit Module                          Withdraw Module
+          │                                          │
+          │                                          │
+ exist /generate Wallet Address            User Request Withdraw
+          │                                          │
+ Listen Blockchain                         Validate KYC + Bank
+          │                                          │
+ Detect Incoming Transfer(usdt ->
+  admin address)                                Admin Review
+          │                                          │
+ Verify Confirmations(Save History)         Approve / Reject
+          │                                          │
+ Credit blackchain Wallet(bman->usdt)
+ (based on admin usdt = bman)                   Send Transaction
+          │                                          │
+ Save History                             Save Hash
+          │                                          │
+ Notify User                              Notify User
+
+
