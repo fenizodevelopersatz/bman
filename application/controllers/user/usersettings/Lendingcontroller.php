@@ -35,6 +35,10 @@ class Lendingcontroller extends CI_Controller
         // Packages (map DB fields -> view fields)
         $this->data['packages'] = $this->getPackagesForView();
 
+        // BMAN staking packages (new staking system) + plan rules, for display.
+        $this->data['staking_packages'] = $this->getStakingPackagesForView();
+        $this->data['staking_plans']    = $this->getStakingPlansForView();
+
         // Investments table (dynamic)
         $this->data['investments'] = $this->getUserInvestmentsForView($userid);
 
@@ -155,6 +159,33 @@ class Lendingcontroller extends CI_Controller
             ];
         }
         return $out;
+    }
+
+    /**
+     * BMAN staking packages with their ROI matrix, mapped for the view.
+     * Each package carries: stake_amount, bonus_percent, group_ceiling and a
+     * `roi` map keyed 'fixed_2','fixed_3','fixed_5','regular_2', … → % + basis.
+     */
+    private function getStakingPackagesForView()
+    {
+        if (!$this->db->table_exists('staking_packages')) return [];
+        $this->load->model('Staking_model');
+        $grid = $this->Staking_model->roiGrid();               // packages + roi cells
+        // active packages only, ordered by stake amount
+        return array_values(array_filter($grid, function ($p) {
+            return (int) ($p['is_active'] ?? 0) === 1;
+        }));
+    }
+
+    /**
+     * Active staking plans (Fixed / Regular / Combo) with their term durations,
+     * used to explain how ROI is credited and withdrawn.
+     */
+    private function getStakingPlansForView()
+    {
+        if (!$this->db->table_exists('staking_plans')) return [];
+        $this->load->model('Staking_model');
+        return $this->Staking_model->plans(true);
     }
 
     /**

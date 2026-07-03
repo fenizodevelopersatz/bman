@@ -5,6 +5,31 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-03 — /user/lending: show BMAN staking packages + explain details
+
+- **What:** the lending page now displays the **BMAN staking packages** (from the
+  new staking system) above the legacy invest grid, with their details explained.
+  For each of the 9 active packages it shows the **stake amount**, one-time
+  **Bonus %**, **Group Ceiling**, and a **ROI matrix** across terms (2 / 3 / 5
+  years) and plans — **Fixed** (total % at maturity) vs **Regular** (% credited
+  monthly). Three plan-explainer cards (Fixed / Regular / Combo) describe how ROI
+  is credited & withdrawn (credit mode, credit days, term durations), pulled live
+  from `staking_plans` / `staking_plan_terms`.
+- **Data source:** `Staking_model::roiGrid()` (packages + active
+  `staking_roi_structure` cells, keyed `fixed_2`,`regular_5`, …) and
+  `Staking_model::plans(true)`. Read-only — no change to the existing invest flow.
+- **Files:** `controllers/user/usersettings/Lendingcontroller.php`
+  (`getStakingPackagesForView()`, `getStakingPlansForView()`; passes
+  `staking_packages` / `staking_plans`), `views/user/wallet/lending_managment.php`
+  (includes the block after the KPI grid),
+  `views/user/wallet/_staking_packages.php` (new self-contained explainer partial,
+  scoped `stk-` CSS, hides itself when no active packages).
+- **Verified (CLI):** `roiGrid()` returns 9 active packages; sample 5,000 BMAN =
+  25% bonus, ceiling 5,000, ROI Fixed 150/200/400% & Regular 2.3/2.5/3.0%/mo for
+  2/3/5 yrs; 3 plans (fixed/regular/combo) each with 3 terms. Lint clean.
+
+---
+
 ## 2026-07-03 — Admin: send any amount (overdraft override) + explicit txn_type
 
 - **What:** an admin can now send **any amount** to another user even when the

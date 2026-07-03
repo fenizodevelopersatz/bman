@@ -1037,103 +1037,13 @@ $hero_progress = 48;
         </div>
       </div>
 
-      <div class="grid-2">
-        <!-- PACKAGES -->
-        <section>
-          <div class="card-h" style="margin-bottom: 16px;">
-            <h3 style="font-size: 18px; font-weight: 1100;">Select Your Plan</h3>
-            <span class="chip"><i class="ph ph-seal-check"></i> Verified Packages</span>
-          </div>
+      <!-- BMAN STAKING PACKAGES (from staking system) -->
+      <?php $this->load->view('user/wallet/_staking_packages', [
+        'staking_packages' => $staking_packages ?? [],
+        'staking_plans'    => $staking_plans ?? [],
+      ]); ?>
 
-          <div class="packages-grid">
-            <?php foreach ($packages as $p): ?>
-              <div class="premium-pack">
-                <span class="pack-badge"><?= strtoupper(htmlspecialchars($p->period ?? 'DAILY')); ?> PAYOUT</span>
-
-                <div class="pack-header">
-                  <div class="pack-icon"><i class="ph ph-cube"></i></div>
-                  <div>
-                    <h4 style="font-size: 18px; margin: 0; font-weight: 1200;"><?= htmlspecialchars($p->name) ?></h4>
-                    <small style="color:var(--muted); font-weight:900;"><?= htmlspecialchars($p->note ?? '') ?></small>
-                  </div>
-                </div>
-
-                <div class="roi-tag">
-                  <i class="ph ph-lightning-fill"></i>
-                  <?= number_format((float) $p->roi_percent, 2) ?>%
-                  <span style="font-size: 12px; opacity: 0.65; font-weight:1000;">/
-                    <?= htmlspecialchars($p->period ?? 'Daily'); ?></span>
-                </div>
-
-                <div class="pack-price-range">
-                  <div class="price-box">
-                    <small>MINIMUM</small>
-                    <b><?= moneyUSD($p->min) ?></b>
-                  </div>
-                  <div class="price-box" style="text-align:right;">
-                    <small>MAXIMUM</small>
-                    <b><?= moneyUSD($p->max) ?></b>
-                  </div>
-                </div>
-
-                <div
-                  style="font-size: 12px; margin-bottom: 18px; color: var(--muted); display:flex; justify-content:space-between; font-weight:900; position:relative;">
-                  <span>Duration: <b style="color:#111;"><?= (int) $p->duration_days ?> Days</b></span>
-                  <span>BV Points: <b style="color:#111;">+<?= (int) $p->bv ?></b></span>
-                </div>
-
-                <button class="btn-invest" onclick="openInvest(<?= (int) $p->id ?>)">Invest Now <i
-                    class="ph ph-arrow-right"></i></button>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        </section>
-
-        <!-- CALCULATOR -->
-        <aside class="calculator-card">
-          <div class="card-h" style="border:none; margin-bottom: 14px;">
-            <h3 style="color: #fff; font-size: 18px; font-weight: 1100;">ROI Profit Calculator</h3>
-            <span class="badge b-soft"
-              style="background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.12); color:#fff;">
-              <i class="ph ph-calculator"></i> Tool
-            </span>
-          </div>
-
-          <div class="calc-input-group">
-            <label>Choose Plan</label>
-            <select id="calcPackage" onchange="calcROI()">
-              <?php foreach ($packages as $p): ?>
-                <!-- IMPORTANT: Keep these data-* attrs so JS works -->
-                <option style="background-color: #0a0f1f;" value="<?= (int) $p->id ?>"
-                  data-roi="<?= (float) $p->roi_percent ?>" data-period="<?= htmlspecialchars($p->period) ?>"
-                  data-duration="<?= (int) $p->duration_days ?>" data-min="<?= (float) $p->min ?>"
-                  data-max="<?= (float) $p->max ?>">
-                  <?= htmlspecialchars($p->name) ?>
-                </option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-
-          <div class="calc-input-group">
-            <label>Investment Amount ($)</label>
-            <input type="number" id="calcAmount" placeholder="0.00" oninput="calcROI()">
-          </div>
-
-          <div style="background: rgba(255,255,255,0.04); padding: 18px; border-radius: 18px; margin-top: 18px;">
-            <div class="calc-result-row"><span>Daily Profit</span><b id="outDay">$ 0.00</b></div>
-            <div class="calc-result-row"><span>Weekly Profit</span><b id="outWeek">$ 0.00</b></div>
-            <div class="calc-result-row"><span>Net Profit (End of Term)</span><b id="outTotal"
-                style="font-size: 18px;">$ 0.00</b></div>
-            <div class="calc-result-row" style="border:none;"><span>Total Payout</span><b id="outReturn"
-                style="color:#fff;">$ 0.00</b></div>
-          </div>
-
-          <div id="calcNote" style="margin-top:14px;font-size:12px;opacity:.75;font-weight:900;line-height:1.45;"></div>
-          <p style="font-size: 11px; opacity: 0.55; margin-top: 16px; text-align: center; font-weight:900;">
-            *Calculations are estimates based on package rates.
-          </p>
-        </aside>
-      </div>
+      <!-- Legacy "Select Your Plan" packages + ROI calculator removed (staking packages shown above). -->
 
       <!-- TABLE: YOUR INVESTMENTS -->
       <div class="card" style="margin-top: 22px; border-radius: 28px;">
