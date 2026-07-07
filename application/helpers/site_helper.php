@@ -1003,3 +1003,44 @@ function user_profile_image($uid)
 
     return 'https://i.pravatar.cc/100?u=mlm-user';
 }
+
+if (!function_exists('user_cycle_info')) {
+    /**
+     * Per-user rolling cycle info, computed entirely in PHP from an anchor date
+     * (e.g. users.register_date). Drives the Bonus Wallet 60-day reduction — each
+     * user has an independent schedule based on when they registered. No SQL.
+     *
+     * @param string      $anchorDate any strtotime-parseable date (register_date)
+     * @param int         $cycleDays  cycle length in days (default 60; 1 for testing)
+     * @param string|null $asOf       evaluate "now" as this date (tests); null = today
+     * @return array{anchor:string,cycle_days:int,elapsed_days:int,completed_cycles:int,
+     *   current_cycle:int,day_in_cycle:int,cycle_start:string,cycle_end:string,
+     *   next_cycle_date:string,is_boundary:bool}
+     */
+    function user_cycle_info($anchorDate, $cycleDays = 60, $asOf = null)
+    {
+        $cycleDays = max(1, (int) $cycleDays);
+        $anchor = new DateTimeImmutable(date('Y-m-d', strtotime((string) $anchorDate)));
+        $now    = new DateTimeImmutable($asOf ? date('Y-m-d', strtotime($asOf)) : 'today');
+
+        $elapsedDays     = ($now < $anchor) ? 0 : (int) $anchor->diff($now)->days;
+        $completedCycles = intdiv($elapsedDays, $cycleDays);
+        $dayInCycle      = $elapsedDays % $cycleDays;
+
+        $currentStart = $anchor->modify('+' . ($completedCycles * $cycleDays) . ' days');
+        $currentEnd   = $currentStart->modify('+' . $cycleDays . ' days'); // exclusive
+
+        return [
+            'anchor'           => $anchor->format('Y-m-d'),
+            'cycle_days'       => $cycleDays,
+            'elapsed_days'     => $elapsedDays,
+            'completed_cycles' => $completedCycles,      // 0,1,2,...
+            'current_cycle'    => $completedCycles + 1,   // 1-based
+            'day_in_cycle'     => $dayInCycle,            // 0 = a cycle just rolled today
+            'cycle_start'      => $currentStart->format('Y-m-d'),
+            'cycle_end'        => $currentEnd->modify('-1 day')->format('Y-m-d'),
+            'next_cycle_date'  => $currentEnd->format('Y-m-d'),
+            'is_boundary'      => $dayInCycle === 0,
+        ];
+    }
+}

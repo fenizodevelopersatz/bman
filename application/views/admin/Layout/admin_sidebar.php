@@ -183,6 +183,20 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               </div>
 
               <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet/admin-wallet">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Admin Bonus Wallet</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet/onchain-transactions">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">On-Chain Transactions</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/internal-transfers">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Internal Wallet Transfers</span>

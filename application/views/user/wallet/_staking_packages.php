@@ -120,8 +120,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
       <div class="nm"><?= htmlspecialchars($p['name']) ?> Package</div>
 
       <div class="stk-badges">
-        <span class="stk-b bonus"><i class="ph-fill ph-gift"></i> <?= rtrim(rtrim(number_format((float)$p['bonus_percent'], 2), '0'), '.') ?>% Bonus</span>
-        <span class="stk-b ceil"><i class="ph ph-shield-check"></i> Ceiling: <?= number_format((float)$p['group_ceiling']) ?> BMAN</span>
+        <span class="stk-b bonus"><i class="ph-fill ph-gift"></i> <?= rtrim(rtrim(number_format((float)$p['bonus_percent'], 2), '0'), '.') ?>% Bonus</span>        
       </div>
 
       <table class="stk-roi">

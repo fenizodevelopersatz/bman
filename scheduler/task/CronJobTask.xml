@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CronJobTask.xml - importable Windows Task Scheduler definition for cron.php.
+
+  BEFORE IMPORTING, edit the three placeholders below:
+    1. <UserId>            - CHANGE_ME_COMPUTERNAME\CHANGE_ME_username
+                              (run `echo %COMPUTERNAME%\%USERNAME%` to get the
+                              exact value; local accounts use COMPUTERNAME, not
+                              a domain).
+    2. <Command>            - full path to run_cron.bat on this machine.
+    3. <WorkingDirectory>   - the folder that .bat file lives in.
+
+  Import with:
+    schtasks /Create /TN "MyProjectCronJob" /XML "C:\path\to\CronJobTask.xml"
+
+  See scheduler/README.md for the schtasks-only alternative (no XML import)
+  and for what to do if the imported task doesn't fire.
+-->
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo>
+    <Description>Fires cron.php every minute so it can run any due scheduled jobs - simulates a Linux crontab on Windows. See scheduler/README.md.</Description>
+    <URI>\MyProjectCronJob</URI>
+  </RegistrationInfo>
+  <Triggers>
+    <TimeTrigger>
+      <!-- A past StartBoundary is fine - Task Scheduler starts the
+           repetition pattern immediately after import/enable. -->
+      <StartBoundary>2026-01-01T00:00:00</StartBoundary>
+      <Enabled>true</Enabled>
+      <Repetition>
+        <Interval>PT1M</Interval>
+        <StopAtDurationEnd>false</StopAtDurationEnd>
+      </Repetition>
+    </TimeTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id="Author">
+      <!-- S4U = "run whether user is logged on or not" WITHOUT storing a
+           password - works for hitting localhost. If your job needs a
+           mapped network drive or other interactive-session resources,
+           switch LogonType to Password and create the task via:
+             schtasks /Create /XML CronJobTask.xml /TN "MyProjectCronJob" /RU "COMPUTERNAME\username" /RP "password"
+           (schtasks will prompt for the password if /RP is omitted). -->
+      <UserId>CHANGE_ME_COMPUTERNAME\CHANGE_ME_username</UserId>
+      <LogonType>S4U</LogonType>
+      <RunLevel>HighestAvailable</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <!-- IgnoreNew: if a run is still going when the next minute ticks over,
+         Task Scheduler itself won't start a second one - defense in depth
+         alongside cron.php's own flock()-based lock. -->
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <!-- Hard stop if a run hangs - the real backstop behind cron.php's own
+         best-effort set_time_limit(), since PHP can't reliably self-kill a
+         truly stuck job on Windows. -->
+    <ExecutionTimeLimit>PT2M</ExecutionTimeLimit>
+    <Priority>7</Priority>
+    <!-- Retry on failure: 3 attempts, 1 minute apart. "Failure" here means
+         run_cron.bat/.ps1 exited non-zero (auth error, timeout, connection
+         refused, HTTP 4xx/5xx from cron.php - see their exit-code logic). -->
+    <RestartOnFailure>
+      <Interval>PT1M</Interval>
+      <Count>3</Count>
+    </RestartOnFailure>
+  </Settings>
+  <Actions Context="Author">
+    <Exec>
+      <Command>C:\xampp\htdocs\myproject\scheduler\task\run_cron.bat</Command>
+      <WorkingDirectory>C:\xampp\htdocs\myproject\scheduler\task</WorkingDirectory>
+    </Exec>
+  </Actions>
+</Task>

@@ -25,6 +25,8 @@ trackable. Update the **Status** column as features land.
 | 8 | [8_WALLET_DEPOSIT_WITHDRAW.md](8_WALLET_DEPOSIT_WITHDRAW.md) | Production wallet: double-entry ledger, deposit listener deep-dive, statuses, "works with no private key" verification |
 | 9 | [9_INTERNAL_WALLET_TRANSFER.md](9_INTERNAL_WALLET_TRANSFER.md) | Internal wallet transfer (user → wallet): 3-table schema, model, controller, validation, security, UI design, admin side |
 | 10 | [10_BONUS_WALLET_REDUCTION_ADMIN_WALLET.md](10_BONUS_WALLET_REDUCTION_ADMIN_WALLET.md) | Pre-plan: Bonus Wallet 60-day/50% reduction engine + new Admin (Company) Wallet that receives the reclaimed amount |
+| 11 | [11_ADMIN_WALLET_MANAGEMENT.md](11_ADMIN_WALLET_MANAGEMENT.md) | 🟢 **Implemented**: Bonus Wallet 60-day reduction → admin wallet. Every N days (60; **1 for testing**) 50% of a user's bonus is reduced to the admin wallet, per-user schedule from `register_date` (PHP), optional on-chain send (user→admin, BNB gas). `Bonusreductioncron` + admin **Admin Bonus Wallet** screen + `db/bonus_reduction.sql`. ROI is a later phase (out of scope) |
+| 12 | [12_WINDOWS_CRON_SCHEDULER.md](12_WINDOWS_CRON_SCHEDULER.md) | 🟢 **Implemented**: Windows Task Scheduler cron replacement — `cron.php` + `scheduler/` fire due jobs each minute; drives `/bonus-reduction-cron` and other CI crons. Full ops guide in [../scheduler/README.md](../scheduler/README.md) |
 
 ---
 
@@ -46,6 +48,8 @@ trackable. Update the **Status** column as features land.
 | Token Settings §5/§6 simplify — Treasury+Deposit wallet, encrypted Treasury key, drop contracts | ✅ Done | USDT→BMAN signed by one Treasury key (AES-encrypted, never shown); gas/bonus/reserve/cold + smart-contract fields removed |
 | Staking user purchase flow + ROI cron + reports | ⬜ Planned | Next phase of [6_STAKING_PACKAGES_PLANS_ROI.md](6_STAKING_PACKAGES_PLANS_ROI.md) |
 | Bonus Wallet reduction cron + Admin (Company) Wallet | 📝 Plan written | Design only, no code yet — see [10_BONUS_WALLET_REDUCTION_ADMIN_WALLET.md](10_BONUS_WALLET_REDUCTION_ADMIN_WALLET.md) |
+| Bonus Wallet 60-day reduction → admin wallet (per-user, from `register_date`) | 🟢 Done (internal) | `Bonusreductioncron` reduces 50% every N days (60; 1 for testing) to `admin_wallet`, double-entry via `Walletledger_model`; on-chain send (user→admin, Web3bman/BNB gas) wired, needs funded addresses. Admin **Admin Bonus Wallet** screen (`admin/wallet/admin-wallet`) shows balance + history. Tested on user 257. ROI = later. See [11_ADMIN_WALLET_MANAGEMENT.md](11_ADMIN_WALLET_MANAGEMENT.md) |
+| Windows cron scheduler (`cron.php` + `scheduler/`) | 🟢 Done | Task Scheduler fires `cron.php`/min → dispatches due jobs; `run_cron.bat`/`.ps1`/`CronJobTask.xml`; drives the CI cron URLs. See [12_WINDOWS_CRON_SCHEDULER.md](12_WINDOWS_CRON_SCHEDULER.md) + [../scheduler/README.md](../scheduler/README.md) |
 | Dynamic landing module (17 sections, repeaters, versioning) | ✅ Done | Phase 1 |
 | Admin editor `/landing-page-cms` + permission fallback | ✅ Done | Phase 1 |
 | Public page `/landing` | ✅ Done | Phase 1 |

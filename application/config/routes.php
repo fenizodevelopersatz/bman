@@ -357,6 +357,7 @@ $route['credit-deposits-cron'] = 'Depositcron/run';   // auto-credit confirmed U
 $route['earn-cron-made'] = 'Cron/run_roi';
 $route['rank-cron-made'] = 'Cron/update_all_users_rank';
 $route['binary-cron-made'] = 'Cron/binary_commission_call';
+$route['bonus-reduction-cron'] = 'Bonusreductioncron/run';   // Bonus Wallet 60-day reduction → admin bonus wallet (token-gated over HTTP)
 
 
 
@@ -671,6 +672,16 @@ $route['admin/wallet-monitor/generate/(:num)']['post'] = 'admin/wallet/Walletmon
 $route['admin/wallet-monitor/log']['get'] = 'admin/wallet/Walletmonitor/log';
 $route['admin/wallet-monitor/scan-deposits']['post'] = 'admin/wallet/Walletmonitor/scan_deposits';
 $route['admin/wallet-monitor/deposits']['get'] = 'admin/wallet/Walletmonitor/deposits';
+
+/**************** Finance — Admin Bonus Wallet + reduction history (doc 11) */
+$route['admin/wallet/admin-wallet'] = 'admin/wallet/Adminwallet/index';
+$route['admin/wallet/admin-wallet/run']['post'] = 'admin/wallet/Adminwallet/run_now';
+
+/**************** Finance — On-Chain Transactions (doc 13) */
+$route['admin/wallet/onchain-transactions'] = 'admin/wallet/Onchaintx/index';
+$route['admin/wallet/onchain-transactions/list']['post'] = 'admin/wallet/Onchaintx/list';
+$route['admin/wallet/onchain-transactions/detail']['get'] = 'admin/wallet/Onchaintx/detail';
+$route['admin/wallet/onchain-transactions/receipt/(:num)'] = 'admin/wallet/Onchaintx/receipt/$1';
 
 /**************** Internal Wallet Transfer (user → own wallets, doc 9) */
 $route['user/transfer_wallet'] = 'user/Transfer_wallet/index';                       // GET page

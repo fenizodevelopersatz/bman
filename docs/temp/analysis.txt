@@ -1934,3 +1934,14 @@ Stake Fixed 2Y Fixed 3Y Fixed 5Y Regular 2Y Regular 3Y Regular 5Y
 
 http://192.168.29.18:9000/admin/staking/roi-structure
 
+
+I want to http://192.168.29.18:9000/payment-settings set the 
+
+i want to make the users table of timestamp, created_at, updated_at added and then this time 
+
+
+le Withdraw Settings page (currently: every 30 days, 3000–10000 BMAN / 30–100 USDT).
+
+
+CLI :  php index.php bonusreductioncron run
+HTTP:  /bonus-reduction-cron?token=dcron_9f27ab5c3e8140d6

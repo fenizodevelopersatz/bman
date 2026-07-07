@@ -5,6 +5,164 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-07 — Windows cron scheduler brought into main + documented (was worktree-only)
+
+The `cron.php` + `scheduler/` Windows Task Scheduler system (built earlier) lived
+only in the git worktree and was undocumented — doc 11 / the changelog linked to a
+`scheduler/README.md` that did not exist (broken link). Fixed.
+
+- **Moved into main:** `cron.php`, the whole `scheduler/` module (Config, Logger,
+  CronExpression, CronRunner, JobInterface, 4 example jobs, `task/run_cron.bat` +
+  `run_cron.ps1` + `CronJobTask.xml`, `storage/`), and `logs/`.
+- **Wrote the missing md:** `scheduler/README.md` — full ops guide (token, manual
+  run, `schtasks` create/update/delete, XML import, manual-test checklist,
+  "Task Scheduler doesn't fire" debugging, security) + how to point it at
+  `/bonus-reduction-cron` and the other CI cron URLs.
+- **New numbered doc:** [12_WINDOWS_CRON_SCHEDULER.md](12_WINDOWS_CRON_SCHEDULER.md);
+  registered in [0_INDEX.md](0_INDEX.md) (Documents table + status dashboard). The
+  doc-11 / changelog link to `../scheduler/README.md` now resolves.
+- **What it does:** one Task Scheduler task fires `cron.php` every minute;
+  `cron.php` matches each registered job's 5-field cron expression and runs the due
+  ones (token + IP gated, flock lock, per-job timeout + exception isolation,
+  rotating `logs/cron.log`). It also drives the platform's CI cron endpoints via
+  `run_cron.bat`.
+
+---
+
+## 2026-07-07 — Admin Bonus Wallet screen + reduction history (admin UI)
+
+Added the admin-side page that shows the reclaimed-bonus pool and every
+reduction — answering "where is the history / admin wallet shown".
+
+- **New screen:** **Admin ▸ Finance ▸ Admin Bonus Wallet** (`admin/wallet/admin-wallet`).
+  Balance cards (admin pool, lifetime reclaimed, count, on-chain sent/failed),
+  status badges (enabled / interval / % / dry-run / on-chain / admin address),
+  and the full **reduction history** table from `bonus_reduction_log` (user,
+  cycle, amount, status, tx-hash → BscScan). **Preview** (dry-run) and **Run
+  Reduction Now** (super-admin) buttons.
+- **Refactor:** reduction logic extracted into
+  `application/models/Bonusreduction_model.php` (`run($opt)` + reads); both
+  `Bonusreductioncron` (now a thin wrapper) and the admin controller use it — one
+  tested code path. Re-verified the cron output is unchanged.
+- **New files:** `application/models/Bonusreduction_model.php`,
+  `application/controllers/admin/wallet/Adminwallet.php`,
+  `application/views/admin/wallet/admin_wallet.php`. **Touched:** `config/routes.php`
+  (page + run routes), `admin/Layout/admin_sidebar.php` (menu link),
+  `controllers/Bonusreductioncron.php` (thinned).
+- **Verified:** route resolves (`/admin/wallet/admin-wallet` → 307 → admin login
+  when unauthenticated, i.e. guarded, not 404/500); model reads return live data
+  (admin_wallet 0.125, one history row for user 257). Gated by
+  `permission_pages['wallet_management']`; run is super-admin + AJAX only.
+
+---
+
+## 2026-07-07 — Bonus Wallet 60-day reduction → admin wallet: IMPLEMENTED (internal path, tested)
+
+Built and tested the Bonus Wallet reduction (scope narrowed to bonus only — ROI
+is a later phase and was removed from doc 11).
+
+- **Rule:** every `reduction_interval_days` (60 prod; **1 for testing**),
+  `reduction_percent` (50%) of a user's `user_wallets.bonus_balance` is reduced
+  and credited to the admin wallet. **Per-user schedule** anchored on
+  `users.register_date` (first cycle), then on the previous reduction (rolling).
+- **New files:** `application/controllers/Bonusreductioncron.php`,
+  `db/bonus_reduction.sql`, `user_cycle_info()` in `application/helpers/site_helper.php`,
+  route `bonus-reduction-cron` in `config/routes.php`.
+- **Reuses:** `Walletledger_model::debit(...,'bonus_reduction')` (double-entry,
+  row-locked), existing `admin_wallet` (doc 10) for the reclaimed pool,
+  `Web3bman::sendToken()` for the optional on-chain leg, `token_settings.bonus_wallet`
+  → `treasury_wallet` as the admin address.
+- **Config toggles** on `staking_bonus_settings`: added `reduction_dry_run`
+  (preview; default 1) + `reduction_onchain` (broadcast; default 0). Also uses the
+  existing `reduction_enabled/interval_days/percent`.
+- **On-chain leg:** when `reduction_onchain=1`, sends BMAN from the user's
+  custodial address to the admin wallet (gas in BNB); a failed broadcast is logged
+  `failed` and the internal reduction still stands (retryable). Needs funded user
+  addresses + a set admin wallet — not exercised on the local box.
+- **Run:** CLI `php index.php bonusreductioncron run` or `/bonus-reduction-cron?token=`;
+  driven daily by the Windows scheduler (scheduler/README.md).
+- **Tested (DB e-commerce-mlm-v2, user 257):** dry-run preview → execute
+  (bonus 0.25→0.125, admin 0→0.125, wallet_ledger + bonus_reduction_log rows) →
+  idempotent same-day re-run skips → 1-day interval 2nd cycle 0.125→0.0625. Test
+  data reset to clean baseline; handoff = interval 1, dry_run=1.
+- **Apply:** run `db/bonus_reduction.sql` on the DB (idempotent). ROI table/engine
+  intentionally deferred.
+
+---
+
+## 2026-07-07 — Doc 11 redesigned to FULLY ON-CHAIN, treasury-settled (owner decision)
+
+Superseded the same-day internal-ledger draft of doc 11 with an on-chain model,
+per owner decision — still plan-only, no code.
+
+- **Model chosen:** *1 real BEP-20 address per user + treasury-settled*. Every
+  value movement is a real on-chain BEP-20 transaction signed by `Web3bman` +
+  the encrypted treasury key; the five wallet "types" are system labels on one
+  on-chain balance, settled to/from the **company treasury**.
+- **Internal transfers removed:** the doc-9 internal wallet-transfer module is
+  **out of scope / retired** here — `wallet_transfer` reference_type retired, no
+  wallet-to-wallet shuffling. `§3` table dropped the "Internal transfer?" column
+  for an "On-chain settlement (to/from treasury)" column.
+- **`wallet_ledger` becomes an on-chain index:** every value row must carry a real
+  `tx_hash`; the confirmed tx *is* the record (idempotency needs no new column).
+- **On-chain bonus reduction:** two-phase (broadcast → confirm) `Bonusreductioncron`;
+  the per-user 60-day cycle (`user_cycle_info()` from `register_date`) only decides
+  *when* it fires. Reclaimed BMAN moves on-chain user→treasury.
+- **Company (Treasury) Wallet:** `admin_wallet` (on-chain balance cache: USDT/BMAN/
+  BNB gas) + `admin_wallet_ledger` (index of real treasury txs, `tx_hash` required).
+- **Gas strategy added (§10):** high-frequency ROI/commissions **accrue off-chain,
+  settle on-chain in batches** (one tx per settlement window) to avoid
+  gas-per-event; treasury gas tank + low-gas warning + dry-run/batch caps.
+- **New reference_types:** `bonus_reduction`, `withdraw_fee`, `roi_settlement`,
+  `principal_release`.
+- **Files:** rewrote [11_ADMIN_WALLET_MANAGEMENT.md](11_ADMIN_WALLET_MANAGEMENT.md)
+  (on-chain §3 table, §4 two-phase reduction, §6 treasury schema, §10 gas
+  strategy, §12 files, §13 open decisions); [0_INDEX.md](0_INDEX.md) row 11 +
+  status line updated to the on-chain model.
+
+---
+
+## 2026-07-07 — Admin Wallet Management + per-user 60-day cycle: PLAN ONLY (no code yet)
+
+Wrote the implementation plan that supersedes/expands the doc-10 pre-plan into a
+full **Admin (Company) Wallet Management** module and resolves its open anchor
+question — **nothing executes yet**, docs-only.
+
+- **Critical schema finding:** the `users` table has **no `created_at`/`updated_at`
+  column** — it uses `register_date` (`e-commerce-mlm-v2_by_asok.sql:2548`) and
+  `updated_date` (`:2556`). The per-user rolling 60-day cycle therefore anchors on
+  **`register_date`** (no new column, no new table), which is exactly the account
+  creation timestamp the brief intended.
+- **Per-user rolling cycle (PHP-only):** new `user_cycle_info()` helper in
+  `site_helper.php` computes each user's cycle from `register_date` with
+  `DateTimeImmutable` — completed cycles, current cycle, day-in-cycle, next-cycle
+  date. **Idempotency without a new column:** the reduction engine checks for an
+  existing `bonus_reduction` row in `wallet_ledger` within the current cycle
+  window, so the ledger *is* the cycle record.
+- **Resolves doc-10 Open-Question #1:** per-user rolling (not the shared global
+  Rank-Power cycle in `staking_rank_power_cycles`, which stays separate/untouched).
+- **Admin (Company) Wallet expanded:** doc-10's single-balance `admin_wallet`
+  becomes a **5-wallet company mirror** (`admin_wallets` + `admin_wallet_ledger`,
+  USDT/Exchange/Earning/Staking/Bonus) fed by bonus reductions, withdrawal fees,
+  and audited manual adjustments.
+- **Also documented:** maturity period (per-investment `mature_date = start +
+  package_config.days_duration`, enforced in `Cron.php::run_roi()`→`package_mature()`,
+  reinvest vs release_deposit), a new read-only **Maturity Monitor**, a consolidated
+  **Finance** admin menu, a unified **Wallet Statement**, and **PDF/Excel/CSV
+  export** (none exists today — no mPDF/TCPDF/PhpSpreadsheet in the codebase).
+- **Ledger consistency flagged:** `Walletmanagement` admin add/deduct currently
+  writes the legacy `history` table, bypassing `wallet_ledger` — plan reroutes it
+  through `Walletledger_model` so statements are complete (open decision).
+- **Files:** new doc
+  [11_ADMIN_WALLET_MANAGEMENT.md](11_ADMIN_WALLET_MANAGEMENT.md) (schema, PHP cycle
+  helper, cron, flowcharts, screens, export, open decisions);
+  [0_INDEX.md](0_INDEX.md) doc table + status dashboard updated to point at it.
+- **Next (pending owner sign-off on 5 open decisions):** `db/admin_wallet.sql`,
+  `Adminwallet_model.php`, `Bonusreductioncron.php`, `admin/finance/Companywallet`
+  + `Maturity` screens, `Statement_export.php`, and the `site_helper` cycle helper.
+
+---
+
 ## 2026-07-07 — Bonus Wallet 60-day/50% reduction + Admin Wallet: PLAN ONLY (no code yet)
 
 Wrote the full design for the pending "Bonus reduction cron" item (flagged

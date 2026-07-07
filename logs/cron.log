@@ -1,0 +1,2 @@
+[2026-07-07 17:01:21] [INFO] Job "clear_cache" completed | {"duration_ms":1,"details":{"directories_scanned":1,"files_scanned":0,"files_deleted":0,"bytes_freed":0}}
+[2026-07-07 17:01:21] [INFO] Cron run finished | {"mode":"manual:clear_cache","jobs_run":1,"jobs_failed":0}

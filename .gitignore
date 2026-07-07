@@ -3,6 +3,10 @@
 application/cache/*
 !application/cache/index.html
 
+application/.claude/*
+!application/.claude/index.html
+
+
 application/logs/*
 !application/logs/index.html
 
