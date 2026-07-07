@@ -5,6 +5,43 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-07 — Bonus Wallet 60-day/50% reduction + Admin Wallet: PLAN ONLY (no code yet)
+
+Wrote the full design for the pending "Bonus reduction cron" item (flagged
+since 2026-07-02 in [0_INDEX.md](0_INDEX.md) Phase B) — **nothing executes
+yet**, this is planning only.
+
+- **Scope clarified:** targets `user_wallets.bonus_balance` (the BMAN Staking
+  Bonus Coin wallet, §7), **not** the unrelated legacy MLM `history`-table
+  bonus in `admin/wallet/Walletmanagement.php`.
+- **New concept — Admin (Company) Wallet:** none exists today. Plan adds
+  `admin_wallet` (singleton balance) + `admin_wallet_ledger` (append-only,
+  mirrors `wallet_ledger`), so every 50% debited from a user's Bonus wallet is
+  matched by a credit into one company-owned account — same double-entry
+  principle already used by `Walletledger_model`, instead of the money simply
+  vanishing (forfeiture) with no audit trail.
+- **Engine:** new `Bonusreductioncron` controller modeled on `Depositcron.php`
+  (CLI `php index.php bonusreductioncron run` + HTTP
+  `/bonus-reduction-cron?token=`), run daily, processes whichever users are
+  due per a new `user_wallets.bonus_last_reduced_at` anchor column (backfilled
+  to `NOW()` on migration so no one is hit retroactively on day one). Reads
+  existing `staking_bonus_settings.reduction_enabled/interval_days/percent`
+  (already admin-configurable at 60 days / 50%, built 2026-07-02).
+- **Open questions logged for the business owner:** per-user rolling anchor
+  vs. shared global 60-day cycle (like Rank Power's); whether the Admin
+  Wallet balance is spendable or reporting-only; user notification on
+  reduction; confirming Bonus Transfer (§7) is the intended escape valve.
+- **Files:** new doc
+  [10_BONUS_WALLET_REDUCTION_ADMIN_WALLET.md](10_BONUS_WALLET_REDUCTION_ADMIN_WALLET.md)
+  (full schema, engine pseudocode, admin/user surfaces, rollout safety);
+  [0_INDEX.md](0_INDEX.md) doc table + status dashboard + Phase B task line
+  updated to point at it.
+- **Next:** implement `db/admin_wallet.sql`, `Adminwallet_model.php`,
+  `Bonusreductioncron.php`, and the admin "Admin Wallet" screen per §11 of the
+  plan doc — none of that exists yet, this commit is docs-only.
+
+---
+
 ## 2026-07-03 — On-chain BMAN delivery to the user's address (return the coin)
 
 The swap credited BMAN internally (Exchange/Bonus) but wasn't sending it on-chain

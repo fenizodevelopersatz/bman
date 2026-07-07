@@ -24,6 +24,7 @@ trackable. Update the **Status** column as features land.
 | 7 | [7_TOKEN_WALLET_INTEGRATION.md](7_TOKEN_WALLET_INTEGRATION.md) | Custodial vs on-chain: giving BMAN without a key, deposit→stake→withdraw, treasury-key handling |
 | 8 | [8_WALLET_DEPOSIT_WITHDRAW.md](8_WALLET_DEPOSIT_WITHDRAW.md) | Production wallet: double-entry ledger, deposit listener deep-dive, statuses, "works with no private key" verification |
 | 9 | [9_INTERNAL_WALLET_TRANSFER.md](9_INTERNAL_WALLET_TRANSFER.md) | Internal wallet transfer (user → wallet): 3-table schema, model, controller, validation, security, UI design, admin side |
+| 10 | [10_BONUS_WALLET_REDUCTION_ADMIN_WALLET.md](10_BONUS_WALLET_REDUCTION_ADMIN_WALLET.md) | Pre-plan: Bonus Wallet 60-day/50% reduction engine + new Admin (Company) Wallet that receives the reclaimed amount |
 
 ---
 
@@ -44,6 +45,7 @@ trackable. Update the **Status** column as features land.
 | Internal wallet transfer module (user → own wallets) — ledger, admin grid | ✅ Done | `wallet_internal_transfer` + `wallet_ledger`; `Transfer_wallet` user page, admin Finance → Internal Wallet Transfers. USDT excluded. See [9_INTERNAL_WALLET_TRANSFER.md](9_INTERNAL_WALLET_TRANSFER.md) |
 | Token Settings §5/§6 simplify — Treasury+Deposit wallet, encrypted Treasury key, drop contracts | ✅ Done | USDT→BMAN signed by one Treasury key (AES-encrypted, never shown); gas/bonus/reserve/cold + smart-contract fields removed |
 | Staking user purchase flow + ROI cron + reports | ⬜ Planned | Next phase of [6_STAKING_PACKAGES_PLANS_ROI.md](6_STAKING_PACKAGES_PLANS_ROI.md) |
+| Bonus Wallet reduction cron + Admin (Company) Wallet | 📝 Plan written | Design only, no code yet — see [10_BONUS_WALLET_REDUCTION_ADMIN_WALLET.md](10_BONUS_WALLET_REDUCTION_ADMIN_WALLET.md) |
 | Dynamic landing module (17 sections, repeaters, versioning) | ✅ Done | Phase 1 |
 | Admin editor `/landing-page-cms` + permission fallback | ✅ Done | Phase 1 |
 | Public page `/landing` | ✅ Done | Phase 1 |
@@ -123,7 +125,9 @@ New tasks get added to the correct phase below.
 - [ ] ROI credit cron — Regular/Combo on 5/15/25 monthly + Fixed at maturity
       → `staking_roi_payouts`
 - [ ] Bonus reduction cron — every `reduction_interval_days`, reduce Bonus Wallet
-      by `reduction_percent` (reads `staking_bonus_settings`)
+      by `reduction_percent` (reads `staking_bonus_settings`), credits the new
+      **Admin (Company) Wallet** with the reclaimed amount — full design in
+      [10_BONUS_WALLET_REDUCTION_ADMIN_WALLET.md](10_BONUS_WALLET_REDUCTION_ADMIN_WALLET.md)
 - [ ] Bonus transfer flow — direct left/right only, email OTP + transfer password
 - [ ] Binary matching bonus payout — 10% split 8% Earning / 2% Staking
       (reads `staking_bonus_settings`)

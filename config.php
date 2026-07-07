@@ -8,7 +8,7 @@ define('DB_NAME', "e-commerce-mlm-v2");
 //  (devtunnels / ngrok / cloudflare) without editing this file each demo.
 //  CLI / cron has no request host, so it uses the fixed fallback below.
 // ---------------------------------------------------------------------------
-define('BASE_URL_FALLBACK', "http://192.168.29.7:9000");   // used for CLI/cron + if host is unknown
+define('BASE_URL_FALLBACK', "http://192.168.29.18:9000");   // used for CLI/cron + if host is unknown
 
 if (php_sapi_name() === 'cli' || empty($_SERVER['HTTP_HOST'])) {
     define('BASE_URL', BASE_URL_FALLBACK);
