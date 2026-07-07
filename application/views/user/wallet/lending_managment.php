@@ -955,7 +955,7 @@ $hero_progress = 48;
       <!-- HERO BANNER -->
       <div class="invest-hero">
         <div class="banner-content">
-          <h2><i class="ph-fill ph-chart-pie"></i> Wealth Engine</h2>
+          <h2><i class="ph-fill ph-chart-pie"></i> Stakings</h2>
           <p>Put your USD balance to work. Choose a verified package, track your daily ROI credits, and grow your
             portfolio with transparency.</p>
 
@@ -974,7 +974,10 @@ $hero_progress = 48;
         <div class="hero-blobs"><span></span><span></span><span></span></div>
       </div>
 
-      <!-- KPI GRID -->
+      <!-- KPI summary cards removed in Phase 2 (Stakings redesign): Available USDT /
+           Total Invested / Total ROI / Next Payout / Active Plans now live only on
+           the Wallet/Dashboard and are no longer duplicated here. -->
+      <?php if (false): ?>
       <div class="kpi-grid">
         <div class="kpi-card">
           <div class="kpi-icon"><i class="ph ph-wallet"></i></div>
@@ -1039,6 +1042,7 @@ $hero_progress = 48;
           </svg>
         </div>
       </div>
+      <?php endif; // KPI grid disabled (Phase 2) ?>
 
       <!-- BMAN WALLET STRIP (context only — staking purchases use USDT) -->
       <?php
@@ -1075,6 +1079,8 @@ $hero_progress = 48;
       <?php $this->load->view('user/wallet/_staking_packages', [
         'staking_packages' => $staking_packages ?? [],
         'staking_plans'    => $staking_plans ?? [],
+        'owned_stake_ids'  => $owned_stake_ids ?? [],
+        'swap_enabled'     => $swap_enabled ?? 0,
         'swap_enabled'     => $swap_enabled ?? 0,
       ]); ?>
 

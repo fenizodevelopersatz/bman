@@ -26,8 +26,19 @@ class Lendingcontroller extends CI_Controller
         $userid = (int) $this->session->userdata('user_userid');
 
         $this->data['user_id'] = $userid;
-        $this->data['title'] = "Make Lending";
-        $this->data['card_title'] = "Add Lending";
+        $this->data['title'] = "Stakings";
+        $this->data['card_title'] = "Stakings";
+
+        // Staking packages the user already owns (highlight on the cards). Real
+        // data from user_stakes when present; empty-safe otherwise.
+        $ownedIds = [];
+        if ($this->db->table_exists('user_stakes')) {
+            foreach ($this->db->distinct()->select('package_id')->where('user_id', $userid)
+                        ->get('user_stakes')->result_array() as $r) {
+                $ownedIds[] = (int) $r['package_id'];
+            }
+        }
+        $this->data['owned_stake_ids'] = $ownedIds;
 
         // Wallet (numeric) — legacy currency balance, kept for backward compat.
         $this->data['wallet_balance_usd'] = (float) site_wallet_balance_without_format($userid);
@@ -249,6 +260,114 @@ class Lendingcontroller extends CI_Controller
             ]
         ]);
     }
+    /**
+     * AJAX: complete detail for one investment — all 7 tabs of the redesigned
+     * Stakings modal, from real data (package info, ROI history, on-chain
+     * transactions, ledger movements, timeline, documents, audit events).
+     * POST invest_id. Read-only, ownership-checked. See docs/15.
+     */
+    public function staking_detail()
+    {
+        $userId = (int) $this->session->userdata('user_userid');
+        if (!$userId) { echo json_encode(['status'=>false,'message'=>'Unauthorized']); return; }
+        $investId = (int) $this->input->post('invest_id');
+
+        $inv = $this->db->select('ui.*, pc.package_name, pc.roi AS pkg_roi, pc.days_duration, pc.period, pc.retrun_principle')
+            ->from('user_investment ui')->join('package_config pc', 'pc.id = ui.package_id', 'left')
+            ->where('ui.id', $investId)->where('ui.user_id', $userId)->get()->row_array();
+        if (!$inv) { echo json_encode(['status'=>false,'message'=>'Investment not found']); return; }
+
+        $ts = $this->db->select('explorer_url')->get_where('token_settings',['status'=>1])->row_array();
+        $explorer = rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
+        $today = new DateTimeImmutable('today');
+
+        // ---- calculations ----
+        $roiPct   = (float)$inv['pkg_roi'];
+        $duration = (int)$inv['days_duration'];
+        $amount   = (float)$inv['invest_amount'];
+        $mature   = !empty($inv['mature_date']) ? new DateTimeImmutable(date('Y-m-d', strtotime($inv['mature_date']))) : null;
+        $daysRemaining = $mature ? max(0, (int)$today->diff($mature)->days * ($mature >= $today ? 1 : 0)) : null;
+
+        $roiRows = $this->db->select('id, amount, token_amount, description, history_date, hash_id')
+            ->where('user_id',$userId)->where('invest_id',$investId)->where('hash_id','roi-made')
+            ->order_by('history_date','ASC')->get('history')->result_array();
+        $completedCycles = count($roiRows);
+        $totalEarned = 0; foreach ($roiRows as $r) $totalEarned += (float)$r['amount'];
+        $expectedFinal = $amount * ($roiPct/100) * $duration;               // daily-roi model
+        $pending = max(0, $expectedFinal - $totalEarned);
+        $remainingCycles = max(0, $duration - $completedCycles);
+
+        $statusMap = ['0'=>'Pending','1'=>'Active','2'=>'Matured'];
+        $status = $statusMap[(string)$inv['status']] ?? 'Active';
+        if ((string)$inv['status'] === '2' && (int)($inv['recived_status'] ?? 0) === 1) $status = 'Completed';
+
+        // ---- TAB 1: package info ----
+        $tab1 = [
+            'invest_id'=>(int)$inv['id'], 'package_name'=>$inv['package_name'],
+            'stake_amount'=>$amount, 'plan_type'=>($inv['period'] ?: 'Daily'),
+            'roi_structure'=>$roiPct.'% '.($inv['period'] ?: 'daily').' × '.$duration.' days',
+            'purchase_date'=>$inv['created_date'] ?? $inv['starting_date'],
+            'activation_date'=>$inv['starting_date'], 'maturity_date'=>$inv['mature_date'],
+            'lock_period_days'=>$duration, 'days_remaining'=>$daysRemaining, 'status'=>$status,
+            'wallet_used'=>'USDT', 'tx_hash'=>$inv['hash_id'] ?? null,
+            'explorer_link'=>(!empty($inv['hash_id']) && strlen($inv['hash_id'])>40) ? ($explorer.'/tx/'.$inv['hash_id']) : null,
+        ];
+
+        // ---- TAB 2: ROI history (+ enrich from onchain when available) ----
+        $tab2 = ['rows'=>[], 'totals'=>['total_earned'=>$totalEarned,'remaining'=>$pending,'expected_final'=>$expectedFinal]];
+        $cyc = 0;
+        foreach ($roiRows as $r) {
+            $cyc++;
+            $tab2['rows'][] = [
+                'date'=>$r['history_date'], 'cycle'=>$cyc, 'roi_percent'=>$roiPct,
+                'amount'=>(float)$r['amount'], 'wallet_credited'=>'earning',
+                'tx_hash'=>null, 'chain_status'=>'internal', 'gas_fee'=>null, 'confirmations'=>null,
+                'created_time'=>$r['history_date'],
+            ];
+        }
+
+        // ---- TAB 3: on-chain transactions (user-level; package-linked where possible) ----
+        $tab3 = $this->db->select('tx_hash, block_number, created_at, tx_type, wallet_type, amount, gas_used, gas_fee_total, status')
+            ->where('user_id',$userId)->order_by('id','DESC')->limit(100)->get('onchain_transactions')->result_array();
+        foreach ($tab3 as &$t) $t['explorer'] = !empty($t['tx_hash']) ? ($explorer.'/tx/'.$t['tx_hash']) : null;
+        unset($t);
+
+        // ---- TAB 4: ledger movements ----
+        $tab4 = $this->db->select('created_at, wallet_type, credit, debit, balance_after, reference_type, reference_id, description, created_by')
+            ->where('user_id',$userId)->order_by('id','DESC')->limit(100)->get('wallet_ledger')->result_array();
+
+        // ---- TAB 5: timeline ----
+        $tab5 = [];
+        $tab5[] = ['event'=>'Purchased','date'=>$inv['created_date'] ?? $inv['starting_date'],'desc'=>'Stake purchased ('.number_format($amount,2).')'];
+        if (!empty($inv['starting_date'])) $tab5[] = ['event'=>'Activated','date'=>$inv['starting_date'],'desc'=>'Investment activated'];
+        $cyc=0; foreach ($roiRows as $r){ $cyc++; $tab5[]=['event'=>"ROI Cycle $cyc",'date'=>$r['history_date'],'desc'=>'ROI '.number_format((float)$r['amount'],4).' credited']; }
+        if ($mature && $mature <= $today) $tab5[] = ['event'=>'Matured','date'=>$inv['mature_date'],'desc'=>'Reached maturity'];
+        if ($status==='Completed') $tab5[] = ['event'=>'Completed','date'=>$inv['mature_date'],'desc'=>'Principal settled'];
+
+        // ---- TAB 6: documents (endpoints; PDFs are a later phase) ----
+        $tab6 = [
+            ['name'=>'Purchase Receipt','available'=>true,'url'=>base_url('user/stakings/receipt/'.$investId)],
+            ['name'=>'Blockchain Receipt','available'=>!empty($tab1['explorer_link']),'url'=>$tab1['explorer_link']],
+            ['name'=>'Investment Agreement','available'=>false,'url'=>null],
+            ['name'=>'ROI Schedule','available'=>true,'url'=>base_url('user/stakings/roi-schedule/'.$investId)],
+            ['name'=>'Tax Report','available'=>false,'url'=>null],
+        ];
+
+        // ---- TAB 7: audit log (immutable on-chain events for this user) ----
+        $tab7 = $this->db->select('e.event_type, e.new_status, e.old_status, e.actor_type, e.actor_id, e.ip_address, e.rpc_endpoint, e.tx_hash, e.created_at')
+            ->from('onchain_tx_events e')->join('onchain_transactions o','o.id = e.tx_id','inner')
+            ->where('o.user_id',$userId)->order_by('e.id','DESC')->limit(100)->get()->result_array();
+
+        echo json_encode([
+            'status'=>true,
+            'calc'=>['completed_cycles'=>$completedCycles,'remaining_cycles'=>$remainingCycles,
+                     'total_roi_earned'=>$totalEarned,'pending_roi'=>$pending,'expected_final'=>$expectedFinal,
+                     'days_remaining'=>$daysRemaining,'next_roi_date'=>$inv['run_date'] ?? null],
+            'tab1_package'=>$tab1, 'tab2_roi'=>$tab2, 'tab3_transactions'=>$tab3,
+            'tab4_ledger'=>$tab4, 'tab5_timeline'=>$tab5, 'tab6_documents'=>$tab6, 'tab7_audit'=>$tab7,
+        ]);
+    }
+
     /**
      * Convert package_config rows into the structure your UI expects.
      */

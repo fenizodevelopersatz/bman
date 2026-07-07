@@ -10,6 +10,7 @@
  */
 $staking_packages = isset($staking_packages) && is_array($staking_packages) ? $staking_packages : [];
 $staking_plans    = isset($staking_plans) && is_array($staking_plans) ? $staking_plans : [];
+$owned_stake_ids  = isset($owned_stake_ids) && is_array($owned_stake_ids) ? $owned_stake_ids : [];
 
 if (!empty($staking_packages)):
 
@@ -67,6 +68,15 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   .stk-foot{margin-top:12px;font-size:11px;line-height:1.5;color:var(--muted,#6b7280);font-weight:700;
     display:flex;gap:12px;flex-wrap:wrap;}
   .stk-foot b{color:#0b1220;}
+  .stk-card.owned{border-color:#22c55e;box-shadow:0 10px 28px rgba(34,197,94,.18);}
+  .stk-card .owned-rib{position:absolute;top:14px;right:-32px;transform:rotate(45deg);background:#22c55e;color:#fff;
+    font-size:10px;font-weight:1000;letter-spacing:.5px;padding:3px 36px;box-shadow:0 4px 10px rgba(34,197,94,.3);z-index:2;}
+  .stk-terms{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  .stk-terms .t{display:inline-flex;align-items:center;gap:5px;background:rgba(15,23,42,.05);border-radius:8px;
+    padding:4px 9px;font-size:11px;font-weight:900;color:#334155;}
+  .stk-terms .t.ok{background:rgba(34,197,94,.12);color:#15803d;}
+  .stk-tc{margin-top:10px;text-align:center;}
+  .stk-tc a{font-size:11.5px;font-weight:900;color:#4f46e5;cursor:pointer;text-decoration:underline;}
   @media (max-width:520px){.stk-card .amt{font-size:21px;}}
 </style>
 
@@ -114,8 +124,10 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   <div class="stk-grid">
     <?php foreach ($staking_packages as $p):
       $roi = $p['roi'] ?? [];
+      $owned = in_array((int)$p['id'], $owned_stake_ids, true);
     ?>
-    <div class="stk-card">
+    <div class="stk-card<?= $owned ? ' owned' : '' ?>">
+      <?php if ($owned): ?><span class="owned-rib">OWNED</span><?php endif; ?>
       <div class="amt"><?= number_format((float)$p['stake_amount']) ?> <small>BMAN</small></div>
       <div class="nm"><?= htmlspecialchars($p['name']) ?> Package</div>
 
@@ -149,6 +161,13 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         <span><b>Fixed:</b> total ROI at maturity</span>
         <span><b>Regular:</b> % credited monthly</span>
       </div>
+
+      <div class="stk-terms">
+        <span class="t"><i class="ph ph-lock-key"></i> <?= implode(' / ', $durations) ?> yr terms</span>
+        <span class="t"><i class="ph ph-coins"></i> Min <?= number_format((float)$p['stake_amount']) ?> BMAN</span>
+        <span class="t ok"><i class="ph ph-seal-check"></i> Available</span>
+      </div>
+      <div class="stk-tc"><a onclick="stkTerms()">Terms &amp; Conditions</a></div>
 
       <button type="button" class="stk-buy" onclick="stkOpen(<?= (int)$p['id'] ?>)">
         <i class="ph ph-lock-key"></i> <?= !empty($swap_enabled) ? 'Buy BMAN' : 'Stake Now' ?>
@@ -318,4 +337,24 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   };
 })();
 </script>
+<!-- ===================== TERMS & CONDITIONS POPUP ===================== -->
+<div class="stkm-overlay" id="stk-tc-modal">
+  <div class="stkm" style="max-width:560px;">
+    <div class="stkm-h">
+      <h3><i class="ph ph-scroll"></i> Staking Terms &amp; Conditions</h3>
+      <button class="x" type="button" onclick="document.getElementById('stk-tc-modal').classList.remove('open')">&times;</button>
+    </div>
+    <div class="stkm-b" style="max-height:70vh;overflow:auto;font-size:13px;line-height:1.65;color:#334155;font-weight:600;">
+      <ul style="padding-left:18px;margin:0;">
+        <li>Staking locks a fixed BMAN amount for the selected term (2 / 3 / 5 years).</li>
+        <li><b>Fixed</b> plan: total ROI is credited once at maturity; principal + ROI become withdrawable after the term matures.</li>
+        <li><b>Regular</b> plan: ROI is credited monthly across the whole term.</li>
+        <li>Each purchase grants a one-time <b>Bonus</b> to your Bonus wallet; the Bonus wallet reduces per the platform bonus policy.</li>
+        <li>Group incentive earnings are capped by each package's ceiling.</li>
+        <li>ROI records, ledger movements and blockchain transactions are immutable and independently auditable on-chain.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+<script>window.stkTerms = function(){ document.getElementById('stk-tc-modal').classList.add('open'); };</script>
 <?php endif; /* staking_packages */ ?>

@@ -11,7 +11,7 @@ $isReferrals = ($uri === 'user/referrals');
 $isRankRewards = ($uri === 'user/rank-reward');
 $isEarnMore = ($uri === 'user/earn_more' || $uri === 'user/earnings' || $uri === 'user/earnings/ads' || $uri === 'user/earnings/videos');
 $isChat = ($uri === 'user/chat');
-$isPackage = ($uri === 'user/lending');
+$isPackage = ($uri === 'user/lending' || $uri === 'user/stakings');
 $isSupport = ($uri === 'user/support' || $uri === 'user/create-ticket' || $uri === 'user/support-list');
 $isSettings = ($uri === 'user/view-profile' || $uri === 'user/edit-profile');
 $isTransfer = ($uri === 'user/transfer_wallet');
@@ -26,8 +26,8 @@ $isTransfer = ($uri === 'user/transfer_wallet');
         <span class="nav-label">Overview</span>
         <a href="<?php echo base_url('user/main'); ?>" class="nav-item <?php echo $isDashboard ? 'active' : ''; ?>"><i
                 class="ph-fill ph-squares-four"></i> Dashboard</a>
-        <a href="<?php echo base_url('user/lending'); ?>" class="nav-item <?php echo $isPackage ? 'active' : ''; ?>"><i
-                class="ph ph-coins"></i> Package</a>
+        <a href="<?php echo base_url('user/stakings'); ?>" class="nav-item <?php echo $isPackage ? 'active' : ''; ?>"><i
+                class="ph ph-coins"></i> Stakings</a>
         <a href="<?php echo base_url('user/wallet'); ?>" class="nav-item <?php echo $isWallet ? 'active' : ''; ?>"><i
                 class="ph ph-wallet"></i> Wallet</a>
         <a href="<?php echo base_url('user/transfer_wallet'); ?>" class="nav-item <?php echo $isTransfer ? 'active' : ''; ?>"><i
