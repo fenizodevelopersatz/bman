@@ -797,6 +797,77 @@ class Withdraw extends MY_Controller
     //     }
     // }
 
+    /**
+     * On-chain payout lifecycle for a withdrawal (fail-safe).
+     *  - approved + a pasted `tx_hash` → store it on `withdrawals`, create a
+     *    `withdrawal` row in onchain_transactions, verify it against the chain
+     *    (status/confirmations/gas), and link both. Status flows
+     *    broadcasting → pending → confirmed / reverted.
+     *  - rejected → mark chain_status = cancelled.
+     * The user balance is debited at request time and refunded-once on reject
+     * (existing admin_txn_id guard) — this method never debits.
+     */
+    private function _recordWithdrawOnchain($id, $withdraw, $new_status)
+    {
+        try {
+            $this->load->model('Onchaintx_model', 'octx');
+            $adminId = (int) $this->session->userdata('admin_userid');
+            $txHash  = $this->input->post('tx_hash', true);
+
+            if ($new_status === 'approved' && $txHash) {
+                $ts = $this->db->select('explorer_url,chain_id,usdt_contract')
+                               ->get_where('token_settings', ['status' => 1])->row_array() ?: [];
+                $explorer = rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
+
+                $txId = $this->octx->capture([
+                    'tx_hash'        => $txHash,
+                    'network'        => 'mainnet',
+                    'chain_id'       => (int)($ts['chain_id'] ?? 56),
+                    'wallet_type'    => 'usdt',
+                    'tx_type'        => 'withdrawal',
+                    'status'         => 'processing',
+                    'user_id'        => (int)$withdraw->user_id,
+                    'admin_id'       => $adminId,
+                    'token_symbol'   => 'USDT',
+                    'token_contract' => $ts['usdt_contract'] ?? null,
+                    'token_decimals' => 18,
+                    'amount'         => (float)$withdraw->amount,
+                    'debit_wallet'   => 'usdt',
+                    'reference_type' => 'withdrawal',
+                    'reference_id'   => (string)$id,
+                    'created_by'     => $adminId,
+                    'ip_address'     => $this->input->ip_address(),
+                    '_event'         => ['actor_type'=>'admin','actor_id'=>$adminId,
+                                         'ip_address'=>$this->input->ip_address(),'detail'=>'withdrawal payout broadcast'],
+                ]);
+
+                $this->db->where('id', $id)->update('withdrawals', [
+                    'tx_hash'      => $txHash,
+                    'chain_status' => 'broadcasting',
+                    'broadcast_at' => date('Y-m-d H:i:s'),
+                    'explorer_url' => $explorer.'/tx/'.$txHash,
+                    'onchain_tx_id'=> $txId ?: null,
+                ]);
+
+                // Verify immediately against the chain.
+                if ($txId) {
+                    $this->load->model('Chainsync_model', 'chain');
+                    $res = $this->chain->verifyTx($txId);
+                    $st  = $res['status'] ?? 'pending';
+                    $this->db->where('id', $id)->update('withdrawals', [
+                        'chain_status'  => $st === 'confirmed' ? 'confirmed' : ($st === 'reverted' ? 'reverted' : 'pending'),
+                        'block_number'  => $res['block'] ?? null,
+                        'confirmations' => $res['confirmations'] ?? null,
+                    ]);
+                }
+            } elseif ($new_status === 'rejected') {
+                $this->db->where('id', $id)->update('withdrawals', ['chain_status' => 'cancelled']);
+            }
+        } catch (Throwable $e) {
+            log_message('error', '[withdraw onchain] ' . $e->getMessage());
+        }
+    }
+
     public function update($id)
     {
         if (!$id) {
@@ -830,6 +901,28 @@ class Withdraw extends MY_Controller
             }
 
             $new_status = $this->input->post('status', true);
+            $tx_hash    = trim((string) $this->input->post('tx_hash', true));
+
+            // ===== Approve requires a valid, unique on-chain payout tx hash =====
+            if ($new_status === 'approved' && empty($withdraw->tx_hash)) {
+                if ($tx_hash === '') {
+                    echo json_encode(['status' => 'error', 'message' => 'A payout transaction hash is required to approve this withdrawal.']);
+                    return;
+                }
+                if (!preg_match('/^0x[0-9a-fA-F]{64}$/', $tx_hash)) {
+                    echo json_encode(['status' => 'error', 'message' => 'Invalid transaction hash format (expected 0x followed by 64 hex characters).']);
+                    return;
+                }
+                $dupW = $this->db->where('tx_hash', $tx_hash)->where('id !=', $id)->count_all_results('withdrawals');
+                $dupO = $this->db->where('tx_hash', $tx_hash)
+                                 ->where('reference_type', 'withdrawal')
+                                 ->where('reference_id !=', (string)$id)
+                                 ->count_all_results('onchain_transactions');
+                if ($dupW > 0 || $dupO > 0) {
+                    echo json_encode(['status' => 'error', 'message' => 'This transaction hash is already recorded for another withdrawal.']);
+                    return;
+                }
+            }
 
             // ===== Upload proof (optional) =====
             $proof_file = null;

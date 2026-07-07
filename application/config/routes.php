@@ -358,6 +358,7 @@ $route['earn-cron-made'] = 'Cron/run_roi';
 $route['rank-cron-made'] = 'Cron/update_all_users_rank';
 $route['binary-cron-made'] = 'Cron/binary_commission_call';
 $route['bonus-reduction-cron'] = 'Bonusreductioncron/run';   // Bonus Wallet 60-day reduction → admin bonus wallet (token-gated over HTTP)
+$route['chain-sync-cron'] = 'Chainsynccron/run';             // RPC-first balance sync + tx confirmation follow-up (token-gated over HTTP)
 
 
 

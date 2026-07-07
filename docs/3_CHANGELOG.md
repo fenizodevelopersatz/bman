@@ -5,6 +5,75 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-07 — Production hardening: mandatory withdrawal tx_hash + scalable batch rotation
+
+- **Withdrawal approval:** `tx_hash` is now **mandatory to approve** — added to the
+  admin form (`views/admin/withdraw/view.php`), validated server-side
+  (`^0x[0-9a-fA-F]{64}$`), and **de-duplicated** across `withdrawals` +
+  `onchain_transactions` before saving. On approve it is verified on-chain and
+  linked (from the previous pass); balance is never debited twice.
+- **Scalable batch rotation:** new singleton `wallet_sync_cursor`
+  (`db/wallet_sync_cursor.sql`: `last_user_id`, configurable `batch_size`,
+  `cycle_count`, worker lock). `Chainsync_model::syncBatch/claimBatch/pendingAddresses`:
+  priority (pending-tx) addresses first, then an **atomically-claimed** rotation
+  window (`SELECT … FOR UPDATE` → multi-worker safe, no double-processing),
+  **resumable** cursor across runs/restarts, **wrap → new cycle** on exhaustion,
+  RPC-first with BscScan only on a diff, full per-batch metrics to `rpc_sync_log`
+  (`scope='batch'`). `Chainsynccron` rewritten to use it (`?batch=&worker=`).
+- **Tested (live):** `chainsynctest` = **10/10 pass** (adds batch-rotation-advances,
+  restart-recovery-from-cursor, wrap-to-new-cycle, withdrawal tx_hash
+  format+dedupe). Live batch cron: 11 addresses, cursor→257, 0 BscScan calls
+  (nothing changed).
+- **Production reqs met:** configurable batch size (`?batch=` / cursor), idempotent
+  (diff-gate + dedupe), duplicate-safe (atomic claim + seen-set), monitoring
+  (`rpc_sync_log`), retry (pending re-verified each run), restart recovery
+  (persistent cursor).
+- **New:** `db/wallet_sync_cursor.sql`. **Touched:** `Chainsync_model.php`,
+  `Chainsynccron.php`, `Chainsynctest.php`, `admin/withdraw/Withdraw.php`,
+  `views/admin/withdraw/view.php`, [14_ONCHAIN_SYNC_LIFECYCLE.md](14_ONCHAIN_SYNC_LIFECYCLE.md).
+
+---
+
+## 2026-07-07 — On-chain lifecycle (withdrawal/swap) + verification + efficient RPC-first balance sync
+
+Closed the two wiring gaps as a full lifecycle, added chain verification, and a
+cost-optimized balance-sync engine.
+
+- **Withdrawal lifecycle:** `withdrawals` gained tx_hash + `chain_status`
+  (created→broadcasting→pending→confirmed→failed→reverted→cancelled) + block,
+  confirmations, gas_used/price/fee, nonce, explorer_url, failure_reason,
+  onchain_tx_id, balance_debited. `Withdraw::update` records the payout hash on
+  approve, creates + **verifies** an `onchain_transactions` withdrawal row, marks
+  `cancelled` on reject. No double-deduct (debit is request-time; refund guarded).
+- **Swap lifecycle:** `Swapengine::deliverBman` attaches the **delivery** hash
+  (+ request hash, stored separately) to the swap's on-chain rows via
+  `attachSwapDelivery()` — no duplicates; logs a `broadcast` event.
+- **Verification (`Chainsync_model::verifyTx`):** RPC tx+receipt+head → status,
+  confirmations, gas, nonce, block; finalizes at `minimum_confirmations`; **reorg
+  detection** (stored block ≠ chain block → `reorg_count++`, reconcile, event).
+- **Efficient balance sync (`Chainsync_model::syncAddress`):** free RPC
+  `eth_getBalance`/`balanceOf` primary; compares to `wallet_balance_sync`; **BscScan
+  tokentx fallback ONLY on a balance diff**; imports new transfers deduped on
+  tx_hash+log_index; caches last block/hash; multi-RPC failover; every attempt /
+  balance change / RPC failure / API call → `rpc_sync_log`.
+- **Cron:** `Chainsynccron` (`/chain-sync-cron?token=`) finalizes confirmations +
+  syncs treasury + a bounded batch of user addresses.
+- **Audit:** `onchain_tx_events` now records the RPC endpoint per change; engine
+  emits broadcast/status_change/reverted/confirmation events.
+- **Tested live (BSC mainnet):** `chainsynctest` = **6/6 pass** (duplicate
+  protection, verify real tx = confirmed/733k conf, reorg detect+correct, 5-endpoint
+  failover, balance reconciliation, RPC-first diff-gating). Live cron: 12 addresses,
+  43 transfers imported, only 3 BscScan calls; 2nd run 0 BscScan calls.
+- **New files:** `db/onchain_sync.sql`, `Chainsync_model.php`, `Chainsynccron.php`,
+  `Chainsynctest.php`, [14_ONCHAIN_SYNC_LIFECYCLE.md](14_ONCHAIN_SYNC_LIFECYCLE.md).
+  **Touched:** `Onchaintx_model.php`, `staking/Swapengine_model.php`,
+  `admin/withdraw/Withdraw.php`, `config/routes.php`.
+- **Follow-ups:** add a tx_hash input to the withdrawal-approve form; BNB native
+  history import; rotate user-address batches for very large user counts. Real
+  money-moving withdrawal/swap broadcasts run via their dry-run paths (not executed).
+
+---
+
 ## 2026-07-07 — Live auto-capture: every wallet movement recorded on-chain + immutable audit
 
 Wired all wallet flows to record into the On-Chain Transactions module

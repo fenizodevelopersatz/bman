@@ -341,6 +341,111 @@ class Chainsync_model extends CI_Model
         return $done;
     }
 
+    /* --------------------- scalable batch rotation ----------------------- */
+
+    /** Cursor config (batch size, position); creates the singleton if missing. */
+    public function cursor()
+    {
+        $c = $this->db->get_where('wallet_sync_cursor', ['id' => 1])->row_array();
+        if (!$c) {
+            $this->db->insert('wallet_sync_cursor', ['id' => 1, 'batch_size' => 200]);
+            $c = $this->db->get_where('wallet_sync_cursor', ['id' => 1])->row_array();
+        }
+        return $c;
+    }
+
+    /**
+     * Atomically claim the next rotation window (SELECT … FOR UPDATE on the
+     * cursor). Concurrent workers each get a distinct window; the cursor persists
+     * across restarts (resume from where it stopped). Wraps to a new full pass
+     * when the end is reached.
+     */
+    public function claimBatch($workerId, $batchOverride = null)
+    {
+        $this->db->trans_begin();
+        $cur = $this->db->query("SELECT * FROM wallet_sync_cursor WHERE id = 1 FOR UPDATE")->row_array();
+        if (!$cur) { $this->db->trans_rollback(); $this->cursor(); return $this->claimBatch($workerId, $batchOverride); }
+
+        $batch = $batchOverride ? max(1, (int)$batchOverride) : max(1, (int)$cur['batch_size']);
+        $last  = (int)$cur['last_user_id'];
+        $cycle = (int)$cur['cycle_count'];
+        $wrapped = false;
+
+        $rows = $this->db->select('user_id, wallet_address')->from('user_wallet')
+            ->where('user_id >', $last)->where('wallet_address IS NOT NULL', null, false)
+            ->order_by('user_id', 'ASC')->limit($batch)->get()->result_array();
+
+        if (empty($rows)) { // reached the end → start a new full pass
+            $wrapped = true; $cycle++;
+            $rows = $this->db->select('user_id, wallet_address')->from('user_wallet')
+                ->where('wallet_address IS NOT NULL', null, false)
+                ->order_by('user_id', 'ASC')->limit($batch)->get()->result_array();
+        }
+        $newLast = !empty($rows) ? (int)$rows[count($rows) - 1]['user_id'] : 0;
+
+        $this->db->where('id', 1)->update('wallet_sync_cursor', [
+            'last_user_id' => $newLast, 'cycle_count' => $cycle,
+            'worker_id' => $workerId, 'locked_at' => date('Y-m-d H:i:s'), 'last_run_at' => date('Y-m-d H:i:s'),
+        ]);
+        $this->db->trans_commit();
+
+        return ['rows'=>$rows, 'cursor'=>$newLast, 'cycle'=>$cycle, 'batch_size'=>$batch, 'wrapped'=>$wrapped];
+    }
+
+    /** Addresses with an unsettled on-chain tx — processed first (priority). */
+    public function pendingAddresses($limit = 50)
+    {
+        return $this->db->distinct()->select('uw.user_id, uw.wallet_address')
+            ->from('onchain_transactions o')
+            ->join('user_wallet uw', 'uw.user_id = o.user_id', 'inner')
+            ->where_in('o.status', ['pending','processing','broadcasting'])
+            ->where('uw.wallet_address IS NOT NULL', null, false)
+            ->limit((int)$limit)->get()->result_array();
+    }
+
+    /**
+     * One batch run: verify pending txs, sync priority (pending) addresses, then
+     * the claimed rotation window. RPC-first; deduped within the run; metrics
+     * logged to rpc_sync_log (scope='batch').
+     */
+    public function syncBatch($workerId, $batchOverride = null, $runId = null)
+    {
+        $t0 = microtime(true);
+        $runId = $runId ?: ('batch_' . date('YmdHis') . '_' . substr(md5(uniqid('', true)), 0, 6));
+        $usdtC = $this->cfg()['usdt_contract'] ?? null;
+
+        $verified = $this->finalizeConfirmations($runId, 100);   // retry/advance pending
+        $priority = $this->pendingAddresses(50);                 // priority first
+        $claim    = $this->claimBatch($workerId, $batchOverride);
+
+        $m = ['processed'=>0,'skipped'=>0,'balance_changed'=>0,'tx_imported'=>0,'bscscan_calls'=>0,'rpc_only'=>0,'rpc_failures'=>0];
+        $seen = [];
+        foreach (array_merge($priority, $claim['rows']) as $u) {
+            $addr = $u['wallet_address'];
+            if (isset($seen[$addr])) { $m['skipped']++; continue; }   // no address twice in a run
+            $seen[$addr] = 1;
+            $uid  = (int)$u['user_id'];
+            $bnb  = $this->syncAddress($addr, 'BNB',  null,  18, $uid, $runId);
+            $usdt = $usdtC ? $this->syncAddress($addr, 'USDT', $usdtC, 18, $uid, $runId) : ['diff'=>false,'api'=>'rpc'];
+            $m['processed']++;
+            foreach ([$bnb, $usdt] as $r) {
+                if (empty($r['ok']) && ($r['reason'] ?? '') === 'rpc_down') $m['rpc_failures']++;
+                if (!empty($r['diff'])) $m['balance_changed']++;
+                if (($r['api'] ?? 'rpc') === 'bscscan') $m['bscscan_calls']++; else $m['rpc_only']++;
+                $m['tx_imported'] += (int)($r['imported'] ?? 0);
+            }
+        }
+        $ms = (int)round((microtime(true) - $t0) * 1000);
+        $this->logSync(['run_id'=>$runId,'scope'=>'batch','api_used'=>'rpc','ok'=>1,'duration_ms'=>$ms,'tx_imported'=>$m['tx_imported'],
+            'message'=>"worker={$workerId} cursor={$claim['cursor']} cycle={$claim['cycle']}".($claim['wrapped']?' WRAP':'')
+                       ." processed={$m['processed']} skipped={$m['skipped']} changed={$m['balance_changed']}"
+                       ." bscscan={$m['bscscan_calls']} rpc_only={$m['rpc_only']} rpc_fail={$m['rpc_failures']}"]);
+
+        return ['run_id'=>$runId,'worker_id'=>$workerId,'txs_verified'=>$verified,'cursor'=>$claim['cursor'],
+                'cycle'=>$claim['cycle'],'wrapped'=>$claim['wrapped'],'batch_size'=>$claim['batch_size'],
+                'priority_count'=>count($priority),'metrics'=>$m,'took_ms'=>$ms];
+    }
+
     private function logSync(array $d)
     {
         try {

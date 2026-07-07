@@ -185,6 +185,21 @@
                                                 </div>
                                             </div>
 
+                                            <!-- On-chain payout transaction hash (required when Approved) -->
+                                            <div class="row mb-6">
+                                                <label class="col-lg-4 col-form-label fw-semibold fs-6">Payout Tx Hash
+                                                    <span class="text-muted fs-8">(required to approve)</span></label>
+                                                <div class="col-lg-8 fv-row">
+                                                    <input type="text" name="tx_hash" id="wd_tx_hash"
+                                                        class="form-control form-control-lg form-control-solid"
+                                                        style="font-family:monospace;"
+                                                        placeholder="0x… (66 chars) — the on-chain BEP-20 payout transaction"
+                                                        value="<?= isset($withdraw['tx_hash']) ? html_escape($withdraw['tx_hash']) : '' ?>"
+                                                        <?= !empty($withdraw['tx_hash']) ? 'readonly' : '' ?>>
+                                                    <small class="text-muted d-block">Paste the blockchain transaction hash after sending the payout. It is verified on-chain and cannot be a duplicate.</small>
+                                                </div>
+                                            </div>
+
                                             <!-- Review -->
                                             <div class="row mb-6">
                                                 <label class="col-lg-4 col-form-label fw-semibold fs-6">Review</label>
