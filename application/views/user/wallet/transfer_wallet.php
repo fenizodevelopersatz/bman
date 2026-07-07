@@ -680,6 +680,7 @@
                   <option value="">— Select —</option>
                   <option value="exchange">Exchange Wallet</option>
                   <option value="earning">Earning Wallet</option>
+                  <option value="staking">Staking Wallet</option>
                   <option value="bonus">Bonus Wallet</option>
                 </select>
               </div>
@@ -701,6 +702,7 @@
                        onfocus="openRecipientList()" oninput="onRecipientInput()">
                 <div id="recipientDrop" class="rcpt-drop" style="display:none;"></div>
                 <div id="recipientName" style="font-size:12px;font-weight:700;margin-top:4px;"></div>
+                <div id="memberRuleHint" style="display:none;font-size:11.5px;font-weight:700;color:#c2410c;margin-top:5px;"></div>
               </div>
               <style>
                 .wt-mode{display:flex;gap:8px;margin-bottom:14px}
@@ -839,10 +841,12 @@
                 else                  { $rowBefore = $tx['to_before']   ?? null; $rowAfter = $tx['to_after']   ?? null; } ?>
               <tr>
                 <td style="color:var(--text-muted);font-size:12px;"><?= ($page - 1) * $per_page + $i + 1 ?></td>
-                <td style="font-size:12px;font-weight:800;letter-spacing:.5px;color:var(--primary);"><?= htmlspecialchars($tx['txn_uid'] ?? '—') ?></td>
+                <td style="font-size:12px;font-weight:800;letter-spacing:.5px;color:var(--primary);cursor:pointer;"
+                    title="View transaction details"
+                    onclick="WalletTransferUI.openDetail('<?= htmlspecialchars($tx['ref']) ?>')"><?= htmlspecialchars($tx['txn_uid'] ?? '—') ?></td>
                 <td>
-                  <span class="ref-text" onclick="copyRef('<?= htmlspecialchars($tx['ref']) ?>')"
-                        title="Click to copy"><?= htmlspecialchars($tx['ref']) ?></span>
+                  <span class="ref-text" onclick="WalletTransferUI.openDetail('<?= htmlspecialchars($tx['ref']) ?>')"
+                        title="View details"><?= htmlspecialchars($tx['ref']) ?></span>
                 </td>
                 <td>
                   <?php if ($isSelf): ?>
@@ -1007,7 +1011,8 @@ function setMode(mode) {
   const isSelf = mode === 'self';
   document.getElementById('toWalletWrap').style.display   = isSelf ? '' : 'none';
   document.getElementById('recipientWrap').style.display  = isSelf ? 'none' : 'block';
-  // Staking wallet is locked BMAN — never transferable (rule 10/11).
+  // Shared matrix: disable source wallets not valid for this mode (self → Exchange only).
+  if (window.WalletTransferUI) WalletTransferUI.applyMatrixToSelect(document.getElementById('fromWallet'), 'from', mode, '');
   // reset the destination fields
   document.getElementById('toWallet').innerHTML = '<option value="">— Select From first —</option>';
   const rc = document.getElementById('recipient'); if (rc) rc.value = '';
@@ -1017,14 +1022,22 @@ function setMode(mode) {
 
 /* ===== From wallet change ===== */
 function onFromChange() {
+  const mode = currentMode();
+  // Keep the source list constrained to what this mode allows.
+  if (window.WalletTransferUI) WalletTransferUI.applyMatrixToSelect(document.getElementById('fromWallet'), 'from', mode, '');
   const from = document.getElementById('fromWallet').value;
   document.getElementById('balHint').textContent = from ? ((liveBalances[from] ?? 0).toFixed(4) + ' ' + (WL[from] || from)) : '—';
-  if (currentMode() === 'self') {
+  const hint = document.getElementById('memberRuleHint');
+  if (mode === 'self') {
     const toSel = document.getElementById('toWallet');
     toSel.innerHTML = '<option value="">— Select To Wallet —</option>';
     (ALLOWED_PAIRS[from] || []).forEach(function(w){
       const o = document.createElement('option'); o.value = w; o.textContent = WL[w]; toSel.appendChild(o);
     });
+    if (hint) hint.style.display = 'none';
+  } else if (hint) {
+    const txt = (from && window.WalletTransferUI) ? WalletTransferUI.memberRuleText(from) : '';
+    hint.textContent = txt; hint.style.display = txt ? 'block' : 'none';
   }
   updatePreview();
 }
@@ -1121,11 +1134,10 @@ function setMax() {
   updatePreview();
 }
 
-/* ===== Submit Transfer ===== */
+/* ===== Submit Transfer — validate client-side, then shared Confirm dialog ===== */
 function submitTransfer() {
   if (!HAS_PIN) { openSetPinModal(); return; }
 
-  const form = document.getElementById('transferForm');
   const mode   = currentMode();
   const from   = document.getElementById('fromWallet').value;
   const toW    = document.getElementById('toWallet').value;
@@ -1143,6 +1155,27 @@ function submitTransfer() {
   if (!amount || parseFloat(amount) <= 0) { toast('Enter a valid amount.', 'warn'); return; }
   if (!pin)  { toast('Enter your Transfer Password.', 'warn'); return; }
 
+  // Shared confirmation dialog runs the live preview (rules + balances) and only
+  // enables Confirm when every business rule (and KYC/password gate) passes.
+  if (window.WalletTransferUI) {
+    WalletTransferUI.openConfirm({
+      mode: mode,
+      fields: { mode: mode, from_wallet: from, to_wallet: toW, recipient: rcpt, amount: amount },
+      sourceUser: <?= json_encode(($user['username'] ?? 'You') . ' (#' . (int)($user['id'] ?? 0) . ')') ?>,
+      fromWallet: from,
+      toWallet: toW,
+      amount: amount,
+      recipientFallback: (mode === 'member' ? rcpt : 'Self (own wallets)'),
+      onConfirm: doTransferPost
+    });
+    return;
+  }
+  doTransferPost();
+}
+
+/* ===== Actual POST to the centralized engine ===== */
+function doTransferPost() {
+  const form = document.getElementById('transferForm');
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
   btn.innerHTML = '<i class="ph ph-circle-notch" style="animation:spin 1s linear infinite"></i> Processing...';
@@ -1287,5 +1320,11 @@ document.head.appendChild(style);
 /* ===== Init: default to "Between My Wallets" ===== */
 document.addEventListener('DOMContentLoaded', function(){ if (typeof setMode === 'function') setMode('self'); });
 </script>
+
+<?php $this->load->view('shared/wallet_transfer_ui', [
+  'wtx_panel'   => 'user',
+  'wtx_preview' => 'user/transfer_wallet/preview',
+  'wtx_detail'  => 'user/transfer_wallet/tx_detail',
+]); ?>
 </body>
 </html>

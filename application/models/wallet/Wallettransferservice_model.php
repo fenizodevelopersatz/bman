@@ -239,6 +239,65 @@ class Wallettransferservice_model extends CI_Model
         } catch (Throwable $e) { /* audit must never break a transfer */ }
     }
 
+    /* ---------------- UI support (read-only; engine unchanged) ----------- */
+
+    /**
+     * Pre-submit preview for the shared UI: runs the SAME rule/balance checks the
+     * engine uses (via 'admin' → skips only the User-Panel KYC/password gates,
+     * which the confirm dialog collects separately) and returns balances +
+     * recipient info. Does NOT execute anything.
+     */
+    public function preview(array $c)
+    {
+        $ctx = array_merge($c, ['via' => 'admin']);        // rules + balance only
+        $v   = $this->validate($ctx);
+        $src = (int)($c['source_user_id'] ?? 0);
+        $from = (string)($c['from_wallet'] ?? '');
+        $fromBal = in_array($from, $this->wallets, true) ? $this->L->balance($src, $from) : '0';
+        $amt   = is_numeric($c['amount'] ?? null) ? (string)$c['amount'] : '0';
+        $after = (bccomp($amt, '0', 8) > 0 && bccomp($fromBal, $amt, 8) >= 0) ? bcsub($fromBal, $amt, 8) : null;
+
+        $recipient = null;
+        if (($c['mode'] ?? '') === 'member' && !empty($v['ctx']['recipient_id'])) {
+            $r = $this->db->select('id, username, name, email, referral_id')->get_where('users', ['id' => $v['ctx']['recipient_id']])->row_array();
+            if ($r) $recipient = ['id'=>(int)$r['id'],'name'=>$r['name'] ?: $r['username'],'email'=>$r['email'],'referral_id'=>$r['referral_id']];
+        }
+        // extra context flags for the User Panel (shown, not blocking the preview)
+        $srcU = $this->db->select('kyc_status, transfer_password')->get_where('users', ['id'=>$src])->row_array() ?: [];
+        return [
+            'ok' => $v['ok'], 'code' => $v['code'], 'message' => $v['ok'] ? 'All business rules passed.' : $v['message'],
+            'from_balance' => $fromBal, 'balance_after' => $after, 'recipient' => $recipient,
+            'kyc_ok' => strtolower((string)($srcU['kyc_status'] ?? '')) === 'approved',
+            'has_transfer_password' => !empty($srcU['transfer_password']),
+            'to_wallet' => $v['ctx']['to_wallet'] ?? ($c['to_wallet'] ?? $from),
+        ];
+    }
+
+    private function _uname($id)
+    {
+        if (!$id) return null;
+        $u = $this->db->select('id, username, name, email, referral_id')->get_where('users', ['id'=>(int)$id])->row_array();
+        return $u ? ['id'=>(int)$u['id'],'name'=>$u['name'] ?: $u['username'],'email'=>$u['email'],'referral_id'=>$u['referral_id']] : null;
+    }
+
+    /** Enriched detail for the shared transaction modal (sender/recipient/sponsor/upline + ledger + blockchain + audit). */
+    public function detailEnriched($ref, $restrictUserId = 0)
+    {
+        $d = $this->detail($ref, $restrictUserId);
+        if (!$d) return null;
+        $h = $d['header'];
+        $src = (int)$h['user_id']; $rcp = (int)($h['to_user_id'] ?? 0);
+        $sponsorId = $this->directSponsorId($src);
+        $uplineId  = $sponsorId ? $this->directSponsorId($sponsorId) : 0;
+        $d['users'] = [
+            'sender'    => $this->_uname($src),
+            'recipient' => $rcp ? $this->_uname($rcp) : null,
+            'sponsor'   => $sponsorId ? $this->_uname($sponsorId) : null,
+            'upline'    => $uplineId ? $this->_uname($uplineId) : null,
+        ];
+        return $d;
+    }
+
     /** Full detail for the transaction view (header + ledger rows + audit). */
     public function detail($ref, $restrictUserId = 0)
     {

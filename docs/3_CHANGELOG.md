@@ -5,6 +5,30 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-07 — Shared Transfer UI layer (both panels, one module)
+
+Connected the User Panel and Admin Panel to ONE shared transfer UI without
+touching the backend engine (`validate`/`execute` unchanged). New
+`assets/js/wallet_transfer_ui.js` (framework-agnostic; injects its own dialog +
+modal DOM/CSS so both panels are pixel-identical) + shared partial
+`application/views/shared/wallet_transfer_ui.php`. It (1) **disables invalid
+wallet combinations** in the dropdowns (Exchange source-only for internal; member
+mode enables all four + shows the downline/sponsor rule) instead of erroring
+after selection, (2) runs a live **preview** (rules + balances) on submit, (3)
+shows a shared **Confirmation Dialog** (Source User, Recipient, Type, From/To
+Wallet, Amount, Available, Balance After, Validation Status) that only enables
+Confirm when every rule — and, for users, KYC + transfer password — passes, and
+(4) opens a shared **Transaction Details modal** (General / Users / Wallet /
+Ledger double-entry / Blockchain when a tx_hash exists / Audit). Added additive
+read-only engine helpers `preview()` and `detailEnriched()` and endpoints
+`user/transfer_wallet/{preview,tx_detail}` +
+`admin/finance/internal-transfers/{preview,tx-detail}`. **Apply:** none (no
+schema change) — clear view cache if any. Tested: `wallettransfertest ui` 4/4;
+engine regression `run` still 18/18. See
+[16_WALLET_TRANSFER_ENGINE.md](16_WALLET_TRANSFER_ENGINE.md) §8.
+
+---
+
 ## 2026-07-07 — Centralized Wallet Transfer Engine (one service, both panels)
 
 New `Wallettransferservice_model` — the single validation+execution engine both

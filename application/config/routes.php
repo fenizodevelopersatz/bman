@@ -700,11 +700,15 @@ $route['user/transfer_wallet/do_transfer'] = 'user/Transfer_wallet/do_transfer';
 $route['user/transfer_wallet/set_transfer_password'] = 'user/Transfer_wallet/set_transfer_password'; // POST AJAX
 $route['user/transfer_wallet/lookup_recipient'] = 'user/Transfer_wallet/lookup_recipient';           // POST AJAX
 $route['user/transfer_wallet/search_recipients'] = 'user/Transfer_wallet/search_recipients';         // POST AJAX
+$route['user/transfer_wallet/preview']['post'] = 'user/Transfer_wallet/preview';                     // POST AJAX (shared UI)
+$route['user/transfer_wallet/tx_detail']['get'] = 'user/Transfer_wallet/tx_detail';                  // GET  AJAX (shared modal)
 $route['admin/finance/internal-transfers'] = 'admin/wallet/Internaltransfers';
 $route['admin/finance/internal-transfers/detail'] = 'admin/wallet/Internaltransfers/detail';
 $route['admin/finance/internal-transfers/users']['get'] = 'admin/wallet/Internaltransfers/users';
 $route['admin/finance/internal-transfers/balances']['post'] = 'admin/wallet/Internaltransfers/balances';
 $route['admin/finance/internal-transfers/do-transfer']['post'] = 'admin/wallet/Internaltransfers/do_transfer';
+$route['admin/finance/internal-transfers/preview']['post'] = 'admin/wallet/Internaltransfers/preview';   // POST AJAX (shared UI)
+$route['admin/finance/internal-transfers/tx-detail']['get'] = 'admin/wallet/Internaltransfers/tx_detail'; // GET AJAX (shared modal)
 
 /**************** Master — Token Settings (blockchain single source of truth) */
 $route['admin/master/token-settings'] = 'admin/master/Tokenmaster';

@@ -66,15 +66,18 @@
                           <label class="form-label fw-semibold fs-7">From Wallet</label>
                           <select class="form-select form-select-solid" name="from_wallet" id="it-from">
                             <option value="exchange">Exchange</option><option value="earning">Earning</option>
-                            <option value="bonus">Bonus</option>
+                            <option value="staking">Staking</option><option value="bonus">Bonus</option>
                           </select>
                         </div>
                         <div class="col-md-3" id="it-to-wrap">
                           <label class="form-label fw-semibold fs-7">To Wallet</label>
                           <select class="form-select form-select-solid" name="to_wallet" id="it-to">
-                            <option value="bonus">Bonus</option><option value="exchange">Exchange</option>
-                            <option value="earning">Earning</option>
+                            <option value="bonus">Bonus</option><option value="earning">Earning</option>
+                            <option value="staking">Staking</option><option value="exchange">Exchange</option>
                           </select>
+                        </div>
+                        <div class="col-md-12 d-none" id="it-member-hint">
+                          <div class="text-warning fw-semibold fs-8"></div>
                         </div>
                         <div class="col-md-4 d-none" id="it-recipient-wrap">
                           <label class="form-label fw-semibold fs-7">Recipient User</label>
@@ -166,31 +169,18 @@
   <div id="kt_scrolltop" class="scrolltop" data-kt-scrolltop="true"><i class="ki-duotone ki-arrow-up"><span class="path1"></span><span class="path2"></span></i></div>
   <?php $this->load->view('admin/Layout/common_script'); ?>
   <script src="<?php echo base_url(); ?>/assets/admin/plugins/global/plugins.bundle.js"></script>
+  <?php $this->load->view('shared/wallet_transfer_ui', [
+    'wtx_panel'   => 'admin',
+    'wtx_preview' => 'admin/finance/internal-transfers/preview',
+    'wtx_detail'  => 'admin/finance/internal-transfers/tx-detail',
+  ]); ?>
   <script>
   (function(){
     const base='<?php echo base_url(); ?>';
-    function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-    document.querySelector('.table').addEventListener('click', async (e)=>{
+    // Shared transaction-details modal (identical to the User Panel).
+    document.querySelector('.table').addEventListener('click', (e)=>{
       const b=e.target.closest('.it-view'); if(!b) return;
-      const m=bootstrap.Modal.getOrCreateInstance(document.getElementById('it-modal'));
-      const body=document.getElementById('it-body'); body.innerHTML='Loading…'; m.show();
-      const r=await fetch(base+'admin/finance/internal-transfers/detail?ref='+encodeURIComponent(b.dataset.ref),{headers:{'X-Requested-With':'XMLHttpRequest'}});
-      const j=await r.json(); const d=j.data;
-      if(!d||!d.header){ body.innerHTML='<div class="text-muted">Not found.</div>'; return; }
-      const h=d.header;
-      const led=(d.ledger||[]).map(l=>'<tr><td class="text-uppercase">'+esc(l.wallet_type)+'</td><td class="text-end">'+esc(l.credit>0?('+'+l.credit):('-'+l.debit))+'</td><td class="text-end">'+esc(l.balance_after)+'</td></tr>').join('');
-      const isMember=(h.txn_type==='member');
-      const who=isMember
-        ? ('User #'+esc(h.user_id)+' &rarr; User #'+esc(h.to_user_id))
-        : ('User #'+esc(h.user_id)+' (own wallets)');
-      body.innerHTML='<div class="mb-3"><b>TXN '+esc(h.txn_uid||'—')+'</b> · <span class="text-monospace fs-8">'+esc(h.ref)+'</span> · <span class="badge badge-light-success">'+esc(String(h.status).toUpperCase())+'</span> · <span class="badge badge-light-'+(isMember?'info':'primary')+'">'+esc((h.txn_type||'self').toUpperCase())+'</span> · <span class="badge badge-light-'+((h.via==='admin')?'warning':'secondary')+'">'+esc((h.via||'user').toUpperCase())+'</span></div>'+
-        '<div class="row fs-7"><div class="col-12 mb-2">Direction: <b>'+who+'</b></div>'+
-        '<div class="col-6 mb-2">From wallet: <b>'+esc(h.from_wallet)+'</b></div><div class="col-6 mb-2">To wallet: <b>'+esc(h.to_wallet)+'</b></div>'+
-        '<div class="col-6 mb-2">Amount: <b>'+esc(h.amount)+'</b></div><div class="col-6 mb-2">Created: '+esc(h.created_at)+'</div>'+
-        '<div class="col-6 mb-2">Sender balance: '+esc(h.from_before)+' → <b>'+esc(h.from_after)+'</b></div>'+
-        '<div class="col-6 mb-2">Recipient balance: '+esc(h.to_before)+' → <b>'+esc(h.to_after)+'</b></div>'+
-        '<div class="col-12 mb-2">IP: '+esc(h.ip_address||'—')+' · '+esc(h.description||'')+'</div></div>'+
-        '<table class="table table-row-dashed fs-7 mt-3"><thead><tr class="fw-bold text-muted"><th>Wallet</th><th class="text-end">Change</th><th class="text-end">Balance After</th></tr></thead><tbody>'+led+'</tbody></table>';
+      if(window.WalletTransferUI) WalletTransferUI.openDetail(b.dataset.ref);
     });
 
     /* ---- New Transfer (admin, no validation) ---- */
@@ -228,16 +218,65 @@
     } else {
       senderSel.addEventListener('change',loadBalances);
     }
+    const fromSel=document.getElementById('it-from'), toSel=document.getElementById('it-to');
+    function curMode(){ return document.getElementById('it-mode-member').checked ? 'member' : 'self'; }
+    // Shared direction matrix: disable invalid wallet combinations up front.
+    function applyMatrix(){
+      const mode=curMode();
+      if(window.WalletTransferUI){
+        WalletTransferUI.applyMatrixToSelect(fromSel,'from',mode,'');
+        if(mode==='self') WalletTransferUI.applyMatrixToSelect(toSel,'to','self',fromSel.value);
+      }
+      const hintWrap=document.getElementById('it-member-hint');
+      const hint=hintWrap.querySelector('div');
+      if(mode==='member' && window.WalletTransferUI){
+        const t=WalletTransferUI.memberRuleText(fromSel.value);
+        hint.textContent=t; hintWrap.classList.toggle('d-none',!t);
+      } else { hintWrap.classList.add('d-none'); }
+    }
     document.querySelectorAll('input[name="mode"]').forEach(r=>r.addEventListener('change',function(){
       const self=document.getElementById('it-mode-self').checked;
       document.getElementById('it-to-wrap').classList.toggle('d-none',!self);
       document.getElementById('it-recipient-wrap').classList.toggle('d-none',self);
+      applyMatrix();
     }));
-    document.getElementById('it-new-form').addEventListener('submit',async function(e){
-      e.preventDefault();
-      const {ok,j}=await post('admin/finance/internal-transfers/do-transfer',new FormData(e.target));
+    fromSel.addEventListener('change',applyMatrix);
+    applyMatrix();
+
+    // Actual POST to the centralized engine (runs after shared Confirm passes).
+    async function doAdminTransfer(){
+      const {ok,j}=await post('admin/finance/internal-transfers/do-transfer',new FormData(document.getElementById('it-new-form')));
       toast(j.message||'',ok);
       if(ok){ loadBalances(); setTimeout(()=>location.reload(),1200); }
+    }
+    document.getElementById('it-new-form').addEventListener('submit',function(e){
+      e.preventDefault();
+      const mode=curMode();
+      const sender=document.getElementById('it-sender');
+      const senderId=sender.value;
+      const rcptSel=document.getElementById('it-recipient');
+      const recipientId=rcptSel.value;
+      const from=fromSel.value, to=toSel.value;
+      const amount=(e.target.querySelector('[name="amount"]').value||'').trim();
+      if(!senderId){ toast('Select the source user.',false); return; }
+      if(mode==='member' && !recipientId){ toast('Select the recipient user.',false); return; }
+      if(!amount || parseFloat(amount)<=0){ toast('Enter a valid amount.',false); return; }
+      const senderText=(sender.selectedOptions[0]&&sender.selectedOptions[0].textContent)||('#'+senderId);
+      const rcptText=(rcptSel.selectedOptions[0]&&rcptSel.selectedOptions[0].textContent)||('#'+recipientId);
+      if(window.WalletTransferUI){
+        WalletTransferUI.openConfirm({
+          mode: mode,
+          fields: { mode:mode, sender_id:senderId, from_wallet:from, to_wallet:to, recipient_id:recipientId, amount:amount },
+          sourceUser: senderText,
+          fromWallet: from,
+          toWallet: to,
+          amount: amount,
+          recipientFallback: (mode==='member' ? rcptText : 'Self (own wallets)'),
+          onConfirm: doAdminTransfer
+        });
+        return;
+      }
+      doAdminTransfer();
     });
   })();
   </script>

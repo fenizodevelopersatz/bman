@@ -113,4 +113,57 @@ class Wallettransfertest extends CI_Controller
         if ($cond) { $this->pass++; echo "  PASS  $name  — $info\n"; }
         else { $this->fail++; echo "  FAIL  $name  — $info\n"; }
     }
+
+    /**
+     * Shared-UI support test: preview() (rules+balances, no execution) and
+     * detailEnriched() (the shared transaction-details modal payload).
+     * Run: php index.php wallettransfertest ui
+     */
+    public function ui()
+    {
+        echo "=== shared UI support (preview + detailEnriched) ===\n";
+
+        // find a source with a downline (same discovery as run())
+        $users = $this->db->select('id')->where('status','1')->order_by('id','ASC')->limit(400)->get('users')->result_array();
+        $U=0;$D=0;
+        foreach ($users as $u) {
+            $uid=(int)$u['id']; if ($this->svc->directSponsorId($uid)<=0) continue;
+            foreach ($users as $d) { $did=(int)$d['id']; if ($did!==$uid && $this->svc->isInDownline($uid,$did)) { $D=$did; break; } }
+            if ($D) { $U=$uid; break; }
+        }
+        echo "  relationships: source=$U downline=$D\n";
+
+        // preview: allowed internal move returns the full shape + balances
+        $p = $this->svc->preview(['mode'=>'internal','source_user_id'=>$U,'from_wallet'=>'exchange','to_wallet'=>'bonus','amount'=>'1']);
+        $this->assertCode2('preview returns shape (ok/from_balance/to_wallet keys)',
+            is_array($p) && array_key_exists('ok',$p) && array_key_exists('from_balance',$p) && array_key_exists('to_wallet',$p),
+            'to_wallet='.($p['to_wallet']??'-').' from_balance='.($p['from_balance']??'-').' msg='.($p['message']??''));
+
+        // preview: blocked pair is reported (not thrown)
+        $pb = $this->svc->preview(['mode'=>'internal','source_user_id'=>$U,'from_wallet'=>'bonus','to_wallet'=>'exchange','amount'=>'1']);
+        $this->assertCode2('preview reports blocked pair', is_array($pb) && $pb['ok']===false && $pb['code']==='internal_source_must_be_exchange',
+            'code='.($pb['code']??'-'));
+
+        // preview: member move surfaces recipient info when valid
+        if ($D) {
+            $pm = $this->svc->preview(['mode'=>'member','source_user_id'=>$U,'from_wallet'=>'exchange','recipient'=>$D,'amount'=>'1']);
+            $this->assertCode2('preview member surfaces recipient/kyc flags',
+                is_array($pm) && array_key_exists('recipient',$pm) && array_key_exists('kyc_ok',$pm) && array_key_exists('has_transfer_password',$pm),
+                'recipient='.(($pm['recipient']['name'] ?? '-')));
+        }
+
+        // detailEnriched: latest transfer → header + users(sender/recipient/sponsor/upline) + ledger + audit
+        $row = $this->db->select('ref')->order_by('id','DESC')->limit(1)->get('wallet_internal_transfer')->row_array();
+        if ($row) {
+            $d = $this->svc->detailEnriched($row['ref']);
+            $ok = is_array($d) && !empty($d['header']) && isset($d['users']) && array_key_exists('sender',$d['users'])
+                  && array_key_exists('sponsor',$d['users']) && array_key_exists('upline',$d['users']) && isset($d['ledger']) && isset($d['audit']);
+            $this->assertCode2('detailEnriched('.$row['ref'].') has header+users+ledger+audit', $ok,
+                'sender='.(($d['users']['sender']['name'] ?? '-')).' ledgerRows='.(isset($d['ledger'])?count($d['ledger']):0));
+        } else {
+            echo "  (no transfers yet — skipped detailEnriched)\n";
+        }
+
+        echo "=== {$this->pass} passed, {$this->fail} failed ===\n";
+    }
 }

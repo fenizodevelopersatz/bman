@@ -136,6 +136,30 @@ class Internaltransfers extends CI_Controller
             'balances'=>$this->WT->walletBalances($sender)]);
     }
 
+    /** AJAX: shared pre-submit preview (rules + balances) via the one engine. */
+    public function preview()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->load->model('wallet/Wallettransferservice_model', 'svc');
+        return $this->_json($this->svc->preview([
+            'mode'           => $this->input->post('mode', true) === 'self' ? 'internal' : 'member',
+            'source_user_id' => (int)$this->input->post('sender_id'),
+            'from_wallet'    => $this->input->post('from_wallet', true),
+            'to_wallet'      => $this->input->post('to_wallet', true),
+            'recipient'      => $this->input->post('recipient_id', true),
+            'amount'         => $this->input->post('amount', true),
+        ]));
+    }
+
+    /** AJAX: shared transaction-detail modal data (enriched — same shape both panels). */
+    public function tx_detail()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->load->model('wallet/Wallettransferservice_model', 'svc');
+        $d = $this->svc->detailEnriched($this->input->get('ref', true));
+        return $this->_json(['ok'=>(bool)$d, 'data'=>$d]);
+    }
+
     public function detail()
     {
         if (!$this->input->is_ajax_request()) show_404();

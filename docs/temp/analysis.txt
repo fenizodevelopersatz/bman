@@ -2378,3 +2378,31 @@ Show confirmation dialog before execution.
 Refresh balances immediately after successful transfer.
 
 The User Panel and Admin Panel must both call the same backend Wallet Transfer Service so all validation and execution rules remain identical across the system.
+
+
+
+
+
+
+
+USDT Deposit
+        │
+        ▼
+USDT Wallet
+        │
+Convert USDT → BMAN
+        │
+        ▼
+Exchange Wallet (Investment Wallet)
+        │
+        ▼
+Buy Staking Package
+        │
+        ▼
+ROI Engine
+        │
+        ├────────► Binary Matching (10%)
+        │              ├──► 8% → Earning Wallet
+        │              └──► 2% → Staking Wallet
+        │
+        └────────► 25% Instant Bonus → Bonus Wallet

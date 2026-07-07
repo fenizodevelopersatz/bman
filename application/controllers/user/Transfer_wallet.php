@@ -101,6 +101,32 @@ class Transfer_wallet extends MY_Controller
             'reference'=>$out['ref'], 'balances'=>$bal]);
     }
 
+    /** AJAX: shared pre-submit preview (rules + balances) via the one engine. */
+    public function preview()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $uid = $this->_uid(); if (!$uid) return $this->_json(['ok'=>false,'message'=>'Not logged in'], 401);
+        $this->load->model('wallet/Wallettransferservice_model', 'svc');
+        return $this->_json($this->svc->preview([
+            'mode'           => $this->input->post('mode', true) === 'self' ? 'internal' : 'member',
+            'source_user_id' => $uid,
+            'from_wallet'    => $this->input->post('from_wallet', true),
+            'to_wallet'      => $this->input->post('to_wallet', true),
+            'recipient'      => $this->input->post('recipient', true),
+            'amount'         => $this->input->post('amount', true),
+        ]));
+    }
+
+    /** AJAX: shared transaction-detail modal data (owner-restricted). */
+    public function tx_detail()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $uid = $this->_uid(); if (!$uid) return $this->_json(['ok'=>false], 401);
+        $this->load->model('wallet/Wallettransferservice_model', 'svc');
+        $d = $this->svc->detailEnriched($this->input->get('ref', true), $uid);
+        return $this->_json(['ok'=>(bool)$d, 'data'=>$d]);
+    }
+
     /** AJAX: recipient picker — up to 20 active members (name + email),
      *  filtered by an optional query. Excludes the sender. */
     public function search_recipients()
