@@ -347,10 +347,11 @@ class Lendingcontroller extends CI_Controller
         // ---- TAB 6: documents (endpoints; PDFs are a later phase) ----
         $tab6 = [
             ['name'=>'Purchase Receipt','available'=>true,'url'=>base_url('user/stakings/receipt/'.$investId)],
-            ['name'=>'Blockchain Receipt','available'=>!empty($tab1['explorer_link']),'url'=>$tab1['explorer_link']],
-            ['name'=>'Investment Agreement','available'=>false,'url'=>null],
+            ['name'=>'Investment Agreement','available'=>true,'url'=>base_url('user/stakings/agreement/'.$investId)],
             ['name'=>'ROI Schedule','available'=>true,'url'=>base_url('user/stakings/roi-schedule/'.$investId)],
-            ['name'=>'Tax Report','available'=>false,'url'=>null],
+            ['name'=>'Summary Report','available'=>true,'url'=>base_url('user/stakings/summary/'.$investId)],
+            ['name'=>'Blockchain Receipt','available'=>!empty($tab1['explorer_link']),'url'=>$tab1['explorer_link']],
+            ['name'=>'Tax Report (coming soon)','available'=>false,'url'=>null],
         ];
 
         // ---- TAB 7: audit log (immutable on-chain events for this user) ----
