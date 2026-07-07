@@ -74,48 +74,31 @@ class Transfer_wallet extends MY_Controller
         $uid = $this->_uid();
         if (!$uid) return $this->_json(['status'=>'error','message'=>'Not logged in'], 401);
 
-        $user = $this->Users_model->get_user($uid);
-        // STRICT: KYC must be approved before any internal transfer.
-        if (strtolower((string)($user['kyc_status'] ?? '')) !== 'approved') {
-            return $this->_json(['status'=>'error','message'=>'Your KYC must be approved before you can transfer funds.'], 403);
-        }
-        $hash = $user['transfer_password'] ?? '';
-        if ($hash === '') return $this->_json(['status'=>'error','message'=>'Set a transfer password first.'], 422);
-        $tp = (string)$this->input->post('transfer_password', true);
-        if (!(password_verify($tp, $hash) || md5($tp) === $hash)) {
-            return $this->_json(['status'=>'error','message'=>'Incorrect transfer password.'], 422);
-        }
-
-        $mode = $this->input->post('mode', true);
-        if ($mode === 'self') {
-            // Between MY wallets: from_wallet → to_wallet (same user).
-            list($ok, $res) = $this->WT->execute([
-                'user_id'     => $uid,
-                'from_wallet' => $this->input->post('from_wallet', true),
-                'to_wallet'   => $this->input->post('to_wallet', true),
-                'amount'      => $this->input->post('amount', true),
-                'remarks'     => $this->input->post('note', true),
-                'ip'          => $this->input->ip_address(),
-                'browser'     => $this->input->user_agent(),
-            ]);
-        } else {
-            // Member → member: send from my wallet to another user's same wallet.
-            list($ok, $res) = $this->WT->sendToUser(
-                $uid,
-                $this->input->post('recipient', true),
-                $this->input->post('from_wallet', true),
-                $this->input->post('amount', true),
-                $this->input->post('note', true),
-                $this->input->ip_address(),
-                $this->input->user_agent()
-            );
-        }
-        if (!$ok) return $this->_json(['status'=>'error','message'=>$res], 422);
+        // Centralized engine: ALL validation + execution lives in the service
+        // (KYC + transfer password are the User-Panel gates it enforces here).
+        $this->load->model('wallet/Wallettransferservice_model', 'svc');
+        $out = $this->svc->execute([
+            'mode'              => $this->input->post('mode', true) === 'self' ? 'internal' : 'member',
+            'source_user_id'    => $uid,
+            'from_wallet'       => $this->input->post('from_wallet', true),
+            'to_wallet'         => $this->input->post('to_wallet', true),
+            'recipient'         => $this->input->post('recipient', true),
+            'amount'            => $this->input->post('amount', true),
+            'via'               => 'user',
+            'require_kyc'       => true,
+            'transfer_password' => $this->input->post('transfer_password', true),
+            'note'              => $this->input->post('note', true),
+            'idempotency_key'   => $this->input->post('idempotency_key', true),
+            'request_id'        => $this->input->post('request_id', true),
+            'ip'                => $this->input->ip_address(),
+            'ua'                => $this->input->user_agent(),
+        ]);
+        if (empty($out['ok'])) return $this->_json(['status'=>'error','code'=>$out['code'] ?? '','message'=>$out['message']], 422);
 
         $bal = $this->L->balances($uid);
         unset($bal['usdt']);
-        return $this->_json(['status'=>'success','message'=>'Sent successfully. Ref: '.$res,
-            'reference'=>$res, 'balances'=>$bal]);
+        return $this->_json(['status'=>'success','message'=>'Sent successfully. Ref: '.$out['ref'],
+            'reference'=>$out['ref'], 'balances'=>$bal]);
     }
 
     /** AJAX: recipient picker — up to 20 active members (name + email),

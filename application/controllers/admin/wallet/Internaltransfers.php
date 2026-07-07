@@ -113,29 +113,26 @@ class Internaltransfers extends CI_Controller
         if (!$sender) return $this->_json(['status'=>'error','message'=>'Select the source user.'], 422);
         $ipTag = 'admin#'.$this->_adminId().'@'.$this->input->ip_address();
 
-        if ($mode === 'self') {
-            list($ok, $res) = $this->WT->execute([
-                'user_id'     => $sender,
-                'from_wallet' => $this->input->post('from_wallet', true),
-                'to_wallet'   => $this->input->post('to_wallet', true),
-                'amount'      => $this->input->post('amount', true),
-                'remarks'     => $this->input->post('note', true),
-                'ip'          => $ipTag, 'browser' => 'admin-panel',
-                'skip_kyc'    => true, 'via' => 'admin',
-            ]);
-        } else {
-            list($ok, $res) = $this->WT->sendToUser(
-                $sender,
-                $this->input->post('recipient_id', true),   // id / referral / username / email
-                $this->input->post('from_wallet', true),
-                $this->input->post('amount', true),
-                $this->input->post('note', true),
-                $ipTag, 'admin-panel',
-                ['skip_kyc' => true, 'via' => 'admin']
-            );
-        }
-        if (!$ok) return $this->_json(['status'=>'error','message'=>$res], 422);
-        return $this->_json(['status'=>'success','message'=>'Transfer completed. Ref: '.$res, 'reference'=>$res,
+        // Same centralized engine as the User Panel — admin follows the EXACT
+        // same wallet/downline/sponsor/balance rules (via=admin only skips the
+        // User-Panel KYC + transfer-password gates, never the movement rules).
+        $this->load->model('wallet/Wallettransferservice_model', 'svc');
+        $out = $this->svc->execute([
+            'mode'            => $mode === 'self' ? 'internal' : 'member',
+            'source_user_id'  => $sender,
+            'from_wallet'     => $this->input->post('from_wallet', true),
+            'to_wallet'       => $this->input->post('to_wallet', true),
+            'recipient'       => $this->input->post('recipient_id', true),
+            'amount'          => $this->input->post('amount', true),
+            'via'             => 'admin',
+            'actor_id'        => $this->_adminId(),
+            'note'            => $this->input->post('note', true),
+            'idempotency_key' => $this->input->post('idempotency_key', true),
+            'request_id'      => $this->input->post('request_id', true),
+            'ip'              => $ipTag, 'ua' => 'admin-panel',
+        ]);
+        if (empty($out['ok'])) return $this->_json(['status'=>'error','code'=>$out['code'] ?? '','message'=>$out['message']], 422);
+        return $this->_json(['status'=>'success','message'=>'Transfer completed. Ref: '.$out['ref'], 'reference'=>$out['ref'],
             'balances'=>$this->WT->walletBalances($sender)]);
     }
 

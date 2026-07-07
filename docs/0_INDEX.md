@@ -30,6 +30,7 @@ trackable. Update the **Status** column as features land.
 | 13 | [13_ONCHAIN_TRANSACTIONS.md](13_ONCHAIN_TRANSACTIONS.md) | 🟢 **Implemented**: Admin ▸ Finance ▸ On-Chain Transactions — 5 balance cards + server-side filterable history (`onchain_transactions` table) + rich detail modal with **live RPC enrichment** (gas/nonce/block/logs). `admin/wallet/onchain-transactions` |
 | 14 | [14_ONCHAIN_SYNC_LIFECYCLE.md](14_ONCHAIN_SYNC_LIFECYCLE.md) | 🟢 **Implemented + tested (live)**: withdrawal/swap on-chain lifecycle, RPC verification + reorg handling, and a **cost-optimized balance sync** (free RPC primary, BscScan only on a balance change). `Chainsync_model` + `chain-sync-cron`. 10/10 integration tests pass |
 | 15 | [15_STAKINGS_PAGE_REDESIGN.md](15_STAKINGS_PAGE_REDESIGN.md) | 🟡 **In progress**: user "Package"→"Stakings" redesign (cards, server-side portfolio+export, 7-tab investment modal, calcs). **Phase 1 done** — all-tabs `staking_detail` data API + `user/stakings` alias; phases 2–5 (rename/cards/table/modal UI/docs) planned |
+| 16 | [16_WALLET_TRANSFER_ENGINE.md](16_WALLET_TRANSFER_ENGINE.md) | 🟢 **Implemented + tested**: ONE centralized Wallet Transfer validation+execution engine used by both User & Admin panels — exact member (downline / bonus→sponsor) + internal (exchange source-only) rules, double-entry, idempotent, audit. 18/18 rule + 3/3 exec tests |
 
 ---
 
