@@ -368,6 +368,109 @@ class Lendingcontroller extends CI_Controller
         ]);
     }
 
+    /** Build the filtered/sorted portfolio query (shared by list + export). */
+    private function _portfolioQuery($userId, $search, $fStatus, $sortCol, $dir)
+    {
+        $this->db->from('user_investment ui')->join('package_config pc', 'pc.id = ui.package_id', 'left')
+                 ->where('ui.user_id', $userId);
+        if ($search !== '') {
+            $this->db->group_start()->like('pc.package_name', $search)->or_like('ui.id', $search)->group_end();
+        }
+        if ($fStatus !== null && $fStatus !== '') {
+            $map = ['pending'=>'0','active'=>'1','matured'=>'2','completed'=>'2','cancelled'=>'3'];
+            if (isset($map[strtolower($fStatus)])) $this->db->where('ui.status', $map[strtolower($fStatus)]);
+        }
+    }
+
+    /** Compute the display row for one investment (all portfolio columns). */
+    private function _portfolioRow($r)
+    {
+        $today  = new DateTimeImmutable('today');
+        $amount = (float)$r['invest_amount']; $roiPct = (float)$r['pkg_roi']; $dur = (int)$r['days_duration'];
+        $mature = !empty($r['mature_date']) ? new DateTimeImmutable(date('Y-m-d', strtotime($r['mature_date']))) : null;
+        $daysRem = ($mature && $mature >= $today) ? (int)$today->diff($mature)->days : 0;
+        $earned  = (float)$this->calcInvestmentEarned($r['id']);
+        $expected = $amount * ($roiPct/100) * $dur;
+        $statusMap = ['0'=>'Pending','1'=>'Active','2'=>'Matured','3'=>'Cancelled'];
+        $st = $statusMap[(string)$r['status']] ?? 'Active';
+        if ((string)$r['status'] === '2' && (int)($r['recived_status'] ?? 0) === 1) $st = 'Completed';
+        return [
+            'invest_id'=>(int)$r['id'], 'package_name'=>$r['package_name'] ?: ('PKG-'.$r['package_id']),
+            'stake_amount'=>$amount, 'plan_type'=>ucfirst($r['period'] ?: 'daily'), 'duration_days'=>$dur,
+            'purchase_date'=>$r['created_date'] ?? $r['starting_date'], 'maturity_date'=>$r['mature_date'],
+            'days_remaining'=>$daysRem, 'roi_percent'=>$roiPct, 'total_roi_earned'=>$earned,
+            'pending_roi'=>max(0, $expected - $earned), 'next_roi_date'=>$r['run_date'] ?? null, 'status'=>$st,
+        ];
+    }
+
+    /** AJAX: server-side "My Stakings" portfolio (search/filter/sort/paginate). */
+    public function portfolio_list()
+    {
+        $userId = (int)$this->session->userdata('user_userid');
+        if (!$userId) { echo json_encode(['status'=>false,'message'=>'Unauthorized']); return; }
+
+        $search = trim((string)$this->input->post('search', true));
+        $fStatus= $this->input->post('status', true);
+        $sort   = $this->input->post('sort', true) ?: 'id';
+        $dir    = strtoupper((string)$this->input->post('dir', true)) === 'ASC' ? 'ASC' : 'DESC';
+        $page   = max(1, (int)$this->input->post('page'));
+        $limit  = min(100, max(5, (int)$this->input->post('limit') ?: 20));
+        $offset = ($page - 1) * $limit;
+        $sortable = ['id'=>'ui.id','amount'=>'ui.invest_amount','purchase'=>'ui.created_date','maturity'=>'ui.mature_date','status'=>'ui.status'];
+        $sortCol  = $sortable[$sort] ?? 'ui.id';
+
+        $this->_portfolioQuery($userId, $search, $fStatus, $sortCol, $dir);
+        $total = $this->db->count_all_results('', false);
+        $rows = $this->db->select('ui.*, pc.package_name, pc.roi AS pkg_roi, pc.days_duration, pc.period')
+            ->order_by($sortCol, $dir)->limit($limit, $offset)->get()->result_array();
+
+        $out = array_map([$this, '_portfolioRow'], $rows);
+        echo json_encode(['status'=>true,'rows'=>$out,'total'=>$total,'page'=>$page,'limit'=>$limit,'pages'=>(int)ceil($total/max(1,$limit))]);
+    }
+
+    /** Export the portfolio as CSV or Excel (?format=csv|excel). */
+    public function portfolio_export()
+    {
+        $userId = (int)$this->session->userdata('user_userid');
+        if (!$userId) { show_404(); return; }
+        $format = strtolower((string)$this->input->get('format')) === 'excel' ? 'excel' : 'csv';
+        $search = trim((string)$this->input->get('search'));
+        $fStatus= $this->input->get('status');
+
+        $this->_portfolioQuery($userId, $search, $fStatus, 'ui.id', 'DESC');
+        $rows = $this->db->select('ui.*, pc.package_name, pc.roi AS pkg_roi, pc.days_duration, pc.period')
+            ->order_by('ui.id', 'DESC')->get()->result_array();
+
+        $head = ['Package ID','Package Name','Stake Amount','Plan Type','Duration (days)','Purchase Date',
+                 'Maturity Date','Days Remaining','ROI %','Total ROI Earned','Pending ROI','Next ROI Date','Status'];
+        $data = [];
+        foreach ($rows as $r) {
+            $x = $this->_portfolioRow($r);
+            $data[] = [$x['invest_id'],$x['package_name'],$x['stake_amount'],$x['plan_type'],$x['duration_days'],
+                       $x['purchase_date'],$x['maturity_date'],$x['days_remaining'],$x['roi_percent'],
+                       $x['total_roi_earned'],$x['pending_roi'],$x['next_roi_date'],$x['status']];
+        }
+        $fname = 'my-stakings-'.date('Ymd_His');
+
+        if ($format === 'excel') {
+            // Lightweight Excel: an HTML table Excel opens natively (no library).
+            header('Content-Type: application/vnd.ms-excel; charset=utf-8');
+            header('Content-Disposition: attachment; filename="'.$fname.'.xls"');
+            echo "<table border='1'><tr>";
+            foreach ($head as $h) echo '<th>'.htmlspecialchars($h).'</th>';
+            echo '</tr>';
+            foreach ($data as $row) { echo '<tr>'; foreach ($row as $c) echo '<td>'.htmlspecialchars((string)$c).'</td>'; echo '</tr>'; }
+            echo '</table>';
+            return;
+        }
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="'.$fname.'.csv"');
+        $fh = fopen('php://output', 'w');
+        fputcsv($fh, $head);
+        foreach ($data as $row) fputcsv($fh, $row);
+        fclose($fh);
+    }
+
     /**
      * Convert package_config rows into the structure your UI expects.
      */

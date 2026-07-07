@@ -1086,56 +1086,89 @@ $hero_progress = 48;
 
       <!-- Legacy "Select Your Plan" packages + ROI calculator removed (staking packages shown above). -->
 
-      <!-- TABLE: YOUR INVESTMENTS -->
-      <div class="card" style="margin-top: 22px; border-radius: 28px;">
-        <div class="card-h" style="padding: 18px 22px; border-bottom: 1px solid #f0f0f7; margin:0;">
-          <h3 style="font-size: 16px; font-weight: 1100;">My Investment Portfolio</h3>
-          <span class="chip"><i class="ph ph-folder-open"></i> Track Plans</span>
+      <!-- MY STAKINGS PORTFOLIO (server-side: search / filter / sort / paginate / export) -->
+      <div class="card" id="pf-card" style="margin-top: 22px; border-radius: 28px;">
+        <div class="card-h" style="padding:18px 22px;border-bottom:1px solid #f0f0f7;margin:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
+          <h3 style="font-size:16px;font-weight:1100;margin:0;">My Stakings Portfolio</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input id="pf-search" placeholder="Search package / ID…" style="border:1px solid #e5e7eb;border-radius:10px;padding:8px 12px;font-size:13px;">
+            <select id="pf-status" style="border:1px solid #e5e7eb;border-radius:10px;padding:8px 10px;font-size:13px;">
+              <option value="">All status</option><option>Active</option><option>Pending</option>
+              <option>Matured</option><option>Completed</option><option>Cancelled</option>
+            </select>
+            <a id="pf-csv" class="btn-mini" href="#"><i class="ph ph-file-csv"></i> CSV</a>
+            <a id="pf-xls" class="btn-mini" href="#"><i class="ph ph-microsoft-excel-logo"></i> Excel</a>
+          </div>
         </div>
-
-        <div style="padding: 10px 16px 18px; overflow-x: auto;">
-          <table class="table" style="border-spacing: 0 8px;">
+        <div class="table-scroll" style="padding:10px 16px 8px;">
+          <table class="table" style="border-spacing:0 8px;min-width:1060px;">
             <thead>
               <tr>
-                <th>Package / Ref</th>
-                <th>Principal</th>
-                <th>ROI Rate</th>
-                <th>Duration</th>
-                <th>Total Earned</th>
-                <th>Status</th>
-                <th>Actions</th>
+                <th data-sort="id" style="cursor:pointer;">ID</th><th>Package</th>
+                <th data-sort="amount" style="cursor:pointer;">Stake</th><th>Plan</th><th>Duration</th>
+                <th data-sort="purchase" style="cursor:pointer;">Purchased</th><th data-sort="maturity" style="cursor:pointer;">Maturity</th>
+                <th>Days Left</th><th>ROI %</th><th>Earned</th><th>Pending</th><th>Next ROI</th>
+                <th data-sort="status" style="cursor:pointer;">Status</th><th>Actions</th>
               </tr>
             </thead>
-            <tbody>
-              <?php
-              foreach ($investments as $inv): ?>
-                <tr class="tr" style="background: #fbfbff; border: 1px solid rgba(17,24,39,.06);">
-                  <td class="td-title">
-                    <b><?= htmlspecialchars($inv->package) ?></b>
-                    <small><?= htmlspecialchars($inv->ref) ?> • Started <?= htmlspecialchars($inv->start_date) ?> • Ends
-                      <?= htmlspecialchars($inv->end_date) ?></small>
-                  </td>
-                  <td><b style="font-size: 14px;"><?= moneyUSD($inv->amount) ?></b></td>
-                  <td><span class="badge"><?= number_format((float) $inv->roi_percent, 2) ?>%
-                      <?= htmlspecialchars($inv->period) ?></span></td>
-                  <td><span class="badge"><?= (int) $inv->duration_days ?> Days</span></td>
-                  <td><b style="color:#22C55E; font-size:14px;"><?= moneyUSD($inv->earned) ?></b></td>
-                  <td><span class="badge <?= badgeClass($inv->status) ?>"><?= htmlspecialchars($inv->status) ?></span>
-                  </td>
-                  <td>
-                  <td>
-                    <button class="btn-mini js-invest-details" type="button"
-                      data-invest-id="<?= (int) $inv->inverst_id ?? '0' ?>">
-                      <i class="ph ph-eye"></i> Details
-                    </button>
-                  </td>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
-            </tbody>
+            <tbody id="pf-body"><tr><td colspan="14" style="text-align:center;color:#9ca3af;padding:20px;">Loading…</td></tr></tbody>
           </table>
         </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 20px 16px;flex-wrap:wrap;gap:10px;">
+          <span id="pf-count" style="font-size:12px;color:#6b7280;font-weight:800;"></span>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button id="pf-prev" class="btn-mini" type="button">Prev</button>
+            <span id="pf-page" style="font-size:12px;color:#6b7280;font-weight:800;"></span>
+            <button id="pf-next" class="btn-mini" type="button">Next</button>
+          </div>
+        </div>
       </div>
+      <script>
+      (function(){
+        var BASE='<?= base_url() ?>', page=1, limit=20, sort='id', dir='DESC';
+        var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
+        var col={Active:'#16a34a',Pending:'#d97706',Matured:'#2563eb',Completed:'#059669',Cancelled:'#6b7280'};
+        function q(id){return document.getElementById(id);}
+        function exportUrl(fmt){var p=new URLSearchParams({format:fmt,search:q('pf-search').value,status:q('pf-status').value});return BASE+'user/stakings/export?'+p.toString();}
+        function load(p){
+          page=p||1; var body=q('pf-body'); body.innerHTML='<tr><td colspan="14" style="text-align:center;color:#9ca3af;padding:20px;">Loading…</td></tr>';
+          var fd=new FormData(); fd.append('search',q('pf-search').value); fd.append('status',q('pf-status').value);
+          fd.append('sort',sort); fd.append('dir',dir); fd.append('page',page); fd.append('limit',limit);
+          fetch(BASE+'user/stakings/portfolio',{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}})
+            .then(function(r){return r.json();}).then(function(j){
+              if(!j.status){body.innerHTML='<tr><td colspan="14" style="text-align:center;color:#ef4444;padding:20px;">'+esc(j.message||'Error')+'</td></tr>';return;}
+              if(!j.rows.length){body.innerHTML='<tr><td colspan="14" style="text-align:center;color:#9ca3af;padding:20px;">No stakings found.</td></tr>';}
+              else body.innerHTML=j.rows.map(function(r){
+                var c=col[r.status]||'#6b7280';
+                return '<tr class="tr" style="background:#fbfbff;">'+
+                  '<td><b>#'+esc(r.invest_id)+'</b></td><td><b>'+esc(r.package_name)+'</b></td>'+
+                  '<td>'+Number(r.stake_amount).toLocaleString(undefined,{maximumFractionDigits:2})+'</td>'+
+                  '<td>'+esc(r.plan_type)+'</td><td>'+esc(r.duration_days)+'d</td>'+
+                  '<td style="font-size:12px;">'+esc((r.purchase_date||'').slice(0,10))+'</td>'+
+                  '<td style="font-size:12px;">'+esc((r.maturity_date||'').slice(0,10))+'</td>'+
+                  '<td>'+esc(r.days_remaining)+'</td><td>'+esc(r.roi_percent)+'%</td>'+
+                  '<td style="color:#16a34a;font-weight:900;">'+Number(r.total_roi_earned).toLocaleString(undefined,{maximumFractionDigits:4})+'</td>'+
+                  '<td style="color:#d97706;font-weight:900;">'+Number(r.pending_roi).toLocaleString(undefined,{maximumFractionDigits:4})+'</td>'+
+                  '<td style="font-size:12px;">'+esc((r.next_roi_date||'—').slice(0,10))+'</td>'+
+                  '<td><span class="badge" style="color:'+c+';">'+esc(r.status)+'</span></td>'+
+                  '<td><button class="btn-mini js-invest-details" type="button" data-invest-id="'+esc(r.invest_id)+'"><i class="ph ph-eye"></i> Details</button></td>'+
+                  '</tr>';
+              }).join('');
+              q('pf-count').textContent=(j.total||0)+' staking(s)';
+              q('pf-page').textContent='Page '+j.page+' / '+(j.pages||1);
+              q('pf-prev').disabled=j.page<=1; q('pf-next').disabled=j.page>=(j.pages||1);
+            }).catch(function(){body.innerHTML='<tr><td colspan="14" style="text-align:center;color:#ef4444;padding:20px;">Load failed.</td></tr>';});
+        }
+        var t; q('pf-search').addEventListener('input',function(){clearTimeout(t);t=setTimeout(function(){load(1);},400);});
+        q('pf-status').addEventListener('change',function(){load(1);});
+        q('pf-prev').addEventListener('click',function(){if(page>1)load(page-1);});
+        q('pf-next').addEventListener('click',function(){load(page+1);});
+        q('pf-csv').addEventListener('click',function(e){e.preventDefault();window.location=exportUrl('csv');});
+        q('pf-xls').addEventListener('click',function(e){e.preventDefault();window.location=exportUrl('excel');});
+        document.querySelectorAll('#pf-card thead th[data-sort]').forEach(function(th){th.addEventListener('click',function(){var s=th.getAttribute('data-sort');if(sort===s){dir=dir==='ASC'?'DESC':'ASC';}else{sort=s;dir='DESC';}load(1);});});
+        load(1);
+      })();
+      </script>
       <style>
         /* modal body scroll */
         #invModalBody {
