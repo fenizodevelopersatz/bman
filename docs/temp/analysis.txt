@@ -1945,3 +1945,91 @@ le Withdraw Settings page (currently: every 30 days, 3000–10000 BMAN / 30–10
 
 CLI :  php index.php bonusreductioncron run
 HTTP:  /bonus-reduction-cron?token=dcron_9f27ab5c3e8140d6
+
+
+
+
+
+
+
+
+
+
+Yes, close both gaps, but implement them as part of a complete on-chain transaction lifecycle.
+
+1. Withdrawal Transactions
+- Add tx_hash to the withdrawals table.
+- Record the blockchain transaction hash immediately after broadcast.
+- Track statuses: Created → Broadcasting → Pending → Confirmed → Failed → Reverted.
+- Store block number, confirmations, gas used, gas price, total gas fee, nonce, explorer URL, and failure reason.
+- Link the withdrawal to the onchain_transactions table and wallet ledger.
+- If the transaction fails, automatically mark it as failed and never deduct the user's balance twice.
+
+2. Swap Transactions
+- Attach the actual delivery transaction hash after the swap is broadcast.
+- Link the delivery hash to the existing onchain_transactions record instead of creating duplicates.
+- Store swap request hash (if any) and final delivery hash separately.
+- Track confirmations and final settlement.
+- Record all gas fees and execution details.
+
+3. Verification
+- Every transaction must be verified against the blockchain using RPC.
+- Update confirmations until finality.
+- If RPC data differs from the database, automatically reconcile and log the correction.
+
+4. Audit Trail
+Every state change must be recorded:
+- Created
+- Signed
+- Broadcast
+- Pending
+- Confirmed
+- Failed
+- Reverted
+- Cancelled
+- Retried
+
+Include timestamp, actor, IP, RPC endpoint, transaction hash, block number, and gas information.
+
+5. Testing
+Create automated integration tests for:
+- Successful withdrawal
+- Failed withdrawal
+- Successful swap
+- Failed swap
+- Duplicate transaction protection
+- RPC timeout
+- Chain reorganization
+- Gas estimation failure
+- Balance reconciliation
+
+No transaction should be considered complete until it has been confirmed on-chain and synchronized with the ledger and wallet balances.
+
+
+
+Implement an efficient blockchain balance synchronization system that minimizes API costs.
+
+Requirements:
+
+- Always retrieve the latest BNB and USDT balances using a free BSC RPC endpoint (eth_getBalance for BNB and balanceOf() via eth_call for the USDT/BEP-20 contract).
+- Store the last synchronized balances in the database.
+- On each scheduled sync, compare the latest RPC balances with the stored balances.
+- If there is no balance difference, do not call the BscScan/Etherscan API.
+- Only when a balance difference is detected:
+  - Fetch the latest transaction history using the BscScan API.
+  - Import any new transactions.
+  - Update confirmations, gas fees, status, block number, and metadata.
+  - Synchronize the local ledger and balances.
+- Continue monitoring the transaction until it reaches the required confirmation count.
+- Once confirmed and synchronized, update the stored balances.
+
+Optimize for minimal API usage:
+- RPC should be the primary data source.
+- BscScan API is a fallback used only when a balance change is detected or when additional transaction details are required.
+- Cache the last processed block number and last transaction hash to avoid duplicate scans.
+- Prevent duplicate imports using transaction hash + log index.
+- Support multiple RPC endpoints with automatic failover if one endpoint is unavailable.
+- Log all synchronization attempts, balance changes, RPC failures, and API calls for auditing.
+
+Goal:
+Use free RPC endpoints for continuous monitoring and only consume paid/limited explorer API requests when absolutely necessary.

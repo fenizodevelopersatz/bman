@@ -95,6 +95,7 @@ class Walletmanagement extends CI_Controller
                 } else {
                     $this->detact_token($selected_member, $amount, $notes_by_user);
                 }
+                $this->_recordAdminAdjust($selected_member, $amount, 'debit', $selected_payment, $notes_by_user);
 
             }
 
@@ -135,6 +136,7 @@ class Walletmanagement extends CI_Controller
                 } else {
                     $this->add_token($selected_member, $amount, $notes_by_user);
                 }
+                $this->_recordAdminAdjust($selected_member, $amount, 'credit', $selected_payment, $notes_by_user);
 
             }
 
@@ -145,6 +147,40 @@ class Walletmanagement extends CI_Controller
             );
         }
 
+    }
+
+    /**
+     * Fail-safe: mirror a manual admin wallet adjustment into the On-Chain
+     * Transaction history (these legacy grants write to `history`, so they are
+     * not caught by the Walletledger observer). Never throws.
+     */
+    private function _recordAdminAdjust($userid, $amount, $direction, $payment, $notes)
+    {
+        try {
+            if ((int)$userid <= 0 || (float)$amount <= 0) return;
+            $this->load->model('Onchaintx_model', 'octx');
+            $adminId  = (int)$this->session->userdata('admin_userid');
+            $isCredit = ($direction === 'credit');
+            $this->octx->capture([
+                'network'        => 'mainnet',
+                'wallet_type'    => 'bonus',
+                'tx_type'        => 'admin_adjustment',
+                'status'         => 'confirmed',
+                'user_id'        => (int)$userid,
+                'admin_id'       => $adminId,
+                'token_symbol'   => ($payment === 'currency') ? 'USDT' : 'BMAN',
+                'amount'         => (float)$amount,
+                'debit_wallet'   => $isCredit ? null : 'bonus',
+                'credit_wallet'  => $isCredit ? 'bonus' : null,
+                'reference_type' => 'admin_adjustment',
+                'created_by'     => $adminId,
+                'ip_address'     => $this->input->ip_address(),
+                '_event'         => ['actor_type' => 'admin', 'actor_id' => $adminId,
+                                     'ip_address' => $this->input->ip_address(), 'detail' => $notes],
+            ]);
+        } catch (Throwable $e) {
+            log_message('error', '[admin adjust onchain] ' . $e->getMessage());
+        }
     }
     /*
     |--------------------------------------------------------------------------

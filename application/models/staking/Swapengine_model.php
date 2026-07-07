@@ -309,6 +309,14 @@ class Swapengine_model extends CI_Model
                 $bonusTx = $bonus > 0 ? $this->web3bman->sendToken($tk, $userAddr, (string)$bonus, $bmanC)['tx_hash'] : null;
             }
             $this->_set($orderId, ['bman_tx_hash' => $bmanTx, 'bonus_tx_hash' => $bonusTx, 'error' => null]);
+
+            // Attach the on-chain delivery hash to the swap's on-chain history rows
+            // (created by the Walletledger observer at purchase). Fail-safe.
+            try {
+                $this->load->model('Onchaintx_model', 'octx');
+                $this->octx->attachSwapDelivery($o['ref'], $bmanTx, $o['deposit_tx_hash'] ?? ($o['tx_hash'] ?? null));
+            } catch (Throwable $e) { log_message('error', '[swap onchain link] '.$e->getMessage()); }
+
             return [true, 'BMAN delivered'.($dry ? ' (dry-run)' : '').': '.$bmanTx];
         } catch (Exception $e) {
             $this->_set($orderId, ['error' => 'BMAN delivery failed: '.substr($e->getMessage(),0,200)]);

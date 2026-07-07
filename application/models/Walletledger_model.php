@@ -133,7 +133,61 @@ class Walletledger_model extends CI_Model
             return [false, 'Database error (possibly a duplicate tx_hash).'];
         }
         $this->db->trans_commit();
+
+        // Observer: mirror this committed movement into the on-chain transaction
+        // history. Runs AFTER commit and is fully guarded — a recording failure
+        // can never roll back or affect the balance movement above.
+        $this->_captureOnchain($user_id, $wallet, $credit, $debit, $new,
+            $reference_type, $ref_id, $tx_hash, $admin, $desc, $ledger_id);
+
         return [true, $ledger_id];
+    }
+
+    /** Cached active-token metadata (avoids a query per movement). */
+    private function _tokenMeta()
+    {
+        static $m = null;
+        if ($m !== null) return $m;
+        $r = $this->db->select('network,chain_id,usdt_name,usdt_contract,usdt_decimals,bman_name,bman_contract,bman_decimals')
+                      ->get_where('token_settings', ['status' => 1])->row_array();
+        $m = $r ?: ['network'=>'mainnet','chain_id'=>56,'usdt_name'=>'USDT','usdt_contract'=>null,'usdt_decimals'=>18,
+                    'bman_name'=>'BMAN','bman_contract'=>null,'bman_decimals'=>18];
+        return $m;
+    }
+
+    /** Fail-safe: record the movement in onchain_transactions (+ audit event). */
+    private function _captureOnchain($user_id, $wallet, $credit, $debit, $new, $refType, $refId, $txHash, $admin, $desc, $ledgerId)
+    {
+        try {
+            $meta   = $this->_tokenMeta();
+            $isUsdt = ($wallet === 'usdt');
+            $isCredit = bccomp((string)$credit, '0', 8) > 0;
+            $this->load->model('Onchaintx_model', 'octx');
+            $this->octx->capture([
+                'tx_hash'          => $txHash ?: null,
+                'network'          => $meta['network'],
+                'chain_id'         => (int)$meta['chain_id'],
+                'wallet_type'      => $wallet,
+                'tx_type'          => $refType,
+                'status'           => 'confirmed',
+                'user_id'          => $user_id,
+                'admin_id'         => $admin,
+                'token_symbol'     => $isUsdt ? 'USDT' : 'BMAN',
+                'token_name'       => $isUsdt ? $meta['usdt_name'] : $meta['bman_name'],
+                'token_contract'   => $isUsdt ? $meta['usdt_contract'] : $meta['bman_contract'],
+                'token_decimals'   => $isUsdt ? (int)$meta['usdt_decimals'] : (int)$meta['bman_decimals'],
+                'amount'           => $isCredit ? $credit : $debit,
+                'debit_wallet'     => $isCredit ? null : $wallet,
+                'credit_wallet'    => $isCredit ? $wallet : null,
+                'balance_after'    => $new,
+                'wallet_ledger_id' => $ledgerId,
+                'reference_type'   => $refType,
+                'reference_id'     => $refId,
+                'created_by'       => $admin,
+            ]);
+        } catch (Throwable $e) {
+            log_message('error', '[wallet_ledger onchain hook] ' . $e->getMessage());
+        }
     }
 
     private function _col($user_id, $col)

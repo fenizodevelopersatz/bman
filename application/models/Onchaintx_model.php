@@ -217,13 +217,175 @@ class Onchaintx_model extends CI_Model
         return (is_array($j) && array_key_exists('result', $j)) ? $j['result'] : null;
     }
 
-    /* ------------------------- recorder (for new txs) ---------------------- */
+    /* ============================ recorder API ============================ *
+     * All methods below are FAIL-SAFE: they never throw. Recording an on-chain
+     * transaction must never break the real balance movement that triggered it.
+     * ---------------------------------------------------------------------- */
 
-    /** Insert an on-chain transaction row (called by the reduction/deposit flows). */
-    public function record(array $data)
+    /**
+     * Capture a new on-chain transaction (+ a 'created' audit event).
+     * Idempotent for on-chain rows: if a row with the same (tx_hash, wallet_type,
+     * reference_type) already exists it is returned instead of duplicated.
+     * @return int|false inserted/existing id, or false on any failure.
+     */
+    public function capture(array $data)
     {
-        $data['created_at'] = $data['created_at'] ?? date('Y-m-d H:i:s');
-        $this->db->insert('onchain_transactions', $data);
-        return (int)$this->db->insert_id();
+        try {
+            $data['created_at'] = $data['created_at'] ?? date('Y-m-d H:i:s');
+
+            if (!empty($data['tx_hash'])) {
+                $dupe = $this->db->select('id')
+                    ->where('tx_hash', $data['tx_hash'])
+                    ->where('wallet_type', $data['wallet_type'] ?? null)
+                    ->where('reference_type', $data['reference_type'] ?? null)
+                    ->get('onchain_transactions')->row_array();
+                if ($dupe) return (int)$dupe['id'];
+            }
+
+            $event = null;
+            if (isset($data['_event'])) { $event = $data['_event']; unset($data['_event']); }
+
+            $this->db->insert('onchain_transactions', $data);
+            $id = (int)$this->db->insert_id();
+            $this->logEvent($id, $data['tx_hash'] ?? null, 'created', [
+                'new_status' => $data['status'] ?? null,
+                'actor_type' => $event['actor_type'] ?? 'system',
+                'actor_id'   => $event['actor_id'] ?? null,
+                'ip_address' => $event['ip_address'] ?? null,
+                'detail'     => $event['detail'] ?? null,
+            ]);
+            return $id;
+        } catch (Throwable $e) {
+            log_message('error', '[onchain capture] '.$e->getMessage());
+            return false;
+        }
     }
+
+    /**
+     * Attach on-chain result (tx hash, status, gas…) to the row already created
+     * for a given wallet_ledger_id, and log a status_change event.
+     */
+    public function updateByLedgerId($ledgerId, array $fields, array $event = [])
+    {
+        try {
+            if (!$ledgerId) return false;
+            $row = $this->db->select('id, status, tx_hash')
+                ->get_where('onchain_transactions', ['wallet_ledger_id' => (int)$ledgerId])->row_array();
+            if (!$row) return false;
+
+            $fields['updated_at'] = date('Y-m-d H:i:s');
+            $this->db->where('id', $row['id'])->update('onchain_transactions', $fields);
+
+            $this->logEvent($row['id'], $fields['tx_hash'] ?? $row['tx_hash'], 'status_change', [
+                'old_status'    => $row['status'],
+                'new_status'    => $fields['status'] ?? $row['status'],
+                'confirmations' => $fields['confirmation_count'] ?? null,
+                'actor_type'    => $event['actor_type'] ?? 'system',
+                'actor_id'      => $event['actor_id'] ?? null,
+                'detail'        => $event['detail'] ?? null,
+            ]);
+            return (int)$row['id'];
+        } catch (Throwable $e) {
+            log_message('error', '[onchain updateByLedgerId] '.$e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Insert-or-update by (reference_type, reference_id) — for lifecycle rows
+     * whose status transitions over time (e.g. a deposit pending→confirmed).
+     */
+    public function upsertByReference($refType, $refId, array $data, array $event = [])
+    {
+        try {
+            $existing = $this->db->select('id, status')
+                ->get_where('onchain_transactions', ['reference_type' => $refType, 'reference_id' => $refId])
+                ->row_array();
+
+            if ($existing) {
+                $data['updated_at'] = date('Y-m-d H:i:s');
+                $this->db->where('id', $existing['id'])->update('onchain_transactions', $data);
+                if (isset($data['status']) && $data['status'] !== $existing['status']) {
+                    $this->logEvent($existing['id'], $data['tx_hash'] ?? null, 'status_change', [
+                        'old_status' => $existing['status'], 'new_status' => $data['status'],
+                        'confirmations' => $data['confirmation_count'] ?? null,
+                        'actor_type' => $event['actor_type'] ?? 'system', 'actor_id' => $event['actor_id'] ?? null,
+                    ]);
+                }
+                return (int)$existing['id'];
+            }
+            $data['reference_type'] = $refType;
+            $data['reference_id']   = $refId;
+            if (!empty($event)) $data['_event'] = $event;
+            return $this->capture($data);
+        } catch (Throwable $e) {
+            log_message('error', '[onchain upsertByReference] '.$e->getMessage());
+            return false;
+        }
+    }
+
+    /** Append one immutable audit event. Never throws. */
+    public function logEvent($txId, $txHash, $eventType, array $o = [])
+    {
+        try {
+            $this->db->insert('onchain_tx_events', [
+                'tx_id'         => (int)$txId,
+                'tx_hash'       => $txHash,
+                'event_type'    => $eventType,
+                'old_status'    => $o['old_status'] ?? null,
+                'new_status'    => $o['new_status'] ?? null,
+                'confirmations' => $o['confirmations'] ?? null,
+                'detail'        => isset($o['detail']) ? (is_array($o['detail']) ? json_encode($o['detail']) : $o['detail']) : null,
+                'actor_type'    => $o['actor_type'] ?? 'system',
+                'actor_id'      => $o['actor_id'] ?? null,
+                'ip_address'    => $o['ip_address'] ?? null,
+                'created_at'    => date('Y-m-d H:i:s'),
+            ]);
+            return (int)$this->db->insert_id();
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Attach a swap's on-chain delivery hash to the swap credit row(s) already
+     * recorded by the ledger observer (matched by reference_id = swap ref).
+     * Fail-safe. Also logs a 'linked' + 'broadcast' audit event.
+     */
+    public function attachSwapDelivery($ref, $deliveryHash, $requestHash = null, $endpoint = null)
+    {
+        try {
+            if (empty($ref)) return false;
+            $rows = $this->db->select('id')
+                ->where('reference_id', $ref)
+                ->where_in('reference_type', ['swap', 'swap_bonus'])
+                ->get('onchain_transactions')->result_array();
+            foreach ($rows as $r) {
+                $this->db->where('id', $r['id'])->update('onchain_transactions', [
+                    'delivery_tx_hash' => $deliveryHash,
+                    'request_tx_hash'  => $requestHash,
+                    'tx_hash'          => $deliveryHash ?: null,
+                    'rpc_endpoint'     => $endpoint,
+                    'updated_at'       => date('Y-m-d H:i:s'),
+                ]);
+                $this->logEvent($r['id'], $deliveryHash, 'broadcast', [
+                    'detail' => 'swap BMAN delivery broadcast', 'actor_type' => 'system', 'rpc_endpoint' => $endpoint,
+                ]);
+            }
+            return count($rows);
+        } catch (Throwable $e) {
+            log_message('error', '[onchain attachSwapDelivery] '.$e->getMessage());
+            return false;
+        }
+    }
+
+    /** The audit trail for one transaction (immutable, oldest first). */
+    public function events($txId)
+    {
+        return $this->db->where('tx_id', (int)$txId)->order_by('id', 'ASC')
+            ->get('onchain_tx_events')->result_array();
+    }
+
+    /** Back-compat alias. */
+    public function record(array $data) { return $this->capture($data); }
 }

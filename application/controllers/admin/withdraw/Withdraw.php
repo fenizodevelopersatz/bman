@@ -909,6 +909,9 @@ class Withdraw extends MY_Controller
 
             $this->db->where('id', $id)->update('withdrawals', $update);
 
+            // Record the on-chain payout lifecycle (fail-safe — never blocks the update).
+            $this->_recordWithdrawOnchain($id, $withdraw, $new_status);
+
             echo json_encode([
                 'status' => 'success',
                 'message' => 'Withdraw request updated successfully.'

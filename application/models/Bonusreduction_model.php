@@ -54,10 +54,7 @@ class Bonusreduction_model extends CI_Model
         $onchain  = (int)($cfg['reduction_onchain'] ?? 0) === 1;
 
         $adminAddr = $this->adminAddress();
-
-        // token metadata once (for the onchain_transactions mirror rows)
-        $ts = $this->db->select('chain_id, bman_name, bman_contract, bman_decimals')
-                       ->get_where('token_settings', ['status' => 1])->row_array() ?: [];
+        $this->load->model('Onchaintx_model', 'octx');
 
         $web3 = null;
         if ($onchain && !$dryRun) {
@@ -166,30 +163,25 @@ class Bonusreduction_model extends CI_Model
                 'created_at'       => date('Y-m-d H:i:s'),
             ]);
 
-            // Mirror into the unified on-chain transaction history (doc 13).
-            $this->db->insert('onchain_transactions', [
-                'tx_hash'        => $txHash,
-                'network'        => 'mainnet',
-                'chain_id'       => (int)($ts['chain_id'] ?? 56),
-                'wallet_type'    => 'bonus',
-                'tx_type'        => 'bonus_reduction',
-                'status'         => $status === 'sent' ? 'confirmed' : ($status === 'failed' ? 'failed' : 'confirmed'),
-                'from_address'   => $fromAddr,
-                'to_address'     => $adminAddr,
-                'user_id'        => $uid,
-                'token_symbol'   => 'BMAN',
-                'token_name'     => $ts['bman_name'] ?? 'BMAN Token',
-                'token_contract' => $ts['bman_contract'] ?? null,
-                'token_decimals' => isset($ts['bman_decimals']) ? (int)$ts['bman_decimals'] : 18,
-                'amount'         => $amount,
-                'debit_wallet'   => 'bonus',
-                'credit_wallet'  => 'admin',
-                'wallet_ledger_id' => is_numeric($ledgerRes) ? (int)$ledgerRes : null,
-                'reference_type' => 'bonus_reduction',
-                'failure_reason' => $status === 'failed' ? 'rpc_error' : null,
-                'revert_message' => $status === 'failed' ? $note : null,
-                'created_at'     => date('Y-m-d H:i:s'),
-            ]);
+            // The ledger debit above already created the on-chain history row (via
+            // the Walletledger observer). Enrich it with the on-chain send result:
+            //   sent   → confirmed + tx hash
+            //   failed → partial (internal reduction stands, on-chain leg failed)
+            $this->octx->updateByLedgerId(
+                is_numeric($ledgerRes) ? (int)$ledgerRes : 0,
+                [
+                    'tx_hash'        => $txHash,
+                    'status'         => $status === 'sent' ? 'confirmed' : ($status === 'failed' ? 'partial' : 'confirmed'),
+                    'from_address'   => $fromAddr,
+                    'to_address'     => $adminAddr,
+                    'credit_wallet'  => 'admin',
+                    'failure_reason' => $status === 'failed' ? 'rpc_error' : null,
+                    'revert_message' => $status === 'failed' ? $note : null,
+                    'completed_steps'=> $status === 'failed' ? 'internal_reduction' : null,
+                    'failed_steps'   => $status === 'failed' ? 'onchain_transfer' : null,
+                ],
+                ['actor_type' => 'cron', 'detail' => 'bonus reduction on-chain result: ' . $status]
+            );
 
             $reducedTotal = bcadd($reducedTotal, $amount, 8);
             $processed++;

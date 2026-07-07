@@ -5,6 +5,76 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-07 — Live auto-capture: every wallet movement recorded on-chain + immutable audit
+
+Wired all wallet flows to record into the On-Chain Transactions module
+automatically, in real time, with an immutable audit trail.
+
+- **Single observer hook:** `Walletledger_model::post()` now mirrors every
+  committed movement into `onchain_transactions` (after commit, `try/catch` —
+  cannot affect the real movement). Captures deposits, wallet transfers, bonus
+  reductions, swap credits, withdrawals (ledger debits), ROI/rank/matching — with
+  user, wallet, credit/debit, `balance_after`, `reference_type`, and `tx_hash`
+  when present. Token metadata is statically cached to avoid per-movement queries.
+- **Explicit wiring for ledger-bypassing flows:** legacy admin bonus grants
+  (`Walletmanagement` add/deduct → `history`) now also record an
+  `admin_adjustment` on-chain row.
+- **Bonus reduction:** dropped its direct insert (now caught by the hook); after
+  the on-chain send it calls `updateByLedgerId()` to attach the tx hash / mark
+  `partial` on on-chain failure.
+- **Immutable audit trail:** new append-only `onchain_tx_events`
+  (`db/onchain_tx_events.sql`) — `created` / `status_change` / `confirmation` /
+  `failed` … per tx, with actor + IP + timestamp. New fail-safe recorder API on
+  `Onchaintx_model`: `capture`, `updateByLedgerId`, `upsertByReference`,
+  `logEvent`, `events`.
+- **Verified live:** an internal reduction auto-created an `onchain_transactions`
+  row (via the hook) linked to its `wallet_ledger_id` + two audit events, with no
+  direct recorder writes in the reduction code. Row count 40→41, events 0→2.
+- **Files:** `db/onchain_tx_events.sql`; touched `Walletledger_model.php`,
+  `Onchaintx_model.php`, `Bonusreduction_model.php`,
+  `admin/wallet/Walletmanagement.php`; doc [13_ONCHAIN_TRANSACTIONS.md](13_ONCHAIN_TRANSACTIONS.md) §2a.
+- **Known gaps (documented):** swap **delivery** hash and withdrawal **payout**
+  hash aren't attached yet (the latter needs a `tx_hash` column on `withdrawals`).
+
+---
+
+## 2026-07-07 — On-Chain Transactions module (dashboard + history + detail modal)
+
+Production-shaped On-Chain Admin Wallet Management: **Admin ▸ Finance ▸ On-Chain
+Transactions** (`admin/wallet/onchain-transactions`).
+
+- **Dashboard:** 5 live balance cards (USDT/Exchange/Earning/Staking/Bonus =
+  `SUM(user_wallets.*)`).
+- **History grid:** server-side filter/sort/paginate over a new indexed table
+  `onchain_transactions` (`db/onchain_transactions.sql`). Filters: wallet, network,
+  status, type, token, date range, block, tx hash, wallet address (from/to), user,
+  reference, gas-fee min/max, + free-text search. Columns incl. block,
+  confirmations, gas fee, colour-coded status badges, explorer links.
+- **Detail modal:** General / Wallet / Token / Gas / Execution / Ledger / Failure /
+  Partial / Related / Audit / Actions. Shows stored fields **plus live RPC
+  enrichment** (`eth_getTransactionByHash` + receipt + block): real gas used,
+  nonce, tx index, confirmations, receipt status, event-log count, method selector.
+  Internal txs / execution trace / decoded params are labelled as needing a BscScan
+  API key or trace node.
+- **Data:** backfilled from `wallet_deposits` (38 real deposits) +
+  `bonus_reduction_log`; `Bonusreduction_model` now mirrors every reduction into
+  `onchain_transactions`. Deposits/withdrawals/swaps can be wired via
+  `Onchaintx_model::record()`.
+- **New files:** `db/onchain_transactions.sql`,
+  `application/models/Onchaintx_model.php`,
+  `application/controllers/admin/wallet/Onchaintx.php`,
+  `application/views/admin/wallet/onchain_transactions.php`,
+  [13_ONCHAIN_TRANSACTIONS.md](13_ONCHAIN_TRANSACTIONS.md). **Touched:**
+  `config/routes.php`, `admin_sidebar.php`, `Bonusreduction_model.php`.
+- **Verified:** migration + backfill (40 rows), route guarded (307→login), grid
+  query uses indexes, **live RPC enrichment returns real mainnet data** for a
+  deposit tx, mirror-insert validated. Gated by `permission_pages['wallet_management']`.
+- **Honest limits:** deep fields (internal txs, execution trace, decoded event/param
+  names, full ABI logs) require a BscScan API key or a debug/trace archive node —
+  wired in the UI, populated when that's configured.
+
+---
+
 ## 2026-07-07 — Windows cron scheduler brought into main + documented (was worktree-only)
 
 The `cron.php` + `scheduler/` Windows Task Scheduler system (built earlier) lived
