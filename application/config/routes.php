@@ -461,6 +461,16 @@ $route['user/logout'] = 'user/user/logout';
 $route['user/tranfer'] = 'user/usersettings/tranfercontroller';
 $route['user/swap'] = 'user/usersettings/tranfercontroller/internel_swap';
 $route['user/lending'] = 'user/usersettings/lendingcontroller';
+// Stakings redesign (docs/15): new canonical alias; user/lending kept for old links.
+$route['user/stakings'] = 'user/usersettings/lendingcontroller';
+$route['user/stakings/detail']['post'] = 'user/usersettings/lendingcontroller/staking_detail';
+$route['user/stakings/portfolio']['post'] = 'user/usersettings/lendingcontroller/portfolio_list';
+$route['user/stakings/export'] = 'user/usersettings/lendingcontroller/portfolio_export';
+// Phase 5 — investment documents (owner-or-admin; branded printable HTML + QR)
+$route['user/stakings/receipt/(:num)']      = 'user/usersettings/stakingdocs/receipt/$1';
+$route['user/stakings/agreement/(:num)']    = 'user/usersettings/stakingdocs/agreement/$1';
+$route['user/stakings/roi-schedule/(:num)'] = 'user/usersettings/stakingdocs/roi_schedule/$1';
+$route['user/stakings/summary/(:num)']      = 'user/usersettings/stakingdocs/summary/$1';
 $route['user/investments/details_ajax'] = 'user/usersettings/lendingcontroller/details_ajax';
 $route['user/lending/stake_quote']['post']    = 'user/usersettings/lendingcontroller/stake_quote';
 $route['user/lending/purchase_stake']['post'] = 'user/usersettings/lendingcontroller/purchase_stake';

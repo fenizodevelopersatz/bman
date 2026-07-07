@@ -5,6 +5,55 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-07 — Stakings redesign Phases 2–5 complete (committed separately)
+
+- **Phase 2** (`0cb7360`): rename Package→Stakings (menu/title/hero), removed the
+  5 KPI summary cards, redesigned package cards (owned ribbon, terms/lock/min +
+  availability chips, T&C popup).
+- **Phase 3** (`0594901`): server-side "My Stakings" portfolio (search/status
+  filter/sortable/paginate) + CSV & Excel export; full computed columns;
+  calculations verified vs real `user_investment` data.
+- **Phase 4** (`0dab51f`): full-screen 7-tab investment modal (Package / ROI /
+  Transactions / Ledger / Timeline / Documents / Audit), lazy-rendered, wired to
+  the Phase-1 `staking_detail` API — real DB/blockchain data only.
+- **Phase 5** (`0f6902c`): document generation — new `Stakingdocs` controller
+  renders branded printable HTML (print/save-as-PDF, no PDF lib) for Purchase
+  Receipt, Investment Agreement, ROI Schedule, and Summary Report from live data,
+  with QR codes (explorer/verify). Owner-or-admin access (unauth→404 verified),
+  metadata in `staking_documents` (deduped per invest+type + download counter),
+  audit trail in `staking_document_log` (actor/IP/UA). `db/staking_documents.sql`.
+- **Verification:** every touched file lints; all `user/stakings/*` routes resolve
+  (page 307→login, AJAX 303, docs 404-denied); no cross-phase regressions.
+  Each phase committed separately for review/rollback. Docs = `user/lending`
+  kept as an alias. See [15_STAKINGS_PAGE_REDESIGN.md](15_STAKINGS_PAGE_REDESIGN.md).
+
+---
+
+## 2026-07-07 — Stakings page redesign: plan (doc 15) + Phase 1 (all-tabs investment detail API)
+
+Started the user "Package"→"Stakings" redesign. It maps directly onto the
+on-chain/ledger/audit backend built earlier.
+
+- **Plan:** [15_STAKINGS_PAGE_REDESIGN.md](15_STAKINGS_PAGE_REDESIGN.md) — grounded
+  in the real page (`user/lending` → `Lendingcontroller` → `lending_managment`
+  view) + data (`user_investment`, `package_config`, `history`) and the
+  `onchain_transactions` / `wallet_ledger` / `onchain_tx_events` backend. Phased
+  (1 API → 2 rename+cards → 3 portfolio table+export → 4 modal UI → 5 documents).
+- **Phase 1 (done):** `Lendingcontroller::staking_detail()` returns all 7 modal
+  tabs from real data — Package Info, ROI History (+ totals), Transaction History
+  (`onchain_transactions`), Ledger (`wallet_ledger`), Timeline, Documents,
+  Audit Log (`onchain_tx_events`), plus computed calcs (maturity, days remaining,
+  completed/remaining cycles, total/pending/expected-final ROI). Added
+  `user/stakings` route alias (canonical) keeping `user/lending` for old links.
+- **Verified:** lint clean; routes guarded (303/307 → login); data queries return
+  correct structure against a real investment (ZEN, 0.1%/day × 30d); handles empty
+  ROI/onchain gracefully.
+- **Next (phases 2–5):** remove stat cards + rename in the view/menu/breadcrumb,
+  card redesign, server-side portfolio table + CSV/Excel export + `Stakingcalc`
+  helper, the 7-tab modal UI, and PDF documents.
+
+---
+
 ## 2026-07-07 — Production hardening: mandatory withdrawal tx_hash + scalable batch rotation
 
 - **Withdrawal approval:** `tx_hash` is now **mandatory to approve** — added to the

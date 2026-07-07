@@ -1908,7 +1908,19 @@ Implement this by modifying the existing modules without breaking the current Co
 
 
 
-ROI Structure
+where is the ROI cron and how to execute because 
+
+I have purchase the 
+
+3 Years 200%    2.5% /mo 
+
+Now purchase the first package fixed type plan 3 years so now today is 2026 and july 08, 2029 after three year give the ROI based on the plan and type of purchase, once mature the perord to gave and Regular also
+
+ROI is credited every month on day(s) 5,15,25. You receive a steady monthly percentage across the whole term.
+
+For example 14th day purchase after then maturity of the plan 3year or 5year of 15, 25, next month of 5th once given package ROI percentage from the investment amount 
+
+6. ROI Structure
 
 Stake Fixed 2Y Fixed 3Y Fixed 5Y Regular 2Y Regular 3Y Regular 5Y
 
@@ -1928,11 +1940,23 @@ Stake Fixed 2Y Fixed 3Y Fixed 5Y Regular 2Y Regular 3Y Regular 5Y
 
 300,000 180% 230% 430% 2.8% 3.3% 3.3%
 
-500,000 200% 250% 450% 3.0% 3.5% 3.5% 
+500,000 200% 250% 450% 3.0% 3.5% 3.5%
 
+
+
+If i have 20000 purchased on regular 3 year 2.5% return on 
 
 
 http://192.168.29.18:9000/admin/staking/roi-structure
+
+
+
+
+
+
+
+
+
 
 
 I want to http://192.168.29.18:9000/payment-settings set the 
@@ -2033,3 +2057,324 @@ Optimize for minimal API usage:
 
 Goal:
 Use free RPC endpoints for continuous monitoring and only consume paid/limited explorer API requests when absolutely necessary.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+http://192.168.29.18:9000/user/transfer_wallet
+http://192.168.29.18:9000/internel-transfer
+
+Implement ONE centralized Wallet Transfer Validation & Execution Engine used by BOTH the User Panel and Admin Panel. Do not duplicate business logic. Every wallet transfer must pass through the same validation service and execution service.
+
+=========================
+SUPPORTED WALLETS
+=========================
+
+- Exchange Wallet
+- Earning Wallet
+- Staking Wallet
+- Bonus Wallet
+
+Transfer currency:
+- BMAN only
+
+Use double-entry ledger for every transfer.
+
+------------------------------------------------
+
+USER PANEL
+
+1. Transfer To Member
+
+Exchange Wallet
+- Can transfer to ANY member in the authenticated user's downline.
+- No transfer limit.
+
+Earning Wallet
+- Can transfer to ANY member in the authenticated user's downline.
+- No transfer limit.
+
+Staking Wallet
+- Can transfer to ANY member in the authenticated user's downline.
+- No transfer limit.
+
+Bonus Wallet
+- Can transfer ONLY to the authenticated user's Direct Sponsor.
+- Reject every other recipient.
+
+------------------------------------------------
+
+USER PANEL
+
+2. Between My Wallets
+
+Allowed
+
+Exchange
+→ Bonus
+
+Exchange
+→ Earning
+
+Exchange
+→ Staking
+
+NOT Allowed
+
+Bonus → Exchange
+Earning → Exchange
+Staking → Exchange
+
+Bonus → Earning
+Bonus → Staking
+
+Earning → Bonus
+Earning → Staking
+
+Staking → Bonus
+Staking → Earning
+
+Exchange Wallet is SOURCE ONLY.
+Exchange Wallet can never receive internal transfers.
+
+------------------------------------------------
+
+ADMIN PANEL
+
+Admin performs transfers on behalf of a selected Source User.
+
+Admin MUST follow the EXACT SAME business rules.
+
+Member Transfers
+
+Exchange
+→ only Source User Downline
+
+Earning
+→ only Source User Downline
+
+Staking
+→ only Source User Downline
+
+Bonus
+→ only Source User Direct Sponsor
+
+Internal Wallet Transfers
+
+Exchange
+→ Bonus
+
+Exchange
+→ Earning
+
+Exchange
+→ Staking
+
+No reverse transfers.
+
+Admin permissions DO NOT bypass wallet movement rules.
+
+------------------------------------------------
+
+COMMON VALIDATION
+
+Before executing ANY transfer validate:
+
+✓ Source User exists
+✓ Recipient exists (member transfer)
+✓ Wallet exists
+✓ Wallet active
+✓ Sufficient balance
+✓ Positive amount
+✓ Decimal precision
+✓ Currency = BMAN
+✓ Downline relationship
+✓ Direct Sponsor relationship (Bonus Wallet)
+✓ No self transfer (unless internal wallet transfer)
+✓ Valid From Wallet
+✓ Valid To Wallet
+✓ Allowed wallet direction
+✓ User active
+✓ Account not blocked
+✓ KYC (User Panel only if required)
+✓ Transfer Password (User Panel only)
+✓ Duplicate request protection
+✓ Idempotency key
+✓ Row locking
+✓ Race condition protection
+
+Reject immediately if any validation fails.
+
+------------------------------------------------
+
+EXECUTION
+
+If validation succeeds:
+
+1.
+Begin Database Transaction
+
+2.
+Lock balances
+
+3.
+Verify balance again
+
+4.
+Debit source wallet
+
+5.
+Credit destination wallet
+
+6.
+Create Double Entry Ledger
+
+Debit Entry
+
+Credit Entry
+
+7.
+Update wallet balances
+
+8.
+Create wallet transaction record
+
+9.
+Create transfer history
+
+10.
+Create audit log
+
+11.
+If blockchain transfer required:
+- Broadcast transaction
+- Save tx_hash
+- Monitor confirmations
+- Update blockchain status
+
+12.
+Commit Transaction
+
+If any step fails
+
+Rollback everything.
+
+------------------------------------------------
+
+TRANSFER HISTORY
+
+Store
+
+- Transaction ID
+- Reference ID
+- Source User
+- Recipient
+- From Wallet
+- To Wallet
+- Amount
+- Balance Before
+- Balance After
+- Status
+- Transfer Type
+- Ledger Reference
+- Blockchain Hash
+- Block Number
+- Confirmations
+- Gas Used
+- Gas Fee
+- Failure Reason
+- Created By
+- Created Time
+- Updated Time
+
+------------------------------------------------
+
+DETAIL VIEW
+
+Clicking a transaction opens complete details.
+
+General
+- Transaction ID
+- Reference
+- Status
+
+Users
+- Sender
+- Recipient
+- Sponsor
+- Upline
+
+Wallet
+- From Wallet
+- To Wallet
+- Before Balance
+- After Balance
+
+Ledger
+- Debit Entry
+- Credit Entry
+
+Blockchain
+- Tx Hash
+- Explorer URL
+- Block
+- Confirmations
+- Gas Used
+- Gas Fee
+- Network
+
+Audit
+- Admin/User
+- IP
+- Browser
+- Device
+- Request ID
+- Timestamp
+
+------------------------------------------------
+
+SECURITY
+
+- Centralized validation service
+- Centralized execution service
+- No duplicated business logic
+- ACID database transactions
+- Double-entry ledger
+- Immutable audit log
+- Prevent double spending
+- Prevent duplicate transfers
+- Row locking
+- Retry-safe (idempotent)
+- Complete rollback on failure
+
+------------------------------------------------
+
+UI
+
+Validate before submit.
+
+Invalid wallet combinations must never be selectable.
+
+Display clear validation errors.
+
+Show confirmation dialog before execution.
+
+Refresh balances immediately after successful transfer.
+
+The User Panel and Admin Panel must both call the same backend Wallet Transfer Service so all validation and execution rules remain identical across the system.
