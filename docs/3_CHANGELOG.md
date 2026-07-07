@@ -5,6 +5,23 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-07 — Centralized Wallet Transfer Engine (one service, both panels)
+
+New `Wallettransferservice_model` — the single validation+execution engine both
+the User Panel and Admin Panel call (no duplicated logic). Rules enforced
+identically: BMAN only; member exchange/earning/staking → downline, bonus →
+direct sponsor only; internal exchange → bonus/earning/staking (Exchange
+source-only, no reverse). Admin follows the same rules (via=admin only skips the
+User-Panel KYC + transfer-password gates). Execution: validate → idempotency →
+ACID txn → row-locked debit/credit (double-entry) → `wallet_internal_transfer`
+history → immutable `wallet_transfer_audit` → commit; full rollback on failure.
+Schema `db/wallet_transfer_service.sql`. Both `Transfer_wallet::do_transfer` and
+`Internaltransfers::do_transfer` rerouted to it. Tested: 18/18 rule + 3/3
+execution tests (real data; idempotent re-run no double-debit). Committed 6ad436e.
+See [16_WALLET_TRANSFER_ENGINE.md](16_WALLET_TRANSFER_ENGINE.md).
+
+---
+
 ## 2026-07-07 — Stakings redesign Phases 2–5 complete (committed separately)
 
 - **Phase 2** (`0cb7360`): rename Package→Stakings (menu/title/hero), removed the
