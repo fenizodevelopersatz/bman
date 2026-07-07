@@ -960,9 +960,7 @@ $hero_progress = 48;
             portfolio with transparency.</p>
 
           <div style="margin-top: 20px; display:flex; gap: 12px; flex-wrap:wrap;">
-            <button class="btn-invest" style="background:#fff;color:var(--primary);" onclick="openInvest()">
-              <i class="ph ph-plus-circle"></i> New Investment
-            </button>
+          
             <button class="btn-invest"
               style="background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.22);" onclick="openRules()">
               <i class="ph ph-info"></i> ROI Rules
@@ -1677,12 +1675,62 @@ $hero_progress = 48;
       }
     }
 
-    document.addEventListener("click", (e) => {
-      const btn = e.target.closest(".js-invest-details");
-      if (!btn) return;
-      const investId = btn.dataset.investId;
-      loadInvDetails(investId, 1);
+    // (legacy loadInvDetails kept above but no longer bound — replaced by the
+    //  full-screen 7-tab modal below.)
+  </script>
+
+  <!-- ============ PHASE 4: full-screen 7-tab Investment Details modal ============ -->
+  <script>
+  (function(){
+    var BASE='<?= base_url() ?>';
+    var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
+    var ov=document.createElement('div'); ov.id='sdrawer';
+    ov.style.cssText='display:none;position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:99999;';
+    ov.innerHTML='<div style="position:absolute;inset:0;margin:auto;max-width:1000px;width:100%;height:100%;background:#fff;display:flex;flex-direction:column;">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 22px;border-bottom:1px solid #eef;">'
+      +'<h3 id="sd-title" style="margin:0;font-size:17px;font-weight:1100;">Investment Details</h3>'
+      +'<button id="sd-x" style="border:0;background:#f1f5f9;border-radius:10px;width:36px;height:36px;font-size:18px;cursor:pointer;">&times;</button></div>'
+      +'<div id="sd-tabs" style="display:flex;gap:4px;padding:10px 18px 0;flex-wrap:wrap;border-bottom:1px solid #eef;overflow-x:auto;"></div>'
+      +'<div id="sd-body" style="padding:18px 22px;overflow:auto;flex:1;"></div></div>';
+    document.body.appendChild(ov);
+    var TABS=[['Package','tab1'],['ROI History','tab2'],['Transactions','tab3'],['Ledger','tab4'],['Timeline','tab5'],['Documents','tab6'],['Audit','tab7']];
+    var DATA=null, rendered={};
+    function q(id){return document.getElementById(id);}
+    function close(){ov.style.display='none';}
+    q('sd-x').onclick=close; ov.addEventListener('click',function(e){if(e.target===ov)close();});
+    function tabBar(active){
+      q('sd-tabs').innerHTML=TABS.map(function(t,i){return '<button data-i="'+i+'" style="border:0;border-bottom:3px solid '+(i===active?'#4338ca':'transparent')+';background:none;padding:9px 14px;font-weight:900;font-size:13px;cursor:pointer;color:'+(i===active?'#4338ca':'#64748b')+';white-space:nowrap;">'+esc(t[0])+'</button>';}).join('');
+      q('sd-tabs').querySelectorAll('button').forEach(function(b){b.onclick=function(){show(+b.dataset.i);};});
+    }
+    function show(i){tabBar(i);var key=TABS[i][1];if(!rendered[key])rendered[key]=RENDER[key](DATA);q('sd-body').innerHTML=rendered[key];} // lazy render
+    var row=function(k,v){return '<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed #eef;font-size:13px;"><span style="color:#64748b;font-weight:800;">'+esc(k)+'</span><span style="text-align:right;word-break:break-all;font-weight:700;">'+(v==null||v===''?'<span style="color:#cbd5e1;">—</span>':v)+'</span></div>';};
+    function tbl(cols,rows,fn){var h='<div class="table-scroll"><table class="table" style="width:100%;font-size:12.5px;"><thead><tr>'+cols.map(function(c){return '<th>'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>';if(!rows||!rows.length)h+='<tr><td colspan="'+cols.length+'" style="text-align:center;color:#9ca3af;padding:14px;">No records</td></tr>';else h+=rows.map(fn).join('');return h+'</tbody></table></div>';}
+    var RENDER={
+      tab1:function(d){var t=d.tab1_package,c=d.calc;return row('Package ID',t.invest_id)+row('Package Name',esc(t.package_name))+row('Stake Amount',Number(t.stake_amount).toLocaleString())+row('Plan Type',esc(t.plan_type))+row('ROI Structure',esc(t.roi_structure))+row('Purchase Date',esc(t.purchase_date))+row('Activation Date',esc(t.activation_date))+row('Maturity Date',esc(t.maturity_date))+row('Lock Period',t.lock_period_days+' days')+row('Days Remaining',c.days_remaining)+row('Status',esc(t.status))+row('Wallet Used',esc(t.wallet_used))+row('Tx Hash',t.explorer_link?'<a href="'+t.explorer_link+'" target="_blank">'+esc(String(t.tx_hash).slice(0,18))+'…</a>':esc(t.tx_hash));},
+      tab2:function(d){var t=d.tab2_roi;var tot='<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">'
+        +'<div style="background:#f0fdf4;border-radius:12px;padding:10px 14px;font-weight:900;color:#15803d;">Earned: '+Number(t.totals.total_earned).toLocaleString(undefined,{maximumFractionDigits:4})+'</div>'
+        +'<div style="background:#fffbeb;border-radius:12px;padding:10px 14px;font-weight:900;color:#b45309;">Remaining: '+Number(t.totals.remaining).toLocaleString(undefined,{maximumFractionDigits:4})+'</div>'
+        +'<div style="background:#eef2ff;border-radius:12px;padding:10px 14px;font-weight:900;color:#4338ca;">Expected Final: '+Number(t.totals.expected_final).toLocaleString(undefined,{maximumFractionDigits:4})+'</div></div>';
+        return tot+tbl(['Date','Cycle','ROI %','Amount','Wallet','Status'],t.rows,function(r){return '<tr><td>'+esc(r.date)+'</td><td>'+esc(r.cycle)+'</td><td>'+esc(r.roi_percent)+'%</td><td><b>'+Number(r.amount).toLocaleString(undefined,{maximumFractionDigits:4})+'</b></td><td>'+esc(r.wallet_credited)+'</td><td>'+esc(r.chain_status)+'</td></tr>';});},
+      tab3:function(d){return tbl(['Tx','Block','Date','Type','Wallet','Amount','Gas Fee','Status'],d.tab3_transactions,function(r){return '<tr><td>'+(r.tx_hash?'<a href="'+esc(r.explorer)+'" target="_blank" style="font-family:monospace;">'+esc(String(r.tx_hash).slice(0,12))+'…</a>':'—')+'</td><td>'+esc(r.block_number||'—')+'</td><td style="font-size:11px;">'+esc((r.created_at||'').slice(0,16))+'</td><td>'+esc(r.tx_type)+'</td><td>'+esc(r.wallet_type)+'</td><td>'+esc(r.amount)+'</td><td>'+esc(r.gas_fee_total||'—')+'</td><td>'+esc(r.status)+'</td></tr>';});},
+      tab4:function(d){return tbl(['Date','Wallet','Credit','Debit','Balance After','Reference','Description'],d.tab4_ledger,function(r){return '<tr><td style="font-size:11px;">'+esc((r.created_at||'').slice(0,16))+'</td><td>'+esc(r.wallet_type)+'</td><td style="color:#16a34a;">'+esc(r.credit)+'</td><td style="color:#dc2626;">'+esc(r.debit)+'</td><td>'+esc(r.balance_after)+'</td><td style="font-size:11px;">'+esc(r.reference_type)+'</td><td style="font-size:11px;">'+esc(r.description||'—')+'</td></tr>';});},
+      tab5:function(d){return '<div>'+d.tab5_timeline.map(function(e){return '<div style="position:relative;padding:0 0 18px 20px;border-left:2px solid #e0e7ff;margin-left:6px;"><span style="position:absolute;left:-7px;top:2px;width:12px;height:12px;border-radius:50%;background:#4338ca;"></span><b style="font-size:13px;">'+esc(e.event)+'</b><div style="font-size:11.5px;color:#64748b;">'+esc(e.date)+'</div><div style="font-size:12.5px;">'+esc(e.desc)+'</div></div>';}).join('')+'</div>';},
+      tab6:function(d){return '<div style="display:grid;gap:10px;">'+d.tab6_documents.map(function(x){return '<div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border-radius:12px;padding:12px 16px;"><span style="font-weight:800;">'+esc(x.name)+'</span>'+(x.available&&x.url?'<a class="btn-mini" href="'+esc(x.url)+'" target="_blank">Open</a>':'<span style="color:#cbd5e1;font-size:12px;font-weight:800;">Unavailable</span>')+'</div>';}).join('')+'</div>';},
+      tab7:function(d){return tbl(['Event','Status','Actor','IP','Endpoint','When'],d.tab7_audit,function(r){return '<tr><td>'+esc(r.event_type)+'</td><td>'+esc(r.new_status||'—')+'</td><td>'+esc(r.actor_type)+(r.actor_id?(' #'+esc(r.actor_id)):'')+'</td><td style="font-size:11px;">'+esc(r.ip_address||'—')+'</td><td style="font-size:10px;">'+esc(r.rpc_endpoint||'—')+'</td><td style="font-size:11px;">'+esc((r.created_at||'').slice(0,16))+'</td></tr>';});}
+    };
+    document.addEventListener('click',function(e){
+      var btn=e.target.closest('.js-invest-details'); if(!btn)return;
+      var id=btn.dataset.investId; ov.style.display='block';
+      q('sd-title').textContent='Investment #'+id; q('sd-tabs').innerHTML=''; q('sd-body').innerHTML='Loading blockchain details…';
+      DATA=null; rendered={};
+      var fd=new FormData(); fd.append('invest_id',id);
+      fetch(BASE+'user/stakings/detail',{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}})
+        .then(function(r){return r.json();}).then(function(j){
+          if(!j.status){q('sd-body').innerHTML='<div style="color:#ef4444;">'+esc(j.message||'Failed')+'</div>';return;}
+          DATA=j; show(0);
+        }).catch(function(){q('sd-body').innerHTML='<div style="color:#ef4444;">Server error</div>';});
     });
+  })();
   </script>
 </body>
 
