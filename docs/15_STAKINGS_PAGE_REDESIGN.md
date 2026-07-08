@@ -33,6 +33,17 @@ tx verification/gas/confirmations → `Chainsync_model`.
 
 ## 1. UI changes
 
+- **Wallet strip (implemented).** The strip in `lending_managment.php` now leads
+  with the **USDT Wallet** — the wallet staking purchases are actually funded from
+  (`user_wallets.usd_balance`, ledger type `usdt`; debited on purchase in
+  `Staking_model` via `L->debit($uid,'usdt',…,'stake_purchase')`). It shows the
+  USDT balance + the ≈BMAN equivalent at the admin rate (`$wallet_usdt` /
+  `$wallet_usdt_in_bman`, already supplied by the controller). The four BMAN
+  wallets follow for context, with the **Earning Wallet** tagged *"ROI credited
+  here"* — that is the ROI destination (`staking_roi_payouts.wallet = 'earning'`).
+  ⚠️ ROI payout rows are inserted `pending` at purchase but are **not yet
+  credited** — no ROI cron is registered (see `6_STAKING_PACKAGES_PLANS_ROI.md`
+  §"ROI credit cron ⬜").
 - **Remove the 5 stat cards** (Available USDT / Total Invested / Total ROI /
   Next Payout / Active Plans) — already on the Wallet/Dashboard. (Phase 2: delete
   the card block in `lending_managment.php` + stop passing the values.)

@@ -2390,19 +2390,39 @@ USDT Deposit
         ▼
 USDT Wallet
         │
-Convert USDT → BMAN
-        │
-        ▼
-Exchange Wallet (Investment Wallet)
+Convert USDT → BMAN(When purchase the staking package)
         │
         ▼
 Buy Staking Package
         │
         ▼
-ROI Engine
+Exchange Wallet (Investment Wallet)
+        │
+        ▼
+ROI Engine ────────►(When finish the maturity of staking page) -> Give ROI
         │
         ├────────► Binary Matching (10%)
         │              ├──► 8% → Earning Wallet
         │              └──► 2% → Staking Wallet
         │
         └────────► 25% Instant Bonus → Bonus Wallet
+
+
+    Now we want to calculate the ROI based on the exchange wallet & make the ROI cron details & distribute the ROI BMAN values to 
+
+
+
+
+
+
+
+My recommendation
+
+For a professional MLM/staking platform, keep each wallet dedicated to a single purpose:
+
+USDT Wallet → Blockchain deposits and withdrawals only.
+Exchange Wallet → Holds purchased BMAN and funds investments only (principal).
+Earning Wallet → All ROI (monthly and maturity) and the 8% binary earning. This is the primary profit wallet.
+Staking Wallet → Locked staking rewards (e.g., the 2% binary staking portion or other staking incentives).
+Bonus Wallet → Referral bonuses, instant package bonuses, rank bonuses, leadership bonuses, and promotional rewards.
+This separation keeps accounting simple, makes audits easier, and gives users a clear understanding of where each type of reward is credited.

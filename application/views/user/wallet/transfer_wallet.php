@@ -818,62 +818,49 @@
             <p>No transfer records found.</p>
           </div>
           <?php else: ?>
+          <?php $curUid = (int)($user['id'] ?? 0); ?>
           <table class="tx-table">
             <thead>
               <tr>
-                <th>#</th>
-                <th>TXN ID</th>
                 <th>Reference</th>
-                <th>Type</th>
-                <th>Wallet</th>
-                <th>Counterparty</th>
+                <th>Sender</th>
+                <th>Receiver</th>
+                <th>From Wallet</th>
+                <th>To Wallet</th>
                 <th>Amount</th>
-                <th>Balance After</th>
+                <th>Token</th>
                 <th>Status</th>
                 <th>Date</th>
+                <th>Details</th>
               </tr>
             </thead>
             <tbody>
               <?php foreach ($history as $i => $tx):
-                $dir = $tx['direction'] ?? 'sent'; $isSelf = ($dir === 'self'); $sent = ($dir === 'sent');
-                // the after-balance of the wallet shown on this row, from the user's perspective
-                if ($isSelf || $sent) { $rowBefore = $tx['from_before'] ?? null; $rowAfter = $tx['from_after'] ?? null; }
-                else                  { $rowBefore = $tx['to_before']   ?? null; $rowAfter = $tx['to_after']   ?? null; } ?>
+                $dir = $tx['direction'] ?? 'sent'; $isSelf = ($dir === 'self');
+                $senderName = ($tx['sender_name'] ?? '') ?: ('#'.$tx['user_id']);
+                if ((int)$tx['user_id'] === $curUid) $senderName .= ' (You)';
+                $recvName = $isSelf ? 'Self' : (($tx['recipient_name'] ?? '') ?: ('#'.$tx['to_user_id']));
+                if (!$isSelf && (int)$tx['to_user_id'] === $curUid) $recvName .= ' (You)'; ?>
               <tr>
-                <td style="color:var(--text-muted);font-size:12px;"><?= ($page - 1) * $per_page + $i + 1 ?></td>
-                <td style="font-size:12px;font-weight:800;letter-spacing:.5px;color:var(--primary);cursor:pointer;"
-                    title="View transaction details"
-                    onclick="WalletTransferUI.openDetail('<?= htmlspecialchars($tx['ref']) ?>')"><?= htmlspecialchars($tx['txn_uid'] ?? '—') ?></td>
                 <td>
-                  <span class="ref-text" onclick="WalletTransferUI.openDetail('<?= htmlspecialchars($tx['ref']) ?>')"
+                  <span class="ref-text" style="cursor:pointer;" onclick="WalletTransferUI.openDetail('<?= htmlspecialchars($tx['ref']) ?>')"
                         title="View details"><?= htmlspecialchars($tx['ref']) ?></span>
+                  <div style="font-size:10.5px;color:var(--text-muted);font-weight:700;">TXN <?= htmlspecialchars($tx['txn_uid'] ?? '—') ?></div>
                 </td>
-                <td>
-                  <?php if ($isSelf): ?>
-                    <span class="wallet-badge" style="background:#eef2ff;color:#3730a3;"><i class="ph-fill ph-arrows-left-right"></i> Internal</span>
-                  <?php else: ?>
-                    <span class="wallet-badge" style="background:<?= $sent ? '#fdecec;color:#c0392b' : '#e7f9ef;color:#149a55' ?>">
-                      <i class="ph-fill <?= $sent ? 'ph-arrow-up-right' : 'ph-arrow-down-left' ?>"></i>
-                      <?= $sent ? 'Sent' : 'Received' ?>
-                    </span>
+                <td style="font-size:12.5px;font-weight:700;">
+                  <?= htmlspecialchars($senderName) ?>
+                  <?php if (!empty($tx['sender_ref'])): ?><div style="font-size:10.5px;color:var(--text-muted);"><?= htmlspecialchars($tx['sender_ref']) ?></div><?php endif; ?>
+                </td>
+                <td style="font-size:12.5px;font-weight:700;">
+                  <?php if ($isSelf): ?><span class="wallet-badge" style="background:#eef2ff;color:#3730a3;">Self</span>
+                  <?php else: ?><?= htmlspecialchars($recvName) ?>
+                    <?php if (!empty($tx['recipient_ref'])): ?><div style="font-size:10.5px;color:var(--text-muted);"><?= htmlspecialchars($tx['recipient_ref']) ?></div><?php endif; ?>
                   <?php endif; ?>
                 </td>
-                <td>
-                  <span class="wallet-badge wb-<?= $tx['wallet'] ?? $tx['from_wallet'] ?>">
-                    <?= ucfirst($tx['wallet'] ?? $tx['from_wallet']) ?>
-                  </span>
-                </td>
-                <td style="font-size:13px;font-weight:700;"><?= htmlspecialchars($tx['counterparty'] ?? '—') ?></td>
-                <td class="amt-cell" style="color:<?= $isSelf ? '#3730a3' : ($sent ? '#c0392b' : '#149a55') ?>">
-                  <?= ($isSelf ? '' : ($sent ? '−' : '+')) . number_format((float)$tx['amount'], 4) ?></td>
-                <td style="font-size:12px;white-space:nowrap;"
-                    title="<?= $rowBefore !== null ? 'Before: '.number_format((float)$rowBefore, 4) : '' ?>">
-                  <?php if ($rowAfter !== null): ?>
-                    <span style="color:var(--text-muted);"><?= number_format((float)$rowBefore, 4) ?></span>
-                    <i class="ph ph-arrow-right" style="font-size:10px;color:var(--text-muted);"></i>
-                    <b><?= number_format((float)$rowAfter, 4) ?></b>
-                  <?php else: ?>—<?php endif; ?>
-                </td>
+                <td><span class="wallet-badge wb-<?= $tx['from_wallet'] ?>"><?= ucfirst($tx['from_wallet']) ?></span></td>
+                <td><span class="wallet-badge wb-<?= $tx['to_wallet'] ?>"><?= ucfirst($tx['to_wallet']) ?></span></td>
+                <td class="amt-cell"><?= number_format((float)$tx['amount'], 4) ?></td>
+                <td><span class="wallet-badge" style="background:#f1f5f9;color:#334155;">BMAN</span></td>
                 <td>
                   <span class="st-badge st-<?= $tx['status'] ?>">
                     <?php if ($tx['status'] === 'completed'): ?><i class="ph-fill ph-check-circle"></i><?php
@@ -884,6 +871,12 @@
                 </td>
                 <td style="font-size:12px;color:var(--text-muted);white-space:nowrap;">
                   <?= date('d M Y, H:i', strtotime($tx['created_at'])) ?>
+                </td>
+                <td>
+                  <button type="button" class="filter-btn" style="padding:5px 12px;font-size:11px;"
+                          onclick="WalletTransferUI.openDetail('<?= htmlspecialchars($tx['ref']) ?>')">
+                    <i class="ph ph-eye"></i> Details
+                  </button>
                 </td>
               </tr>
               <?php endforeach; ?>
@@ -1035,9 +1028,16 @@ function onFromChange() {
       const o = document.createElement('option'); o.value = w; o.textContent = WL[w]; toSel.appendChild(o);
     });
     if (hint) hint.style.display = 'none';
-  } else if (hint) {
-    const txt = (from && window.WalletTransferUI) ? WalletTransferUI.memberRuleText(from) : '';
-    hint.textContent = txt; hint.style.display = txt ? 'block' : 'none';
+  } else {
+    // Member mode: the valid recipient set depends on the From wallet — reset it.
+    const rc = document.getElementById('recipient'); if (rc) rc.value = '';
+    const rn = document.getElementById('recipientName'); if (rn) rn.textContent = '';
+    RECIPIENT_OK = false;
+    const drop = document.getElementById('recipientDrop'); if (drop) drop.style.display = 'none';
+    if (hint) {
+      const txt = (from && window.WalletTransferUI) ? WalletTransferUI.memberRuleText(from) : '';
+      hint.textContent = txt; hint.style.display = txt ? 'block' : 'none';
+    }
   }
   updatePreview();
 }
@@ -1050,18 +1050,26 @@ function csrfPair(fd) { fd.append('<?= $this->security->get_csrf_token_name() ?>
 
 function fetchRecipients(q) {
   const drop = document.getElementById('recipientDrop');
-  drop.innerHTML = '<div class="rcpt-empty">Loading…</div>';
+  const from = document.getElementById('fromWallet').value;
   drop.style.display = 'block';
-  const fd = new FormData(); fd.append('q', q || '');
+  if (!from) { drop.innerHTML = '<div class="rcpt-empty">Select a From wallet first.</div>'; return; }
+  drop.innerHTML = '<div class="rcpt-empty">Loading…</div>';
+  const fd = new FormData(); fd.append('q', q || ''); fd.append('from_wallet', from);
   fetch(BASE_URL + 'user/transfer_wallet/search_recipients', { method:'POST', body: csrfPair(fd), headers:{'X-Requested-With':'XMLHttpRequest'} })
     .then(r => r.json())
     .then(function(res){
       const rows = (res && res.rows) || [];
-      if (!rows.length) { drop.innerHTML = '<div class="rcpt-empty">No members found.</div>'; return; }
+      if (!rows.length) {
+        const rule = (window.WalletTransferUI ? WalletTransferUI.memberRuleText(from) : '');
+        drop.innerHTML = '<div class="rcpt-empty">' + (res && res.message ? res.message : 'No eligible recipients.') +
+                         (rule ? '<br><small>' + rule + '</small>' : '') + '</div>';
+        return;
+      }
       drop.innerHTML = rows.map(function(u){
         const ref = u.referral_id || ('#' + u.id);
-        return '<div class="rcpt-item" data-ref="' + ref + '" data-name="' + (u.username||'') + '">' +
-               '<b>' + (u.username || ref) + '</b>' +
+        const nm = u.name || u.username || ref;
+        return '<div class="rcpt-item" data-ref="' + ref + '" data-name="' + (nm||'') + '">' +
+               '<b>' + nm + '</b>' +
                '<small>' + ref + (u.email ? ' · ' + u.email : '') + '</small></div>';
       }).join('');
     })

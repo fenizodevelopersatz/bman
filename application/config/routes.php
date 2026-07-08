@@ -705,6 +705,7 @@ $route['user/transfer_wallet/tx_detail']['get'] = 'user/Transfer_wallet/tx_detai
 $route['admin/finance/internal-transfers'] = 'admin/wallet/Internaltransfers';
 $route['admin/finance/internal-transfers/detail'] = 'admin/wallet/Internaltransfers/detail';
 $route['admin/finance/internal-transfers/users']['get'] = 'admin/wallet/Internaltransfers/users';
+$route['admin/finance/internal-transfers/recipients']['get'] = 'admin/wallet/Internaltransfers/recipients';
 $route['admin/finance/internal-transfers/balances']['post'] = 'admin/wallet/Internaltransfers/balances';
 $route['admin/finance/internal-transfers/do-transfer']['post'] = 'admin/wallet/Internaltransfers/do_transfer';
 $route['admin/finance/internal-transfers/preview']['post'] = 'admin/wallet/Internaltransfers/preview';   // POST AJAX (shared UI)

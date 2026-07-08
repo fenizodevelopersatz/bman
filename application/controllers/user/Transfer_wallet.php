@@ -127,21 +127,20 @@ class Transfer_wallet extends MY_Controller
         return $this->_json(['ok'=>(bool)$d, 'data'=>$d]);
     }
 
-    /** AJAX: recipient picker — up to 20 active members (name + email),
-     *  filtered by an optional query. Excludes the sender. */
+    /** AJAX: recipient picker — ONLY the valid recipients for the chosen From
+     *  wallet (downline for exchange/earning/staking, direct sponsor for bonus),
+     *  optionally filtered by a search query. Requires a From wallet first. */
     public function search_recipients()
     {
         if (!$this->input->is_ajax_request()) show_404();
-        $uid = $this->_uid();
-        $q = trim((string)$this->input->post('q', true));
-        $this->db->select('id, username, email, referral_id')
-                 ->from('users')->where('status', '1')->where('id !=', $uid);
-        if ($q !== '') {
-            $this->db->group_start()
-                     ->like('username', $q)->or_like('email', $q)->or_like('referral_id', $q)
-                     ->group_end();
+        $uid  = $this->_uid();
+        $from = (string)$this->input->post('from_wallet', true);
+        $q    = trim((string)$this->input->post('q', true));
+        if ($from === '') {
+            return $this->_json(['status' => 'error', 'message' => 'Select a From wallet first.', 'rows' => []]);
         }
-        $rows = $this->db->order_by('id', 'ASC')->limit(20)->get()->result_array();
+        $this->load->model('wallet/Wallettransferservice_model', 'svc');
+        $rows = $this->svc->recipientOptions($uid, $from, $q, 20);
         return $this->_json(['status' => 'success', 'rows' => $rows]);
     }
 

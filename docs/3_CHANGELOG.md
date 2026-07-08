@@ -5,6 +5,59 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-07 — Stakings page: show USDT wallet + clarify ROI destination / cron gap
+
+Added the **USDT Wallet** card to the Stakings wallet strip
+(`views/user/wallet/lending_managment.php`) — it leads the row as the staking
+**funding source** (`user_wallets.usd_balance`, ledger `usdt`; debited on
+purchase), showing the USDT balance + ≈BMAN equivalent (`$wallet_usdt` /
+`$wallet_usdt_in_bman`, already passed by `Lendingcontroller::index`). Tagged the
+**Earning Wallet** "ROI credited here" — verified the ROI destination:
+`Staking_model::_generateRoiSchedule()` always inserts `staking_roi_payouts`
+rows with `wallet='earning'`. **Documented the ROI-cron gap:** those payout rows
+are inserted `pending` at purchase but never credited — nothing reads
+`staking_roi_payouts` and the scheduler has no ROI job (only clear_cache /
+send_emails / sync_database / generate_reports). Corrected the stale checklist in
+`6_STAKING_PACKAGES_PLANS_ROI.md` (purchase flow ✅, ROI credit cron ⬜ with the
+exact still-missing logic) and noted the strip change in
+`15_STAKINGS_PAGE_REDESIGN.md`. No schema/logic change; UI + docs only.
+
+Rebuilt the shared Transaction Details modal into a **7-tab** complete financial
+audit trail (Summary · Sender · Receiver · Ledger · Blockchain · Validation ·
+Audit Timeline), every field verified against the live schema — real records
+only. Enhanced `detailEnriched()` to return structured blocks (transaction,
+sender/receiver with User ID/Referral/Username/Full Name/Email/KYC/wallet/balance
+before+after, ledger_entries debit+credit, blockchain enriched from
+`onchain_transactions` or an explicit off-chain note, derived validation checks
+for downline/sponsor/wallet-rule/transfer-password/KYC/admin-override, and the
+`wallet_transfer_audit` timeline). Both history tables reshaped to **Reference ·
+Sender · Receiver · From Wallet · To Wallet · Amount · Token · Status · Date ·
+Details**; Details opens the modal. No new tables/records — reuses
+`wallet_internal_transfer`, `wallet_ledger`, `wallet_transfer_audit`,
+`onchain_transactions`, `users`. Verified against real self + member transfers
+(`wallettransfertest detailjson`; Node render harness → 7 tabs/7 panes, no
+errors); `ui` 7/7, `run` 18/18. See
+[16_WALLET_TRANSFER_ENGINE.md](16_WALLET_TRANSFER_ENGINE.md) §8.
+
+---
+
+## 2026-07-07 — Recipient pickers scoped to valid members only
+
+Fixed both "Send to a Member" pickers listing **all** members. They now show ONLY
+the source user's valid recipients for the selected From wallet: the **downline**
+for exchange/earning/staking, or the **direct sponsor** for bonus. New read-only
+engine helpers `downlineIds($sourceId)` (BFS down the sponsor tree; `sponser` may
+be an id or referral id, matched at each level) and
+`recipientOptions($sourceId,$fromWallet,$q)`. User `search_recipients` now
+requires `from_wallet` and delegates to the engine; new admin endpoint
+`admin/finance/internal-transfers/recipients` (Select2, keyed on `sender_id` +
+`from_wallet`). Both views clear + refetch the recipient when the source/From
+wallet changes; the admin source-user picker still lists everyone (admin acts on
+behalf of anyone). Tested `wallettransfertest ui` 7/7 (downline set, exchange =
+downline-only excluding self, bonus = sponsor-only); engine `run` 18/18.
+
+---
+
 ## 2026-07-07 — Shared Transfer UI layer (both panels, one module)
 
 Connected the User Panel and Admin Panel to ONE shared transfer UI without

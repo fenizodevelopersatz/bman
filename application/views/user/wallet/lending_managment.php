@@ -1042,31 +1042,52 @@ $hero_progress = 48;
       </div>
       <?php endif; // KPI grid disabled (Phase 2) ?>
 
-      <!-- BMAN WALLET STRIP (context only — staking purchases use USDT) -->
+      <!-- WALLET STRIP — USDT is the staking FUNDING wallet; Earning receives ROI;
+           the other three BMAN wallets are shown for context. -->
       <?php
+      $wallet_usdt = $wallet_usdt ?? 0;
+      $wallet_usdt_in_bman = $wallet_usdt_in_bman ?? null;
       $wallet_bman = $wallet_bman ?? ['exchange'=>0,'staking'=>0,'bonus'=>0,'earning'=>0];
+      // [label, icon, colour, tag]
       $wstrip = [
-        'exchange' => ['Exchange Wallet', 'ph-swap',        '#6366f1'],
-        'staking'  => ['Staking Wallet',  'ph-lock-key',    '#10b981'],
-        'bonus'    => ['Bonus Wallet',    'ph-gift',        '#f59e0b'],
-        'earning'  => ['Earning Wallet',  'ph-trend-up',    '#0ea5e9'],
+        'earning'  => ['Earning Wallet',  'ph-trend-up',    '#0ea5e9', 'ROI credited here'],
+        'staking'  => ['Staking Wallet',  'ph-lock-key',    '#10b981', ''],
+        'exchange' => ['Exchange Wallet', 'ph-swap',        '#6366f1', ''],
+        'bonus'    => ['Bonus Wallet',    'ph-gift',        '#f59e0b', ''],
       ];
       ?>
       <style>
         .wstrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:4px 0 22px;}
         .wstrip .wtile{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid rgba(15,23,42,.08);
           border-radius:16px;padding:14px 16px;box-shadow:0 6px 18px rgba(15,23,42,.04);}
+        .wstrip .wtile.usdt{border:1.5px solid #26a17b55;background:linear-gradient(135deg,#26a17b0d,#fff);}
         .wstrip .wico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:20px;flex:0 0 auto;}
-        .wstrip .wlbl{font-size:11.5px;font-weight:900;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:.3px;}
+        .wstrip .wlbl{font-size:11.5px;font-weight:900;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:.3px;
+          display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
         .wstrip .wval{font-size:18px;font-weight:1200;color:#0b1220;line-height:1.1;}
         .wstrip .wval small{font-size:11px;font-weight:900;color:var(--muted,#6b7280);}
+        .wstrip .wsub{font-size:11px;font-weight:800;color:var(--muted,#6b7280);margin-top:2px;}
+        .wstrip .wtag{font-size:9px;font-weight:900;letter-spacing:.2px;padding:2px 7px;border-radius:99px;
+          background:#0ea5e91a;color:#0284c7;text-transform:uppercase;}
+        .wstrip .wtag.src{background:#26a17b1a;color:#1b8f6b;}
       </style>
       <div class="wstrip">
+        <!-- USDT — the wallet staking purchases are funded from -->
+        <div class="wtile usdt">
+          <div class="wico" style="background:#26a17b1a;color:#26a17b;"><i class="ph ph-currency-circle-dollar"></i></div>
+          <div>
+            <div class="wlbl">USDT Wallet <span class="wtag src">Staking source</span></div>
+            <div class="wval"><?= number_format((float)$wallet_usdt, 2) ?> <small>USDT</small></div>
+            <?php if ($wallet_usdt_in_bman !== null): ?>
+            <div class="wsub">≈ <?= number_format((float)$wallet_usdt_in_bman) ?> BMAN at current rate</div>
+            <?php endif; ?>
+          </div>
+        </div>
         <?php foreach ($wstrip as $k => $m): ?>
         <div class="wtile">
           <div class="wico" style="background:<?= $m[2] ?>1a;color:<?= $m[2] ?>;"><i class="ph <?= $m[1] ?>"></i></div>
           <div>
-            <div class="wlbl"><?= $m[0] ?></div>
+            <div class="wlbl"><?= $m[0] ?><?php if (!empty($m[3])): ?> <span class="wtag"><?= $m[3] ?></span><?php endif; ?></div>
             <div class="wval"><?= number_format((float)($wallet_bman[$k] ?? 0)) ?> <small>BMAN</small></div>
           </div>
         </div>

@@ -91,6 +91,31 @@ class Internaltransfers extends CI_Controller
         ]);
     }
 
+    /**
+     * AJAX (Select2): valid RECIPIENTS for the chosen source user + From wallet.
+     * Only the source's downline (exchange/earning/staking) or direct sponsor
+     * (bonus) are returned — the admin cannot pick an invalid recipient.
+     * GET sender_id, from_wallet, q. Returns {results:[{id,text}], pagination:{more:false}}.
+     */
+    public function recipients()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $sender = (int)$this->input->get('sender_id');
+        $from   = (string)$this->input->get('from_wallet', true);
+        $q      = (string)$this->input->get('q', true);
+        if (!$sender || $from === '') return $this->_json(['results' => [], 'pagination' => ['more' => false]]);
+
+        $this->load->model('wallet/Wallettransferservice_model', 'svc');
+        $rows = $this->svc->recipientOptions($sender, $from, $q, 20);
+        $results = [];
+        foreach ($rows as $u) {
+            $label = '#'.$u['id'].' '.($u['name'] ?: $u['username']).' ('.$u['referral_id'].')';
+            if (!empty($u['email'])) $label .= ' · '.$u['email'];
+            $results[] = ['id' => (int)$u['id'], 'text' => $label];
+        }
+        return $this->_json(['results' => $results, 'pagination' => ['more' => false]]);
+    }
+
     /** AJAX: the four internal wallet balances for a user. */
     public function balances()
     {

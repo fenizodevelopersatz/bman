@@ -79,6 +79,73 @@ class Wallettransferservice_model extends CI_Model
         return false;
     }
 
+    /**
+     * All user ids in $sourceId's downline (BFS down the sponsor tree). `sponser`
+     * may store an id OR a referral id, so each level matches children by BOTH the
+     * parent's id and referral id. Cycle-guarded; capped for safety.
+     */
+    public function downlineIds($sourceId, $cap = 5000)
+    {
+        $sourceId = (int)$sourceId;
+        $src = $this->db->select('id, referral_id')->get_where('users', ['id' => $sourceId])->row_array();
+        if (!$src) return [];
+        $keys = [(string)$src['id']];
+        if (!empty($src['referral_id'])) $keys[] = (string)$src['referral_id'];
+        $seen = []; $depth = 0;
+        while (!empty($keys) && $depth < 100 && count($seen) < $cap) {
+            $rows = $this->db->select('id, referral_id')->where_in('sponser', $keys)->limit($cap)->get('users')->result_array();
+            $keys = [];
+            foreach ($rows as $r) {
+                $id = (int)$r['id'];
+                if ($id === $sourceId || isset($seen[$id])) continue;   // cycle / self guard
+                $seen[$id] = true;
+                $keys[] = (string)$id;
+                if (!empty($r['referral_id'])) $keys[] = (string)$r['referral_id'];
+            }
+            $depth++;
+        }
+        return array_keys($seen);
+    }
+
+    /**
+     * Valid recipient rows for a (source user, from-wallet) pair — the ONLY members
+     * that pass the member rule, optionally filtered by a search term. Used to scope
+     * the recipient pickers in BOTH panels so users can't pick an invalid recipient.
+     *   exchange/earning/staking → the source's downline
+     *   bonus                    → the source's direct sponsor only
+     * @return array [ ['id','username','name','email','referral_id'], ... ]
+     */
+    public function recipientOptions($sourceId, $fromWallet, $q = '', $limit = 20)
+    {
+        $sourceId = (int)$sourceId;
+        $rule = $this->memberRule((string)$fromWallet);
+        if (!$sourceId || $rule === null) return [];
+        $q = trim((string)$q);
+        $sel = 'id, username, name, email, referral_id';
+
+        if ($rule === 'direct_sponsor') {
+            $spId = $this->directSponsorId($sourceId);
+            if (!$spId) return [];
+            $sp = $this->db->select($sel)->where('id', $spId)->where('status', '1')->get('users')->row_array();
+            if (!$sp) return [];
+            if ($q !== '') {                                    // honour the search box
+                $hay = strtolower($sp['username'].' '.$sp['name'].' '.$sp['email'].' '.$sp['referral_id'].' '.$sp['id']);
+                if (strpos($hay, strtolower($q)) === false) return [];
+            }
+            return [$sp];
+        }
+
+        // downline
+        $ids = $this->downlineIds($sourceId);
+        if (empty($ids)) return [];
+        $this->db->select($sel)->from('users')->where('status', '1')->where_in('id', $ids);
+        if ($q !== '') {
+            $this->db->group_start()->like('username', $q)->or_like('email', $q)
+                     ->or_like('referral_id', $q)->or_like('name', $q)->or_like('id', $q)->group_end();
+        }
+        return $this->db->order_by('id', 'ASC')->limit($limit)->get()->result_array();
+    }
+
     private function precisionOk($amount)
     {
         $s = (string)$amount;
@@ -273,28 +340,155 @@ class Wallettransferservice_model extends CI_Model
         ];
     }
 
+    /** Full user identity for the detail modal (distinct username vs full name + gate flags). */
     private function _uname($id)
     {
         if (!$id) return null;
-        $u = $this->db->select('id, username, name, email, referral_id')->get_where('users', ['id'=>(int)$id])->row_array();
-        return $u ? ['id'=>(int)$u['id'],'name'=>$u['name'] ?: $u['username'],'email'=>$u['email'],'referral_id'=>$u['referral_id']] : null;
+        $u = $this->db->select('id, username, name, first_name, last_name, email, referral_id, kyc_status, transfer_password')
+                      ->get_where('users', ['id'=>(int)$id])->row_array();
+        if (!$u) return null;
+        $full = trim((string)$u['name']) !== '' ? $u['name'] : trim(($u['first_name'] ?? '').' '.($u['last_name'] ?? ''));
+        return [
+            'id'          => (int)$u['id'],
+            'username'    => $u['username'],
+            'name'        => $full !== '' ? $full : $u['username'],
+            'full_name'   => $full,
+            'email'       => $u['email'],
+            'referral_id' => $u['referral_id'],
+            'kyc_status'  => $u['kyc_status'],
+            'kyc_ok'      => strtolower((string)$u['kyc_status']) === 'approved',
+            'has_transfer_password' => !empty($u['transfer_password']),
+        ];
     }
 
-    /** Enriched detail for the shared transaction modal (sender/recipient/sponsor/upline + ledger + blockchain + audit). */
+    /**
+     * Enriched detail for the shared 7-tab modal — every field verified against the
+     * live schema, real records only. Blocks: transaction, sender, receiver,
+     * ledger_entries, blockchain (+ linked onchain_transactions), validation
+     * (derived from the transfer's own record), users (sponsor/upline context),
+     * plus the raw header/ledger/audit for full traceability.
+     */
     public function detailEnriched($ref, $restrictUserId = 0)
     {
         $d = $this->detail($ref, $restrictUserId);
         if (!$d) return null;
         $h = $d['header'];
         $src = (int)$h['user_id']; $rcp = (int)($h['to_user_id'] ?? 0);
+        $isMember = ($h['txn_type'] === 'member');
+        $completed = ($h['status'] === 'completed');
         $sponsorId = $this->directSponsorId($src);
         $uplineId  = $sponsorId ? $this->directSponsorId($sponsorId) : 0;
+
+        $senderU    = $this->_uname($src);
+        $receiverU  = $rcp ? $this->_uname($rcp) : null;
         $d['users'] = [
-            'sender'    => $this->_uname($src),
-            'recipient' => $rcp ? $this->_uname($rcp) : null,
+            'sender'    => $senderU,
+            'recipient' => $receiverU,
             'sponsor'   => $sponsorId ? $this->_uname($sponsorId) : null,
             'upline'    => $uplineId ? $this->_uname($uplineId) : null,
         ];
+
+        // ---- transaction ----
+        $d['transaction'] = [
+            'txn_id'       => $h['txn_uid'] ?: (string)$h['id'],
+            'reference'    => $h['ref'],
+            'type'         => $isMember ? 'member' : 'self',
+            'type_label'   => $isMember ? 'Member Transfer' : 'Internal Transfer',
+            'via'          => $h['via'],
+            'amount'       => $h['amount'],
+            'fee'          => $h['fee'],
+            'net_amount'   => $h['net_amount'],
+            'token'        => 'BMAN',                          // internal wallets are BMAN-only (USDT excluded)
+            'status'       => $h['status'],
+            'created_at'   => $h['created_at'],
+            'completed_at' => $completed ? $h['updated_at'] : null,
+            'note'         => $h['description'],
+            'failure_reason' => $h['failure_reason'] ?? null,
+        ];
+
+        // ---- sender / receiver (with wallet + balances from the authoritative transfer row) ----
+        $d['sender'] = $senderU ? array_merge($senderU, [
+            'wallet'         => $h['from_wallet'],
+            'balance_before' => $h['from_before'],
+            'balance_after'  => $h['from_after'],
+        ]) : null;
+        $d['receiver'] = $isMember ? ($receiverU ? array_merge($receiverU, [
+            'wallet'         => $h['to_wallet'],
+            'balance_before' => $h['to_before'],
+            'balance_after'  => $h['to_after'],
+        ]) : null) : [
+            'self'           => true,
+            'wallet'         => $h['to_wallet'],
+            'balance_before' => $h['to_before'],
+            'balance_after'  => $h['to_after'],
+        ];
+
+        // ---- ledger entries (debit = sender's from-wallet, credit = receiver's wallet) ----
+        $d['ledger_entries'] = [
+            'debit'  => ['ledger_id'=>$h['debit_ledger_id'],  'wallet'=>$h['from_wallet'], 'amount'=>$h['amount'],
+                         'balance_before'=>$h['from_before'], 'balance_after'=>$h['from_after']],
+            'credit' => ['ledger_id'=>$h['credit_ledger_id'], 'wallet'=>$h['to_wallet'],   'amount'=>$h['amount'],
+                         'balance_before'=>$h['to_before'],   'balance_after'=>$h['to_after']],
+            'reference' => $h['ref'],
+            'rows'      => $d['ledger'],                        // raw wallet_ledger rows
+        ];
+
+        // ---- blockchain (only when a hash exists; enrich from onchain_transactions if linked) ----
+        $chain = null;
+        if (!empty($h['tx_hash']) || (!empty($h['network']) && !empty($h['block_number']))) {
+            $oc = null;
+            if ($this->db->table_exists('onchain_transactions')) {
+                $this->db->from('onchain_transactions');
+                if (!empty($h['tx_hash'])) $this->db->where('tx_hash', $h['tx_hash']);
+                else $this->db->where('reference_id', $ref);
+                $oc = $this->db->order_by('id','DESC')->limit(1)->get()->row_array();
+            }
+            $chain = [
+                'tx_hash'       => $h['tx_hash'] ?: ($oc['tx_hash'] ?? null),
+                'block_number'  => $h['block_number'] ?: ($oc['block_number'] ?? null),
+                'confirmations' => $h['confirmations'] !== null ? $h['confirmations'] : ($oc['confirmation_count'] ?? null),
+                'gas_used'      => $h['gas_used'] ?: ($oc['gas_used'] ?? null),
+                'gas_fee'       => $h['gas_fee'] ?: ($oc['gas_fee_total'] ?? null),
+                'network'       => $h['network'] ?: ($oc['network'] ?? 'BSC'),
+                'status'        => $oc['status'] ?? null,
+                'from_address'  => $oc['from_address'] ?? null,
+                'to_address'    => $oc['to_address'] ?? null,
+                'token_symbol'  => $oc['token_symbol'] ?? 'BMAN',
+            ];
+        }
+        $d['blockchain'] = $chain;                              // null → off-chain internal ledger settlement
+
+        // ---- validation (derived from THIS transfer's own record, not re-mocked) ----
+        $memberRule = $this->memberRule($h['from_wallet']);
+        $viaAdmin   = ($h['via'] === 'admin');
+        $ok = $completed ? 'passed' : ($h['status'] === 'failed' ? 'failed' : 'n/a');
+        $checks = [];
+        // wallet-direction rule always applies
+        $checks[] = ['key'=>'wallet_rule', 'label'=>'Wallet direction rule', 'applies'=>true, 'status'=>$ok,
+                     'detail'=>$isMember ? (ucfirst($h['from_wallet']).' → recipient '.ucfirst($h['to_wallet']))
+                                         : (ucfirst($h['from_wallet']).' → '.ucfirst($h['to_wallet']).' (Exchange source-only)')];
+        // downline / sponsor only for member transfers
+        $checks[] = ['key'=>'downline', 'label'=>'Downline validation',
+                     'applies'=>($isMember && $memberRule === 'downline'), 'status'=>($isMember && $memberRule==='downline') ? $ok : 'n/a',
+                     'detail'=>($isMember && $memberRule==='downline') ? 'Recipient is in the source user\'s downline' : 'Not applicable'];
+        $checks[] = ['key'=>'direct_sponsor', 'label'=>'Direct sponsor validation',
+                     'applies'=>($isMember && $memberRule === 'direct_sponsor'), 'status'=>($isMember && $memberRule==='direct_sponsor') ? $ok : 'n/a',
+                     'detail'=>($isMember && $memberRule==='direct_sponsor') ? 'Recipient is the source user\'s direct sponsor' : 'Not applicable'];
+        // user-panel gates
+        $checks[] = ['key'=>'transfer_password', 'label'=>'Transfer password',
+                     'applies'=>!$viaAdmin, 'status'=>$viaAdmin ? 'overridden' : $ok,
+                     'detail'=>$viaAdmin ? 'Skipped (admin-initiated)' : 'Verified before execution'];
+        $checks[] = ['key'=>'kyc', 'label'=>'KYC validation',
+                     'applies'=>!$viaAdmin, 'status'=>$viaAdmin ? 'overridden' : $ok,
+                     'detail'=>$viaAdmin ? 'Skipped (admin-initiated)' : ('Sender KYC: '.($senderU['kyc_status'] ?? '—'))];
+        $checks[] = ['key'=>'admin_override', 'label'=>'Admin override',
+                     'applies'=>$viaAdmin, 'status'=>$viaAdmin ? 'yes' : 'no',
+                     'detail'=>$viaAdmin ? ('Admin'.($h['created_by'] ? ' #'.$h['created_by'] : '').' acted on behalf of the source user') : 'User-initiated transfer'];
+        $d['validation'] = [
+            'overall' => $completed ? 'passed' : $h['status'],
+            'checks'  => $checks,
+        ];
+
         return $d;
     }
 

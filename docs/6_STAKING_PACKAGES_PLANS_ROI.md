@@ -419,8 +419,21 @@ Admin ▸ Staking ▸ ROI Structure     Effective from: [2026-07-01]  (Super-Adm
   modal), ranks table (incentive/benefits modal + Plan-1/2/3 requirements
   editor with OR-options)
 - ✅ Routes under `admin/staking/*` + sidebar group **Staking Management**
-- ⬜ User purchase flow writes `user_stakes` (snapshot) + 25% bonus
-- ⬜ Cron: Regular/Combo monthly credit (5/15/25) + Fixed maturity credit → `staking_roi_payouts`
+- ✅ User purchase flow (`Staking_model`) **debits USDT** (`usd_balance`, ledger
+  `usdt`, ref `stake_purchase`), writes `user_stakes` (snapshot), credits the 25%
+  bonus to the **Bonus wallet**, and inserts the full ROI schedule into
+  `staking_roi_payouts` (`wallet='earning'`, `status='pending'`).
+- ⬜ **ROI credit cron — NOT IMPLEMENTED.** Payout rows sit in
+  `staking_roi_payouts` as `pending` and are **never credited**: no code reads
+  that table (only the INSERT in `Staking_model` exists), and the scheduler
+  (`scheduler/Config.php`) registers only `clear_cache`, `send_emails`,
+  `sync_database`, `generate_reports` — no ROI job. When built, the cron must
+  find `pending` rows with `credit_date <= today`, `L->credit($uid,'earning',
+  $amount,'roi',…)` (destination = **Earning wallet**), and set `status='paid'`
+  (mirror the existing `admin/staking/Matching::cron` pattern; register a
+  `scheduler/` job). Regular/Combo credit on days 5/15/25; Fixed credits at
+  maturity. (Binary **matching** bonus already has a cron and credits
+  Earning+Staking — that is a different payout from staking ROI.)
 - ⬜ Reports: Staking report, ROI paid report (PDF/Excel/CSV per §18)
 
 ### 10.1 Rank Achievement admin (proposal §10) — delivered with this phase

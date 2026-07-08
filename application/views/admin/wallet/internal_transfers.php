@@ -124,25 +124,28 @@
                     <div class="table-responsive">
                       <table class="table align-middle table-row-dashed fs-6 gy-4">
                         <thead><tr class="text-start text-gray-500 fw-bold fs-7 text-uppercase gs-0">
-                          <th>TXN ID</th><th>Reference</th><th>Via</th><th>Sender</th><th>Recipient</th><th>Wallet</th><th class="text-end">Amount</th><th>Status</th><th>Created</th><th></th>
+                          <th>Reference</th><th>Sender</th><th>Receiver</th><th>From Wallet</th><th>To Wallet</th><th class="text-end">Amount</th><th>Token</th><th>Status</th><th>Date</th><th class="text-end">Details</th>
                         </tr></thead>
                         <tbody class="text-gray-700 fw-semibold">
-                          <?php foreach ($transfers as $t): ?>
+                          <?php foreach ($transfers as $t): $isSelf = empty($t['to_user_id']); ?>
                           <tr>
-                            <td class="fw-bold text-primary"><?php echo html_escape($t['txn_uid'] ?: '—'); ?></td>
-                            <td class="text-monospace fs-8"><?php echo html_escape($t['ref']); ?></td>
-                            <td><span class="badge badge-light-<?php echo ($t['via']??'user')==='admin'?'warning':'secondary'; ?> text-uppercase"><?php echo html_escape($t['via'] ?? 'user'); ?></span></td>
+                            <td>
+                              <span class="text-monospace fs-8 fw-bold text-primary"><?php echo html_escape($t['ref']); ?></span>
+                              <div class="text-muted fs-8">TXN <?php echo html_escape($t['txn_uid'] ?: '—'); ?> · <span class="text-uppercase"><?php echo html_escape($t['via'] ?? 'user'); ?></span></div>
+                            </td>
                             <td><?php echo html_escape(($t['sender_name'] ?? '') ?: ('#'.$t['user_id'])); ?><div class="text-muted fs-8"><?php echo html_escape($t['sender_ref'] ?? ''); ?></div></td>
                             <td>
-                              <?php if (!empty($t['to_user_id'])): ?>
+                              <?php if (!$isSelf): ?>
                                 <?php echo html_escape(($t['recipient_name'] ?? '') ?: ('#'.$t['to_user_id'])); ?><div class="text-muted fs-8"><?php echo html_escape($t['recipient_ref'] ?? ''); ?></div>
-                              <?php else: ?><span class="text-muted fs-8">— (self)</span><?php endif; ?>
+                              <?php else: ?><span class="badge badge-light-info">Self</span><?php endif; ?>
                             </td>
                             <td><span class="badge badge-light-primary text-uppercase"><?php echo html_escape($t['from_wallet']); ?></span></td>
-                            <td class="text-end"><?php echo number_format((float)$t['amount'],4); ?></td>
+                            <td><span class="badge badge-light-primary text-uppercase"><?php echo html_escape($t['to_wallet']); ?></span></td>
+                            <td class="text-end fw-bold"><?php echo number_format((float)$t['amount'],4); ?></td>
+                            <td><span class="badge badge-light-dark">BMAN</span></td>
                             <td><span class="badge badge-light-<?php echo $t['status']==='completed'?'success':($t['status']==='failed'?'danger':'warning'); ?>"><?php echo strtoupper($t['status']); ?></span></td>
                             <td class="text-muted fs-8"><?php echo html_escape($t['created_at']); ?></td>
-                            <td class="text-end"><button class="btn btn-sm btn-light-primary it-view" data-ref="<?php echo html_escape($t['ref']); ?>">View</button></td>
+                            <td class="text-end"><button class="btn btn-sm btn-light-primary it-view" data-ref="<?php echo html_escape($t['ref']); ?>">Details</button></td>
                           </tr>
                           <?php endforeach; ?>
                           <?php if (empty($transfers)): ?><tr><td colspan="10" class="text-muted">No transfers found.</td></tr><?php endif; ?>
@@ -196,25 +199,31 @@
       if(ok){ const b=j.balances; ['exchange','earning','staking','bonus'].forEach(k=>document.getElementById('it-bal-'+k).textContent=Number(b[k]).toFixed(4)); }
     }
 
+    function clearRecipient(){
+      if(window.jQuery){ jQuery('#it-recipient').val(null).trigger('change.select2'); }
+      else { const r=document.getElementById('it-recipient'); if(r) r.value=''; }
+    }
     // Select2 with server-side AJAX search + pagination (no upfront DOM dump).
     if(window.jQuery && jQuery.fn.select2){
-      const s2=(sel)=>jQuery(sel).select2({
-        placeholder: jQuery(sel).data('placeholder')||'Search member…',
-        allowClear:true, width:'100%',
-        minimumInputLength:0,
-        ajax:{
-          url: base+'admin/finance/internal-transfers/users',
-          dataType:'json', delay:250, cache:true,
+      // Source user — ALL members (admin may act on behalf of anyone).
+      jQuery('#it-sender').select2({
+        placeholder:'Search member…', allowClear:true, width:'100%', minimumInputLength:0,
+        ajax:{ url: base+'admin/finance/internal-transfers/users', dataType:'json', delay:250, cache:true,
           data: params => ({q: params.term||'', page: params.page||1}),
-          processResults: (data, params) => {
-            params.page = params.page||1;
-            return { results: data.results||[], pagination:{ more: !!(data.pagination&&data.pagination.more) } };
-          }
-        }
+          processResults: (data, params) => { params.page=params.page||1;
+            return { results: data.results||[], pagination:{ more: !!(data.pagination&&data.pagination.more) } }; } }
       });
-      s2('#it-sender'); s2('#it-recipient');
-      // Select2 fires jQuery change; bind through jQuery so loadBalances runs.
-      jQuery('#it-sender').on('change', loadBalances);
+      // Recipient — ONLY the source's valid recipients for the chosen From wallet
+      // (downline for exchange/earning/staking, direct sponsor for bonus).
+      jQuery('#it-recipient').select2({
+        placeholder:'Search recipient…', allowClear:true, width:'100%', minimumInputLength:0,
+        ajax:{ url: base+'admin/finance/internal-transfers/recipients', dataType:'json', delay:250, cache:false,
+          data: params => ({ q: params.term||'', sender_id: jQuery('#it-sender').val()||'', from_wallet: jQuery('#it-from').val()||'' }),
+          processResults: data => ({ results: data.results||[], pagination:{ more:false } }) }
+      });
+      // Changing the source or the From wallet changes the valid recipient set.
+      jQuery('#it-sender').on('change', function(){ loadBalances(); clearRecipient(); });
+      jQuery('#it-from').on('change', clearRecipient);
     } else {
       senderSel.addEventListener('change',loadBalances);
     }

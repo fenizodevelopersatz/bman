@@ -113,6 +113,16 @@ What the shared layer does:
    all four selectable for member; impossible destinations hidden) instead of
    letting them be chosen then rejected. Member mode shows the recipient rule
    ("must be in downline" / "bonus → direct sponsor only").
+   - **Recipient pickers are server-scoped**: both panels list ONLY the source's
+     valid recipients for the chosen From wallet — the source's **downline** for
+     exchange/earning/staking, or the **direct sponsor** for bonus (never the full
+     member list). Backed by `recipientOptions($sourceId,$fromWallet,$q)` +
+     `downlineIds($sourceId)` (BFS down the sponsor tree; `sponser` may hold an id
+     or a referral id, so each level matches on both). Endpoints:
+     `user/transfer_wallet/search_recipients` (POST, needs `from_wallet`) and
+     `admin/finance/internal-transfers/recipients` (GET `sender_id`,`from_wallet`).
+     Changing the source/From wallet clears + refetches the recipient. The admin
+     **source-user** picker still lists all members (admin acts for anyone).
 2. **Live validation preview** — on submit it calls `preview`, showing available
    balance, balance-after, resolved recipient, and each gate, with a spinner
    while validating.
@@ -121,10 +131,38 @@ What the shared layer does:
    Validation Status line — **Confirm is enabled only when every rule (and, for
    the User Panel, KYC + transfer-password) passes** ("✓ All business rules
    passed").
-4. **Transaction Details modal** (identical in both panels): General, Users,
-   Wallet, Ledger (double-entry debit/credit), Blockchain (when a `tx_hash`
-   exists → hash, block, confirmations, gas, BscScan link), and Audit (created
-   by, IP, browser/device, request id, timestamp, trail).
+4. **Transaction Details modal** (identical in both panels) — a **7-tab** full
+   financial audit trail, all fields verified against the live schema (real
+   records only, no mock data):
+   - **Summary** — a Sender → Receiver flow card + Transaction ID, Reference,
+     Type, Token (BMAN), Amount, Fee, Net, Status, Created/Completed time, Notes.
+   - **Sender** — User ID, Referral ID, Username, Full Name, Email, KYC status,
+     From Wallet, Balance Before/After + the sponsor/upline tree.
+   - **Receiver** — same identity set + To Wallet + Balance Before/After (or
+     "Self" for internal own-wallet moves).
+   - **Ledger** — Debit entry + Credit entry cards (wallet, ledger id, before →
+     after) from the double-entry `wallet_ledger` rows, plus the raw rows table.
+   - **Blockchain** — hash (BscScan link), block, confirmations, gas used/fee,
+     network, addresses (enriched from `onchain_transactions` when linked); shows
+     an explicit *off-chain internal ledger* note when there is no chain tx.
+   - **Validation** — itemized checks derived from the transfer's OWN record:
+     wallet-direction rule, downline / direct-sponsor (whichever applied),
+     transfer-password, KYC, and admin-override (with pass / n-a / overridden).
+   - **Audit Timeline** — the `wallet_transfer_audit` rows as a vertical timeline
+     (action · result code · message · actor · time) + IP, browser/device,
+     request id, user agent.
+   Sources: `wallet_internal_transfer` (balances before/after, blockchain cols),
+   `wallet_ledger` (double entry), `wallet_transfer_audit` (timeline),
+   `onchain_transactions` (chain enrichment), `users` (identities). No duplicate
+   records are created — every tab reads existing tables.
+
+### History tables (both panels)
+
+Columns: **Reference · Sender · Receiver · From Wallet · To Wallet · Amount ·
+Token · Status · Date · Details**. The Details button opens the shared 7-tab
+modal. Data comes from `Wallettransfer_model::history()` (user, scoped to rows
+where the member is sender or recipient) and `adminList()` (admin) — both already
+join sender/recipient identities and carry `to_wallet`.
 5. On success both panels refresh balances and reload the history immediately.
 
 **Tests:** `php index.php wallettransfertest ui` — 4/4 (preview shape + balances,

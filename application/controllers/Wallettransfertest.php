@@ -164,6 +164,44 @@ class Wallettransfertest extends CI_Controller
             echo "  (no transfers yet — skipped detailEnriched)\n";
         }
 
+        // recipient scoping: the pickers must only ever offer VALID recipients
+        if ($D) {
+            $downIds = $this->svc->downlineIds($U);
+            $this->assertCode2('downlineIds includes the known downline',
+                in_array($D,$downIds,true) || in_array((string)$D,$downIds,true), 'count='.count($downIds));
+
+            $optsEx = $this->svc->recipientOptions($U,'exchange','',50);
+            $exIds  = array_map(function($r){ return (int)$r['id']; }, $optsEx);
+            $this->assertCode2('recipientOptions(exchange) = downline only (has D, excludes self)',
+                in_array($D,$exIds,true) && !in_array($U,$exIds,true), 'D='.$D.' rows='.count($optsEx));
+
+            $optsBonus = $this->svc->recipientOptions($U,'bonus','',50);
+            $bIds = array_map(function($r){ return (int)$r['id']; }, $optsBonus);
+            $sp = $this->svc->directSponsorId($U);
+            $this->assertCode2('recipientOptions(bonus) = direct sponsor only',
+                count($optsBonus)<=1 && (!$sp || $bIds===[$sp]), 'sponsor='.$sp.' rows='.count($optsBonus));
+        }
+
         echo "=== {$this->pass} passed, {$this->fail} failed ===\n";
+    }
+
+    /** Emit the exact tx_detail endpoint JSON for a ref ('member' → latest member, else latest). */
+    public function detailjson($ref = null)
+    {
+        if ($ref === 'member') { $r = $this->db->select('ref')->where('to_user_id IS NOT NULL', null, false)->order_by('id','DESC')->limit(1)->get('wallet_internal_transfer')->row_array(); $ref = $r['ref'] ?? null; }
+        if (!$ref) { $r = $this->db->select('ref')->order_by('id','DESC')->limit(1)->get('wallet_internal_transfer')->row_array(); $ref = $r['ref'] ?? null; }
+        $d = $ref ? $this->svc->detailEnriched($ref) : null;
+        echo json_encode(['ok'=>(bool)$d, 'data'=>$d]);
+    }
+
+    /** Dump live columns for the transfer-related tables. Run: php index.php wallettransfertest schema */
+    public function schema()
+    {
+        foreach (['wallet_internal_transfer','wallet_ledger','wallet_transfer_audit','onchain_transactions','users'] as $t) {
+            if (!$this->db->table_exists($t)) { echo "\n### $t — MISSING\n"; continue; }
+            echo "\n### $t\n";
+            $cols = $this->db->query("SHOW COLUMNS FROM `$t`")->result_array();
+            foreach ($cols as $c) { echo "  ".str_pad($c['Field'],26)." ".$c['Type'].($c['Null']==='NO'?' NOT NULL':'').($c['Key']?'  ['.$c['Key'].']':'')."\n"; }
+        }
     }
 }
