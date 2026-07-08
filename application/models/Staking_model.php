@@ -661,13 +661,15 @@ class Staking_model extends CI_Model
             $treasuryPayId = (int)$this->db->insert_id();
         } else { $treasuryPayId = 0; }
 
-        // 6b. create the stake order
+        // 6b. create the stake order immediately so the portfolio shows the
+        // purchase right away. Blockchain confirmation can later promote it to
+        // ACTIVE, but the row must exist now.
         $this->db->insert('user_stakes', [
             'user_id' => $userId, 'package_id' => $pkgId, 'plan_id' => (int)$plan['id'],
             'plan_code' => $planCode, 'duration_years' => $years,
             'stake_amount' => $bman, 'roi_percent' => $hdrPct, 'roi_basis' => $hdrBasis,
             'bonus_amount' => $bonusBman, 'start_date' => $start, 'maturity_date' => $maturity,
-            'status' => 'active',
+            'status' => '0',
         ]);
         $stakeId = (int)$this->db->insert_id();
         if (!$stakeId) { $this->db->trans_rollback(); return [false, 'Could not create the stake order.']; }
@@ -680,6 +682,26 @@ class Staking_model extends CI_Model
             'reference_id' => $ref, 'description' => 'Locked '.number_format($bman).' BMAN — stake #'.$stakeId,
         ]);
         if (!$okS) { $this->db->trans_rollback(); return [false, 'Could not credit the Staking wallet.']; }
+
+        // 6c-ii. create a visible purchase ledger entry for the user's history
+        // and on-chain audit trail. This gives immediate feedback in wallet UI.
+        if ($this->db->table_exists('history')) {
+            $this->db->insert('history', [
+                'user_id'      => $userId,
+                'amount'       => $usdt,
+                'token_amount' => $bman,
+                'type'         => 'staking_purchase',
+                'history_date' => date('Y-m-d H:i:s'),
+                'date'         => date('Y-m-d H:i:s'),
+                'status'       => '1',
+                'hash_id'      => $ref,
+                'invest_id'    => $stakeId,
+                'description'  => 'Staking purchase '.number_format($bman).' BMAN / '.number_format($usdt, 8).' USDT',
+                'coin_id'      => null,
+                'token_id'     => null,
+                'coin_type'    => 1,
+            ]);
+        }
 
         // 6d. 25% Bonus Coin → Bonus wallet
         if ($bonusBman > 0) {

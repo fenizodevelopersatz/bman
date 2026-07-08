@@ -2670,6 +2670,411 @@ So manage with proper type and all transaction are on chain so before checking t
 
 ////////////////////////////
 
+
+
+
+Wallet Types
+
+User Visible
+
+USDT Wallet
+Exchange Wallet
+Earning Wallet
+Staking Wallet
+Bonus Wallet
+
+System Wallets
+
+Ceiling Wallet
+Admin Hot Wallet
+Treasury Wallet
+Gas Wallet
+
+The Ceiling Wallet should be an internal ledger only and never visible to users.
+
+Binary Matching Rule
+Example 1
+        A
+      /   \
+     B     C
+
+B = 1 BMAN
+C = 10,000 BMAN
+
+Matching Volume:
+
+min(1,10000)
+=
+1 BMAN
+
+Matching Bonus:
+
+1 × 10%
+=
+0.1 BMAN
+
+Distribution:
+
+0.08 BMAN → Earning Wallet
+0.02 BMAN → Staking Wallet
+
+Record:
+
+Level 1 Match
+Left Volume = 1
+Right Volume = 10000
+Matched Volume = 1
+
+Carry Forward:
+
+Right Carry Forward
+
+10000 - 1
+=
+9999
+Example 2
+                A
+           /         \
+       B(10000)    C(10000)
+       /    \       /    \
+   D(10000) E(10000) F(10000) G(10000)
+
+For A
+
+Left Business:
+
+B+D+E
+=
+30000
+
+Right Business:
+
+C+F+G
+=
+30000
+
+Matched:
+
+30000
+
+Bonus:
+
+30000 × 10%
+
+=
+3000 BMAN
+
+Distribution:
+
+2400 BMAN → Earning Wallet
+
+600 BMAN → Staking Wallet
+Ceiling Control
+
+User Package:
+
+50,000 Package
+
+Proposal Ceiling:
+
+30,000
+
+Current Period Earnings:
+
+29,500
+
+New Matching:
+
+3,000
+
+Available:
+
+30,000 - 29,500
+
+=
+500
+
+Pay:
+
+500
+
+Excess:
+
+3000 - 500
+
+=
+2500
+
+Move To:
+
+System Ceiling Wallet
+
+Ledger:
+
+CEILING_HOLD
+New Internal Ceiling Wallet
+
+Create:
+
+ceiling_wallet
+
+Fields:
+
+id
+user_id
+
+period_start
+period_end
+
+ceiling_limit
+
+earned_amount
+
+held_amount
+
+released_amount
+
+created_at
+Matching Queue
+
+Create:
+
+binary_matching_queue
+
+Fields:
+
+id
+
+user_id
+
+matched_volume
+
+bonus_amount
+
+earning_amount
+
+staking_amount
+
+status
+
+tx_hash
+
+created_at
+
+Status:
+
+PENDING
+PROCESSING
+ONCHAIN_SENT
+CONFIRMED
+FAILED
+RETRY
+Cron 1
+Binary Matching Scanner
+
+Every 5 minutes
+
+*/5 * * * * php index.php cron binaryMatching
+
+Process:
+
+Find new package purchases
+
+Rebuild binary volumes
+
+Calculate matching volume
+
+Apply carry forward
+
+Create matching queue
+Cron 2
+Ceiling Processor
+
+Every 5 minutes
+
+*/5 * * * * php index.php cron ceilingProcessor
+
+Process:
+
+Read queue
+
+Check user ceiling
+
+Split:
+
+Payable
+Held
+
+Update ceiling wallet
+Cron 3
+Gas Balance Checker
+
+Before sending any blockchain payout:
+
+*/2 * * * * php index.php cron gasCheck
+
+Check:
+
+Admin Hot Wallet BNB
+
+Minimum:
+0.05 BNB
+
+If below threshold:
+
+Pause payouts
+
+Create Admin Alert
+Cron 4
+Blockchain Payout Processor
+
+Every minute
+
+* * * * * php index.php cron processPayouts
+
+Process:
+
+Pending Queue
+
+↓
+Check Gas
+
+↓
+Create Onchain Transaction
+
+↓
+Send Token
+
+↓
+Store Tx Hash
+
+↓
+Wait Confirmation
+Cron 5
+Confirmation Scanner
+
+Every minute
+
+* * * * * php index.php cron verifyTransactions
+
+Process:
+
+Check tx hash
+
+Confirm blocks
+
+Mark transaction complete
+Retry System
+
+Admin Dashboard:
+
+Failed Transfers
+Pending Transfers
+Retry Transfers
+Gas Errors
+RPC Errors
+
+Buttons:
+
+Retry Selected
+
+Retry All Failed
+
+Force Confirm
+
+Cancel Transfer
+Ledger Types
+BINARY_MATCHING
+
+BINARY_MATCHING_EARNING
+
+BINARY_MATCHING_STAKING
+
+CEILING_HOLD
+
+CEILING_RELEASE
+
+ONCHAIN_PAYOUT
+
+ONCHAIN_RETRY
+
+ONCHAIN_FAILED
+Codex Instruction
+Implement a Binary Matching Engine using carry-forward volume.
+
+Matching volume must always use:
+
+min(left_business_volume,right_business_volume)
+
+Bonus:
+
+10% of matched volume
+
+Split:
+8% → Earning Wallet
+2% → Staking Wallet
+
+Create a system-only Ceiling Wallet.
+
+When user earnings exceed package ceiling:
+- Pay remaining eligible amount
+- Move excess to Ceiling Wallet
+- Record CEILING_HOLD transaction
+
+Create cron jobs:
+
+1. Binary Matching Scanner
+2. Ceiling Processor
+3. Gas Balance Checker
+4. Blockchain Payout Processor
+5. Transaction Confirmation Scanner
+
+Before any payout:
+- Verify Admin Hot Wallet gas balance
+- Verify token balance
+- Queue transaction
+
+Store all transfers with:
+tx_hash
+block_number
+confirmations
+status
+
+Provide admin retry controls for failed blockchain transactions.
+
+Do not alter existing staking, ROI, package, wallet, or genealogy flows.
+Extend the system using background processing, queue tables, and ledger records only.
+
+This design will scale much better than trying to calculate and transfer bonuses immediately during every package purchase.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+///////////////**********************************//////////////
 Find the all the cron execute at single page to manage all the crons
 give the details of ROI
 Swap

@@ -71,6 +71,9 @@ $investments = $investments ?? [
   ],
 ];
 
+$roi_history = $roi_history ?? [];
+$recent_staking_activity = $recent_staking_activity ?? [];
+
 
 // $roi_history = $roi_history ?? [
 //   (object) ['date' => '2026-01-30', 'ref' => 'INV-1021', 'title' => 'Daily ROI Credit', 'amount' => 0.15, 'status' => 'APPROVED'],
@@ -1237,6 +1240,71 @@ $hero_progress = 48;
           </div>
         </div>
       </div>
+
+      <?php if (!empty($recent_staking_activity) || !empty($roi_history)): ?>
+      <div class="card" style="margin-top: 18px; border-radius: 28px;">
+        <div class="card-h" style="padding:18px 22px;border-bottom:1px solid #f0f0f7;margin:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
+          <h3 style="font-size:16px;font-weight:1100;margin:0;">Recent Staking Activity</h3>
+          <span class="chip"><i class="ph ph-clock-counter-clockwise"></i> Purchase + ROI trail</span>
+        </div>
+        <div style="padding:16px 20px;">
+          <div class="table-scroll">
+            <table class="table" style="border-spacing:0 8px;min-width:920px;">
+              <thead>
+                <tr>
+                  <th>Date</th><th>Type</th><th>Amount</th><th>Token</th><th>Status</th><th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php if (empty($recent_staking_activity)): ?>
+                  <tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:18px;">No recent staking activity found.</td></tr>
+                <?php else: foreach ($recent_staking_activity as $row): ?>
+                  <tr>
+                    <td style="font-size:12px;"><?= htmlspecialchars((string)($row->history_date ?? '—')) ?></td>
+                    <td><b><?= htmlspecialchars((string)($row->type ?? '—')) ?></b></td>
+                    <td><?= number_format((float)($row->amount ?? 0), 4) ?></td>
+                    <td><?= number_format((float)($row->token_amount ?? 0), 4) ?></td>
+                    <td><?= htmlspecialchars((string)($row->status ?? '—')) ?></td>
+                    <td><?= htmlspecialchars((string)($row->description ?? '—')) ?></td>
+                  </tr>
+                <?php endforeach; endif; ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <?php if (!empty($roi_history)): ?>
+      <div class="card" style="margin-top: 18px; border-radius: 28px;">
+        <div class="card-h" style="padding:18px 22px;border-bottom:1px solid #f0f0f7;margin:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
+          <h3 style="font-size:16px;font-weight:1100;margin:0;">ROI History</h3>
+          <span class="chip"><i class="ph ph-chart-line"></i> Credited ROI payouts</span>
+        </div>
+        <div style="padding:16px 20px;">
+          <div class="table-scroll">
+            <table class="table" style="border-spacing:0 8px;min-width:900px;">
+              <thead>
+                <tr>
+                  <th>Date</th><th>Ref</th><th>Title</th><th>Amount</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($roi_history as $row): ?>
+                  <tr>
+                    <td style="font-size:12px;"><?= htmlspecialchars((string)($row->date ?? '—')) ?></td>
+                    <td><?= htmlspecialchars((string)($row->ref ?? '—')) ?></td>
+                    <td><?= htmlspecialchars((string)($row->title ?? '—')) ?></td>
+                    <td><?= number_format((float)($row->amount ?? 0), 4) ?></td>
+                    <td><?= htmlspecialchars((string)($row->status ?? '—')) ?></td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
 
     </main>
   </div>

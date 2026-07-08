@@ -74,8 +74,9 @@ class Lendingcontroller extends CI_Controller
         // Investments table (dynamic)
         $this->data['investments'] = $this->getUserInvestmentsForView($userid);
 
-        // ROI history (dynamic)
-        // $this->data['roi_history'] = $this->getUserRoiHistoryForView($userid);
+        // ROI history / recent staking activity (dynamic)
+        $this->data['roi_history'] = $this->getUserRoiHistoryForView($userid);
+        $this->data['recent_staking_activity'] = $this->getRecentStakingActivityForView($userid);
 
         // Keep your existing form post route
         $this->data['action'] = base_url("user/make-investment-post");
@@ -392,8 +393,9 @@ class Lendingcontroller extends CI_Controller
         $daysRem = ($mature && $mature >= $today) ? (int)$today->diff($mature)->days : 0;
         $earned  = (float)$this->calcInvestmentEarned($r['id']);
         $expected = $amount * ($roiPct/100) * $dur;
-        $statusMap = ['0'=>'Pending','1'=>'Active','2'=>'Matured','3'=>'Cancelled'];
+        $statusMap = ['0'=>'Processing','1'=>'Active','2'=>'Matured','3'=>'Cancelled'];
         $st = $statusMap[(string)$r['status']] ?? 'Active';
+        if ((string)$r['status'] === '0' && empty($r['starting_date'])) $st = 'Processing';
         if ((string)$r['status'] === '2' && (int)($r['recived_status'] ?? 0) === 1) $st = 'Completed';
         return [
             'invest_id'=>(int)$r['id'], 'package_name'=>$r['package_name'] ?: ('PKG-'.$r['package_id']),
@@ -401,6 +403,7 @@ class Lendingcontroller extends CI_Controller
             'purchase_date'=>$r['created_date'] ?? $r['starting_date'], 'maturity_date'=>$r['mature_date'],
             'days_remaining'=>$daysRem, 'roi_percent'=>$roiPct, 'total_roi_earned'=>$earned,
             'pending_roi'=>max(0, $expected - $earned), 'next_roi_date'=>$r['run_date'] ?? null, 'status'=>$st,
+            'purchase_state'=>$st,
         ];
     }
 
@@ -598,6 +601,31 @@ class Lendingcontroller extends CI_Controller
             ", [$user_id]);
 
         return $q->result();
+    }
+
+    /**
+     * Recent staking purchase activity for the portfolio header.
+     * Pulls the immediate purchase record + ROI credits so users see the
+     * progression without opening the modal.
+     */
+    private function getRecentStakingActivityForView($user_id)
+    {
+        if ($this->db->table_exists('history')) {
+            $q = $this->db->query("
+                    SELECT history_date, type, amount, token_amount, description, status, hash_id
+                    FROM history
+                    WHERE user_id = ?
+                      AND (
+                        type IN ('staking_purchase','profit','roi-made','pair_commission','bonus','stake_purchase')
+                        OR description LIKE '%staking%'
+                        OR description LIKE '%ROI%'
+                      )
+                    ORDER BY history_date DESC
+                    LIMIT 50
+                ", [(int)$user_id]);
+            return $q->result();
+        }
+        return [];
     }
 
     /**
