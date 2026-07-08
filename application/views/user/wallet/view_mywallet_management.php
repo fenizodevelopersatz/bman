@@ -1145,6 +1145,51 @@ function wallet_title_fallback($type)
         </div>
       </div>
 
+      <!-- All Wallets strip — USDT, Exchange, Earning, Staking, Bonus -->
+      <?php
+      $wallet_usdt = $wallet_usdt ?? 0;
+      $wallet_bman = $wallet_bman ?? ['exchange' => 0, 'earning' => 0, 'staking' => 0, 'bonus' => 0];
+      // key => [label, icon, colour]
+      $all_wallets = [
+        'exchange' => ['Exchange Wallet', 'ph-swap',     '#6366f1'],
+        'earning'  => ['Earning Wallet',  'ph-trend-up', '#0ea5e9'],
+        'staking'  => ['Staking Wallet',  'ph-lock-key', '#10b981'],
+        'bonus'    => ['Bonus Wallet',    'ph-gift',     '#f59e0b'],
+      ];
+      ?>
+      <style>
+        .allw-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:0 0 18px;}
+        .allw-strip .wtile{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid rgba(15,23,42,.08);
+          border-radius:16px;padding:14px 16px;box-shadow:0 6px 18px rgba(15,23,42,.04);}
+        .allw-strip .wtile.usdt{border:1.5px solid #26a17b55;background:linear-gradient(135deg,#26a17b0d,#fff);}
+        .allw-strip .wico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:20px;flex:0 0 auto;}
+        .allw-strip .wlbl{font-size:11.5px;font-weight:900;color:#6b7280;text-transform:uppercase;letter-spacing:.3px;
+          display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+        .allw-strip .wval{font-size:18px;font-weight:900;color:#0b1220;line-height:1.1;}
+        .allw-strip .wval small{font-size:11px;font-weight:900;color:#6b7280;}
+        .allw-strip .wtag{font-size:9px;font-weight:900;letter-spacing:.2px;padding:2px 7px;border-radius:99px;
+          background:#26a17b1a;color:#1b8f6b;text-transform:uppercase;}
+      </style>
+      <div class="allw-strip">
+        <!-- USDT Wallet (IN & OUT) -->
+        <div class="wtile usdt">
+          <div class="wico" style="background:#26a17b1a;color:#26a17b;"><i class="ph ph-currency-circle-dollar"></i></div>
+          <div>
+            <div class="wlbl">USDT Wallet <span class="wtag">In &amp; Out</span></div>
+            <div class="wval"><?= number_format((float) $wallet_usdt, 2) ?> <small>USDT</small></div>
+          </div>
+        </div>
+        <?php foreach ($all_wallets as $k => $m): ?>
+        <div class="wtile">
+          <div class="wico" style="background:<?= $m[2] ?>1a;color:<?= $m[2] ?>;"><i class="ph <?= $m[1] ?>"></i></div>
+          <div>
+            <div class="wlbl"><?= $m[0] ?></div>
+            <div class="wval"><?= number_format((float) ($wallet_bman[$k] ?? 0)) ?> <small>BMAN</small></div>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+
       <!-- Summary Balances -->
       <div class="sum-grid">
         <div class="sum-card">

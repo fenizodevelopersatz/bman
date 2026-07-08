@@ -664,6 +664,18 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
         // ✅ total earned (bonus + commission credits)
         $this->data['total_earned'] = (float) $this->wallet->getTotalEarned($user_id);
 
+        // ✅ Custodial wallet balances (USDT + BMAN wallets) — same source of truth
+        // as the Stakings page, shown as a wallet strip above the summary cards.
+        $this->load->model('Walletledger_model', 'ledger');
+        $bal = $this->ledger->balances($user_id); // usdt/exchange/earning/staking/bonus
+        $this->data['wallet_usdt'] = (float) $bal['usdt'];
+        $this->data['wallet_bman'] = [
+            'exchange' => (float) $bal['exchange'],
+            'earning'  => (float) $bal['earning'],
+            'staking'  => (float) $bal['staking'],
+            'bonus'    => (float) $bal['bonus'],
+        ];
+
         // ✅ history list + counts + paging
         $list = $this->wallet->getWalletHistory($user_id, $filters, $page, $per_page);
 

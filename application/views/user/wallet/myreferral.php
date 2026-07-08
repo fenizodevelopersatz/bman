@@ -606,11 +606,18 @@
                 <small>Optional</small>
               </div>
 
-              <!-- Placeholder UI (you can integrate real QR later) -->
               <div class="qr">
-                <div class="qrbox"><i class="ph ph-qr-code"></i></div>
+                <div class="qrbox" id="qrBox"><i class="ph ph-qr-code"></i></div>
                 <b>Generate QR for your referral link</b>
-                <small>Users can scan & join instantly. Add QR generator later (easy).</small>
+                <small>Users can scan &amp; join instantly. Tap a leg to generate its QR.</small>
+                <div class="ref-actions" style="justify-content:center;margin-top:4px;">
+                  <button class="ref-btn ghost" onclick="showQR('refLeft')">
+                    <i class="ph ph-qr-code"></i> Left QR
+                  </button>
+                  <button class="ref-btn light" onclick="showQR('refRight')">
+                    <i class="ph ph-qr-code"></i> Right QR
+                  </button>
+                </div>
                 <button class="ref-btn ghost" style="width:100%;justify-content:center;" onclick="shareLink('refLeft')">
                   Share Left Link <i class="ph ph-share-network"></i>
                 </button>
@@ -624,20 +631,47 @@
       <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
       <script>
         const base_url = "<?php echo base_url() ?>";
+
+        // Robust clipboard copy that works even in insecure contexts (plain HTTP /
+        // LAN IP), where navigator.clipboard is undefined. Falls back to a hidden
+        // textarea + execCommand('copy').
+        function copyToClipboard(text) {
+          if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+          }
+          return new Promise((resolve, reject) => {
+            try {
+              const ta = document.createElement('textarea');
+              ta.value = text;
+              ta.setAttribute('readonly', '');
+              ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+              document.body.appendChild(ta);
+              ta.select();
+              ta.setSelectionRange(0, ta.value.length);
+              const ok = document.execCommand('copy');
+              document.body.removeChild(ta);
+              ok ? resolve() : reject(new Error('execCommand failed'));
+            } catch (e) {
+              reject(e);
+            }
+          });
+        }
+
         function copyText(id) {
           const el = document.getElementById(id);
-          el.select();
-          el.setSelectionRange(0, 99999);
-          navigator.clipboard.writeText(el.value).then(() => {
-            toastMini("Copied!");
-          }).catch(() => { alert("Copy failed"); });
+          if (!el) return;
+          copyToClipboard(el.value)
+            .then(() => toastMini("Copied!"))
+            .catch(() => toastMini("Copy failed. Please copy manually."));
         }
 
         function copyAllRefs() {
           const left = document.getElementById('refLeft')?.value || '';
           const right = document.getElementById('refRight')?.value || '';
           const txt = `Left Leg: ${left}\nRight Leg: ${right}`;
-          navigator.clipboard.writeText(txt).then(() => toastMini("Both links copied!"));
+          copyToClipboard(txt)
+            .then(() => toastMini("Both links copied!"))
+            .catch(() => toastMini("Copy failed. Please copy manually."));
         }
 
         function openLink(id) {
@@ -650,12 +684,15 @@
           if (navigator.share) {
             try {
               await navigator.share({ title: "Join my team", text: "Use my referral link to join:", url });
-            } catch (e) { }
-          } else {
-            // fallback: copy
-            navigator.clipboard.writeText(url);
-            toastMini("Share not supported. Link copied!");
+              return;
+            } catch (e) {
+              if (e && e.name === 'AbortError') return; // user cancelled
+            }
           }
+          // fallback: copy
+          copyToClipboard(url)
+            .then(() => toastMini("Share not supported. Link copied!"))
+            .catch(() => toastMini("Copy failed. Please copy manually."));
         }
 
         // function downloadQR() {
@@ -674,26 +711,40 @@
           setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 250); }, 1400);
         }
 
-        function downloadQR(url) {
-          const container = document.getElementById('qr_container');
-
-          // Clear previous QR code if exists
+        // Render a QR into a target element and return the generated <img>/<canvas>.
+        function renderQR(container, url, size) {
           container.innerHTML = '';
-
-          // Example data: could be user referral link
-          const referralLink = url;
-
-          // Generate QR code
-          const qr = new QRCode(container, {
-            text: referralLink,
-            width: 150,
-            height: 150,
+          if (typeof QRCode === 'undefined') {
+            toastMini("QR library failed to load. Check your connection.");
+            return null;
+          }
+          new QRCode(container, {
+            text: url,
+            width: size,
+            height: size,
             colorDark: "#5d56a8",
             colorLight: "#ffffff",
             correctLevel: QRCode.CorrectLevel.H
           });
+          return container.querySelector('img, canvas');
+        }
 
+        // "Get Left/Right QR" buttons: generate under the tips box + offer download.
+        function downloadQR(url) {
+          if (!url) { toastMini("No referral link available."); return; }
+          const container = document.getElementById('qr_container');
+          const el = renderQR(container, url, 150);
+          if (!el) return;
           toastMini("QR code generated! Right-click to save.");
+        }
+
+        // QR box (right column): render the chosen leg's QR right inside the box.
+        function showQR(inputId) {
+          const input = document.getElementById(inputId);
+          if (!input || !input.value) { toastMini("No referral link available."); return; }
+          const box = document.getElementById('qrBox');
+          const el = renderQR(box, input.value, 96);
+          if (el) { el.style.width = '96px'; el.style.height = '96px'; }
         }
       </script>
 

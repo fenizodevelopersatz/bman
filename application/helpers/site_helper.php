@@ -993,15 +993,15 @@ function user_profile_image($uid)
         ->get('users')
         ->row();
 
-    if (!empty($user->profile_img)) {
-        return base_url('assets/images/' . $user->profile_img);
+    // Only return an uploaded image if the file actually exists on disk,
+    // otherwise fall back to the default avatar (prevents broken-image 404s).
+    foreach ([$user->profile_img ?? '', $user->image ?? ''] as $file) {
+        if (!empty($file) && is_file(FCPATH . 'assets/images/' . $file)) {
+            return base_url('assets/images/' . $file);
+        }
     }
 
-    if (!empty($user->image)) {
-        return base_url('assets/images/' . $user->image);
-    }
-
-    return 'https://i.pravatar.cc/100?u=mlm-user';
+    return base_url('assets/images/default-avatar.svg');
 }
 
 if (!function_exists('user_cycle_info')) {

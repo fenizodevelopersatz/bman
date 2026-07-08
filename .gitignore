@@ -6,6 +6,9 @@ application/cache/*
 application/.claude/*
 !application/.claude/index.html
 
+/.claude/*
+!/.claude/index.html
+
 
 application/logs/*
 !application/logs/index.html

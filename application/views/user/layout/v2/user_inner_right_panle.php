@@ -23,8 +23,9 @@ $rank = $this->rankservice->get_rank_status($uid);
         <span class="stat-badge">72%</span>
     </div> -->
     <div class="stat-circle">
-        <img src="<?= !empty(user_profile_image($uid)) ? htmlspecialchars(user_profile_image($uid)) : 'https://i.pravatar.cc/100?u=mlm-user'; ?>"
-            alt="avatar" />
+        <img src="<?= htmlspecialchars(user_profile_image($uid)); ?>"
+            alt="avatar"
+            onerror="this.onerror=null;this.src='<?= base_url('assets/images/default-avatar.svg'); ?>';" />
 
         <span class="stat-badge">
             <?= $profile_percent ?>%

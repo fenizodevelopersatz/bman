@@ -89,7 +89,8 @@ $uid = $this->session->userdata('user_userid') ?? '';
     <!-- User Dropdown -->
     <div class="user-dropdown" id="userDropdown">
       <button class="user-pill" id="userDropdownBtn" type="button">
-        <img src="<?php echo user_profile_image($uid); ?>" alt="user" />
+        <img src="<?php echo user_profile_image($uid); ?>" alt="user"
+          onerror="this.onerror=null;this.src='<?php echo base_url('assets/images/default-avatar.svg'); ?>';" />
         <span><?php echo $this->session->userdata('user_full_name') ? ucfirst(strtolower($this->session->userdata('user_full_name'))) : 'Lucas'; ?></span>
         <i class="ph ph-caret-down" style="font-size:16px;"></i>
       </button>

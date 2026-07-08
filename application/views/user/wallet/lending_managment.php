@@ -1049,10 +1049,11 @@ $hero_progress = 48;
       $wallet_usdt_in_bman = $wallet_usdt_in_bman ?? null;
       $wallet_bman = $wallet_bman ?? ['exchange'=>0,'staking'=>0,'bonus'=>0,'earning'=>0];
       // [label, icon, colour, tag]
+      // Order: USDT (fixed first) → Exchange → Earning → Staking → Bonus
       $wstrip = [
+        'exchange' => ['Exchange Wallet', 'ph-swap',        '#6366f1', ''],
         'earning'  => ['Earning Wallet',  'ph-trend-up',    '#0ea5e9', 'ROI credited here'],
         'staking'  => ['Staking Wallet',  'ph-lock-key',    '#10b981', ''],
-        'exchange' => ['Exchange Wallet', 'ph-swap',        '#6366f1', ''],
         'bonus'    => ['Bonus Wallet',    'ph-gift',        '#f59e0b', ''],
       ];
       ?>
