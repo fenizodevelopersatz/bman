@@ -706,6 +706,11 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
         $left_leg_investment_token  = (float)($binary_info['left_investment_token'] ?? 0);
         $right_leg_investment_token = (float)($binary_info['right_investment_token'] ?? 0);
 
+        // Exchange Wallet (BMAN) totals of each leg's whole downline team — shown
+        // as "Left/Right Users Investment" on the referrals page.
+        $left_exchange_wallet  = (float)($binary_info['left_exchange_wallet'] ?? 0);
+        $right_exchange_wallet = (float)($binary_info['right_exchange_wallet'] ?? 0);
+
         // Safe query
         $userRow = $this->db->select('referral_id')
                             ->from('users')
@@ -723,8 +728,8 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
         $this->data['left_users']  = $left_leg_count;
         $this->data['right_users'] = $right_leg_count;
 
-        $this->data['left_invest']  = $left_leg_investment_token;
-        $this->data['right_invest'] = $right_leg_investment_token;
+        $this->data['left_invest']  = $left_exchange_wallet;
+        $this->data['right_invest'] = $right_exchange_wallet;
 
         // (Optional) keep old names if other places use it
         $this->data['left_leg_count'] = $left_leg_count;

@@ -376,12 +376,12 @@ $route['rank-delete/(:num)'] = 'admin/rank/Rankmanagment/rank_delete/$1';
 $route['check-wallet/(:any)'] = 'admin/member/Membermanagement/decript_wallet_user/$1';
 
 /******************* INVESTMENT  */
-$route['list-investment'] = 'admin/wallet/Walletmanagement/investmentlist';
-$route['get-list-investment'] = 'admin/wallet/Walletmanagement/investment_list_get';
-$route['package-reinvest-status/(:num)'] = 'admin/wallet/Walletmanagement/package_reinvest_status/$1';
-$route['delete-investment/(:num)'] = 'admin/wallet/Walletmanagement/investment_delete/$1';
-$route['all-investment-get'] = 'admin/wallet/Walletmanagement/investment_amount_fetch';
-$route['investment-info/(:num)'] = 'admin/wallet/Walletmanagement/investment_info/$1';
+// $route['list-investment'] = 'admin/wallet/Walletmanagement/investmentlist';
+// $route['get-list-investment'] = 'admin/wallet/Walletmanagement/investment_list_get';
+// $route['package-reinvest-status/(:num)'] = 'admin/wallet/Walletmanagement/package_reinvest_status/$1';
+// $route['delete-investment/(:num)'] = 'admin/wallet/Walletmanagement/investment_delete/$1';
+// $route['all-investment-get'] = 'admin/wallet/Walletmanagement/investment_amount_fetch';
+// $route['investment-info/(:num)'] = 'admin/wallet/Walletmanagement/investment_info/$1';
 $route['transaction-list-profit'] = 'admin/wallet/Walletmanagement/list_profit';
 $route['list-profit-amount'] = 'admin/wallet/Walletmanagement/profit_amount_fetch';
 

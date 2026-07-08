@@ -21,6 +21,7 @@
 <head>
   <?php $this->load->view('user/layout/v2/user_style'); ?>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     /* ===================== BINARY TREE ===================== */
     .page-titlebar {
@@ -318,6 +319,90 @@
 
     .dot.empty {
       background: #d4d4d8;
+    }
+
+    /* ===== Tree view selector tabs ===== */
+    .tv-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 12px 14px;
+      border-bottom: 1px solid #f5f5f7;
+    }
+    .tv-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid #ececf5;
+      background: #fff;
+      color: #4b5563;
+      font-weight: 800;
+      font-size: 12.5px;
+      padding: 9px 13px;
+      border-radius: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: .15s;
+    }
+    .tv-tab:hover { background: #f7f6ff; }
+    .tv-tab.active {
+      background: var(--primary, #6e56cf);
+      border-color: var(--primary, #6e56cf);
+      color: #fff;
+    }
+
+    /* ===== Flat views (genealogy / generation / level / direct) ===== */
+    .alt-view { display: block; width: 100%; }
+    .alt-empty {
+      text-align: center;
+      color: #9ca3af;
+      font-weight: 700;
+      padding: 40px 12px;
+    }
+    .mini-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #fff;
+      border: 1px solid #eef0f6;
+      border-left: 4px solid #10b981;
+      border-radius: 14px;
+      padding: 10px 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, .04);
+      transition: .15s;
+    }
+    .mini-card:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(15, 23, 42, .08); }
+    .mini-card.inactive { border-left-color: #f59e0b; }
+    .mini-card.blocked  { border-left-color: #ef4444; }
+    .mini-card.empty    { border-left-color: #cbd5e1; }
+    .mini-card .mc-av { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
+    .mini-card .mc-meta { min-width: 0; flex: 1; }
+    .mini-card .mc-meta b { display: block; font-size: 13px; font-weight: 900; color: #0b1220; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mini-card .mc-meta small { font-size: 11px; color: #6b7280; font-weight: 700; }
+    .mini-card .mc-inv { text-align: right; flex: 0 0 auto; }
+    .mini-card .mc-inv small { display: block; font-size: 10px; color: #6b7280; font-weight: 700; }
+    .mini-card .mc-inv b { font-size: 13px; font-weight: 900; color: #10b981; }
+
+    .alt-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .alt-col .alt-h, .alt-lvl .alt-h {
+      font-size: 12px; font-weight: 900; color: #4b5563; text-transform: uppercase;
+      letter-spacing: .3px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+    }
+    .alt-badge {
+      font-size: 10px; font-weight: 900; padding: 3px 9px; border-radius: 99px;
+      background: #efedfb; color: var(--primary, #6e56cf); text-transform: none; letter-spacing: 0;
+    }
+    .alt-levels { display: grid; gap: 18px; }
+    .alt-lvl .alt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+
+    .geneal-list, .geneal-list ul { list-style: none; margin: 0; padding: 0; }
+    .geneal-list ul { margin-left: 22px; padding-left: 16px; border-left: 2px dashed #e5e7eb; }
+    .geneal-list li { margin: 8px 0; }
+    .geneal-list li > .mini-card { max-width: 460px; }
+
+    @media (max-width: 600px) {
+      .alt-cols { grid-template-columns: 1fr; }
     }
 
     .tree-canvas {
@@ -986,13 +1071,13 @@
       <div class="page-titlebar">
         <div>
           <h2><i class="ph ph-tree-structure"></i> Binary Tree</h2>
-          <div class="sub">Explore your left/right leg network, positions, BV & activity status.</div>
+          <div class="sub">Explore your left/right leg network, positions, investment & activity status.</div>
         </div>
 
         <div class="page-actions">
           <button class="btn-soft" type="button" onclick="centerTree()"><i class="ph ph-crosshair"></i> Center</button>
           <button class="btn-soft" type="button" onclick="toggleCompact()"><i class="ph ph-layout"></i> Compact</button>
-          <button class="btn-soft" type="button" onclick="window.print()"><i class="ph ph-printer"></i> Print</button>
+          <button class="btn-soft" type="button" id="exportPngBtn" onclick="exportTreePNG()"><i class="ph ph-download-simple"></i> Export PNG</button>
           <button class="btn-main" type="button" onclick="location.href='<?= base_url('user/referrals'); ?>'"><i
               class="ph ph-share-network"></i> Invite</button>
         </div>
@@ -1003,18 +1088,18 @@
         <div class="sum-card">
           <div class="sum-ic sum-info"><i class="ph ph-arrow-circle-left"></i></div>
           <div class="sum-meta">
-            <small>Left Leg BV</small>
-            <strong><?= number_format($user->left_bv ?? 0); ?> BV</strong>
-            <span>Carry Forward: <?= number_format($user->left_cf ?? 0); ?> BV</span>
+            <small>Left Leg Investment</small>
+            <strong><?= number_format($user->left_exchange ?? 0, 2); ?> BMAN</strong>
+            <span>Exchange Wallet · Left downline</span>
           </div>
         </div>
 
         <div class="sum-card">
           <div class="sum-ic sum-warn"><i class="ph ph-arrow-circle-right"></i></div>
           <div class="sum-meta">
-            <small>Right Leg BV</small>
-            <strong><?= number_format($user->right_bv ?? 0); ?> BV</strong>
-            <span>Carry Forward: <?= number_format($user->right_cf ?? 0); ?> BV</span>
+            <small>Right Leg Investment</small>
+            <strong><?= number_format($user->right_exchange ?? 0, 2); ?> BMAN</strong>
+            <span>Exchange Wallet · Right downline</span>
           </div>
         </div>
 
@@ -1041,6 +1126,14 @@
 
         <!-- Tree -->
         <div class="card tree-wrap">
+          <!-- Tree view selector -->
+          <div class="tv-tabs">
+            <button class="tv-tab active" type="button" onclick="setTreeView('binary', event)"><i class="ph ph-tree-structure"></i> Binary Tree</button>
+            <button class="tv-tab" type="button" onclick="setTreeView('genealogy', event)"><i class="ph ph-graph"></i> Genealogy Tree</button>
+            <button class="tv-tab" type="button" onclick="setTreeView('generation', event)"><i class="ph ph-stack"></i> Generation Tree</button>
+            <button class="tv-tab" type="button" onclick="setTreeView('levelwise', event)"><i class="ph ph-list-numbers"></i> Level Wise Team</button>
+            <button class="tv-tab" type="button" onclick="setTreeView('direct', event)"><i class="ph ph-users-three"></i> Direct Team View</button>
+          </div>
           <div class="tree-toolbar">
             <div class="controls" style="width:100%;">
               <input class="search" id="nodeSearch" placeholder="Search UID / name..." />
@@ -1107,12 +1200,16 @@
               <b id="sideJoin"><?= htmlspecialchars($tree['join_date'] ?? '—'); ?></b>
             </div>
             <div class="tile">
-              <small>Left BV</small>
-              <b id="sideLBV"><?= number_format($tree['left_bv'] ?? 0); ?></b>
+              <small>Left Investment</small>
+              <b id="sideLBV">0 BMAN</b>
             </div>
             <div class="tile">
-              <small>Right BV</small>
-              <b id="sideRBV"><?= number_format($tree['right_bv'] ?? 0); ?></b>
+              <small>Right Investment</small>
+              <b id="sideRBV">0 BMAN</b>
+            </div>
+            <div class="tile" style="grid-column:1 / -1;">
+              <small>Own Investment (Exchange Wallet)</small>
+              <b id="sideInv"><?= number_format($tree['exchange'] ?? 0, 2); ?> BMAN</b>
             </div>
           </div>
 
@@ -1142,19 +1239,19 @@
   <div class="modal-backdrop" id="modalBack">
     <div class="modal">
       <div class="modal-h">
-        <b>Binary Tree Tips</b>
+        <b>BV &amp; Pair Rules</b>
         <button class="xbtn" onclick="closeModal()"><i class="ph ph-x"></i></button>
       </div>
       <div class="modal-b">
         <div class="note">
-          Pairing happens when left and right BV match. Keep both legs active. Carry-forward BV will be used for future
-          pairs.
+          A pair completes when your left and right legs both build matching team investment. Keep both legs active and
+          balanced to maximise pairing income.
         </div>
         <div class="row2">
           <div class="tile">
             <small>Improve Pairing</small>
-            <b>Balance BV</b>
-            <div class="note" style="margin-top:6px;">Add BV to weak leg via products/orders.</div>
+            <b>Balance Investment</b>
+            <div class="note" style="margin-top:6px;">Add investment to your weak leg to keep both sides balanced.</div>
           </div>
           <div class="tile">
             <small>Eligibility</small>
@@ -1229,12 +1326,132 @@
         }
 
         TREE = json.data || {};
-        render(depth);
+        renderCurrentView(depth);
 
       } catch (e) {
         console.error(e);
         toastMini("Tree load error");
       }
+    }
+
+    // ======= Tree view modes (Binary / Genealogy / Generation / Level Wise / Direct) =======
+    let CURRENT_VIEW = 'binary';
+    let CURRENT_DEPTH = 3;
+
+    function setTreeView(view, ev) {
+      CURRENT_VIEW = view;
+      document.querySelectorAll('.tv-tab').forEach(t => t.classList.remove('active'));
+      if (ev && ev.currentTarget) ev.currentTarget.classList.add('active');
+      renderCurrentView(CURRENT_DEPTH);
+    }
+
+    function renderCurrentView(depth) {
+      CURRENT_DEPTH = depth || CURRENT_DEPTH;
+      const root = document.getElementById('treeRoot');
+      const inner = document.getElementById('treeInner');
+      // Reset zoom/transform for the flat (non-binary) layouts.
+      scale = 1; inner.style.transform = 'scale(1)';
+      // Binary tree needs the wide canvas; flat views should fit the container.
+      inner.style.minWidth = (CURRENT_VIEW === 'binary') ? '' : 'auto';
+
+      switch (CURRENT_VIEW) {
+        case 'genealogy':  renderGenealogy(); break;
+        case 'generation': renderLevels(true); break;
+        case 'levelwise':  renderLevels(false); break;
+        case 'direct':     renderDirect(); break;
+        case 'binary':
+        default:
+          root.className = 'tree';
+          render(CURRENT_DEPTH);
+      }
+    }
+
+    // Compact card used by the flat/list views.
+    function miniCard(n) {
+      if (!n) return '';
+      const sc = statusClass(n.status);
+      const avatar = n.avatar ? n.avatar : ("https://i.pravatar.cc/100?u=" + encodeURIComponent(n.uid || n.id || ''));
+      return `<div class="mini-card ${sc}"
+        data-id="${escapeHtml(n.id || 0)}" data-uid="${escapeHtml(n.uid || '—')}"
+        data-name="${escapeHtml(n.name || 'User')}" data-rank="${escapeHtml(n.rank || '—')}"
+        data-status="${escapeHtml(n.status || 'ACTIVE')}" data-join="${escapeHtml(n.join_date || '—')}"
+        data-lbv="${escapeHtml(n.left_bv || 0)}" data-rbv="${escapeHtml(n.right_bv || 0)}"
+        data-inv="${escapeHtml(n.exchange || 0)}" data-avatar="${escapeHtml(avatar)}"
+        onclick="selectNode(this)">
+        <img class="mc-av" src="${avatar}" alt="">
+        <div class="mc-meta"><b>${escapeHtml(ucfirstWords(n.name || 'User'))}</b><small>UID: ${escapeHtml(n.uid || '—')}</small></div>
+        <div class="mc-inv"><small>Investment</small><b>${fmt(n.exchange || 0)} BMAN</b></div>
+      </div>`;
+    }
+
+    // BFS collect nodes with their level (root = level 0), skipping empties.
+    function collectNodes(rootNode) {
+      const out = [];
+      if (!rootNode || Object.keys(rootNode).length === 0) return out;
+      const q = [{ n: rootNode, lvl: 0 }];
+      while (q.length) {
+        const { n, lvl } = q.shift();
+        if (!n) continue;
+        const st = (n.status || '').toUpperCase();
+        if (SHOW_EMPTY || st !== 'EMPTY') out.push({ n, lvl });
+        if (n.left) q.push({ n: n.left, lvl: lvl + 1 });
+        if (n.right) q.push({ n: n.right, lvl: lvl + 1 });
+      }
+      return out;
+    }
+
+    // Direct Team View — the root's immediate left & right members.
+    function renderDirect() {
+      const root = document.getElementById('treeRoot');
+      root.className = 'alt-view';
+      const kids = [];
+      if (TREE.left) kids.push(['Left Leg', TREE.left]);
+      if (TREE.right) kids.push(['Right Leg', TREE.right]);
+      if (!kids.length) { root.innerHTML = '<div class="alt-empty">No direct team members yet.</div>'; return; }
+      root.innerHTML = '<div class="alt-cols">' + kids.map(([pos, n]) =>
+        `<div class="alt-col"><div class="alt-h">${pos}</div>${miniCard(n)}</div>`).join('') + '</div>';
+    }
+
+    // Level Wise / Generation — group the downline by depth.
+    function renderLevels(asGeneration) {
+      const nodes = collectNodes(TREE);
+      const byLevel = {};
+      nodes.forEach(({ n, lvl }) => { if (lvl === 0) return; (byLevel[lvl] = byLevel[lvl] || []).push(n); });
+      const root = document.getElementById('treeRoot');
+      root.className = 'alt-view';
+      const levels = Object.keys(byLevel).map(Number).sort((a, b) => a - b);
+      if (!levels.length) { root.innerHTML = '<div class="alt-empty">No team members yet.</div>'; return; }
+      root.innerHTML = '<div class="alt-levels">' + levels.map(l => {
+        const label = asGeneration ? `Generation ${l}` : `Level ${l}`;
+        const sum = byLevel[l].reduce((s, x) => s + (parseFloat(x.exchange) || 0), 0);
+        return `<div class="alt-lvl"><div class="alt-h">${label}
+          <span class="alt-badge">${byLevel[l].length} members · ${fmt(sum)} BMAN</span></div>
+          <div class="alt-grid">${byLevel[l].map(miniCard).join('')}</div></div>`;
+      }).join('') + '</div>';
+    }
+
+    // Genealogy Tree — full downline as a nested, indented list.
+    function buildGenealogy(node) {
+      if (!node || Object.keys(node).length === 0) return '';
+      const st = (node.status || '').toUpperCase();
+      if (!SHOW_EMPTY && st === 'EMPTY') return '';
+      const childHtml = [node.left, node.right].filter(Boolean).map(buildGenealogy).filter(Boolean).join('');
+      return `<li>${miniCard(node)}${childHtml ? `<ul>${childHtml}</ul>` : ''}</li>`;
+    }
+    function renderGenealogy() {
+      const root = document.getElementById('treeRoot');
+      root.className = 'alt-view';
+      const html = buildGenealogy(TREE);
+      root.innerHTML = html ? `<ul class="geneal-list">${html}</ul>` : '<div class="alt-empty">No team members yet.</div>';
+    }
+
+    // Total Exchange Wallet (BMAN) investment across a whole subtree (inclusive).
+    function sumExchange(node) {
+      if (!node || Object.keys(node).length === 0) return 0;
+      const st = (node.status || "").toUpperCase();
+      let s = (SHOW_EMPTY || st !== "EMPTY") ? (parseFloat(node.exchange) || 0) : 0;
+      s += sumExchange(node.left) + sumExchange(node.right);
+      return s;
     }
 
     function renderNode(n) {
@@ -1250,6 +1467,10 @@
       const uid = n.uid ? n.uid : "—";
       const name = n.name ? n.name : "User";
 
+      // Left/Right downline investment (Exchange Wallet BMAN) totals for this node.
+      const leftInvest = sumExchange(n.left);
+      const rightInvest = sumExchange(n.right);
+
       return `
       <a class="node ${sc}"
          data-id="${escapeHtml(n.id || 0)}"
@@ -1260,6 +1481,9 @@
          data-join="${escapeHtml((n.join_date || "—"))}"
          data-lbv="${escapeHtml((n.left_bv || 0))}"
          data-rbv="${escapeHtml((n.right_bv || 0))}"
+         data-inv="${escapeHtml((n.exchange || 0))}"
+         data-linv="${escapeHtml(leftInvest)}"
+         data-rinv="${escapeHtml(rightInvest)}"
          data-avatar="${escapeHtml(avatar)}"
          onclick="selectNode(this)">
         <span class="st"></span>
@@ -1277,12 +1501,16 @@
 
         <div class="node-mid">
           <div class="kv">
-            <small>Left BV</small>
-            <b>${fmt(n.left_bv)} <span class="tagv">BV</span></b>
+            <small>Left Invest</small>
+            <b>${fmt(leftInvest)} <span class="tagv">BMAN</span></b>
           </div>
           <div class="kv">
-            <small>Right BV</small>
-            <b>${fmt(n.right_bv)} <span class="tagv">BV</span></b>
+            <small>Right Invest</small>
+            <b>${fmt(rightInvest)} <span class="tagv">BMAN</span></b>
+          </div>
+          <div class="kv" style="grid-column:1 / -1;">
+            <small>Own Investment</small>
+            <b>${fmt(n.exchange || 0)} <span class="tagv">BMAN</span></b>
           </div>
         </div>
 
@@ -1337,6 +1565,49 @@
       toastMini(compact ? "Compact mode ON" : "Compact mode OFF");
     }
 
+    // ======= Export the current tree/view to a PNG (with all values) =======
+    async function exportTreePNG() {
+      if (typeof html2canvas === 'undefined') { toastMini('Export library still loading — try again.'); return; }
+      const target = document.getElementById('treeInner');
+      if (!target) return;
+      const btn = document.getElementById('exportPngBtn');
+      const prevScale = scale;
+      try {
+        if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+        toastMini('Preparing image…');
+        // Capture at natural size (ignore zoom) so the whole tree is rendered.
+        target.style.transform = 'scale(1)';
+        // Let layout settle before snapshotting.
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const canvas = await html2canvas(target, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+          allowTaint: false,
+          logging: false,
+          width: target.scrollWidth,
+          height: target.scrollHeight,
+          windowWidth: target.scrollWidth,
+          windowHeight: target.scrollHeight
+        });
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/png');
+        a.download = 'nexman-' + (CURRENT_VIEW || 'binary') + '-tree.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        toastMini('Tree image downloaded!');
+      } catch (e) {
+        console.error(e);
+        toastMini('Export failed. Please try again.');
+      } finally {
+        // Restore the zoom transform.
+        scale = prevScale;
+        target.style.transform = 'scale(' + scale + ')';
+        if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+      }
+    }
+
     function centerTree() {
       const c = document.getElementById("treeCanvas");
       const inner = document.getElementById("treeInner");
@@ -1373,8 +1644,9 @@
       document.getElementById("sideRank").innerText = "Rank: " + (el.dataset.rank || "—");
       document.getElementById("sideStatus").innerText = (el.dataset.status || "—");
       document.getElementById("sideJoin").innerText = (el.dataset.join || "—");
-      document.getElementById("sideLBV").innerText = fmt(el.dataset.lbv || 0);
-      document.getElementById("sideRBV").innerText = fmt(el.dataset.rbv || 0);
+      document.getElementById("sideLBV").innerText = fmt(el.dataset.linv || 0) + " BMAN";
+      document.getElementById("sideRBV").innerText = fmt(el.dataset.rinv || 0) + " BMAN";
+      document.getElementById("sideInv").innerText = fmt(el.dataset.inv || 0) + " BMAN";
 
       // ✅ load full details if valid id
       if (selectedId > 0) {
@@ -1387,8 +1659,8 @@
             document.getElementById("sideUid").innerText = "UID: " + (d.uid || "—");
             document.getElementById("sideStatus").innerText = d.status || "—";
             document.getElementById("sideJoin").innerText = d.join_date || "—";
-            document.getElementById("sideLBV").innerText = fmt(d.left_bv || 0);
-            document.getElementById("sideRBV").innerText = fmt(d.right_bv || 0);
+            // Left/Right investment (BMAN) already set from the node dataset above;
+            // member_json has no downline totals, so don't overwrite them here.
           }
         } catch (e) {
           console.error(e);
@@ -1401,6 +1673,23 @@
       // location.href = "<?= base_url('user/genealogycontroller/viewuserinfo/'); ?>" + selectedId;
       location.href = "#";
     }
+
+    // ======= BV & Pair Rules modal =======
+    function openModal() {
+      const b = document.getElementById("modalBack");
+      if (b) b.style.display = "flex";
+    }
+    function closeModal() {
+      const b = document.getElementById("modalBack");
+      if (b) b.style.display = "none";
+    }
+    // Close when clicking the dim backdrop or pressing Escape.
+    document.addEventListener("click", (e) => {
+      if (e.target && e.target.id === "modalBack") closeModal();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeModal();
+    });
 
     // ======= Search =======
     let index = [];

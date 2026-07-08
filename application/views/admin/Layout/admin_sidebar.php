@@ -125,27 +125,27 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               </span><span class="menu-title">Finance Management</span><span class="menu-arrow"></span></span>
             <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto">
 
-              <div class="menu-item">
+              <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>make-investment">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">Make
                     Investment</span>
                 </a>
-              </div>
+              </div> -->
 
-              <div class="menu-item">
+              <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>list-investment">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Investment List</span>
                 </a>
-              </div>
+              </div> -->
 
 
-              <div class="menu-item">
+              <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>internel-transfer">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">User
                     To User Transfer</span>
                 </a>
-              </div>
+              </div> -->
 
               <!-- <div class="menu-item">
     <a class="menu-link" href="<?php echo base_url(); ?>internel-swap">
@@ -153,7 +153,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
     </a>
     </div> -->
 
-
+<!-- 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>add-wallet">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">Add
@@ -166,7 +166,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Dedect Wallet</span>
                 </a>
-              </div>
+              </div> -->
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>withdraw-requests">

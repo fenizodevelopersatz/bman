@@ -87,7 +87,8 @@ class BinaryModel extends CI_Model
                 'email' => $member->email,
                 'register_date' => date('Y-m-d', strtotime($member->register_date)),
                 'position' => ucfirst($member->position) . " ( " . currency_format($my_investment) . " )",
-                'placement_type' => ucfirst($member->placement_type)
+                'placement_type' => ucfirst($member->placement_type),
+                'exchange' => $this->getTotalExchangeWallet([$member->id]), // BMAN investment
             ];
 
             $this->fetchDownline($member->id, $downline);
@@ -186,6 +187,21 @@ class BinaryModel extends CI_Model
         return $user_investment ?? 0;
     }
     /*
+   |--------------------------------------------------------------------------
+   | Sum the Exchange Wallet (BMAN) balance across a set of team users
+   |--------------------------------------------------------------------------
+   */
+    private function getTotalExchangeWallet($user_ids)
+    {
+        if (empty($user_ids))
+            return 0;
+
+        $this->db->select_sum('exchange_balance');
+        $this->db->where_in('user_id', $user_ids);
+        $result = $this->db->get('user_wallets')->row();
+        return (float) ($result->exchange_balance ?? 0);
+    }
+    /*
     |--------------------------------------------------------------------------
     | Add Calculate Leg Investment 
     |--------------------------------------------------------------------------
@@ -204,6 +220,10 @@ class BinaryModel extends CI_Model
         $right_investment_token = $this->getTotalInvestmentToken($right_users);
         $my_investment_token = $this->getTotalInvestmentToken($user_id);
 
+        // Exchange Wallet (BMAN) totals across each leg's whole downline team.
+        $left_exchange_wallet  = $this->getTotalExchangeWallet($left_users);
+        $right_exchange_wallet = $this->getTotalExchangeWallet($right_users);
+
         return [
             'left_leg_users' => $left_users,
             'left_leg_investment' => $left_investment,
@@ -213,6 +233,8 @@ class BinaryModel extends CI_Model
             'left_investment_token' => $left_investment_token,
             'right_investment_token' => $right_investment_token,
             'my_investment_token' => $my_investment_token,
+            'left_exchange_wallet' => $left_exchange_wallet,
+            'right_exchange_wallet' => $right_exchange_wallet,
         ];
     }
 

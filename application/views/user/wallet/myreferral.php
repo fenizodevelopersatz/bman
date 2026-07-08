@@ -525,8 +525,8 @@
                 </div>
                 <div class="stat">
                   <small>Left Users Investment</small>
-                  <strong class="good"><?= currency_info()->currency_symbol; ?>
-                    <?= number_format($left_invest ?? 0, 2); ?></strong>
+                  <strong class="good"><?= number_format($left_invest ?? 0, 2); ?>
+                    <span style="font-size:12px;font-weight:900;color:var(--text-muted);">BMAN</span></strong>
                 </div>
               </div>
             </div>
@@ -558,8 +558,8 @@
                 </div>
                 <div class="stat">
                   <small>Right Users Investment</small>
-                  <strong class="bad"><?= currency_info()->currency_symbol; ?>
-                    <?= number_format($right_invest ?? 0, 2); ?></strong>
+                  <strong class="bad"><?= number_format($right_invest ?? 0, 2); ?>
+                    <span style="font-size:12px;font-weight:900;color:var(--text-muted);">BMAN</span></strong>
                 </div>
               </div>
             </div>

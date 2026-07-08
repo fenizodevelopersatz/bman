@@ -115,6 +115,9 @@ class Genealogycontroller extends MY_Controller
             'left_cf' => (float) ($leftCF ?? 0),
             'right_cf' => (float) ($rightCF ?? 0),
             'pairs' => $pairs_lifetime ?? 0,
+            // Exchange Wallet (BMAN) totals of each leg's downline team.
+            'left_exchange' => (float) ($binary_info['left_exchange_wallet'] ?? 0),
+            'right_exchange' => (float) ($binary_info['right_exchange_wallet'] ?? 0),
         ];
 
         // ✅ Do NOT inject TREE from PHP now. We'll load via AJAX.
@@ -170,6 +173,7 @@ class Genealogycontroller extends MY_Controller
                 'join_date' => !empty($join) ? date('Y-m-d', strtotime($join)) : '—',
                 'left_bv' => (float) (is_array($r) ? ($r['left_bv'] ?? 0) : ($r->left_bv ?? 0)),
                 'right_bv' => (float) (is_array($r) ? ($r['right_bv'] ?? 0) : ($r->right_bv ?? 0)),
+                'exchange' => (float) (is_array($r) ? ($r['exchange'] ?? 0) : ($r->exchange ?? 0)),
                 'mid' => $mid,
                 'position' => (stripos($posRaw, 'right') !== false) ? 'RIGHT' : 'LEFT',
                 'left' => null,
@@ -190,6 +194,7 @@ class Genealogycontroller extends MY_Controller
                 'join_date' => !empty($u->register_date) ? date('Y-m-d', strtotime($u->register_date)) : '—',
                 'left_bv' => 0,
                 'right_bv' => 0,
+                'exchange' => 0,
                 'mid' => 0,
                 'position' => '',
                 'left' => null,
