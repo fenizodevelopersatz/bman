@@ -249,12 +249,12 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               </span><span class="menu-title">Master</span><span class="menu-arrow"></span></span>
             <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto">
 
-              <div class="menu-item">
+              <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/master/token-settings">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Token Settings</span>
                 </a>
-              </div>
+              </div> -->
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/master/coin-distribution">

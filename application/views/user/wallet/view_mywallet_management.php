@@ -629,6 +629,78 @@
       margin-top: 10px;
     }
 
+    .usdt-history-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: #f7f7fb;
+      border: 1px solid #f1f1f6;
+      font-size: 11px;
+      font-weight: 1000;
+    }
+
+    .pill.active {
+      background: #efedfb;
+      border-color: #eeecff;
+      color: var(--primary);
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      padding: 18px;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-box {
+      width: min(920px, 100%);
+      background: #fff;
+      border-radius: 22px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+      overflow: hidden;
+    }
+
+    .modal-box .modal-top {
+      padding: 16px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #f1f1f6;
+    }
+
+    .modal-box .modal-body {
+      padding: 18px;
+    }
+
+    .modal-close {
+      border: none;
+      background: #f7f7fb;
+      border-radius: 12px;
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+
     .lg {
       display: flex;
       align-items: center;
@@ -1229,6 +1301,72 @@ function wallet_title_fallback($type)
         </div>
       </div> -->
 
+      <?php
+        $depositWallet = $deposit_wallet ?? [];
+        $walletMonitor = $wallet_monitor ?? null;
+        $walletAddress = $depositWallet['wallet_address'] ?? '';
+        $walletQr = $depositWallet['wallet_qrimage'] ?? '';
+        $onchainUsdt = is_array($walletMonitor) ? ($walletMonitor['onchain_usdt'] ?? '0') : '0';
+        $onchainBnb  = is_array($walletMonitor) ? ($walletMonitor['onchain_bnb'] ?? '0') : '0';
+        $onchainBman = is_array($walletMonitor) ? ($walletMonitor['onchain_bman'] ?? '0') : '0';
+        $dbUsdt      = is_array($walletMonitor) ? ($walletMonitor['db_usdt'] ?? '0') : '0';
+        $diffUsdt    = is_array($walletMonitor) ? ($walletMonitor['difference'] ?? '0') : '0';
+        $hasPending  = is_array($walletMonitor) ? !empty($walletMonitor['has_pending']) : false;
+      ?>
+
+      <div class="table-card" style="margin-bottom:14px;">
+        <div class="card-h">
+          <div>
+            <h3>USDT / BMAN Deposit Wallet</h3>
+            <div class="mini-note">BEP-20 address on BSC. Live RPC balance and deposit log.</div>
+          </div>
+          <div class="mini-note">
+            <?= $hasPending ? '<span style="color:#c2410c;font-weight:1000;">Uncredited on-chain funds detected</span>' : 'Synced'; ?>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:140px 1fr;gap:14px;align-items:start;">
+          <div style="display:grid;gap:10px;justify-items:center;">
+            <?php if (!empty($walletQr)): ?>
+              <img src="<?= htmlspecialchars($walletQr); ?>" alt="Deposit QR" style="width:140px;height:140px;border-radius:18px;border:1px solid #f1f1f6;background:#fff;object-fit:cover;">
+            <?php else: ?>
+              <div style="width:140px;height:140px;border-radius:18px;border:1px dashed #dedafc;background:#fbfbff;display:grid;place-items:center;font-weight:1000;color:#5d56a8;">No QR</div>
+            <?php endif; ?>
+            <button class="btn-soft" type="button" onclick="copyPlain('<?= htmlspecialchars($walletAddress, ENT_QUOTES); ?>')">
+              <i class="ph ph-copy"></i> Copy Address
+            </button>
+          </div>
+
+          <div style="display:grid;gap:10px;">
+            <div>
+              <div class="mini-note" style="margin-bottom:6px;">Your USDT / BMAN deposit address (BEP-20) · Network: BSC (BEP20)</div>
+              <input class="f-in" type="text" readonly value="<?= htmlspecialchars($walletAddress); ?>" style="background:#fff;">
+            </div>
+
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn-main" type="button" onclick="refreshWalletState()"><i class="ph ph-arrows-clockwise"></i> Check On-chain Balance</button>
+              <button class="btn-warn" type="button" onclick="location.href='<?= base_url('admin/wallet-monitor'); ?>'"><i class="ph ph-list"></i> View Monitor</button>
+            </div>
+
+            <div class="wb" style="margin-top:0;">
+              <div class="row">
+                <b style="font-size:12px;font-weight:1000;">Live Balances</b>
+                <span id="wallet-sync-state" style="font-size:12px;color:#5d56a8;font-weight:1000;"><?= $hasPending ? 'Needs review' : 'Up to date'; ?></span>
+              </div>
+              <div class="legend">
+                <div class="lg"><span><span class="dot"></span> On-chain USDT</span><small id="onchain-usdt"><?= htmlspecialchars((string)$onchainUsdt); ?></small></div>
+                <div class="lg"><span><span class="dot alt"></span> DB USDT</span><small id="db-usdt"><?= htmlspecialchars((string)$dbUsdt); ?></small></div>
+                <div class="lg"><span><span class="dot alt2"></span> Difference</span><small id="usdt-diff"><?= htmlspecialchars((string)$diffUsdt); ?></small></div>
+              </div>
+              <div class="legend" style="margin-top:12px;">
+                <div class="lg"><span><span class="dot"></span> BNB</span><small id="onchain-bnb"><?= htmlspecialchars((string)$onchainBnb); ?></small></div>
+                <div class="lg"><span><span class="dot alt"></span> BMAN</span><small id="onchain-bman"><?= htmlspecialchars((string)$onchainBman); ?></small></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Quick Actions -->
       <div class="quick-actions">
         <div class="qa" onclick="location.href='<?= base_url('user/withdraw'); ?>'"><i class="ph ph-money"></i> Withdraw
@@ -1476,11 +1614,11 @@ function wallet_title_fallback($type)
             </div>
           </div>
 
-          <div class="wb" style="margin-top:12px;">
-            <div class="row">
-              <b style="font-size:12px;font-weight:1000;">Safety Tips</b>
-              <span class="mini-note">Important</span>
-            </div>
+        <div class="wb" style="margin-top:12px;">
+          <div class="row">
+            <b style="font-size:12px;font-weight:1000;">Safety Tips</b>
+            <span class="mini-note">Important</span>
+          </div>
             <div style="display:grid;gap:8px;margin-top:10px;font-size:12px;font-weight:900;color:#5d56a8;">
               <div><i class="ph ph-check-circle" style="color:var(--primary);margin-right:8px;"></i> Never share OTP /
                 password.</div>
@@ -1491,11 +1629,50 @@ function wallet_title_fallback($type)
             </div>
           </div>
 
+          <div class="wb" style="margin-top:12px;">
+            <div id="usdt-history-root"></div>
+          </div>
+
         </div>
 
       </div><!-- /content-grid -->
 
     </main>
+
+    <div class="modal-overlay" id="walletPopup" onclick="if (event.target === this) closeWalletPopup();">
+      <div class="modal-box">
+        <div class="modal-top">
+          <div>
+            <b style="font-size:14px;">On-chain Wallet Details</b>
+            <div class="mini-note">Live USDT / BNB / BMAN status and credit trail</div>
+          </div>
+          <button class="modal-close" type="button" onclick="closeWalletPopup()"><i class="ph ph-x"></i></button>
+        </div>
+        <div class="modal-body">
+          <div class="wb" style="margin-top:0;">
+            <div class="row">
+              <b style="font-size:12px;font-weight:1000;">Current Status</b>
+              <span id="wallet-popup-status" style="font-size:12px;color:#5d56a8;font-weight:1000;">Loading...</span>
+            </div>
+            <div class="legend">
+              <div class="lg"><span><span class="dot"></span> On-chain USDT</span><small id="popup-onchain-usdt">0</small></div>
+              <div class="lg"><span><span class="dot alt"></span> DB USDT</span><small id="popup-db-usdt">0</small></div>
+              <div class="lg"><span><span class="dot alt2"></span> Difference</span><small id="popup-diff">0</small></div>
+              <div class="lg"><span><span class="dot"></span> BNB</span><small id="popup-bnb">0</small></div>
+              <div class="lg"><span><span class="dot alt"></span> BMAN</span><small id="popup-bman">0</small></div>
+            </div>
+          </div>
+          <div class="wb">
+            <div class="row">
+              <b style="font-size:12px;font-weight:1000;">Latest On-chain Snapshot</b>
+              <span class="mini-note">RPC</span>
+            </div>
+            <div id="popup-address" style="font-size:11px;font-weight:900;word-break:break-all;color:var(--text-muted);margin-top:8px;"></div>
+            <div id="popup-message" style="font-size:12px;font-weight:900;margin-top:8px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Right Panel -->
     <aside class="right-panel">
@@ -1508,8 +1685,15 @@ function wallet_title_fallback($type)
     }
   </style>
   <script src="<?php echo base_url(); ?>/assets/user_v2/js/script.js?ver=2.9"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script crossorigin src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
 
   <script>
+    const walletCheckUrl = <?= json_encode($wallet_check_url ?? site_url('member/profile/wallet_check')); ?>;
+    const usdtFiltersBase = <?= json_encode(base_url('user/wallet')); ?>;
+    const usdtHistoryUrl = <?= json_encode(site_url('user/usersettings/historycontroller/usdt_history_json')); ?>;
+
     // ✅ Build & submit filters via GET (same controller)
     function applyFilters(extra = {}) {
       const params = new URLSearchParams(window.location.search);
@@ -1569,6 +1753,56 @@ function wallet_title_fallback($type)
       navigator.clipboard.writeText(txt || "").then(() => toastMini("Copied!"));
     }
 
+    async function refreshWalletState() {
+      const state = document.getElementById('wallet-sync-state');
+      if (state) state.textContent = 'Refreshing...';
+      try {
+        const res = await fetch(walletCheckUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
+        const json = await res.json();
+        const d = json.data || {};
+        if (document.getElementById('onchain-usdt')) document.getElementById('onchain-usdt').textContent = d.onchain_usdt ?? '0';
+        if (document.getElementById('db-usdt')) document.getElementById('db-usdt').textContent = d.db_usdt ?? '0';
+        if (document.getElementById('usdt-diff')) document.getElementById('usdt-diff').textContent = d.difference ?? '0';
+        if (document.getElementById('onchain-bnb')) document.getElementById('onchain-bnb').textContent = d.onchain_bnb ?? '0';
+        if (document.getElementById('onchain-bman')) document.getElementById('onchain-bman').textContent = d.onchain_bman ?? '0';
+        if (state) state.textContent = (d.has_pending ? 'Uncredited funds found' : 'Up to date');
+        if (json.message) toastMini(json.message);
+      } catch (e) {
+        if (state) state.textContent = 'Refresh failed';
+        toastMini('Wallet refresh failed');
+      }
+    }
+
+    function setUsdtType(type) {
+      const params = new URLSearchParams(window.location.search);
+      if (type) params.set('usdt_type', type); else params.delete('usdt_type');
+      params.delete('page');
+      window.location.search = params.toString();
+    }
+
+    function applyUsdtFilters() {
+      const params = new URLSearchParams(window.location.search);
+      const status = document.getElementById('usdt_status')?.value || '';
+      const from = document.getElementById('usdt_from')?.value || '';
+      const to = document.getElementById('usdt_to')?.value || '';
+      if (status) params.set('usdt_status', status); else params.delete('usdt_status');
+      if (from) params.set('usdt_from', from); else params.delete('usdt_from');
+      if (to) params.set('usdt_to', to); else params.delete('usdt_to');
+      params.delete('page');
+      window.location.search = params.toString();
+    }
+
+    function openWalletPopup() {
+      const modal = document.getElementById('walletPopup');
+      if (modal) modal.classList.add('open');
+      refreshWalletState();
+    }
+
+    function closeWalletPopup() {
+      const modal = document.getElementById('walletPopup');
+      if (modal) modal.classList.remove('open');
+    }
+
     // Export wallet history to CSV
     function exportCSV() {
       const headers = ["Title", "Date", "Amount", "Flow", "Status", "Reference"];
@@ -1610,13 +1844,132 @@ function wallet_title_fallback($type)
     function toastMini(msg) {
       const t = document.createElement('div');
       t.textContent = msg;
-      t.style.cssText =
-        "position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:10px
-      14px; border - radius: 14px; font - weight: 1000; font - size: 12px; z - index: 99999; opacity: 0; transition: .2s; ";
+      t.style.cssText = "position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#111;color:#fff;padding:10px 14px;border-radius:14px;font-weight:1000;font-size:12px;z-index:99999;opacity:0;transition:.2s;";
       document.body.appendChild(t);
       requestAnimationFrame(() => t.style.opacity = "1");
       setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 250); }, 1400);
     }
+  </script>
+  <script type="text/babel">
+    const { useEffect, useState } = React;
+
+    function fmt(v) {
+      if (!v) return '';
+      try { return new Date(String(v).replace(' ', 'T')).toLocaleString(); } catch (e) { return String(v); }
+    }
+
+    function UsdtHistoryPanel() {
+      const initial = new URLSearchParams(window.location.search);
+      const [rows, setRows] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [type, setType] = useState(initial.get('usdt_type') || '');
+      const [status, setStatus] = useState(initial.get('usdt_status') || '');
+      const [from, setFrom] = useState(initial.get('usdt_from') || '');
+      const [to, setTo] = useState(initial.get('usdt_to') || '');
+      const [q, setQ] = useState(initial.get('usdt_q') || '');
+
+      const load = async () => {
+        setLoading(true);
+        const p = new URLSearchParams();
+        if (type) p.set('type', type);
+        if (status) p.set('status', status);
+        if (from) p.set('from', from);
+        if (to) p.set('to', to);
+        if (q) p.set('q', q);
+        const res = await fetch(usdtHistoryUrl + '?' + p.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
+        const json = await res.json();
+        const d = json.data || {};
+        setRows(d.rows || []);
+        if (d.monitor) {
+          const map = {
+            'popup-onchain-usdt': d.monitor.onchain_usdt,
+            'popup-db-usdt': d.monitor.db_usdt,
+            'popup-diff': d.monitor.difference,
+            'popup-bnb': d.monitor.onchain_bnb,
+            'popup-bman': d.monitor.onchain_bman,
+            'popup-address': d.monitor.address,
+          };
+          Object.keys(map).forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = map[id] ?? '';
+          });
+          const st = document.getElementById('wallet-popup-status');
+          if (st) st.textContent = d.monitor.has_pending ? 'Uncredited funds found' : 'Synced';
+        }
+        const msg = document.getElementById('popup-message');
+        if (msg) msg.textContent = json.message || '';
+        setLoading(false);
+      };
+
+      useEffect(() => { load(); }, []);
+
+      const apply = () => {
+        const p = new URLSearchParams(window.location.search);
+        if (type) p.set('usdt_type', type); else p.delete('usdt_type');
+        if (status) p.set('usdt_status', status); else p.delete('usdt_status');
+        if (from) p.set('usdt_from', from); else p.delete('usdt_from');
+        if (to) p.set('usdt_to', to); else p.delete('usdt_to');
+        if (q) p.set('usdt_q', q); else p.delete('usdt_q');
+        window.history.replaceState({}, '', window.location.pathname + '?' + p.toString());
+        load();
+      };
+
+      return (
+        <div>
+          <div className="usdt-history-head">
+            <div>
+              <b style={{fontSize:'12px',fontWeight:1000}}>USDT Deposit History</b>
+              <div className="mini-note">Live, no reload, full history below.</div>
+            </div>
+            <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+              <button className={`pill ${type === '' ? 'active' : ''}`} type="button" onClick={() => { setType(''); setTimeout(load, 0); }}>All</button>
+              <button className={`pill ${type === 'DEPOSIT' ? 'active' : ''}`} type="button" onClick={() => { setType('DEPOSIT'); setTimeout(load, 0); }}>Deposit</button>
+              <button className={`pill ${type === 'CREDIT' ? 'active' : ''}`} type="button" onClick={() => { setType('CREDIT'); setTimeout(load, 0); }}>Credit</button>
+            </div>
+          </div>
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'8px',marginTop:'10px'}}>
+            <input className="f-in" type="date" value={from} onChange={e => setFrom(e.target.value)} />
+            <input className="f-in" type="date" value={to} onChange={e => setTo(e.target.value)} />
+            <select className="f-sel" value={status} onChange={e => setStatus(e.target.value)}>
+              <option value="">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="confirming">Confirming</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="credited">Credited</option>
+            </select>
+            <input className="f-in" placeholder="Search tx hash..." value={q} onChange={e => setQ(e.target.value)} />
+          </div>
+          <div style={{display:'flex',gap:'8px',flexWrap:'wrap',marginTop:'10px'}}>
+            <button className="btn-soft" type="button" onClick={apply}>Apply Filter</button>
+            <button className="btn-warn" type="button" onClick={openWalletPopup}>On-chain Details</button>
+            <button className="btn-soft" type="button" onClick={() => location.href = '<?= base_url('user/stakings'); ?>'}>Order to Staking</button>
+          </div>
+          <div style={{marginTop:'12px'}}>
+            <div className="mini-note" style={{marginBottom:'8px'}}>Full History: {rows.length} record(s)</div>
+            {loading ? <div className="empty">Loading USDT history...</div> : (
+              <div style={{display:'grid',gap:'10px'}}>
+                {rows.length ? rows.map((r, idx) => (
+                  <div key={r.id || idx} style={{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start',border:'1px solid #f1f1f6',borderRadius:'14px',padding:'10px',background:'#fff'}}>
+                    <div>
+                      <div style={{fontSize:'12px',fontWeight:1000,lineHeight:1.2}}>{r.token || 'USDT'} deposit</div>
+                      <div style={{fontSize:'11px',color:'var(--text-muted)',fontWeight:900,marginTop:'4px'}}>{fmt(r.detected_at || r.created_at)}</div>
+                      <div style={{fontSize:'10px',color:'var(--text-muted)',fontWeight:900,marginTop:'3px'}}>Confirmations: {r.confirmations ?? 0} · {r.status || ''}</div>
+                      <div style={{fontSize:'10px',color:'var(--text-muted)',fontWeight:900,marginTop:'3px',wordBreak:'break-all'}}>{r.tx_hash || ''}</div>
+                    </div>
+                    <div style={{textAlign:'right'}}>
+                      <div style={{fontSize:'12px',fontWeight:1000}}>{Number(r.amount_usdt || 0).toFixed(4)}</div>
+                      <div style={{fontSize:'10px',color:'var(--text-muted)',fontWeight:900,marginTop:'4px'}}>{r.status || ''}</div>
+                    </div>
+                  </div>
+                )) : <div className="empty">No deposits detected yet.</div>}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('usdt-history-root')).render(<UsdtHistoryPanel />);
   </script>
 </body>
 

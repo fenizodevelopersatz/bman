@@ -1,5 +1,17 @@
 
 
+SET FOREIGN_KEY_CHECKS = 0;
+
+DELETE FROM users
+WHERE id <> 1;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+
+ALTER TABLE users AUTO_INCREMENT = 2;
+
+
+
 http://localhost:9000/user/lending/payment_success?method=paypal&did=54&PayerID=CSDRH97R7GLM8
 
 
@@ -2426,3 +2438,41 @@ Earning Wallet → All ROI (monthly and maturity) and the 8% binary earning. Thi
 Staking Wallet → Locked staking rewards (e.g., the 2% binary staking portion or other staking incentives).
 Bonus Wallet → Referral bonuses, instant package bonuses, rank bonuses, leadership bonuses, and promotional rewards.
 This separation keeps accounting simple, makes audits easier, and gives users a clear understanding of where each type of reward is credited.
+
+
+
+
+use cron to need to checking binary matching of level completed or not
+
+               A
+           /       \
+          B         C
+        /   \     /   \
+       D     E   F     G
+      /
+     H
+
+Binary Matching Bonus
+
+Here we need to checking the matching of binary tree level 
+
+Total Matching Bonus
+
+10%
+
+Distribution:
+
+ 8% Earning Wallet
+
+ 2% StakingWallet
+
+Earning Wallet:     Binary matching ( 10% - > 8% earning Wallet)
+Staking Wallet:     Binary matching ( 10% - > 2% staking Wallet)
+
+
+http://192.168.29.18:9000/user/wallet to display the dynamically instand qr code & update the live balance of usdt, all the balance using rpc when between the diffrent or not values to check the ethereum api, show the history deposit
+usdt- in/out history(usdt deposit + widthdraw completed)
+Exchange - Bman history
+Earning Wallet -history(ROI returns + Binary matching 8%)
+Staking Wallet-history(Binary matching 2%)
+Bonus Wallet-History(25% instant return of staking)@we

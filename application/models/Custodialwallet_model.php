@@ -285,8 +285,37 @@ class Custodialwallet_model extends CI_Model
 
     public function deposits($user_id, $limit = 50)
     {
-        return $this->db->where('user_id', (int)$user_id)
-                        ->order_by('detected_at', 'DESC')->limit((int)$limit)
+        $user_id = (int)$user_id;
+        $limit = (int)$limit;
+
+        // Primary source: wallet_deposits written by Depositlistener_model.
+        $rows = $this->db->where('user_id', $user_id)
+                         ->order_by('id', 'DESC')
+                         ->limit($limit)
+                         ->get('wallet_deposits')
+                         ->result_array();
+
+        if (!empty($rows)) {
+            return array_map(function ($r) {
+                return [
+                    'id' => $r['id'] ?? null,
+                    'token' => $r['token'] ?? 'USDT',
+                    'amount_usdt' => $r['amount_usdt'] ?? 0,
+                    'status' => $r['status'] ?? '',
+                    'tx_hash' => $r['tx_hash'] ?? '',
+                    'detected_at' => $r['credited_at'] ?? ($r['created_at'] ?? ''),
+                    'confirmed_at' => $r['credited_at'] ?? '',
+                    'wallet_address' => $r['wallet_address'] ?? '',
+                    'network' => $r['network'] ?? '',
+                    'block_number' => $r['block_number'] ?? null,
+                    'confirmations' => $r['confirmations'] ?? null,
+                ];
+            }, $rows);
+        }
+
+        // Backward-compatible fallback for older rows if any exist.
+        return $this->db->where('user_id', $user_id)
+                        ->order_by('detected_at', 'DESC')->limit($limit)
                         ->get('custodial_deposits')->result_array();
     }
 

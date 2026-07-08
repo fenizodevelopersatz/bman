@@ -636,6 +636,7 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
         }
 
         $this->load->model('Wallet_model', 'wallet');
+        $this->load->model('Custodialwallet_model', 'cw');
 
         $this->data['title'] = "View My wallet";
         $this->data['card_title'] = "Wallet information";
@@ -676,6 +677,19 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
             'bonus'    => (float) $bal['bonus'],
         ];
 
+        // On-chain custodial deposit wallet + recent deposit history.
+        $wallet_row = $this->cw->ensureAddress($user_id);
+        $this->data['deposit_wallet'] = $wallet_row ?: [];
+        $this->data['wallet_monitor'] = $this->cw->monitor($user_id);
+        $this->data['deposit_history'] = $this->cw->deposits($user_id, 20);
+        $this->data['usdt_history_filters'] = [
+            'type' => strtoupper(trim((string)$this->input->get('usdt_type'))),
+            'status' => strtoupper(trim((string)$this->input->get('usdt_status'))),
+            'from' => trim((string)$this->input->get('usdt_from')),
+            'to' => trim((string)$this->input->get('usdt_to')),
+        ];
+        $this->data['wallet_check_url'] = site_url('member/profile/wallet_check');
+
         // ✅ history list + counts + paging
         $list = $this->wallet->getWalletHistory($user_id, $filters, $page, $per_page);
 
@@ -684,6 +698,54 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
         $this->data['paging']       = $list['paging'];
         
         $this->load->view('user/wallet/view_mywallet_management', $this->data);
+    }
+
+    public function usdt_history_json()
+    {
+        if (!$this->input->is_ajax_request()) {
+            show_404();
+        }
+        $user_id = (int) $this->session->userdata('user_userid');
+        if (!$user_id) {
+            return $this->_json(['status' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $this->load->model('Custodialwallet_model', 'cw');
+        $history = $this->cw->deposits($user_id, 200);
+        $monitor = $this->cw->monitor($user_id);
+
+        $filters = [
+            'type' => strtoupper(trim((string) $this->input->get('type'))),
+            'status' => strtoupper(trim((string) $this->input->get('status'))),
+            'from' => trim((string) $this->input->get('from')),
+            'to' => trim((string) $this->input->get('to')),
+            'q' => trim((string) $this->input->get('q')),
+        ];
+
+        $rows = array_values(array_filter($history, function ($r) use ($filters) {
+            $status = strtoupper((string)($r['status'] ?? ''));
+            $date = (string)($r['detected_at'] ?? ($r['created_at'] ?? ''));
+            $type = strtoupper((string)($r['token'] ?? 'USDT'));
+            $ref = strtolower((string)($r['tx_hash'] ?? ''));
+            $q = strtolower($filters['q']);
+
+            if ($filters['status'] !== '' && $status !== $filters['status']) return false;
+            if ($filters['type'] !== '' && $filters['type'] !== 'ALL' && $filters['type'] !== $type && $filters['type'] !== 'DEPOSIT') return false;
+            if ($filters['from'] !== '' && $date !== '' && strtotime($date) < strtotime($filters['from'])) return false;
+            if ($filters['to'] !== '' && $date !== '' && strtotime($date) > strtotime($filters['to'] . ' 23:59:59')) return false;
+            if ($q !== '' && strpos($ref, $q) === false && strpos(strtolower($status), $q) === false) return false;
+            return true;
+        }));
+
+        return $this->_json([
+            'status' => true,
+            'message' => 'OK',
+            'data' => [
+                'rows' => $rows,
+                'monitor' => $monitor,
+                'count' => count($rows),
+            ]
+        ]);
     }
 
 
