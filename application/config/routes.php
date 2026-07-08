@@ -674,6 +674,10 @@ $route['admin/staking/swap-orders/retry/(:num)']['post'] = 'admin/staking/Swapor
 $route['admin/staking/swap-orders/deliver/(:num)']['post'] = 'admin/staking/Swaporders/deliver/$1';
 // auto-deliver BMAN on-chain for completed orders (CLI or ?token=)
 $route['deliver-bman-cron'] = 'admin/staking/Swaporders/deliver_cron';
+// Ceiling Wallet (system-only): capped binary/group income held for admin
+$route['admin/staking/ceiling-wallet'] = 'admin/staking/Ceilingwallet/index';
+$route['admin/staking/ceiling-wallet/release']['post'] = 'admin/staking/Ceilingwallet/release';
+$route['admin/staking/ceiling-wallet/adjust']['post'] = 'admin/staking/Ceilingwallet/adjust';
 
 /**************** Finance — Custodial Wallet Monitor (on-chain vs DB) */
 $route['admin/wallet-monitor'] = 'admin/wallet/Walletmonitor';
