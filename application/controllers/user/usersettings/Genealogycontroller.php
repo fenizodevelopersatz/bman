@@ -131,8 +131,8 @@ class Genealogycontroller extends MY_Controller
         $rootId = (int) $this->session->userdata('user_userid');
         $depth = (int) $this->input->get('depth');
         if ($depth <= 0)
-            $depth = 3;
-        $depth = min(7, max(1, $depth));
+            $depth = 10; // default limit: 10 levels of downline
+        $depth = min(10, max(1, $depth));
 
         // this returns array of arrays
         $rows = $this->BinaryModel->getDownlineMembers($rootId);

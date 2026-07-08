@@ -1191,7 +1191,7 @@ function wallet_title_fallback($type)
       </div>
 
       <!-- Summary Balances -->
-      <div class="sum-grid">
+      <!-- <div class="sum-grid">
         <div class="sum-card">
           <div class="sum-ic sum-good"><i class="ph ph-wallet"></i></div>
           <div class="sum-meta">
@@ -1227,7 +1227,7 @@ function wallet_title_fallback($type)
             <span>Awaiting approval</span>
           </div>
         </div>
-      </div>
+      </div> -->
 
       <!-- Quick Actions -->
       <div class="quick-actions">

@@ -1141,6 +1141,11 @@
                 <option value="3">Depth: 3 Levels</option>
                 <option value="4">Depth: 4 Levels</option>
                 <option value="5">Depth: 5 Levels</option>
+                <option value="6">Depth: 6 Levels</option>
+                <option value="7">Depth: 7 Levels</option>
+                <option value="8">Depth: 8 Levels</option>
+                <option value="9">Depth: 9 Levels</option>
+                <option value="10" selected>Depth: 10 Levels</option>
               </select>
 
               <div class="zoom">
@@ -1314,7 +1319,7 @@
       setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 250); }, 1400);
     }
 
-    async function loadTree(depth = 3) {
+    async function loadTree(depth = 10) {
       try {
         const res = await fetch(`${TREE_URL}?depth=${encodeURIComponent(depth)}`, { credentials: 'same-origin' });
         const json = await res.json();
@@ -1336,7 +1341,7 @@
 
     // ======= Tree view modes (Binary / Genealogy / Generation / Level Wise / Direct) =======
     let CURRENT_VIEW = 'binary';
-    let CURRENT_DEPTH = 3;
+    let CURRENT_DEPTH = 10;
 
     function setTreeView(view, ev) {
       CURRENT_VIEW = view;
@@ -1347,6 +1352,8 @@
 
     function renderCurrentView(depth) {
       CURRENT_DEPTH = depth || CURRENT_DEPTH;
+      // Invalidate any in-flight progressive render before starting a new one.
+      RENDER_TOKEN++;
       const root = document.getElementById('treeRoot');
       const inner = document.getElementById('treeInner');
       // Reset zoom/transform for the flat (non-binary) layouts.
@@ -1362,7 +1369,7 @@
         case 'binary':
         default:
           root.className = 'tree';
-          render(CURRENT_DEPTH);
+          renderBinaryProgressive(CURRENT_DEPTH); // progressive, lag-free load
       }
     }
 
@@ -1446,8 +1453,23 @@
     }
 
     // Total Exchange Wallet (BMAN) investment across a whole subtree (inclusive).
+    // Memoised via a single post-order pass (precomputeSums) so rendering a deep
+    // tree stays O(n) instead of O(n^2) — this is what keeps big trees lag-free.
+    let EX_SUM = new Map();
+    function precomputeSums(node) {
+      EX_SUM = new Map();
+      (function walk(n) {
+        if (!n || Object.keys(n).length === 0) return 0;
+        const st = (n.status || "").toUpperCase();
+        const own = (SHOW_EMPTY || st !== "EMPTY") ? (parseFloat(n.exchange) || 0) : 0;
+        const total = own + walk(n.left) + walk(n.right);
+        EX_SUM.set(n, total);
+        return total;
+      })(node);
+    }
     function sumExchange(node) {
       if (!node || Object.keys(node).length === 0) return 0;
+      if (EX_SUM.has(node)) return EX_SUM.get(node);
       const st = (node.status || "").toUpperCase();
       let s = (SHOW_EMPTY || st !== "EMPTY") ? (parseFloat(node.exchange) || 0) : 0;
       s += sumExchange(node.left) + sumExchange(node.right);
@@ -1544,10 +1566,39 @@
     }
 
     function render(maxDepth = 3) {
+      precomputeSums(TREE);
       document.getElementById("treeRoot").innerHTML = buildTree(TREE, 1, maxDepth);
       attachSearchIndex();
       centerTree();
 
+      const firstNode = document.querySelector(".node");
+      if (firstNode) selectNode(firstNode);
+    }
+
+    // Progressive binary render: draw the tree one level at a time, yielding to
+    // the browser between levels so deep (up to 10-level) trees load continuously
+    // without freezing the page. A render token cancels a stale run if the user
+    // switches view or depth mid-load.
+    let RENDER_TOKEN = 0;
+    async function renderBinaryProgressive(maxDepth) {
+      const myToken = RENDER_TOKEN;
+      const root = document.getElementById("treeRoot");
+      root.className = "tree";
+      precomputeSums(TREE);
+
+      let prevLen = -1;
+      for (let d = 1; d <= maxDepth; d++) {
+        if (myToken !== RENDER_TOKEN) return; // superseded — stop
+        const html = buildTree(TREE, 1, d);
+        if (html.length === prevLen) break;  // no deeper members — done early
+        prevLen = html.length;
+        root.innerHTML = html;
+        if (d === 1) centerTree();
+        // Yield a frame so the UI stays responsive between levels.
+        await new Promise(r => requestAnimationFrame(r));
+      }
+      if (myToken !== RENDER_TOKEN) return;
+      attachSearchIndex();
       const firstNode = document.querySelector(".node");
       if (firstNode) selectNode(firstNode);
     }
@@ -1717,11 +1768,11 @@
     });
 
     document.getElementById("depthSel").addEventListener("change", (e) => {
-      loadTree(parseInt(e.target.value, 10) || 3);
+      loadTree(parseInt(e.target.value, 10) || 10);
     });
 
-    // Init
-    loadTree(3);
+    // Init — default to a 10-level downline.
+    loadTree(10);
 
   </script>
   <script>
