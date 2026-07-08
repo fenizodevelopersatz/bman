@@ -9,7 +9,7 @@ var KTModalNewTicket = (function () {
                     (t = document.getElementById("kt_modal_new_ticket_submit")),
                     (e = document.getElementById("kt_modal_new_ticket_cancel")),
                     new Dropzone("#kt_modal_create_ticket_attachments", {
-                        url: "https://www.fenizotechnologies.com",
+                        url: "https://nexman.in",
                         paramName: "file",
                         maxFiles: 10,
                         maxFilesize: 10,
