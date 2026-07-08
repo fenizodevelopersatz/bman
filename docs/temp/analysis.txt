@@ -2442,6 +2442,19 @@ This separation keeps accounting simple, makes audits easier, and gives users a 
 
 
 
+
+http://192.168.29.18:9000/user/wallet to display the dynamically instand qr code & update the live balance of usdt, all the balance using rpc when between the diffrent or not values to check the ethereum api, show the history deposit
+usdt- in/out history(usdt deposit + widthdraw completed)
+Exchange - Bman history
+Earning Wallet -history(ROI returns + Binary matching 8%)
+Staking Wallet-history(Binary matching 2%)
+Bonus Wallet-History(25% instant return of staking)
+
+
+
+
+
+
 use cron to need to checking binary matching of level completed or not
 
                A
@@ -2469,10 +2482,196 @@ Distribution:
 Earning Wallet:     Binary matching ( 10% - > 8% earning Wallet)
 Staking Wallet:     Binary matching ( 10% - > 2% staking Wallet)
 
+Now we are going to give the A is one level completed that was the they referel of downline purchase the package B and C is 
+                 A
+           /         \
+        B(1 Bman)     C(10000 Bman)
 
-http://192.168.29.18:9000/user/wallet to display the dynamically instand qr code & update the live balance of usdt, all the balance using rpc when between the diffrent or not values to check the ethereum api, show the history deposit
-usdt- in/out history(usdt deposit + widthdraw completed)
-Exchange - Bman history
-Earning Wallet -history(ROI returns + Binary matching 8%)
-Staking Wallet-history(Binary matching 2%)
-Bonus Wallet-History(25% instant return of staking)@we
+On the C purchase the package of 10000 then calculate the B and C of minimum exchange wallet balance So take the low values downline members first level
+
+A sponsor to give from b value of 1 Bman(10 %)
+A recieved on the Earning Wallet from B :  Binary matching ( 10% - > 8% earning Wallet) : Level 1
+A received on the Staking Wallet from B:   Binary matching ( 10% - > 2% staking Wallet) : Level 1
+
+So make new Ceiling wallet only manage background because A users sum of ceiling wallets balance will be below the 
+12. Group Incentive Ceiling
+Stake Ceiling
+5,000 5,000
+10,000 10,000
+20,000 20,000
+25,000 25,000
+50,000 30,000
+100,000 30,000
+200,000 50,000
+300,000 70,000
+500,000 100,000
+
+
+                           A
+           /                           \
+        B(1 Bman)                      C(10000 Bman)
+        /       \                       /       \
+    /            \                      /            \
+ D(10000 Bman)   E(10000 Bman)      D(10000 Bman)   E(10000 Bman)
+
+Most take the first user because all are same stakings of investment So take 10000 * 10% => 100 Bman to give
+A recieved on the Earning Wallet from B :  Binary matching ( 10% - > 8% earning Wallet) : Level 2
+A received on the Staking Wallet from B:   Binary matching ( 10% - > 2% staking Wallet) : Level 2
+
+B recieved on the Earning Wallet from B :  Binary matching ( 10% - > 8% earning Wallet): Level 1
+B received on the Staking Wallet from B:   Binary matching ( 10% - > 2% staking Wallet): Level 1
+
+C recieved on the Earning Wallet from B :  Binary matching ( 10% - > 8% earning Wallet): Level 1
+C received on the Staking Wallet from B:   Binary matching ( 10% - > 2% staking Wallet): Level 1 So when Ceiling reached then go to admin ceiling wallet
+//////////////////////////////////////////////////////////////////
+
+
+use cron to need to checking binary matching of level completed or not
+
+
+
+               A
+
+           /       \
+
+          B         C
+
+        /   \     /   \
+
+       D     E   F     G
+
+      /
+
+     H
+
+
+
+Binary Matching Bonus
+
+
+
+Here we need to checking the matching of binary tree level 
+
+
+
+Total Matching Bonus
+
+
+
+10%
+
+
+
+Distribution:
+
+
+
+ 8% Earning Wallet
+
+
+
+ 2% StakingWallet
+
+
+
+Earning Wallet:     Binary matching ( 10% - > 8% earning Wallet)
+
+Staking Wallet:     Binary matching ( 10% - > 2% staking Wallet)
+
+
+
+Now we are going to give the A is one level completed that was the they referel of downline purchase the package B and C is 
+
+                 A
+
+           /         \
+
+        B(1 Bman)     C(10000 Bman)
+
+
+
+On the C purchase the package of 10000 then calculate the B and C of minimum exchange wallet balance So take the low values downline members first level
+
+
+
+A sponsor to give from b value of 1 Bman(10 %)
+
+A recieved on the Earning Wallet from B :  Binary matching ( 10% - > 8% earning Wallet) : Level 1
+
+A received on the Staking Wallet from B:   Binary matching ( 10% - > 2% staking Wallet) : Level 1
+
+
+
+So make new Ceiling wallet only manage background because A users sum of ceiling wallets balance will be below the 
+
+12. Group Incentive Ceiling
+
+Stake Ceiling
+
+5,000 5,000
+
+10,000 10,000
+
+20,000 20,000
+
+25,000 25,000
+
+50,000 30,000
+
+100,000 30,000
+
+200,000 50,000
+
+300,000 70,000
+
+500,000 100,000
+
+
+
+
+
+                           A
+
+           /                           \
+
+        B(1 Bman)                      C(10000 Bman)
+
+        /       \                       /       \
+
+    /            \                      /            \
+
+ D(10000 Bman)   E(10000 Bman)      D(10000 Bman)   E(10000 Bman)
+
+
+
+Most take the first user because all are same stakings of investment So take 10000 * 10% => 100 Bman to give
+
+A recieved on the Earning Wallet from B :  Binary matching ( 10% - > 8% earning Wallet) : Level 2
+
+A received on the Staking Wallet from B:   Binary matching ( 10% - > 2% staking Wallet) : Level 2
+
+
+
+B recieved on the Earning Wallet from B :  Binary matching ( 10% - > 8% earning Wallet): Level 1
+
+B received on the Staking Wallet from B:   Binary matching ( 10% - > 2% staking Wallet): Level 1
+
+
+
+C recieved on the Earning Wallet from B :  Binary matching ( 10% - > 8% earning Wallet): Level 1
+
+C received on the Staking Wallet from B:   Binary matching ( 10% - > 2% staking Wallet): Level 1 So when Ceiling reached then go to admin ceiling wallet
+
+
+
+So manage with proper type and all transaction are on chain so before checking the admin hot wallet gas balance and then execute the cron and give admin to proper retry the transaction of each and every transfer
+
+
+
+////////////////////////////
+
+Find the all the cron execute at single page to manage all the crons
+give the details of ROI
+Swap
+Deposit
+

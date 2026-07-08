@@ -693,6 +693,8 @@ $route['admin/wallet/onchain-transactions'] = 'admin/wallet/Onchaintx/index';
 $route['admin/wallet/onchain-transactions/list']['post'] = 'admin/wallet/Onchaintx/list';
 $route['admin/wallet/onchain-transactions/detail']['get'] = 'admin/wallet/Onchaintx/detail';
 $route['admin/wallet/onchain-transactions/receipt/(:num)'] = 'admin/wallet/Onchaintx/receipt/$1';
+$route['admin/wallet/cron-lab'] = 'admin/wallet/Cronlab/index';
+$route['admin/wallet/cron-lab/run']['post'] = 'admin/wallet/Cronlab/run';
 
 /**************** Internal Wallet Transfer (user → own wallets, doc 9) */
 $route['user/transfer_wallet'] = 'user/Transfer_wallet/index';                       // GET page
