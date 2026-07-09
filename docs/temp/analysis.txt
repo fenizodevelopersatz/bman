@@ -3080,3 +3080,17 @@ give the details of ROI
 Swap
 Deposit
 
+
+Today Plan:
+1. Show wallet History of every transaction
+2. Testing the ROI cron with history showing user side
+3. Testing the Bonus coin Distribute & history showing on user side
+4. Testing the wallet type wise bman distribution or Not on user side
+5. Rank System integration and backend implementation
+6. Support/Security
+
+
+Pending & Need to testing
+1. Rank System integration 
+2. Binary Staking amount distribution checking & history showing on both side(partially completed)
+3. Report on admin side

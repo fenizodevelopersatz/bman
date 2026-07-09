@@ -629,6 +629,11 @@
       margin-top: 10px;
     }
 
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
     .usdt-history-head {
       display: flex;
       align-items: center;
@@ -1241,6 +1246,12 @@ function wallet_title_fallback($type)
         .allw-strip .wval small{font-size:11px;font-weight:900;color:#6b7280;}
         .allw-strip .wtag{font-size:9px;font-weight:900;letter-spacing:.2px;padding:2px 7px;border-radius:99px;
           background:#26a17b1a;color:#1b8f6b;text-transform:uppercase;}
+
+        /* Spinner animation for loading states */
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
       </style>
       <div class="allw-strip">
         <!-- USDT Wallet (IN & OUT) -->
@@ -1366,6 +1377,30 @@ function wallet_title_fallback($type)
           </div>
         </div>
       </div>
+
+      <!-- 📌 Pending Deposits Alert & Credit Button -->
+      <?php
+        $pending_deposits = $pending_deposits ?? [];
+        $pending_count = count($pending_deposits);
+        if ($pending_count > 0):
+      ?>
+      <div class="table-card" style="margin-bottom:14px;background:linear-gradient(135deg,#fef3c7,#fef9f3);border:1px solid #fcd34d;border-radius:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;gap:14px;">
+          <div style="display:flex;align-items:center;gap:12px;flex:1;">
+            <div style="background:#f59e0b;color:#fff;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex:0 0 auto;">
+              <i class="ph ph-warning" style="font-size:20px;"></i>
+            </div>
+            <div style="flex:1;">
+              <b style="display:block;color:#92400e;font-size:14px;margin-bottom:4px;"><?= $pending_count; ?> Deposits Confirmed On-Chain</b>
+              <small style="color:#b45309;">Confirmed on blockchain (15+ blocks) but waiting to be credited to your wallet. Click below to credit instantly.</small>
+            </div>
+          </div>
+          <button id="creditPendingBtn" class="btn-main" type="button" style="flex:0 0 auto;background:#c2410c;border:none;padding:10px 16px;">
+            <i class="ph ph-check"></i> Credit Now
+          </button>
+        </div>
+      </div>
+      <?php endif; ?>
 
       <!-- Quick Actions -->
       <div class="quick-actions">
@@ -1773,6 +1808,50 @@ function wallet_title_fallback($type)
       }
     }
 
+    // ✅ Credit Pending Deposits
+    async function creditPendingDeposits() {
+      const btn = document.getElementById('creditPendingBtn');
+      if (!btn) return;
+
+      const originalHTML = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ph ph-spinner" style="animation:spin 1s linear infinite;"></i> Processing...';
+
+      try {
+        const res = await fetch('<?= base_url('user/instant-credit-deposits'); ?>', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify({})
+        });
+
+        const json = await res.json();
+
+        if (json.success) {
+          toastMini(`✓ ${json.credited_count} deposit(s) credited! Balance: ${json.new_balance_usdt} USDT`);
+          setTimeout(() => location.reload(), 1500);
+        } else {
+          btn.innerHTML = originalHTML;
+          btn.disabled = false;
+          toastMini(`❌ ${json.message}`);
+        }
+      } catch (e) {
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+        toastMini('Credit failed: ' + e.message);
+      }
+    }
+
+    // ✅ Add click handler when DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('creditPendingBtn');
+      if (btn) {
+        btn.addEventListener('click', creditPendingDeposits);
+      }
+    });
+
     function setUsdtType(type) {
       const params = new URLSearchParams(window.location.search);
       if (type) params.set('usdt_type', type); else params.delete('usdt_type');
@@ -1903,6 +1982,33 @@ function wallet_title_fallback($type)
 
       useEffect(() => { load(); }, []);
 
+      const creditPendingDeposits = async () => {
+        const btn = document.getElementById('creditPendingBtn');
+        if (!btn) return;
+
+        const originalHTML = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px;"><svg style="width:14px;height:14px;animation:spin 1s linear infinite;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg> Processing...</span>';
+
+        try {
+          const response = await fetch('/user/instant-credit-deposits', { method: 'POST' });
+          const data = await response.json();
+
+          if (data.success) {
+            alert(`✓ Success!\n${data.credited_count} deposit(s) credited\nNew balance: ${parseFloat(data.new_balance_usdt).toFixed(4)} USDT`);
+            setTimeout(() => location.reload(), 1000);
+          } else {
+            alert(`❌ ${data.message}`);
+            btn.disabled = false;
+            btn.innerHTML = originalHTML;
+          }
+        } catch (err) {
+          alert(`Error: ${err.message}`);
+          btn.disabled = false;
+          btn.innerHTML = originalHTML;
+        }
+      };
+
       const apply = () => {
         const p = new URLSearchParams(window.location.search);
         if (type) p.set('usdt_type', type); else p.delete('usdt_type');
@@ -1914,8 +2020,23 @@ function wallet_title_fallback($type)
         load();
       };
 
+      const pendingCount = rows.filter(r => r.status === 'pending_confirmation').length;
+
       return (
         <div>
+          {/* ✨ PENDING DEPOSITS ALERT */}
+          {pendingCount > 0 && (
+            <div style={{background:'#dbeafe',border:'1px solid #93c5fd',borderRadius:'14px',padding:'12px',marginBottom:'12px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'12px'}}>
+              <div>
+                <div style={{fontSize:'12px',fontWeight:1000,color:'#1e40af'}}>⚠️  {pendingCount} Deposits Confirmed On-Chain</div>
+                <div style={{fontSize:'11px',color:'#1e40af',opacity:0.8,marginTop:'3px'}}>Confirmed on blockchain but waiting to be credited. Click "Credit Now" to credit instantly.</div>
+              </div>
+              <button id="creditPendingBtn" style={{border:'none',background:'#3b82f6',color:'#fff',borderRadius:'10px',padding:'8px 12px',fontWeight:900,fontSize:'12px',cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}} onClick={creditPendingDeposits} type="button">
+                ✓ Credit Now
+              </button>
+            </div>
+          )}
+
           <div className="usdt-history-head">
             <div>
               <b style={{fontSize:'12px',fontWeight:1000}}>USDT Deposit History</b>
@@ -1948,20 +2069,40 @@ function wallet_title_fallback($type)
             <div className="mini-note" style={{marginBottom:'8px'}}>Full History: {rows.length} record(s)</div>
             {loading ? <div className="empty">Loading USDT history...</div> : (
               <div style={{display:'grid',gap:'10px'}}>
-                {rows.length ? rows.map((r, idx) => (
-                  <div key={r.id || idx} style={{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start',border:'1px solid #f1f1f6',borderRadius:'14px',padding:'10px',background:'#fff'}}>
-                    <div>
-                      <div style={{fontSize:'12px',fontWeight:1000,lineHeight:1.2}}>{r.token || 'USDT'} deposit</div>
-                      <div style={{fontSize:'11px',color:'var(--text-muted)',fontWeight:900,marginTop:'4px'}}>{fmt(r.detected_at || r.created_at)}</div>
-                      <div style={{fontSize:'10px',color:'var(--text-muted)',fontWeight:900,marginTop:'3px'}}>Confirmations: {r.confirmations ?? 0} · {r.status || ''}</div>
-                      <div style={{fontSize:'10px',color:'var(--text-muted)',fontWeight:900,marginTop:'3px',wordBreak:'break-all'}}>{r.tx_hash || ''}</div>
+                {rows.length ? rows.map((r, idx) => {
+                  const isPending = r.status === 'pending_confirmation';
+                  const isConfirmed = r.status === 'credited';
+                  return (
+                    <div key={r.id || idx} style={{display:'flex',justifyContent:'space-between',gap:'10px',alignItems:'flex-start',border:'1px solid ' + (isPending ? '#fed7aa' : '#f1f1f6'),borderRadius:'14px',padding:'10px',background:isPending ? '#fff7ed' : '#fff'}}>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:'12px',fontWeight:1000,lineHeight:1.2}}>{r.token || 'USDT'} deposit</div>
+                        <div style={{fontSize:'11px',color:'var(--text-muted)',fontWeight:900,marginTop:'4px'}}>{fmt(r.detected_at || r.created_at)}</div>
+                        <div style={{fontSize:'10px',color:'var(--text-muted)',fontWeight:900,marginTop:'3px'}}>
+                          Confirmations: {r.confirmations ?? 0} / 15 {(r.confirmations ?? 0) >= 15 && <span style={{color:'#10b981'}}>✓</span>}
+                        </div>
+                        <div style={{fontSize:'10px',color:'var(--text-muted)',fontWeight:900,marginTop:'3px',wordBreak:'break-all',fontFamily:'monospace'}}>
+                          <a href={'https://bscscan.com/tx/' + (r.tx_hash || '#')} target="_blank" style={{color:'#6366f1',textDecoration:'none'}}>{(r.tx_hash || '').substring(0, 12)}...</a>
+                        </div>
+                      </div>
+                      <div style={{textAlign:'right',whiteSpace:'nowrap'}}>
+                        <div style={{fontSize:'12px',fontWeight:1000}}>{Number(r.amount_usdt || 0).toFixed(4)} USDT</div>
+                        <div style={{fontSize:'10px',marginTop:'4px'}}>
+                          <span style={{display:'inline-block',padding:'4px 8px',borderRadius:'999px',background:isConfirmed ? '#ecfdf3' : isPending ? '#fff7ed' : '#f7f7fb',border:'1px solid ' + (isConfirmed ? '#d1fadf' : isPending ? '#fed7aa' : '#f1f1f6'),color:isConfirmed ? '#0f9d58' : isPending ? '#c2410c' : '#6b7280',fontWeight:900,fontSize:'9px'}}>
+                            {isConfirmed ? '✓ Credited' : isPending ? '⏳ Pending' : (r.status || '').toUpperCase()}
+                          </span>
+                        </div>
+                        {isPending && (
+                          <button style={{marginTop:'6px',border:'none',background:'#3b82f6',color:'#fff',borderRadius:'8px',padding:'5px 8px',fontWeight:900,fontSize:'9px',cursor:'pointer',display:'block',width:'100%'}} onClick={(e) => {
+                            e.preventDefault();
+                            if (confirm(`Credit ${Number(r.amount_usdt || 0).toFixed(4)} USDT?`)) creditPendingDeposits();
+                          }} type="button">
+                            → Credit
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div style={{textAlign:'right'}}>
-                      <div style={{fontSize:'12px',fontWeight:1000}}>{Number(r.amount_usdt || 0).toFixed(4)}</div>
-                      <div style={{fontSize:'10px',color:'var(--text-muted)',fontWeight:900,marginTop:'4px'}}>{r.status || ''}</div>
-                    </div>
-                  </div>
-                )) : <div className="empty">No deposits detected yet.</div>}
+                  );
+                }) : <div className="empty">No deposits detected yet.</div>}
               </div>
             )}
           </div>

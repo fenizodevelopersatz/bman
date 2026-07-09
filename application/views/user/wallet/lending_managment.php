@@ -14,6 +14,8 @@ $user = $user ?? (object) [
 ];
 
 $wallet_balance_usd = $wallet_balance_usd ?? 0.00;
+$roi_history = $roi_history ?? [];
+$recent_staking_activity = $recent_staking_activity ?? [];
 
 $packages = $packages ?? [
   (object) [
@@ -70,9 +72,6 @@ $investments = $investments ?? [
     'status' => 'ACTIVE'
   ],
 ];
-
-$roi_history = $roi_history ?? [];
-$recent_staking_activity = $recent_staking_activity ?? [];
 
 
 // $roi_history = $roi_history ?? [
@@ -1150,7 +1149,7 @@ $hero_progress = 48;
       (function(){
         var BASE='<?= base_url() ?>', page=1, limit=20, sort='id', dir='DESC';
         var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
-        var col={Active:'#16a34a',Pending:'#d97706',Matured:'#2563eb',Completed:'#059669',Cancelled:'#6b7280'};
+        var col={Processing:'#d97706',Active:'#16a34a',Pending:'#d97706',Matured:'#2563eb',Completed:'#059669',Withdrawn:'#6b7280',Cancelled:'#6b7280'};
         function q(id){return document.getElementById(id);}
         function exportUrl(fmt){var p=new URLSearchParams({format:fmt,search:q('pf-search').value,status:q('pf-status').value});return BASE+'user/stakings/export?'+p.toString();}
         function load(p){
@@ -1166,7 +1165,7 @@ $hero_progress = 48;
                 return '<tr class="tr" style="background:#fbfbff;">'+
                   '<td><b>#'+esc(r.invest_id)+'</b></td><td><b>'+esc(r.package_name)+'</b></td>'+
                   '<td>'+Number(r.stake_amount).toLocaleString(undefined,{maximumFractionDigits:2})+'</td>'+
-                  '<td>'+esc(r.plan_type)+'</td><td>'+esc(r.duration_days)+'d</td>'+
+                  '<td>'+esc(r.plan_type)+'</td><td>'+esc(r.duration_days)+'</td>'+
                   '<td style="font-size:12px;">'+esc((r.purchase_date||'').slice(0,10))+'</td>'+
                   '<td style="font-size:12px;">'+esc((r.maturity_date||'').slice(0,10))+'</td>'+
                   '<td>'+esc(r.days_remaining)+'</td><td>'+esc(r.roi_percent)+'%</td>'+
@@ -1251,9 +1250,7 @@ $hero_progress = 48;
           <div class="table-scroll">
             <table class="table" style="border-spacing:0 8px;min-width:920px;">
               <thead>
-                <tr>
-                  <th>Date</th><th>Type</th><th>Amount</th><th>Token</th><th>Status</th><th>Description</th>
-                </tr>
+                <tr><th>Date</th><th>Type</th><th>Amount</th><th>Token</th><th>Status</th><th>Description</th></tr>
               </thead>
               <tbody>
                 <?php if (empty($recent_staking_activity)): ?>
@@ -1268,37 +1265,6 @@ $hero_progress = 48;
                     <td><?= htmlspecialchars((string)($row->description ?? '—')) ?></td>
                   </tr>
                 <?php endforeach; endif; ?>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      <?php endif; ?>
-
-      <?php if (!empty($roi_history)): ?>
-      <div class="card" style="margin-top: 18px; border-radius: 28px;">
-        <div class="card-h" style="padding:18px 22px;border-bottom:1px solid #f0f0f7;margin:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
-          <h3 style="font-size:16px;font-weight:1100;margin:0;">ROI History</h3>
-          <span class="chip"><i class="ph ph-chart-line"></i> Credited ROI payouts</span>
-        </div>
-        <div style="padding:16px 20px;">
-          <div class="table-scroll">
-            <table class="table" style="border-spacing:0 8px;min-width:900px;">
-              <thead>
-                <tr>
-                  <th>Date</th><th>Ref</th><th>Title</th><th>Amount</th><th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <?php foreach ($roi_history as $row): ?>
-                  <tr>
-                    <td style="font-size:12px;"><?= htmlspecialchars((string)($row->date ?? '—')) ?></td>
-                    <td><?= htmlspecialchars((string)($row->ref ?? '—')) ?></td>
-                    <td><?= htmlspecialchars((string)($row->title ?? '—')) ?></td>
-                    <td><?= number_format((float)($row->amount ?? 0), 4) ?></td>
-                    <td><?= htmlspecialchars((string)($row->status ?? '—')) ?></td>
-                  </tr>
-                <?php endforeach; ?>
               </tbody>
             </table>
           </div>

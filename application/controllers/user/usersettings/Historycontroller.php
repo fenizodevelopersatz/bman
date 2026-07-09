@@ -677,11 +677,12 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
             'bonus'    => (float) $bal['bonus'],
         ];
 
-        // On-chain custodial deposit wallet + recent deposit history.
+        // On-chain custodial deposit wallet + recent deposit history (BOTH confirmed + pending).
         $wallet_row = $this->cw->ensureAddress($user_id);
         $this->data['deposit_wallet'] = $wallet_row ?: [];
         $this->data['wallet_monitor'] = $this->cw->monitor($user_id);
-        $this->data['deposit_history'] = $this->cw->deposits($user_id, 20);
+        $this->data['deposit_history'] = $this->cw->deposits($user_id, 20);  // ✅ NOW includes pending on-chain deposits
+        $this->data['pending_deposits'] = $this->cw->getPendingDeposits($user_id);  // Count for UI badge
         $this->data['usdt_history_filters'] = [
             'type' => strtoupper(trim((string)$this->input->get('usdt_type'))),
             'status' => strtoupper(trim((string)$this->input->get('usdt_status'))),
@@ -696,8 +697,64 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
         $this->data['transactions'] = $list['rows'];
         $this->data['counts']       = $list['counts'];
         $this->data['paging']       = $list['paging'];
-        
+
         $this->load->view('user/wallet/view_mywallet_management', $this->data);
+    }
+
+    /**
+     * AJAX endpoint: Instantly credit pending deposits (on-chain confirmed but not in DB yet).
+     * User clicks "Credit Pending Deposits" button → this endpoint processes them immediately
+     * without waiting for DepositListener cron to run.
+     *
+     * POST /user/instant-credit-deposits
+     * Response: { success, message, credited_count, credited_amount, new_balance_usdt }
+     */
+    public function instant_credit_deposits()
+    {
+        if (!$this->input->is_ajax_request()) {
+            show_404();
+            return;
+        }
+
+        $user_id = (int) $this->session->userdata('user_userid');
+        if (!$user_id) {
+            echo json_encode(['success' => false, 'message' => 'Not logged in']);
+            return;
+        }
+
+        $this->load->model('Custodialwallet_model', 'cw');
+        $this->load->model('Depositlistener_model', 'listener');
+        $this->load->model('Walletledger_model', 'ledger');
+
+        try {
+            // Trigger deposit scan for THIS USER ONLY
+            $result = $this->listener->scan($user_id);
+
+            if (!$result || !isset($result['ok'])) {
+                throw new Exception('Scan failed');
+            }
+
+            // Get updated balance
+            $bal = $this->ledger->balances($user_id);
+            $credited_count = $result['credited'] ?? 0;
+            $credited_amount = $result['total_credited'] ?? 0;
+
+            echo json_encode([
+                'success' => true,
+                'message' => "✓ {$credited_count} deposits credited",
+                'credited_count' => $credited_count,
+                'credited_amount' => $credited_amount,
+                'new_balance_usdt' => $bal['usdt'] ?? 0,
+                'tx_hashes' => $result['tx_hashes'] ?? [],
+            ]);
+
+        } catch (Exception $e) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Credit failed: ' . $e->getMessage(),
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function usdt_history_json()

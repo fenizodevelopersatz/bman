@@ -342,23 +342,96 @@ $route['user-delete/(:num)'] = 'admin/member/Membermanagement/deleteuser/$1';
 $route['commission-settings'] = 'admin/settings/Commissionsettings';
 $route['update-commission-settings'] = 'admin/settings/Commissionsettings/update';
 
-/*************** CRON ****************/
-// $route['earn-cron-made-roi'] = 'Cron/run_roi';
+/***
+ * ============================================================================
+ * CRON JOBS — FULLY ON-CHAIN ARCHITECTURE
+ * ============================================================================
+ * All crons are token-gated over HTTP and work via CLI.
+ * Timing strategy: see docs/CRON_MANAGEMENT_GUIDE.md
+ *
+ * Recommended Schedule:
+ *   Every 5 min:  ChainSync (verify pending txs) + Deposit detection
+ *   Every 15 min: Staking confirm (PROCESSING → ACTIVE) + DailyCommission
+ *   Every 4 hrs:  ROI Maturity (broadcast mature ROI transfers)
+ *   Daily 8 AM:   Bonus Reduction (60-day bonus → admin)
+ *   Daily 9 AM:   Swap Orders delivery (BMAN on-chain)
+ *   Weekly Mon:   Rank Achievement (evaluate qualifications)
+ *
+ * HTTP: Pass ?token=YOUR_CRON_TOKEN (set in application/config/config.php)
+ * CLI:  php index.php <route_name> run
+ * ============================================================================
+ */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Core Blockchain Sync (Run every 5 minutes)
+   ───────────────────────────────────────────────────────────────────────── */
+
+// Verify pending on-chain transactions (status, confirmations, gas) + sync balances
+// HTTP: /chain-sync-cron?token=YOUR_CRON_TOKEN
+// CLI:  php index.php chainsynccron run
+$route['chain-sync-cron'] = 'Chainsynccron/run';
+
+// Detect incoming USDT deposits to custodial addresses + auto-credit when confirmed
+// HTTP: /credit-deposits-cron?token=YOUR_CRON_TOKEN
+// CLI:  php index.php depositcron run
+$route['credit-deposits-cron'] = 'Depositcron/run';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Staking & Matching (Run every 15 minutes)
+   ───────────────────────────────────────────────────────────────────────── */
+
+// Confirm staking purchases on-chain (PROCESSING → ACTIVE when deposit confirmed)
+// HTTP: /stake-confirm-cron?token=YOUR_CRON_TOKEN
+// CLI:  php index.php user/usersettings/lendingcontroller stake_confirm_cron
+$route['stake-confirm-cron'] = 'user/usersettings/lendingcontroller/stake_confirm_cron';
+
+// Calculate daily binary/matching commission (propagate volume, split 8%/2%)
+// CLI:  php index.php admin/staking/Matching cron
+// (No HTTP route; use admin "Run Now" button or CLI)
+$route['daily-commission-cron'] = 'admin/staking/Matching/cron';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   ROI Maturity (Run every 4 hours)
+   ───────────────────────────────────────────────────────────────────────── */
+
+// Broadcast mature ROI transfers as blockchain txs (Treasury → Earning wallet)
+// HTTP: /roi-maturity-cron?token=YOUR_CRON_TOKEN
+// CLI:  php index.php roimaturitycron run
+$route['roi-maturity-cron'] = 'RoiMaturityCron/run';
+
+// Retry failed ROI broadcasts (call separately, e.g., 1 hour after main cron)
+// HTTP: /roi-maturity-retry?token=YOUR_CRON_TOKEN
+// CLI:  php index.php roimaturitycron retry
+$route['roi-maturity-retry'] = 'RoiMaturityCron/retry';
+
+// Admin: Get ROI transfer statistics dashboard
+$route['roi-maturity-stats'] = 'RoiMaturityCron/stats';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Wallet Management (Run daily)
+   ───────────────────────────────────────────────────────────────────────── */
+
+// Bonus Wallet 60-day reduction (user bonus → admin bonus wallet)
+// HTTP: /bonus-reduction-cron?token=YOUR_CRON_TOKEN
+// CLI:  php index.php bonusreductioncron run
+$route['bonus-reduction-cron'] = 'Bonusreductioncron/run';
+
+// Deliver BMAN on-chain for completed USDT→BMAN swap orders
+// CLI:  php index.php admin/staking/Swaporders deliver_cron
+$route['deliver-bman-cron'] = 'admin/staking/Swaporders/deliver_cron';
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Legacy/Development (Deprecated or in flux)
+   ───────────────────────────────────────────────────────────────────────── */
+
+// Legacy ROI cron (old approach, deprecated in favor of RoiMaturityCron)
+// $route['earn-cron-made'] = 'Cron/run_roi';
+
+// Legacy rank update (old approach, to be replaced by RankAchievement)
 // $route['rank-cron-made'] = 'Cron/update_all_users_rank';
-// $route['rank-cron-made'] = 'Cron/run_monthly_rank_commission';
 
-// $route['cron-rank-made'] = 'myrank/run_monthly_rank_commission';
+// Legacy binary commission (old approach, replaced by DailyCommission)
 // $route['binary-cron-made'] = 'Cron/binary_commission_call';
-// $route['binary-cron-made'] = 'DailyCommission/binary_commission_call';
-
-
-/*************** CRON ****************/
-$route['credit-deposits-cron'] = 'Depositcron/run';   // auto-credit confirmed USDT deposits (token-gated over HTTP)
-$route['earn-cron-made'] = 'Cron/run_roi';
-$route['rank-cron-made'] = 'Cron/update_all_users_rank';
-$route['binary-cron-made'] = 'Cron/binary_commission_call';
-$route['bonus-reduction-cron'] = 'Bonusreductioncron/run';   // Bonus Wallet 60-day reduction → admin bonus wallet (token-gated over HTTP)
-$route['chain-sync-cron'] = 'Chainsynccron/run';             // RPC-first balance sync + tx confirmation follow-up (token-gated over HTTP)
 
 
 
@@ -475,6 +548,8 @@ $route['user/investments/details_ajax'] = 'user/usersettings/lendingcontroller/d
 $route['user/lending/stake_quote']['post']    = 'user/usersettings/lendingcontroller/stake_quote';
 $route['user/lending/purchase_stake']['post'] = 'user/usersettings/lendingcontroller/purchase_stake';
 $route['user/lending/swap_purchase']['post']  = 'user/usersettings/lendingcontroller/swap_purchase';
+// Staking confirmation processor (PROCESSING → ACTIVE on blockchain confirm; CLI or ?token=)
+$route['stake-confirm-cron'] = 'user/usersettings/lendingcontroller/stake_confirm_cron';
 
 $route['user/genealogy'] = 'user/usersettings/genealogycontroller';
 $route['user/binary_tree'] = 'user/usersettings/genealogycontroller';
@@ -532,6 +607,14 @@ $route['user/view-pool'] = 'user/usersettings/historycontroller/lendingPoolHisto
 $route['user/view-referral'] = 'user/usersettings/historycontroller/lendingReferralHistory';
 $route['user/view-binary'] = 'user/usersettings/historycontroller/lendingBinaryHistory';
 $route['user/wallet'] = 'user/usersettings/historycontroller/lendingMywalletHistory';
+
+/* Wallet sync — Real-time on-chain balance check + deposit detection */
+$route['user/wallet/check-balance'] = 'user/Wallet_sync/check_balance';           // GET AJAX: on-chain vs DB balance
+$route['user/wallet/scan-deposits'] = 'user/Wallet_sync/scan_deposits';           // POST AJAX: manually trigger scan
+$route['user/wallet/history-json'] = 'user/Wallet_sync/history';                  // GET AJAX: wallet history with sync status
+
+/* Instant deposit crediting — credit pending deposits without waiting for cron */
+$route['user/instant-credit-deposits'] = 'user/usersettings/historycontroller/instant_credit_deposits'; // POST AJAX
 
 $route['user/my-referral'] = 'user/usersettings/historycontroller/myreferralHistory';
 $route['user/referrals'] = 'user/usersettings/historycontroller/myreferralHistory';

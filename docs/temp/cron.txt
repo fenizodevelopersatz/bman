@@ -1,0 +1,5 @@
+# 4. Schedule cron
+# 0 8 * * * /usr/bin/php /path/to/index.php roimaturitycron run
+
+# 5. Test
+php index.php roimaturitycron run

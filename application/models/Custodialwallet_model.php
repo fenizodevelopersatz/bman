@@ -283,40 +283,117 @@ class Custodialwallet_model extends CI_Model
 
     /* -------------------------- histories -------------------------- */
 
+    /**
+     * Get deposits for a user: BOTH confirmed (wallet_deposits) AND pending (on-chain but not credited).
+     * Pending deposits show immediately without waiting for DepositListener cron.
+     *
+     * @param int $user_id User ID
+     * @param int $limit Max results (default 50)
+     * @return array Deposits with status: 'credited' | 'pending_confirmation' | 'needs_confirmation'
+     */
     public function deposits($user_id, $limit = 50)
     {
         $user_id = (int)$user_id;
         $limit = (int)$limit;
 
-        // Primary source: wallet_deposits written by Depositlistener_model.
-        $rows = $this->db->where('user_id', $user_id)
-                         ->order_by('id', 'DESC')
-                         ->limit($limit)
-                         ->get('wallet_deposits')
-                         ->result_array();
+        $all_deposits = [];
 
-        if (!empty($rows)) {
-            return array_map(function ($r) {
-                return [
+        // 1. CONFIRMED deposits: wallet_deposits written by Depositlistener_model
+        $confirmed = $this->db->where('user_id', $user_id)
+                              ->order_by('id', 'DESC')
+                              ->get('wallet_deposits')
+                              ->result_array();
+
+        if (!empty($confirmed)) {
+            foreach ($confirmed as $r) {
+                $all_deposits[] = [
                     'id' => $r['id'] ?? null,
                     'token' => $r['token'] ?? 'USDT',
                     'amount_usdt' => $r['amount_usdt'] ?? 0,
-                    'status' => $r['status'] ?? '',
+                    'status' => 'credited',  // ✅ Already in database
                     'tx_hash' => $r['tx_hash'] ?? '',
                     'detected_at' => $r['credited_at'] ?? ($r['created_at'] ?? ''),
                     'confirmed_at' => $r['credited_at'] ?? '',
                     'wallet_address' => $r['wallet_address'] ?? '',
-                    'network' => $r['network'] ?? '',
+                    'network' => $r['network'] ?? 'bsc',
                     'block_number' => $r['block_number'] ?? null,
                     'confirmations' => $r['confirmations'] ?? null,
+                    'source' => 'wallet_deposits',  // DEBUG: show where data came from
                 ];
-            }, $rows);
+            }
         }
 
-        // Backward-compatible fallback for older rows if any exist.
-        return $this->db->where('user_id', $user_id)
-                        ->order_by('detected_at', 'DESC')->limit($limit)
-                        ->get('custodial_deposits')->result_array();
+        // 2. PENDING deposits: On-chain confirmed (15+ blocks) but NOT YET credited to wallet_deposits
+        // This shows deposits immediately without waiting for DepositListener cron
+        $user_wallet = $this->walletRow($user_id);
+        if ($user_wallet && !empty($user_wallet['wallet_address'])) {
+            $pending = $this->db
+                ->select('octs.*, "pending_confirmation" as status')
+                ->from('onchain_transactions octs')
+                ->where('octs.to_address', strtolower($user_wallet['wallet_address']))
+                ->where('octs.status', 'confirmed')
+                ->where('octs.confirmation_count >=', 15) // Min confirmations for USDT
+                ->join('wallet_deposits wd', 'octs.tx_hash = wd.tx_hash', 'left')
+                ->where('wd.id IS NULL', null, false)  // NOT already credited
+                ->order_by('octs.created_at', 'DESC')
+                ->get()
+                ->result_array();
+
+            if (!empty($pending)) {
+                foreach ($pending as $p) {
+                    $all_deposits[] = [
+                        'id' => null,  // Not in wallet_deposits yet
+                        'token' => 'USDT',
+                        'amount_usdt' => (float)($p['value'] ?? 0),
+                        'status' => 'pending_confirmation',  // ⚠️ On-chain, waiting to be credited
+                        'tx_hash' => $p['tx_hash'] ?? '',
+                        'detected_at' => $p['created_at'] ?? '',
+                        'confirmed_at' => $p['created_at'] ?? '',
+                        'wallet_address' => $p['to_address'] ?? '',
+                        'network' => $p['network'] ?? 'bsc',
+                        'block_number' => $p['block_number'] ?? null,
+                        'confirmations' => $p['confirmation_count'] ?? 0,
+                        'source' => 'onchain_transactions',  // DEBUG: pending, needs manual credit
+                    ];
+                }
+            }
+        }
+
+        // 3. Sort all deposits by date (newest first) and return top N
+        usort($all_deposits, function($a, $b) {
+            return strtotime($b['detected_at'] ?? '0') - strtotime($a['detected_at'] ?? '0');
+        });
+
+        return array_slice($all_deposits, 0, $limit);
+    }
+
+    /**
+     * Get ONLY pending deposits (on-chain but not credited).
+     * Useful for "refresh" button or auto-detect pending credits.
+     *
+     * @param int $user_id User ID
+     * @return array Pending deposits
+     */
+    public function getPendingDeposits($user_id)
+    {
+        $user_id = (int)$user_id;
+        $user_wallet = $this->walletRow($user_id);
+
+        if (!$user_wallet || empty($user_wallet['wallet_address'])) {
+            return [];
+        }
+
+        return $this->db
+            ->select('octs.*')
+            ->from('onchain_transactions octs')
+            ->where('octs.to_address', strtolower($user_wallet['wallet_address']))
+            ->where('octs.status', 'confirmed')
+            ->where('octs.confirmation_count >=', 15)
+            ->join('wallet_deposits wd', 'octs.tx_hash = wd.tx_hash', 'left')
+            ->where('wd.id IS NULL', null, false)
+            ->order_by('octs.created_at', 'DESC')
+            ->get()
+            ->result_array();
     }
 
     public function monitorLog($user_id = 0, $limit = 100)

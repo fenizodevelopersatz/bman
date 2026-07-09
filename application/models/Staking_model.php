@@ -661,15 +661,13 @@ class Staking_model extends CI_Model
             $treasuryPayId = (int)$this->db->insert_id();
         } else { $treasuryPayId = 0; }
 
-        // 6b. create the stake order immediately so the portfolio shows the
-        // purchase right away. Blockchain confirmation can later promote it to
-        // ACTIVE, but the row must exist now.
+        // 6b. create the stake order
         $this->db->insert('user_stakes', [
             'user_id' => $userId, 'package_id' => $pkgId, 'plan_id' => (int)$plan['id'],
             'plan_code' => $planCode, 'duration_years' => $years,
             'stake_amount' => $bman, 'roi_percent' => $hdrPct, 'roi_basis' => $hdrBasis,
             'bonus_amount' => $bonusBman, 'start_date' => $start, 'maturity_date' => $maturity,
-            'status' => '0',
+            'status' => 'active',
         ]);
         $stakeId = (int)$this->db->insert_id();
         if (!$stakeId) { $this->db->trans_rollback(); return [false, 'Could not create the stake order.']; }
@@ -682,26 +680,6 @@ class Staking_model extends CI_Model
             'reference_id' => $ref, 'description' => 'Locked '.number_format($bman).' BMAN — stake #'.$stakeId,
         ]);
         if (!$okS) { $this->db->trans_rollback(); return [false, 'Could not credit the Staking wallet.']; }
-
-        // 6c-ii. create a visible purchase ledger entry for the user's history
-        // and on-chain audit trail. This gives immediate feedback in wallet UI.
-        if ($this->db->table_exists('history')) {
-            $this->db->insert('history', [
-                'user_id'      => $userId,
-                'amount'       => $usdt,
-                'token_amount' => $bman,
-                'type'         => 'staking_purchase',
-                'history_date' => date('Y-m-d H:i:s'),
-                'date'         => date('Y-m-d H:i:s'),
-                'status'       => '1',
-                'hash_id'      => $ref,
-                'invest_id'    => $stakeId,
-                'description'  => 'Staking purchase '.number_format($bman).' BMAN / '.number_format($usdt, 8).' USDT',
-                'coin_id'      => null,
-                'token_id'     => null,
-                'coin_type'    => 1,
-            ]);
-        }
 
         // 6d. 25% Bonus Coin → Bonus wallet
         if ($bonusBman > 0) {
@@ -731,6 +709,212 @@ class Staking_model extends CI_Model
             'usdt' => $usdt, 'bman' => $bman, 'bonus' => $bonusBman,
             'maturity' => $maturity,
         ]];
+    }
+
+    /**
+     * Create the STAKE RECORD immediately for a purchase whose BMAN is being
+     * acquired elsewhere (e.g. the on-chain swap credits the Exchange wallet).
+     * This does NOT debit USDT or credit bonus — it only creates the user_stakes
+     * row + ROI schedule so the purchase is visible in the portfolio at once.
+     *
+     * Lifecycle: create PROCESSING (lock=false, emit_volume=false) → after the
+     * swap settles call activateStake() to lock BMAN (Exchange→Staking), emit
+     * binary volume and flip to ACTIVE. On failure call cancelStake().
+     *
+     * $ctx: user_id, package_id, plan_code, duration_years, ref(optional),
+     *       status('processing'|'active', default 'processing'),
+     *       lock(bool, default false), emit_volume(bool, default false).
+     * Returns [ok, data|message].
+     */
+    public function materializeStake(array $ctx)
+    {
+        $userId   = (int)($ctx['user_id'] ?? 0);
+        $pkgId    = (int)($ctx['package_id'] ?? 0);
+        $planCode = (string)($ctx['plan_code'] ?? '');
+        $years    = (int)($ctx['duration_years'] ?? 0);
+        $status   = in_array(($ctx['status'] ?? 'processing'), ['processing','active'], true) ? $ctx['status'] : 'processing';
+        $doLock   = !empty($ctx['lock']);
+        $emitVol  = !empty($ctx['emit_volume']);
+        $ref      = !empty($ctx['ref']) ? substr((string)$ctx['ref'], 0, 40)
+                    : ('STK-'.date('Ymd').'-'.strtoupper(substr(bin2hex(random_bytes(4)), 0, 8)));
+
+        $pkg = $this->db->get_where('staking_packages', ['id' => $pkgId, 'is_active' => 1])->row_array();
+        if (!$pkg) return [false, 'Selected package is not available.'];
+        if (!in_array($planCode, ['fixed','regular','combo'], true)) return [false, 'Invalid plan.'];
+        if (!in_array($years, [2,3,5], true))                        return [false, 'Invalid term.'];
+        $plan = $this->db->get_where('staking_plans', ['code' => $planCode, 'is_active' => 1])->row_array();
+        if (!$plan) return [false, 'Selected plan is not available.'];
+        $term = $this->db->get_where('staking_plan_terms',
+            ['plan_id' => $plan['id'], 'duration_years' => $years, 'is_active' => 1])->row_array();
+        if (!$term) return [false, ucfirst($planCode).' plan does not offer a '.$years.'-year term.'];
+        $roi = $this->resolveRoi($pkgId, $planCode, $years);
+        if (!$roi) return [false, 'ROI is not configured for this package / plan / term.'];
+
+        $bman      = (float)$pkg['stake_amount'];
+        $bonusBman = round($bman * (float)$pkg['bonus_percent'] / 100, 4);
+        $start     = date('Y-m-d');
+        $maturity  = date('Y-m-d', strtotime('+'.$years.' years'));
+        if ($planCode === 'combo') { $hdrPct = (float)$roi['fixed']['roi_percent']; $hdrBasis = 'total'; }
+        else                        { $hdrPct = (float)$roi['roi_percent'];         $hdrBasis = $roi['roi_basis']; }
+
+        $this->db->trans_begin();
+
+        $this->db->insert('user_stakes', [
+            'user_id' => $userId, 'package_id' => $pkgId, 'plan_id' => (int)$plan['id'],
+            'plan_code' => $planCode, 'duration_years' => $years,
+            'stake_amount' => $bman, 'roi_percent' => $hdrPct, 'roi_basis' => $hdrBasis,
+            'bonus_amount' => $bonusBman, 'start_date' => $start, 'maturity_date' => $maturity,
+            'status' => $status,
+            // On-chain tracking (a purchase is backed by a real blockchain tx).
+            'tx_hash'       => $ctx['tx_hash']       ?? null,
+            'block_number'  => $ctx['block_number']  ?? null,
+            'confirmations' => (int)($ctx['confirmations'] ?? 0),
+            'gas_fee'       => $ctx['gas_fee']       ?? null,
+            'network'       => $ctx['network']       ?? null,
+            'chain_status'  => $ctx['chain_status']  ?? 'pending',
+            'onchain_tx_id' => $ctx['onchain_tx_id'] ?? null,
+            'swap_order_id' => $ctx['swap_order_id'] ?? null,
+        ]);
+        $stakeId = (int)$this->db->insert_id();
+        if (!$stakeId) { $this->db->trans_rollback(); return [false, 'Could not create the stake order.']; }
+
+        // Immediate PURCHASE HISTORY record (visible in wallet/staking history
+        // right away, even while the blockchain confirmation is still pending).
+        if ($this->db->table_exists('history')) {
+            $this->db->insert('history', [
+                'user_id' => $userId, 'amount' => 0, 'token_amount' => $bman,
+                'type' => 'staking_purchase', 'history_date' => date('Y-m-d H:i:s'),
+                'date' => date('Y-m-d H:i:s'), 'status' => '1', 'hash_id' => $ref,
+                'invest_id' => $stakeId, 'coin_type' => 1,
+                'description' => 'Staking purchase '.number_format($bman).' BMAN ('.$planCode.'/'.$years.'y) — '.strtoupper($status),
+            ]);
+        }
+
+        if ($doLock && $bman > 0) {
+            $this->load->model('Walletledger_model', 'L');
+            list($okT, $rT) = $this->L->transfer($userId, $bman, 'exchange', 'staking', 'stake_purchase', [
+                'reference_id' => $ref, 'description' => 'Lock '.number_format($bman).' BMAN — stake #'.$stakeId,
+            ]);
+            if (!$okT) { $this->db->trans_rollback(); return [false, 'Could not lock BMAN into Staking: '.$rT]; }
+        }
+
+        $this->_generateRoiSchedule($stakeId, $userId, $bman, $planCode, $years, $roi, $plan, $start, $maturity);
+
+        if ($emitVol && $this->db->table_exists('binary_volume_ledger')) {
+            $this->db->insert('binary_volume_ledger', [
+                'user_id' => $userId, 'invest_id' => $stakeId,
+                'pv' => 0, 'bv' => $bman, 'source_amount' => $bman, 'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        if ($this->db->trans_status() === false) { $this->db->trans_rollback(); return [false, 'Database error — stake rolled back.']; }
+        $this->db->trans_commit();
+
+        return [true, ['stake_id' => $stakeId, 'ref' => $ref, 'bman' => $bman,
+                       'bonus' => $bonusBman, 'maturity' => $maturity, 'status' => $status]];
+    }
+
+    /**
+     * Activate a PROCESSING stake once its funding has settled: lock the acquired
+     * BMAN (Exchange→Staking), emit binary volume (once), and set status ACTIVE.
+     * Idempotent-ish: skips the lock/volume if already active. Returns [ok, msg].
+     */
+    public function activateStake($stakeId, $ref = null)
+    {
+        $stakeId = (int)$stakeId;
+        $s = $this->db->get_where('user_stakes', ['id' => $stakeId])->row_array();
+        if (!$s) return [false, 'Stake not found.'];
+        if ((string)$s['status'] === 'active') return [true, 'already active'];
+
+        $userId = (int)$s['user_id'];
+        $bman   = (float)$s['stake_amount'];
+        $ref    = $ref ?: ('STK-ACT-'.$stakeId);
+
+        $this->db->trans_begin();
+
+        if ($bman > 0) {
+            $this->load->model('Walletledger_model', 'L');
+            list($okT, $rT) = $this->L->transfer($userId, $bman, 'exchange', 'staking', 'stake_purchase', [
+                'reference_id' => $ref, 'description' => 'Lock '.number_format($bman).' BMAN — stake #'.$stakeId,
+            ]);
+            if (!$okT) { $this->db->trans_rollback(); return [false, 'Could not lock BMAN into Staking: '.$rT]; }
+        }
+
+        if ($this->db->table_exists('binary_volume_ledger')) {
+            $already = $this->db->where(['invest_id' => $stakeId])->count_all_results('binary_volume_ledger');
+            if ($already === 0) {
+                $this->db->insert('binary_volume_ledger', [
+                    'user_id' => $userId, 'invest_id' => $stakeId,
+                    'pv' => 0, 'bv' => $bman, 'source_amount' => $bman, 'created_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+        }
+
+        $this->db->where('id', $stakeId)->update('user_stakes', ['status' => 'active']);
+
+        if ($this->db->trans_status() === false) { $this->db->trans_rollback(); return [false, 'Activation DB error.']; }
+        $this->db->trans_commit();
+        return [true, 'activated'];
+    }
+
+    /** Cancel a PROCESSING stake whose funding failed: drop its pending ROI rows. */
+    public function cancelStake($stakeId, $reason = null)
+    {
+        $stakeId = (int)$stakeId;
+        $s = $this->db->get_where('user_stakes', ['id' => $stakeId])->row_array();
+        if (!$s) return [false, 'Stake not found.'];
+        if ((string)$s['status'] === 'active') return [false, 'Cannot cancel an active stake here.'];
+
+        $this->db->trans_begin();
+        $this->db->where('stake_id', $stakeId)->where('status', 'pending')->delete('staking_roi_payouts');
+        $this->db->where('id', $stakeId)->update('user_stakes', ['status' => 'cancelled', 'chain_status' => 'cancelled']);
+        if ($this->db->trans_status() === false) { $this->db->trans_rollback(); return [false, 'Cancel DB error.']; }
+        $this->db->trans_commit();
+        return [true, 'cancelled'];
+    }
+
+    /**
+     * Confirmation processor (cron): promote PROCESSING stakes to ACTIVE once
+     * their on-chain settlement is confirmed. Signal per stake:
+     *   - linked swap order 'completed'  → on-chain USDT settled → ACTIVE
+     *   - linked swap order 'failed_*'   → cancel the stake
+     *   - no linked order / DRYRUN hash  → activate (internal/simulated settle)
+     * Returns a summary. Idempotent — already-active stakes are skipped.
+     */
+    public function confirmProcessingStakes($limit = 50)
+    {
+        $rows = $this->db->where('status', 'processing')->order_by('id', 'ASC')
+                         ->limit((int)$limit)->get('user_stakes')->result_array();
+        $activated = 0; $failed = 0; $pending = 0;
+        foreach ($rows as $s) {
+            $stakeId = (int)$s['id'];
+            $orderId = (int)($s['swap_order_id'] ?? 0);
+            $txHash  = $s['tx_hash'] ?? null;
+
+            if ($orderId > 0) {
+                $o   = $this->db->get_where('staking_swap_orders', ['id' => $orderId])->row_array();
+                $ost = $o['status'] ?? '';
+                if ($ost === 'completed') {
+                    $this->db->where('id', $stakeId)->update('user_stakes', [
+                        'chain_status' => 'confirmed',
+                        'tx_hash'      => ($o['usdt_tx_hash'] ?? '') ?: $txHash,
+                    ]);
+                    list($ok) = $this->activateStake($stakeId);
+                    $ok ? $activated++ : $failed++;
+                } elseif (strpos($ost, 'failed') === 0) {
+                    $this->cancelStake($stakeId, 'swap '.$ost);
+                    $failed++;
+                } else {
+                    $pending++;
+                }
+            } else {
+                // No on-chain order linked (internal or dry-run) → settle now.
+                list($ok) = $this->activateStake($stakeId);
+                if ($ok) { $this->db->where('id', $stakeId)->update('user_stakes', ['chain_status' => 'confirmed']); $activated++; }
+                else $pending++;
+            }
+        }
+        return ['checked' => count($rows), 'activated' => $activated, 'failed' => $failed, 'pending' => $pending];
     }
 
     /**
