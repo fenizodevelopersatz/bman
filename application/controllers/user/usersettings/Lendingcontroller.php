@@ -159,69 +159,54 @@ class Lendingcontroller extends CI_Controller
      * Delegates to Swapengine_model. Honours the Token Settings swap flags
      * (swap_enabled / swap_dry_run) — off + dry-run by default, so nothing is
      * broadcast until an admin turns it on after a live test.
+     *
+     * POST parameters:
+     *   - package_id (required): package ID
+     *   - plan_code (optional): 'fixed', 'variable', etc.
+     *   - plan_id (optional): staking plan ID
+     *   - duration_years (optional): staking duration in years
+     *   - coin_distribution_option_id (optional): 1=exchange, 2=staking, 3=earning, 4=bonus
      */
     public function swap_purchase()
     {
         $userId = (int) $this->session->userdata('user_userid');
         if (!$userId) { echo json_encode(['status'=>false,'message'=>'Unauthorized']); return; }
 
-        $pkgId    = (int)$this->input->post('package_id');
-        $planCode = (string)$this->input->post('plan_code', true);
-        $years    = (int)$this->input->post('duration_years');
+        $packageId = (int)$this->input->post('package_id');
+        $planCode = $this->input->post('plan_code') ?? 'fixed';
+        $planId = (int)($this->input->post('plan_id') ?? 0);
+        $durationYears = (int)($this->input->post('duration_years') ?? 1);
+        $coinDistOptionId = (int)($this->input->post('coin_distribution_option_id') ?? 1);
 
-        $this->load->model('Staking_model');
         $this->load->model('staking/Swapengine_model', 'SW');
+        list($ok, $res) = $this->SW->execute($userId, $packageId);
+        if (!$ok) { echo json_encode(['status'=>false,'message'=>$res]); return; }
 
-        // 1) Create the stake record IMMEDIATELY as PROCESSING (no wallet lock yet,
-        //    no binary volume yet) so it shows in "My Stakings Portfolio" at once,
-        //    without waiting for the on-chain swap.
-        list($sOk, $stake) = $this->Staking_model->materializeStake([
-            'user_id' => $userId, 'package_id' => $pkgId,
-            'plan_code' => $planCode, 'duration_years' => $years,
-            'status' => 'processing', 'lock' => false, 'emit_volume' => false,
-        ]);
-        if (!$sOk) { echo json_encode(['status'=>false,'message'=>$stake]); return; }
+        // Add plan details to the response
+        $res['plan_code'] = $planCode;
+        $res['plan_id'] = $planId;
+        $res['duration_years'] = $durationYears;
+        $res['coin_distribution_option_id'] = $coinDistOptionId;
 
-        // 2) Settle the purchase on-chain (USDT→BMAN into Exchange + 25% bonus).
-        list($ok, $res) = $this->SW->execute($userId, $pkgId, ['stake_ref' => $stake['ref']]);
-        if (!$ok) {
-            // Funding failed — revert the PROCESSING stake so it doesn't linger.
-            $this->Staking_model->cancelStake((int)$stake['stake_id'], 'swap failed');
-            echo json_encode(['status'=>false,'message'=>$res]); return;
+        // If this is a new swap order, also update the staking_swap_orders record with plan details
+        if (!empty($res['order_id'])) {
+            $this->db->where('id', $res['order_id'])->update('staking_swap_orders', [
+                'plan_code' => $planCode,
+                'plan_id' => $planId,
+                'duration_years' => $durationYears,
+                'coin_distribution_option_id' => $coinDistOptionId,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
         }
-
-        // 3) Link the on-chain settlement to the stake and LEAVE it PROCESSING.
-        //    The confirmation cron promotes PROCESSING → ACTIVE once the tx is
-        //    confirmed (locking BMAN Exchange→Staking + emitting binary volume).
-        $upd = ['chain_status' => 'processing'];
-        if (!empty($res['id']))            $upd['swap_order_id'] = (int)$res['id'];
-        if (!empty($res['usdt_tx_hash']))  $upd['tx_hash']       = $res['usdt_tx_hash'];
-        $this->db->where('id', (int)$stake['stake_id'])->update('user_stakes', $upd);
 
         $dry = !empty($res['dry_run']);
         echo json_encode([
             'status'  => true,
-            'message' => ($dry ? '[DRY-RUN] ' : '').'Purchase submitted. '.number_format($res['bman_amount']).
-                         ' BMAN staking is PROCESSING — it will activate once the blockchain transaction confirms.',
-            'data'    => array_merge((array)$res, ['stake_id' => $stake['stake_id'], 'stake_status' => 'processing']),
+            'message' => ($dry ? '[DRY-RUN] ' : '').'Swap '.$res['status'].'. USDT '.$res['usdt_amount'].
+                         ' → BMAN '.$res['bman_amount'].' (+'.$res['bonus_bman'].' bonus). Plan: '.$planCode.' ('.
+                         $durationYears.' years).',
+            'data'    => $res,
         ]);
-    }
-
-    /**
-     * Confirmation processor (cron/CLI): promote PROCESSING stakes to ACTIVE
-     * once their on-chain settlement confirms. CLI, or HTTP with ?token=cron_token.
-     *   php index.php user/lending/stake_confirm_cron
-     */
-    public function stake_confirm_cron()
-    {
-        if (!$this->input->is_cli_request()) {
-            $token = $this->input->get('token', true);
-            $expected = $this->config->item('cron_token');
-            if (!$expected || $token !== $expected) show_404();
-        }
-        $this->load->model('Staking_model');
-        $summary = $this->Staking_model->confirmProcessingStakes(100);
-        echo json_encode(['status' => 'success', 'summary' => $summary])."\n";
     }
 
     public function details_ajax()
@@ -319,60 +304,57 @@ class Lendingcontroller extends CI_Controller
         if (!$userId) { echo json_encode(['status'=>false,'message'=>'Unauthorized']); return; }
         $investId = (int) $this->input->post('invest_id');
 
-        // Read the NEW staking system (user_stakes) — matches what the portfolio
-        // now lists, so the Details modal opens for freshly purchased stakes.
-        $inv = $this->db->select('us.*, sp.name AS package_name')
-            ->from('user_stakes us')->join('staking_packages sp', 'sp.id = us.package_id', 'left')
-            ->where('us.id', $investId)->where('us.user_id', $userId)->get()->row_array();
-        if (!$inv) { echo json_encode(['status'=>false,'message'=>'Stake not found']); return; }
+        $inv = $this->db->select('ui.*, pc.package_name, pc.roi AS pkg_roi, pc.days_duration, pc.period, pc.retrun_principle')
+            ->from('user_investment ui')->join('package_config pc', 'pc.id = ui.package_id', 'left')
+            ->where('ui.id', $investId)->where('ui.user_id', $userId)->get()->row_array();
+        if (!$inv) { echo json_encode(['status'=>false,'message'=>'Investment not found']); return; }
 
         $ts = $this->db->select('explorer_url')->get_where('token_settings',['status'=>1])->row_array();
         $explorer = rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
         $today = new DateTimeImmutable('today');
 
-        // ---- calculations (staking system) ----
-        $roiPct   = (float)$inv['roi_percent'];
-        $years    = (int)$inv['duration_years'];
-        $duration = $years; // used by remainingCycles fallback
-        $amount   = (float)$inv['stake_amount'];
-        $mature   = !empty($inv['maturity_date']) ? new DateTimeImmutable(date('Y-m-d', strtotime($inv['maturity_date']))) : null;
-        $daysRemaining = ($mature && $mature >= $today) ? (int)$today->diff($mature)->days : 0;
+        // ---- calculations ----
+        $roiPct   = (float)$inv['pkg_roi'];
+        $duration = (int)$inv['days_duration'];
+        $amount   = (float)$inv['invest_amount'];
+        $mature   = !empty($inv['mature_date']) ? new DateTimeImmutable(date('Y-m-d', strtotime($inv['mature_date']))) : null;
+        $daysRemaining = $mature ? max(0, (int)$today->diff($mature)->days * ($mature >= $today ? 1 : 0)) : null;
 
-        // ROI schedule (paid + pending) from staking_roi_payouts
-        $sched = $this->db->select('id, amount, credit_date, wallet, status')
-            ->where('stake_id', $investId)->order_by('credit_date','ASC')->get('staking_roi_payouts')->result_array();
-        $completedCycles = 0; $totalEarned = 0.0; $expectedFinal = 0.0;
-        foreach ($sched as $r) {
-            $expectedFinal += (float)$r['amount'];
-            if ($r['status'] === 'paid') { $completedCycles++; $totalEarned += (float)$r['amount']; }
-        }
+        $roiRows = $this->db->select('id, amount, token_amount, description, history_date, hash_id')
+            ->where('user_id',$userId)->where('invest_id',$investId)->where('hash_id','roi-made')
+            ->order_by('history_date','ASC')->get('history')->result_array();
+        $completedCycles = count($roiRows);
+        $totalEarned = 0; foreach ($roiRows as $r) $totalEarned += (float)$r['amount'];
+        $expectedFinal = $amount * ($roiPct/100) * $duration;               // daily-roi model
         $pending = max(0, $expectedFinal - $totalEarned);
-        $remainingCycles = max(0, count($sched) - $completedCycles);
+        $remainingCycles = max(0, $duration - $completedCycles);
 
-        $statusMap = ['processing'=>'Processing','active'=>'Active','matured'=>'Matured','withdrawn'=>'Withdrawn','cancelled'=>'Cancelled'];
-        $status = $statusMap[strtolower((string)$inv['status'])] ?? ucfirst((string)$inv['status']);
+        $statusMap = ['0'=>'Pending','1'=>'Active','2'=>'Matured'];
+        $status = $statusMap[(string)$inv['status']] ?? 'Active';
+        if ((string)$inv['status'] === '2' && (int)($inv['recived_status'] ?? 0) === 1) $status = 'Completed';
 
         // ---- TAB 1: package info ----
         $tab1 = [
-            'invest_id'=>(int)$inv['id'], 'package_name'=>$inv['package_name'] ?: ('PKG-'.$inv['package_id']),
-            'stake_amount'=>$amount, 'plan_type'=>ucfirst((string)$inv['plan_code']),
-            'roi_structure'=>$roiPct.'% ('.$inv['roi_basis'].') · '.$years.'y',
-            'purchase_date'=>$inv['start_date'] ?? ($inv['created_at'] ?? null),
-            'activation_date'=>$inv['start_date'], 'maturity_date'=>$inv['maturity_date'],
-            'lock_period_days'=>$years * 365, 'days_remaining'=>$daysRemaining, 'status'=>$status,
-            'wallet_used'=>'USDT → BMAN', 'tx_hash'=>null, 'explorer_link'=>null,
+            'invest_id'=>(int)$inv['id'], 'package_name'=>$inv['package_name'],
+            'stake_amount'=>$amount, 'plan_type'=>($inv['period'] ?: 'Daily'),
+            'roi_structure'=>$roiPct.'% '.($inv['period'] ?: 'daily').' × '.$duration.' days',
+            'purchase_date'=>$inv['created_date'] ?? $inv['starting_date'],
+            'activation_date'=>$inv['starting_date'], 'maturity_date'=>$inv['mature_date'],
+            'lock_period_days'=>$duration, 'days_remaining'=>$daysRemaining, 'status'=>$status,
+            'wallet_used'=>'USDT', 'tx_hash'=>$inv['hash_id'] ?? null,
+            'explorer_link'=>(!empty($inv['hash_id']) && strlen($inv['hash_id'])>40) ? ($explorer.'/tx/'.$inv['hash_id']) : null,
         ];
 
-        // ---- TAB 2: ROI schedule / history ----
+        // ---- TAB 2: ROI history (+ enrich from onchain when available) ----
         $tab2 = ['rows'=>[], 'totals'=>['total_earned'=>$totalEarned,'remaining'=>$pending,'expected_final'=>$expectedFinal]];
         $cyc = 0;
-        foreach ($sched as $r) {
+        foreach ($roiRows as $r) {
             $cyc++;
             $tab2['rows'][] = [
-                'date'=>$r['credit_date'], 'cycle'=>$cyc, 'roi_percent'=>$roiPct,
-                'amount'=>(float)$r['amount'], 'wallet_credited'=>$r['wallet'],
-                'tx_hash'=>null, 'chain_status'=>($r['status']==='paid'?'credited':'scheduled'),
-                'gas_fee'=>null, 'confirmations'=>null, 'created_time'=>$r['credit_date'],
+                'date'=>$r['history_date'], 'cycle'=>$cyc, 'roi_percent'=>$roiPct,
+                'amount'=>(float)$r['amount'], 'wallet_credited'=>'earning',
+                'tx_hash'=>null, 'chain_status'=>'internal', 'gas_fee'=>null, 'confirmations'=>null,
+                'created_time'=>$r['history_date'],
             ];
         }
 
@@ -388,12 +370,11 @@ class Lendingcontroller extends CI_Controller
 
         // ---- TAB 5: timeline ----
         $tab5 = [];
-        $tab5[] = ['event'=>'Purchased','date'=>$inv['start_date'] ?? ($inv['created_at'] ?? null),'desc'=>'Stake purchased ('.number_format($amount,2).' BMAN)'];
-        if (strtolower((string)$inv['status']) !== 'processing')
-            $tab5[] = ['event'=>'Activated','date'=>$inv['start_date'],'desc'=>'Stake activated'];
-        $cyc=0; foreach ($sched as $r){ if ($r['status']!=='paid') continue; $cyc++;
-            $tab5[]=['event'=>"ROI Cycle $cyc",'date'=>$r['credit_date'],'desc'=>'ROI '.number_format((float)$r['amount'],4).' credited']; }
-        if ($mature && $mature <= $today) $tab5[] = ['event'=>'Matured','date'=>$inv['maturity_date'],'desc'=>'Reached maturity'];
+        $tab5[] = ['event'=>'Purchased','date'=>$inv['created_date'] ?? $inv['starting_date'],'desc'=>'Stake purchased ('.number_format($amount,2).')'];
+        if (!empty($inv['starting_date'])) $tab5[] = ['event'=>'Activated','date'=>$inv['starting_date'],'desc'=>'Investment activated'];
+        $cyc=0; foreach ($roiRows as $r){ $cyc++; $tab5[]=['event'=>"ROI Cycle $cyc",'date'=>$r['history_date'],'desc'=>'ROI '.number_format((float)$r['amount'],4).' credited']; }
+        if ($mature && $mature <= $today) $tab5[] = ['event'=>'Matured','date'=>$inv['mature_date'],'desc'=>'Reached maturity'];
+        if ($status==='Completed') $tab5[] = ['event'=>'Completed','date'=>$inv['mature_date'],'desc'=>'Principal settled'];
 
         // ---- TAB 6: documents (endpoints; PDFs are a later phase) ----
         $tab6 = [
@@ -420,65 +401,40 @@ class Lendingcontroller extends CI_Controller
         ]);
     }
 
-    /**
-     * Build the filtered portfolio query (shared by list + export). Reads the
-     * NEW staking system (user_stakes) — this is what a package purchase writes,
-     * so purchases show up immediately (including PROCESSING rows). The legacy
-     * user_investment table is left untouched for older records/other screens.
-     */
-    private function _portfolioQuery($userId, $search, $fStatus, $sortCol = null, $dir = null)
+    /** Build the filtered/sorted portfolio query (shared by list + export). */
+    private function _portfolioQuery($userId, $search, $fStatus, $sortCol, $dir)
     {
-        $this->db->from('user_stakes us')
-                 ->join('staking_packages sp', 'sp.id = us.package_id', 'left')
-                 ->where('us.user_id', $userId);
+        $this->db->from('user_investment ui')->join('package_config pc', 'pc.id = ui.package_id', 'left')
+                 ->where('ui.user_id', $userId);
         if ($search !== '') {
-            $this->db->group_start()->like('sp.name', $search)->or_like('us.id', $search)->group_end();
+            $this->db->group_start()->like('pc.package_name', $search)->or_like('ui.id', $search)->group_end();
         }
         if ($fStatus !== null && $fStatus !== '') {
-            // UI filter → user_stakes.status. 'pending' maps to 'processing'.
-            $map = ['processing'=>'processing','pending'=>'processing','active'=>'active',
-                    'matured'=>'matured','completed'=>'matured','withdrawn'=>'withdrawn','cancelled'=>'cancelled'];
-            $s = strtolower($fStatus);
-            if (isset($map[$s])) $this->db->where('us.status', $map[$s]);
+            $map = ['pending'=>'0','active'=>'1','matured'=>'2','completed'=>'2','cancelled'=>'3'];
+            if (isset($map[strtolower($fStatus)])) $this->db->where('ui.status', $map[strtolower($fStatus)]);
         }
     }
 
-    /** ROI earned / pending / next-credit for a stake (from staking_roi_payouts). */
-    private function _stakeRoiSummary($stakeId)
-    {
-        $earned  = (float)($this->db->select('COALESCE(SUM(amount),0) AS a', false)
-            ->where(['stake_id'=>(int)$stakeId,'status'=>'paid'])->get('staking_roi_payouts')->row_array()['a'] ?? 0);
-        $pending = (float)($this->db->select('COALESCE(SUM(amount),0) AS a', false)
-            ->where(['stake_id'=>(int)$stakeId,'status'=>'pending'])->get('staking_roi_payouts')->row_array()['a'] ?? 0);
-        $next = $this->db->select('credit_date')->where(['stake_id'=>(int)$stakeId,'status'=>'pending'])
-            ->order_by('credit_date','ASC')->limit(1)->get('staking_roi_payouts')->row_array();
-        return ['earned'=>$earned, 'pending'=>$pending, 'next_date'=>$next['credit_date'] ?? null];
-    }
-
-    /** Compute the display row for one stake (all portfolio columns). */
+    /** Compute the display row for one investment (all portfolio columns). */
     private function _portfolioRow($r)
     {
-        $today   = new DateTimeImmutable('today');
-        $stakeId = (int)$r['id'];
-        $amount  = (float)$r['stake_amount'];
-        $roiPct  = (float)$r['roi_percent'];
-        $years   = (int)$r['duration_years'];
-        $mature  = !empty($r['maturity_date']) ? new DateTimeImmutable(date('Y-m-d', strtotime($r['maturity_date']))) : null;
+        $today  = new DateTimeImmutable('today');
+        $amount = (float)$r['invest_amount']; $roiPct = (float)$r['pkg_roi']; $dur = (int)$r['days_duration'];
+        $mature = !empty($r['mature_date']) ? new DateTimeImmutable(date('Y-m-d', strtotime($r['mature_date']))) : null;
         $daysRem = ($mature && $mature >= $today) ? (int)$today->diff($mature)->days : 0;
-
-        $roi = $this->_stakeRoiSummary($stakeId);
-
-        $statusMap = ['processing'=>'Processing','active'=>'Active','matured'=>'Matured',
-                      'withdrawn'=>'Withdrawn','cancelled'=>'Cancelled'];
-        $st = $statusMap[strtolower((string)$r['status'])] ?? ucfirst((string)$r['status']);
-
+        $earned  = (float)$this->calcInvestmentEarned($r['id']);
+        $expected = $amount * ($roiPct/100) * $dur;
+        $statusMap = ['0'=>'Processing','1'=>'Active','2'=>'Matured','3'=>'Cancelled'];
+        $st = $statusMap[(string)$r['status']] ?? 'Active';
+        if ((string)$r['status'] === '0' && empty($r['starting_date'])) $st = 'Processing';
+        if ((string)$r['status'] === '2' && (int)($r['recived_status'] ?? 0) === 1) $st = 'Completed';
         return [
-            'invest_id'=>$stakeId, 'package_name'=>($r['name'] ?? '') ?: ('PKG-'.$r['package_id']),
-            'stake_amount'=>$amount, 'plan_type'=>ucfirst((string)$r['plan_code']),
-            'duration_days'=>$years.' yrs',
-            'purchase_date'=>$r['start_date'] ?? ($r['created_at'] ?? null), 'maturity_date'=>$r['maturity_date'],
-            'days_remaining'=>$daysRem, 'roi_percent'=>$roiPct, 'total_roi_earned'=>$roi['earned'],
-            'pending_roi'=>$roi['pending'], 'next_roi_date'=>$roi['next_date'], 'status'=>$st,
+            'invest_id'=>(int)$r['id'], 'package_name'=>$r['package_name'] ?: ('PKG-'.$r['package_id']),
+            'stake_amount'=>$amount, 'plan_type'=>ucfirst($r['period'] ?: 'daily'), 'duration_days'=>$dur,
+            'purchase_date'=>$r['created_date'] ?? $r['starting_date'], 'maturity_date'=>$r['mature_date'],
+            'days_remaining'=>$daysRem, 'roi_percent'=>$roiPct, 'total_roi_earned'=>$earned,
+            'pending_roi'=>max(0, $expected - $earned), 'next_roi_date'=>$r['run_date'] ?? null, 'status'=>$st,
+            'purchase_state'=>$st,
         ];
     }
 
@@ -495,12 +451,12 @@ class Lendingcontroller extends CI_Controller
         $page   = max(1, (int)$this->input->post('page'));
         $limit  = min(100, max(5, (int)$this->input->post('limit') ?: 20));
         $offset = ($page - 1) * $limit;
-        $sortable = ['id'=>'us.id','amount'=>'us.stake_amount','purchase'=>'us.start_date','maturity'=>'us.maturity_date','status'=>'us.status'];
-        $sortCol  = $sortable[$sort] ?? 'us.id';
+        $sortable = ['id'=>'ui.id','amount'=>'ui.invest_amount','purchase'=>'ui.created_date','maturity'=>'ui.mature_date','status'=>'ui.status'];
+        $sortCol  = $sortable[$sort] ?? 'ui.id';
 
         $this->_portfolioQuery($userId, $search, $fStatus, $sortCol, $dir);
         $total = $this->db->count_all_results('', false);
-        $rows = $this->db->select('us.*, sp.name')
+        $rows = $this->db->select('ui.*, pc.package_name, pc.roi AS pkg_roi, pc.days_duration, pc.period')
             ->order_by($sortCol, $dir)->limit($limit, $offset)->get()->result_array();
 
         $out = array_map([$this, '_portfolioRow'], $rows);
@@ -516,11 +472,11 @@ class Lendingcontroller extends CI_Controller
         $search = trim((string)$this->input->get('search'));
         $fStatus= $this->input->get('status');
 
-        $this->_portfolioQuery($userId, $search, $fStatus, 'us.id', 'DESC');
-        $rows = $this->db->select('us.*, sp.name')
-            ->order_by('us.id', 'DESC')->get()->result_array();
+        $this->_portfolioQuery($userId, $search, $fStatus, 'ui.id', 'DESC');
+        $rows = $this->db->select('ui.*, pc.package_name, pc.roi AS pkg_roi, pc.days_duration, pc.period')
+            ->order_by('ui.id', 'DESC')->get()->result_array();
 
-        $head = ['Stake ID','Package Name','Stake Amount','Plan Type','Duration','Purchase Date',
+        $head = ['Package ID','Package Name','Stake Amount','Plan Type','Duration (days)','Purchase Date',
                  'Maturity Date','Days Remaining','ROI %','Total ROI Earned','Pending ROI','Next ROI Date','Status'];
         $data = [];
         foreach ($rows as $r) {
@@ -679,8 +635,9 @@ class Lendingcontroller extends CI_Controller
     }
 
     /**
-     * Recent staking purchase activity for the portfolio (purchase + ROI trail),
-     * from the history table — visible immediately after a purchase.
+     * Recent staking purchase activity for the portfolio header.
+     * Pulls the immediate purchase record + ROI credits so users see the
+     * progression without opening the modal.
      */
     private function getRecentStakingActivityForView($user_id)
     {
@@ -2722,6 +2679,109 @@ class Lendingcontroller extends CI_Controller
         $this->session->set_flashdata('danger', 'your transaction is failed');
         redirect(base_url('user/lending'));
 
+    }
+
+    /**
+     * AJAX: Check swap order status (poll for gas fee, USDT payment, etc.)
+     */
+    public function swap_status()
+    {
+        $userId = (int) $this->session->userdata('user_userid');
+        if (!$userId) {
+            echo json_encode(['status'=>false,'message'=>'Unauthorized']);
+            return;
+        }
+
+        $orderId = (int) $this->input->post('order_id');
+        $this->load->model('StakingSwap_model', 'swap');
+
+        $order = $this->swap->getOrder($orderId);
+        if (!$order || $order['user_id'] != $userId) {
+            echo json_encode(['status'=>false,'message'=>'Order not found']);
+            return;
+        }
+
+        // Check for updates based on current status
+        switch ($order['status']) {
+            case 'pending_gas_fee':
+                $this->swap->detectGasFeePaid($orderId);
+                $order = $this->swap->getOrder($orderId); // Refresh
+                break;
+            case 'pending_usdt':
+                $this->swap->detectUsdtPayment($orderId);
+                $order = $this->swap->getOrder($orderId); // Refresh
+                break;
+            case 'pending_bman':
+                $this->swap->detectBmanTransfer($orderId);
+                $order = $this->swap->getOrder($orderId); // Refresh
+                break;
+        }
+
+        // Map status to user-friendly text
+        $status_map = [
+            'pending_gas_fee' => 'Waiting for gas fee...',
+            'pending_usdt' => 'Gas fee received! Ready to send USDT',
+            'pending_bman' => 'USDT received! Waiting for BMAN transfer',
+            'swap_completed' => 'Swap completed! Staking activated',
+            'failed' => 'Order failed: ' . ($order['error'] ?? 'Unknown error'),
+        ];
+
+        echo json_encode([
+            'status' => true,
+            'order_id' => $order['id'],
+            'order_ref' => $order['ref'],
+            'current_status' => $order['status'],
+            'status_text' => $status_map[$order['status']] ?? 'Unknown',
+            'gas_tx_hash' => $order['gas_tx_hash'],
+            'usdt_tx_hash' => $order['usdt_tx_hash'],
+            'bman_tx_hash' => $order['bman_tx_hash'],
+            'user_address' => $order['user_address'],
+            'admin_address' => $order['admin_address'],
+            'usdt_amount' => $order['usdt_amount'],
+            'bman_amount' => $order['bman_amount'],
+            'bonus_bman' => $order['bonus_bman'],
+            'can_proceed' => $order['status'] === 'pending_usdt',
+            'is_completed' => $order['status'] === 'swap_completed',
+            'created_at' => $order['created_at'],
+            'updated_at' => $order['updated_at'],
+        ]);
+    }
+
+    /**
+     * AJAX: Get swap order history for user
+     */
+    public function swap_history()
+    {
+        $userId = (int) $this->session->userdata('user_userid');
+        if (!$userId) {
+            echo json_encode(['status'=>false,'message'=>'Unauthorized']);
+            return;
+        }
+
+        $orders = $this->db->select('id, ref, package_id, usdt_amount, bman_amount, status, gas_tx_hash, usdt_tx_hash, bman_tx_hash, created_at')
+            ->where('user_id', $userId)
+            ->order_by('created_at', 'DESC')
+            ->limit(50)
+            ->get('staking_swap_orders')
+            ->result_array();
+
+        // Map status to color/icon
+        foreach ($orders as &$order) {
+            $status_map = [
+                'pending_gas_fee' => 'warning',
+                'pending_usdt' => 'info',
+                'pending_bman' => 'info',
+                'swap_completed' => 'success',
+                'failed' => 'danger',
+            ];
+            $order['status_badge'] = $status_map[$order['status']] ?? 'secondary';
+        }
+
+        echo json_encode([
+            'status' => true,
+            'count' => count($orders),
+            'orders' => $orders,
+        ]);
     }
 
 

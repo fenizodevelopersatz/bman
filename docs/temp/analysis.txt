@@ -2405,7 +2405,7 @@ USDT Wallet
 Convert USDT → BMAN(When purchase the staking package)
         │
         ▼
-Buy Staking Package
+Buy Staking Package(swap)
         │
         ▼
 Exchange Wallet (Investment Wallet)
@@ -3115,3 +3115,74 @@ User usdt deposit Histoy of required details/History
 TO display the usdt balance, date, hash(explorer integration), status, from address, to address, Before balance, after balance, ip address, Token name, to required user's field on the pop
 
 I want to display the more details about the transaction of deposit on wallet history to show the pop up 
+
+
+
+
+No Need for the Staking_roi_cron.php
+
+Flow Diagram
+┌─────────────────────────────────────────────────────────────────────┐
+│ USER FLOW: Purchase 1000 BMAN Staking Package                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+1. USER VISITS: /user/lending/swap_purchase
+   └─> Selects package (e.g., "1000 BMAN Package") & instantly show the history (processing) status
+    onchain_transactions is the status "processing"
+
+
+Cron:
+2. STEP 1: ADMIN SENDS GAS FEE (0.0008 BNB)
+   ├─> System calculates gas: estimateGasFee()
+   ├─> Creates staking_swap_orders (status='pending_gas_fee')
+   ├─> User sees: "Admin will send 0.0008 BNB to your wallet"
+   ├─> Admin sends 0.0008 BNB via blockchain
+   └─> System detects via Etherscan: detectGasFeePaid()
+       └─> Records in onchain_transactions (tx_type='gas_fee')
+       └─> Updates order status to 'pending_usdt'
+
+3. STEP 2: USER SENDS USDT (100 USDT)
+   ├─> User sees: "Gas fee received! Send USDT now"
+   ├─> User sends 100 USDT to admin wallet
+   ├─> System detects via Etherscan: detectUsdtPayment()
+   └─> Records in onchain_transactions (tx_type='deposit')
+       └─> Updates order status to 'pending_bman'
+
+4. STEP 3: ADMIN SENDS BMAN (1000 BMAN(coin distribution method wise to sending the bman) + 250 BMAN bonus)
+   ├─> Admin sends 1000 BMAN to user wallet
+   ├─> Coin distribution based on bman amount sending from admin hot wallet to user appropriate wallets(Exchange, staking, Earning, bonus)
+        1000 BMAN = 100%;
+        See the option on the 
+        Option  Exchange    Earning Staking Bonus
+        1   100%    0%  0%  0%
+        2   90% 0%  0%  10%
+        3   80% 10% 0%  10%
+        4   80% 10% 10% 0%
+        5   90% 10% 0%  0%
+        6   90% 0%  10% 0%
+        7   70% 10% 10% 10%
+        ADMIN->BMAN BASED ON ABOVE WALLET & Manage cron status 1- completed, 0-need to execute 
+        Multiple gas fee status & cron status
+
+   ├─> System detects via Etherscan: detectBmanTransfer()
+   └─> Records in onchain_transactions (tx_type='transfer')
+       ├─> Updates order status to 'swap_completed'
+       ├─> Creates user_stakes record (ACTIVATED)
+       ├─> Credits user wallet_ledger (exchange balance)
+       └─> Displays modal with all TX hashes
+
+5. STEP 4: PORTFOLIO SHOWS IMMEDIATELY
+   ├─> Staking shows "1000 BMAN - PROCESSING"
+   └─> STAKING: 0 BMAN (starts accumulating next hour or CRON hour)
+
+6. HOURLY STAKING CRON: STAKING/PURCHASE PROCESSING(usdt -> bman + bonus)
+   ├─> Cron runs every hour: /staking-roi-cron
+   ├─> For each active staking:
+   │   ├─> Calculate hourly ROI = (1000 * 10%) / 24 hours
+   │   ├─> Send ROI BMAN to user (admin → user)
+   │   ├─> Record in onchain_transactions (tx_type='roi')
+   │   └─> Update staking.accumulated_roi
+   └─> Portfolio updates with new ROI amount
+
+
+All gas fee status with cron status recorded because they need to failed to reload the cron So carefully track the all cron gas fee and swap usdt and bman cron status also

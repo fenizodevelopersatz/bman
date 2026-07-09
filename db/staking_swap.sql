@@ -58,17 +58,23 @@ CREATE TABLE IF NOT EXISTS `staking_swap_orders` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   COMMENT='On-chain USDT<->BMAN swap orders (two-leg state machine + tx hashes)';
 
--- add gas_tx_hash to an already-existing swap orders table (idempotent)
+-- add missing columns to staking_swap_orders (idempotent)
 DROP PROCEDURE IF EXISTS _sso_add_col;
 DELIMITER //
-CREATE PROCEDURE _sso_add_col()
+CREATE PROCEDURE _sso_add_col(IN col VARCHAR(64), IN ddl VARCHAR(255))
 BEGIN
   IF (SELECT COUNT(*) FROM information_schema.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staking_swap_orders'
-        AND COLUMN_NAME = 'gas_tx_hash') = 0 THEN
-    ALTER TABLE `staking_swap_orders` ADD COLUMN `gas_tx_hash` VARCHAR(120) NULL DEFAULT NULL AFTER `admin_address`;
+        AND COLUMN_NAME = col) = 0 THEN
+    SET @s := CONCAT('ALTER TABLE `staking_swap_orders` ADD COLUMN ', ddl);
+    PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
   END IF;
 END//
 DELIMITER ;
-CALL _sso_add_col();
+CALL _sso_add_col('gas_tx_hash', "`gas_tx_hash` VARCHAR(120) NULL DEFAULT NULL COMMENT 'BNB gas payment tx'");
+CALL _sso_add_col('plan_code', "`plan_code` VARCHAR(50) NULL DEFAULT NULL COMMENT 'fixed, variable, etc'");
+CALL _sso_add_col('plan_id', "`plan_id` INT UNSIGNED NULL DEFAULT NULL COMMENT 'staking plan reference'");
+CALL _sso_add_col('duration_years', "`duration_years` INT NULL DEFAULT NULL COMMENT 'staking duration in years'");
+CALL _sso_add_col('coin_distribution_option_id', "`coin_distribution_option_id` INT UNSIGNED NULL DEFAULT NULL COMMENT 'which wallet receives BMAN (exchange/staking/earning/bonus)'");
+CALL _sso_add_col('cron_status', "`cron_status` VARCHAR(50) DEFAULT 'pending' COMMENT 'pending, processing, completed, skipped'");
 DROP PROCEDURE IF EXISTS _sso_add_col;
