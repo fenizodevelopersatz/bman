@@ -413,6 +413,143 @@ class Custodialwallet_model extends CI_Model
     }
 
     /**
+     * Populate balance_before and balance_after using Etherscan tokentx API
+     * Fetches historical balance snapshots for each transaction
+     */
+    public function populateBalanceSnapshots($user_id = null, $limit = 100)
+    {
+        // Load token settings (API key and URL)
+        $settings = $this->db->select('explorer_api_url, explorer_api_key, usdt_contract, chain_id, usdt_decimals')
+            ->from('token_settings')
+            ->where('network', 'mainnet')
+            ->limit(1)
+            ->get()
+            ->row_array();
+
+        if (!$settings || empty($settings['explorer_api_key'])) {
+            log_message('error', 'Cannot populate balances: API key not configured');
+            return ['success' => false, 'updated' => 0];
+        }
+
+        // Find transactions with missing balance_before or balance_after
+        $query = $this->db->from('onchain_transactions')
+            ->where('status', 'confirmed')
+            ->where('amount >', 0);
+
+        if ($user_id) {
+            $query->where('user_id', (int)$user_id);
+        }
+
+        $txs = $query->order_by('block_number', 'DESC')
+            ->limit($limit)
+            ->get()
+            ->result_array();
+
+        if (empty($txs)) {
+            return ['success' => true, 'updated' => 0, 'message' => 'No transactions need balance updates'];
+        }
+
+        $api_url = trim($settings['explorer_api_url']);
+        $api_key = trim($settings['explorer_api_key']);
+        $usdt_contract = $settings['usdt_contract'];
+        $chain_id = (int)$settings['chain_id'];
+        $decimals = (int)($settings['usdt_decimals'] ?? 18);
+
+        $updated = 0;
+
+        foreach ($txs as $tx) {
+            $to_addr = strtolower($tx['to_address'] ?? '');
+            if (empty($to_addr)) continue;
+
+            try {
+                // Use Etherscan tokentx API to get historical token transfers for this address
+                $q = http_build_query([
+                    'chainid' => $chain_id,
+                    'module' => 'account',
+                    'action' => 'tokentx',
+                    'contractaddress' => $usdt_contract,
+                    'address' => $to_addr,
+                    'page' => 1,
+                    'offset' => 100,
+                    'sort' => 'desc',
+                    'apikey' => $api_key,
+                ]);
+
+                $ch = curl_init($api_url . '?' . $q);
+                curl_setopt_array($ch, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_TIMEOUT => 15,
+                    CURLOPT_SSL_VERIFYPEER => false,
+                ]);
+                $response = curl_exec($ch);
+                curl_close($ch);
+
+                $data = json_decode($response, true);
+                if (!isset($data['result']) || !is_array($data['result'])) {
+                    continue;
+                }
+
+                // Find this transaction in the history and calculate balances
+                $balance = '0';
+                $found = false;
+
+                foreach (array_reverse($data['result']) as $hist_tx) {
+                    $hist_hash = strtolower($hist_tx['hash'] ?? '');
+
+                    // Calculate running balance
+                    $value = isset($hist_tx['value']) && $hist_tx['value'] !== '0x0'
+                        ? bcdiv((string)$hist_tx['value'], bcpow('10', (string)$decimals, 0), 18)
+                        : '0';
+
+                    $is_to = strtolower($hist_tx['to'] ?? '') === $to_addr;
+
+                    // Found our transaction - capture BEFORE balance
+                    if ($hist_hash === strtolower($tx['tx_hash'])) {
+                        $balance_before = $balance;
+                        $balance_after = $is_to
+                            ? bcadd((string)$balance, (string)$value, 18)
+                            : bcsub((string)$balance, (string)$value, 18);
+
+                        if (bccomp($balance_after, '0', 18) < 0) {
+                            $balance_after = '0';
+                        }
+
+                        // Update database
+                        $update_data = [
+                            'balance_before' => $balance_before,
+                            'balance_after' => $balance_after,
+                            'updated_at' => date('Y-m-d H:i:s'),
+                        ];
+
+                        $this->db->where('id', $tx['id'])->update('onchain_transactions', $update_data);
+                        $updated++;
+
+                        log_message('info', "Updated balances for TX {$tx['tx_hash']}: before={$balance_before}, after={$balance_after}");
+                        $found = true;
+                        break;
+                    }
+
+                    // Update running balance for next transaction
+                    if ($is_to) {
+                        $balance = bcadd((string)$balance, (string)$value, 18);
+                    } else {
+                        $balance = bcsub((string)$balance, (string)$value, 18);
+                        if (bccomp($balance, '0', 18) < 0) {
+                            $balance = '0';
+                        }
+                    }
+                }
+
+                usleep(100000); // 0.1s rate limiting
+            } catch (Exception $e) {
+                log_message('error', "Failed to populate balance for TX {$tx['tx_hash']}: " . $e->getMessage());
+            }
+        }
+
+        return ['success' => true, 'updated' => $updated, 'message' => "Updated $updated transaction(s) with balance snapshots"];
+    }
+
+    /**
      * Bulk enrich all recent wallet deposits with full Etherscan transaction data
      * Called from wallet_check endpoint to populate onchain_transactions with complete details
      * Uses existing token_settings API configuration

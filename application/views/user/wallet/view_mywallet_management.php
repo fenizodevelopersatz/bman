@@ -1510,7 +1510,9 @@ function wallet_title_fallback($type)
                       created_at: '<?= htmlspecialchars($dt, ENT_QUOTES); ?>',
                       status: '<?= htmlspecialchars($status, ENT_QUOTES); ?>',
                       network: '<?= htmlspecialchars($t['network'] ?? 'bsc', ENT_QUOTES); ?>',
-                      flow: '<?= htmlspecialchars($flow, ENT_QUOTES); ?>'
+                      flow: '<?= htmlspecialchars($flow, ENT_QUOTES); ?>',
+                      balance_before: <?= (float)($t['balance_before'] ?? 0); ?>,
+                      balance_after: <?= (float)($t['balance_after'] ?? 0); ?>
                     })">
                       <td>
                         <div class="tx-left">
@@ -2174,10 +2176,9 @@ function wallet_title_fallback($type)
       const modal = document.getElementById('txDetailsModal');
       const content = document.getElementById('txDetailsContent');
 
-      // Get current user's balance
-      const balanceEl = document.querySelector('.wval')?.textContent;
-      const userBalance = balanceEl ? parseFloat(balanceEl.match(/[\d.]+/)?.[0] || 0) : 0;
-      const beforeBalance = userBalance - parseFloat(tx.amount);
+      // Use actual balance snapshots from blockchain if available, otherwise calculate
+      const balanceBefore = tx.balance_before > 0 ? tx.balance_before : 0;
+      const balanceAfter = tx.balance_after > 0 ? tx.balance_after : (balanceBefore + parseFloat(tx.amount));
 
       const detailsHTML = `
         <!-- Amount Section -->
@@ -2231,15 +2232,18 @@ function wallet_title_fallback($type)
         <!-- Balance Changes -->
         <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;padding:16px;background:linear-gradient(135deg,#f3f4f6,#fafbfc);border-radius:12px;border:1px solid #e5e7eb;">
           <div>
-            <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;">Before Balance</small>
-            <div style="font-size:16px;font-weight:900;color:#0b1220;margin-top:4px;">${beforeBalance.toFixed(4)} USDT</div>
+            <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;">Balance Before</small>
+            <div style="font-size:16px;font-weight:900;color:#0b1220;margin-top:4px;">${balanceBefore.toFixed(4)} USDT</div>
           </div>
           <div style="text-align:center;">
-            <i class="ph ph-arrow-right" style="font-size:24px;color:#6b7280;"></i>
+            <div style="display:flex;flex-direction:column;align-items:center;">
+              <i class="ph ph-arrow-right" style="font-size:24px;color:#6b7280;"></i>
+              <span style="font-size:11px;color:#6b7280;font-weight:900;margin-top:4px;">+${parseFloat(tx.amount).toFixed(4)}</span>
+            </div>
           </div>
           <div style="text-align:right;">
-            <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;">After Balance</small>
-            <div style="font-size:16px;font-weight:900;color:#10b981;margin-top:4px;">${userBalance.toFixed(4)} USDT</div>
+            <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;">Balance After</small>
+            <div style="font-size:16px;font-weight:900;color:#10b981;margin-top:4px;">${balanceAfter.toFixed(4)} USDT</div>
           </div>
         </div>
 

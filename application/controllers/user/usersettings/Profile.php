@@ -137,6 +137,14 @@ class Profile extends MY_Controller
 
             log_message('info', "[wallet_check] Monitor: RPC=" . ($m['rpc_balance'] ?? 0) . ", DB=" . ($m['db_balance'] ?? 0));
 
+            // ✓ NEW: Populate missing balance_before and balance_after from RPC
+            try {
+                $balance_update = $this->cw->populateBalanceSnapshots($uid, 50);
+                log_message('info', "[wallet_check] Balance snapshots: " . ($balance_update['updated'] ?? 0) . " updated");
+            } catch (Exception $e) {
+                log_message('warning', "[wallet_check] Could not populate balances: " . $e->getMessage());
+            }
+
             // ✓ Get complete on-chain transactions with ALL details
             $onchain_filters = [];
             $onchain_data = $this->cw->getOnchainTransactions($uid, $onchain_filters, 1, 50);

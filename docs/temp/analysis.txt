@@ -3082,7 +3082,7 @@ Deposit
 
 
 Today Plan:
-1. Show wallet History of every transaction
+1. Show wallet History of every transaction - Deposit only completed, 
 2. Testing the ROI cron with history showing user side
 3. Testing the Bonus coin Distribute & history showing on user side
 4. Testing the wallet type wise bman distribution or Not on user side
