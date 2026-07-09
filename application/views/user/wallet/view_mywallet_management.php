@@ -1473,46 +1473,43 @@ function wallet_title_fallback($type)
                   <?php
                   foreach ($transactions as $t):
 
-                    // if model already maps these fields, use them; else derive
-                    $rawType = $t->type ?? '';
-                    $flow = wallet_flow_from_history_type($rawType);
+                    // ✅ On-chain transaction data (from getOnchainTransactions)
+                    $flow = $t['flow'] ?? 'DEBIT';  // CREDIT or DEBIT
+                    $rawType = $t['tx_type'] ?? 'transfer';
+                    $status = $t['status'] ?? 'SUCCESS';  // Already SUCCESS for confirmed
+                    $title = $t['title'] ?? ucfirst($rawType);
+                    $ref = $t['tx_hash'] ?? '';
+                    $dt = $t['created_at'] ?? '';
+                    $amt = (float) ($t['amount'] ?? 0);
 
-                    $status = wallet_status_from_history_status($t->status ?? '');
-
-                    $title = $t->title ?? wallet_title_fallback($rawType);
-                    $ref = $t->ref ?? ($t->hash_id ?? '');
-                    $note = $t->note ?? ($t->description ?? '');
-                    $dt = $t->created_at ?? ($t->history_date ?? ($t->date ?? ''));
-                    $amt = (float) ($t->amount ?? 0);
-
-                    // icons based on history.type + title
+                    // ✅ Icons for on-chain transaction types
                     $icon = 'ph-wallet';
                     $tkey = strtolower((string) $rawType);
 
-                    if ($tkey === 'withdraw' || stripos($title, 'withdraw') !== false)
-                      $icon = 'ph-money';
+                    if ($tkey === 'deposit' || stripos($title, 'deposit') !== false)
+                      $icon = 'ph-arrow-circle-down';
                     else if ($tkey === 'transfer' || stripos($title, 'transfer') !== false)
-                      $icon = 'ph-arrows-left-right';
-                    else if ($tkey === 'commission' || stripos($title, 'commission') !== false)
-                      $icon = 'ph-coins';
+                      $icon = 'ph-arrow-left-right';
                     else if ($tkey === 'bonus' || stripos($title, 'bonus') !== false)
                       $icon = 'ph-gift';
-                    else if ($tkey === 'order' || stripos($title, 'order') !== false)
-                      $icon = 'ph-bag';
+                    else if ($tkey === 'earn' || stripos($title, 'earn') !== false)
+                      $icon = 'ph-trend-up';
+                    else if ($tkey === 'roi' || stripos($title, 'roi') !== false)
+                      $icon = 'ph-currency-circle-dollar';
 
                     ?>
                     <tr class="row" style="cursor:pointer;" onclick="showTransactionDetails(this, {
-                      id: <?= (int)($t->id ?? 0); ?>,
-                      tx_hash: '<?= htmlspecialchars($t->tx_hash ?? '', ENT_QUOTES); ?>',
-                      type: '<?= htmlspecialchars($t->tx_type ?? 'transfer', ENT_QUOTES); ?>',
+                      id: <?= (int)($t['id'] ?? 0); ?>,
+                      tx_hash: '<?= htmlspecialchars($t['tx_hash'] ?? '', ENT_QUOTES); ?>',
+                      type: '<?= htmlspecialchars($t['tx_type'] ?? 'transfer', ENT_QUOTES); ?>',
                       amount: '<?= htmlspecialchars($amt, ENT_QUOTES); ?>',
-                      from_address: '<?= htmlspecialchars($t->from_address ?? '', ENT_QUOTES); ?>',
-                      to_address: '<?= htmlspecialchars($t->to_address ?? '', ENT_QUOTES); ?>',
-                      block_number: <?= (int)($t->block_number ?? 0); ?>,
-                      confirmation_count: <?= (int)($t->confirmation_count ?? 0); ?>,
+                      from_address: '<?= htmlspecialchars($t['from_address'] ?? '', ENT_QUOTES); ?>',
+                      to_address: '<?= htmlspecialchars($t['to_address'] ?? '', ENT_QUOTES); ?>',
+                      block_number: <?= (int)($t['block_number'] ?? 0); ?>,
+                      confirmation_count: <?= (int)($t['confirmation_count'] ?? 0); ?>,
                       created_at: '<?= htmlspecialchars($dt, ENT_QUOTES); ?>',
                       status: '<?= htmlspecialchars($status, ENT_QUOTES); ?>',
-                      network: '<?= htmlspecialchars($t->network ?? 'bsc', ENT_QUOTES); ?>',
+                      network: '<?= htmlspecialchars($t['network'] ?? 'bsc', ENT_QUOTES); ?>',
                       flow: '<?= htmlspecialchars($flow, ENT_QUOTES); ?>'
                     })">
                       <td>
@@ -1521,11 +1518,11 @@ function wallet_title_fallback($type)
                           <div>
                             <b><?= htmlspecialchars($title); ?></b>
                             <small>
-                              TX: <?= htmlspecialchars(substr($t->tx_hash ?? '', 0, 16)); ?>...
+                              TX: <?= htmlspecialchars(substr($ref, 0, 16)); ?>...
                               <?php if ($flow === 'CREDIT'): ?>
-                                From: <?= htmlspecialchars(substr($t->from_address ?? '', 0, 10)); ?>...
+                                From: <?= htmlspecialchars(substr($t['from_address'] ?? '', 0, 10)); ?>...
                               <?php else: ?>
-                                To: <?= htmlspecialchars(substr($t->to_address ?? '', 0, 10)); ?>...
+                                To: <?= htmlspecialchars(substr($t['to_address'] ?? '', 0, 10)); ?>...
                               <?php endif; ?>
                             </small>
                           </div>
@@ -1545,18 +1542,15 @@ function wallet_title_fallback($type)
                       </td>
                       <td>
                         <small style="color:#10b981;font-weight:900;">
-                          <i class="ph ph-check-circle"></i> <?= (int)($t->confirmation_count ?? 0); ?> blocks
+                          <i class="ph ph-check-circle"></i> <?= (int)($t['confirmation_count'] ?? 0); ?> blocks
                         </small>
                       </td>
                       <td>
                         <div class="row-actions">
-                          <a class="a-btn" href="https://bscscan.com/tx/<?= htmlspecialchars($t->tx_hash ?? ''); ?>" target="_blank" title="View on BscScan" onclick="event.stopPropagation()">
+                          <a class="a-btn" href="https://bscscan.com/tx/<?= htmlspecialchars($ref); ?>" target="_blank" title="View on BscScan" onclick="event.stopPropagation()">
                             <i class="ph ph-link-simple"></i>
                           </a>
-                          <button class="a-btn" type="button" title="Copy TX Hash"
-                            onclick="event.stopPropagation(); copyPlain('<?= htmlspecialchars($t->tx_hash ?? '', ENT_QUOTES); ?>')"><i
-                              class="ph ph-copy"></i></button>
-                          <button class="a-btn" type="button" title="View Details" onclick="event.stopPropagation(); showTransactionModal(this)">
+                          <button class="a-btn" type="button" title="View Details" onclick="event.stopPropagation(); this.closest('tr').click();">
                             <i class="ph ph-info"></i>
                           </button>
                         </div>
@@ -1784,19 +1778,46 @@ function wallet_title_fallback($type)
       const state = document.getElementById('wallet-sync-state');
       if (state) state.textContent = 'Refreshing...';
       try {
+        // 1. Check on-chain balance
         const res = await fetch(walletCheckUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }});
         const json = await res.json();
         const d = json.data || {};
-        if (document.getElementById('onchain-usdt')) document.getElementById('onchain-usdt').textContent = d.onchain_usdt ?? '0';
-        if (document.getElementById('db-usdt')) document.getElementById('db-usdt').textContent = d.db_usdt ?? '0';
-        if (document.getElementById('usdt-diff')) document.getElementById('usdt-diff').textContent = d.difference ?? '0';
-        if (document.getElementById('onchain-bnb')) document.getElementById('onchain-bnb').textContent = d.onchain_bnb ?? '0';
-        if (document.getElementById('onchain-bman')) document.getElementById('onchain-bman').textContent = d.onchain_bman ?? '0';
+        if (document.getElementById('onchain-usdt')) document.getElementById('onchain-usdt').textContent = d.onchain_usdt || '0';
+        if (document.getElementById('db-usdt')) document.getElementById('db-usdt').textContent = d.db_usdt || '0';
+        if (document.getElementById('usdt-diff')) document.getElementById('usdt-diff').textContent = d.difference || '0';
+        if (document.getElementById('onchain-bnb')) document.getElementById('onchain-bnb').textContent = d.onchain_bnb || '0';
+        if (document.getElementById('onchain-bman')) document.getElementById('onchain-bman').textContent = d.onchain_bman || '0';
+
+        // 2. If balance mismatch detected, enrich from Etherscan
+        if (d.difference > 0 || d.difference < 0) {
+          if (state) state.textContent = 'Fetching transaction details...';
+          await enrichTransactionsFromEtherscan();
+          setTimeout(() => location.reload(), 1500);
+          return;
+        }
+
         if (state) state.textContent = (d.has_pending ? 'Uncredited funds found' : 'Up to date');
         if (json.message) toastMini(json.message);
       } catch (e) {
         if (state) state.textContent = 'Refresh failed';
-        toastMini('Wallet refresh failed');
+        toastMini('Wallet refresh failed: ' + (e.message || 'Unknown error'));
+      }
+    }
+
+    // Enrich transaction data from Etherscan when balance mismatch detected
+    async function enrichTransactionsFromEtherscan() {
+      try {
+        const res = await fetch('<?= base_url('user/wallet-check-enrich'); ?>', {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const json = await res.json();
+        if (json.success && json.updated_count > 0) {
+          toastMini(`✓ Enriched ${json.updated_count} transaction(s) with Etherscan data`);
+        } else if (!json.balance_match) {
+          toastMini(`⚠️ ${json.message}`);
+        }
+      } catch (e) {
+        toastMini('Could not enrich transaction data');
       }
     }
 
@@ -1895,7 +1916,7 @@ function wallet_title_fallback($type)
     }
 
     function csvEscape(v) {
-      v = String(v ?? "");
+      v = String(v || "");
       if (v.includes('"') || v.includes(',') || v.includes('\n')) {
         v = '"' + v.replaceAll('"', '""') + '"';
       }
@@ -1962,7 +1983,7 @@ function wallet_title_fallback($type)
           };
           Object.keys(map).forEach(id => {
             const el = document.getElementById(id);
-            if (el) el.textContent = map[id] ?? '';
+            if (el) el.textContent = map[id] || '';
           });
           const st = document.getElementById('wallet-popup-status');
           if (st) st.textContent = d.monitor.has_pending ? 'Uncredited funds found' : 'Synced';
@@ -2070,7 +2091,7 @@ function wallet_title_fallback($type)
                         <div style={{fontSize:'12px',fontWeight:1000,lineHeight:1.2}}>{r.token || 'USDT'} deposit</div>
                         <div style={{fontSize:'11px',color:'var(--text-muted)',fontWeight:900,marginTop:'4px'}}>{fmt(r.detected_at || r.created_at)}</div>
                         <div style={{fontSize:'10px',color:'var(--text-muted)',fontWeight:900,marginTop:'3px'}}>
-                          Confirmations: {r.confirmations ?? 0} / 15 {(r.confirmations ?? 0) >= 15 && <span style={{color:'#10b981'}}>✓</span>}
+                          Confirmations: {r.confirmations || 0} / 15 {(r.confirmations || 0) >= 15 && <span style={{color:'#10b981'}}>✓</span>}
                         </div>
                         <div style={{fontSize:'10px',color:'var(--text-muted)',fontWeight:900,marginTop:'3px',wordBreak:'break-all',fontFamily:'monospace'}}>
                           <a href={'https://bscscan.com/tx/' + (r.tx_hash || '#')} target="_blank" style={{color:'#6366f1',textDecoration:'none'}}>{(r.tx_hash || '').substring(0, 12)}...</a>
@@ -2103,6 +2124,171 @@ function wallet_title_fallback($type)
     }
 
     ReactDOM.createRoot(document.getElementById('usdt-history-root')).render(<UsdtHistoryPanel />);
+  </script>
+
+  <!-- 📋 Transaction Details Modal - PROFESSIONAL DESIGN -->
+  <div id="txDetailsModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(15,23,42,0.7);z-index:9999;padding:20px;overflow-y:auto;animation:fadeIn 0.2s ease-in;">
+    <div style="background:linear-gradient(135deg,#fff 0%,#f9fafb 100%);border-radius:20px;max-width:700px;margin:40px auto;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);overflow:hidden;animation:slideUp 0.3s ease-out;">
+
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg,#6e56cf 0%,#5d56a8 100%);padding:24px;display:flex;justify-content:space-between;align-items:center;">
+        <h2 style="margin:0;font-size:22px;font-weight:900;color:#fff;display:flex;align-items:center;gap:10px;">
+          <i class="ph ph-receipt" style="font-size:24px;"></i> Transaction Details
+        </h2>
+        <button style="background:rgba(255,255,255,0.2);border:none;font-size:28px;cursor:pointer;color:#fff;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;transition:0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'" onclick="closeTxModal()">×</button>
+      </div>
+
+      <!-- Content -->
+      <div style="padding:30px;">
+        <div id="txDetailsContent" style="display:grid;gap:20px;">
+          <!-- Will be populated by JavaScript -->
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display:flex;gap:12px;margin-top:30px;justify-content:flex-end;padding-top:20px;border-top:1px solid #e5e7eb;">
+          <button class="btn-soft" type="button" onclick="closeTxModal()" style="padding:10px 16px;border-radius:12px;">
+            <i class="ph ph-x"></i> Close
+          </button>
+          <a id="txBscLink" href="#" target="_blank" style="padding:10px 16px;border-radius:12px;background:#6e56cf;color:#fff;border:none;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;gap:8px;text-decoration:none;">
+            <i class="ph ph-link-simple"></i> View on BscScan
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes slideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  </style>
+
+  <script>
+    // ✅ Show transaction details modal with professional design
+    function showTransactionDetails(row, tx) {
+      const modal = document.getElementById('txDetailsModal');
+      const content = document.getElementById('txDetailsContent');
+
+      // Get current user's balance
+      const balanceEl = document.querySelector('.wval')?.textContent;
+      const userBalance = balanceEl ? parseFloat(balanceEl.match(/[\d.]+/)?.[0] || 0) : 0;
+      const beforeBalance = userBalance - parseFloat(tx.amount);
+
+      const detailsHTML = `
+        <!-- Amount Section -->
+        <div style="background:linear-gradient(135deg,#dbeafe,#e0e7ff);border-left:4px solid #6e56cf;padding:16px;border-radius:12px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <small style="color:#6b7280;font-weight:900;font-size:12px;text-transform:uppercase;">Transaction Amount</small>
+            <div style="font-size:28px;font-weight:900;color:#6e56cf;margin-top:4px;">
+              ${parseFloat(tx.amount).toFixed(4)} <span style="font-size:16px;">USDT</span>
+            </div>
+          </div>
+          <div style="font-size:48px;color:#6e56cf;opacity:0.2;">
+            <i class="ph ph-arrow-right"></i>
+          </div>
+        </div>
+
+        <!-- Key Details Grid -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="padding:14px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;">
+            <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;display:block;margin-bottom:6px;">Date & Time</small>
+            <div style="font-size:13px;font-weight:900;color:#0b1220;">${tx.created_at}</div>
+          </div>
+
+          <div style="padding:14px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;">
+            <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;display:block;margin-bottom:6px;">Status</small>
+            <div style="font-size:13px;font-weight:900;color:#10b981;display:flex;align-items:center;gap:6px;">
+              <i class="ph ph-check-circle"></i> ${tx.status.toUpperCase()}
+            </div>
+          </div>
+
+          <div style="padding:14px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;">
+            <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;display:block;margin-bottom:6px;">Confirmations</small>
+            <div style="font-size:13px;font-weight:900;color:#0b1220;">${tx.confirmation_count} / 15 blocks</div>
+          </div>
+
+          <div style="padding:14px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;">
+            <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;display:block;margin-bottom:6px;">Type</small>
+            <div style="font-size:13px;font-weight:900;color:#0b1220;">${tx.type.toUpperCase()}</div>
+          </div>
+
+          <div style="padding:14px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;">
+            <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;display:block;margin-bottom:6px;">Network</small>
+            <div style="font-size:13px;font-weight:900;color:#0b1220;">${tx.network.toUpperCase()}</div>
+          </div>
+
+          <div style="padding:14px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;">
+            <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;display:block;margin-bottom:6px;">Block Number</small>
+            <div style="font-size:13px;font-weight:900;color:#0b1220;">#${tx.block_number}</div>
+          </div>
+        </div>
+
+        <!-- Balance Changes -->
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;padding:16px;background:linear-gradient(135deg,#f3f4f6,#fafbfc);border-radius:12px;border:1px solid #e5e7eb;">
+          <div>
+            <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;">Before Balance</small>
+            <div style="font-size:16px;font-weight:900;color:#0b1220;margin-top:4px;">${beforeBalance.toFixed(4)} USDT</div>
+          </div>
+          <div style="text-align:center;">
+            <i class="ph ph-arrow-right" style="font-size:24px;color:#6b7280;"></i>
+          </div>
+          <div style="text-align:right;">
+            <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;">After Balance</small>
+            <div style="font-size:16px;font-weight:900;color:#10b981;margin-top:4px;">${userBalance.toFixed(4)} USDT</div>
+          </div>
+        </div>
+
+        <!-- From Address -->
+        <div style="padding:14px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;">
+          <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;display:block;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+            <i class="ph ph-arrow-up-right"></i> FROM ADDRESS
+          </small>
+          <div style="font-size:12px;font-weight:900;color:#0b1220;word-break:break-all;font-family:monospace;background:#fff;padding:10px;border-radius:8px;border:1px solid #e5e7eb;">${tx.from_address}</div>
+        </div>
+
+        <!-- To Address -->
+        <div style="padding:14px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;">
+          <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;display:block;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+            <i class="ph ph-arrow-down-left"></i> TO ADDRESS
+          </small>
+          <div style="font-size:12px;font-weight:900;color:#0b1220;word-break:break-all;font-family:monospace;background:#fff;padding:10px;border-radius:8px;border:1px solid #e5e7eb;">${tx.to_address}</div>
+        </div>
+
+        <!-- Transaction Hash -->
+        <div style="padding:14px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;">
+          <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;display:block;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+            <i class="ph ph-hash"></i> TRANSACTION HASH
+          </small>
+          <div style="font-size:12px;font-weight:900;color:#0b1220;word-break:break-all;font-family:monospace;background:#fff;padding:10px;border-radius:8px;border:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">
+            <span>${tx.tx_hash}</span>
+            <button style="background:none;border:none;cursor:pointer;color:#6e56cf;font-weight:900;" onclick="copyPlain('${tx.tx_hash}'); toastMini('Copied!')">
+              <i class="ph ph-copy"></i>
+            </button>
+          </div>
+        </div>
+      `;
+
+      content.innerHTML = detailsHTML;
+      document.getElementById('txBscLink').href = 'https://bscscan.com/tx/' + tx.tx_hash;
+      modal.style.display = 'block';
+    }
+
+    function closeTxModal() {
+      document.getElementById('txDetailsModal').style.display = 'none';
+    }
+
+    document.getElementById('txDetailsModal')?.addEventListener('click', function(e) {
+      if (e.target === this) closeTxModal();
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeTxModal();
+    });
   </script>
 </body>
 

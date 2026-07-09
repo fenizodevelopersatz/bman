@@ -83,12 +83,14 @@ class Profile extends MY_Controller
         $data['eligibleText'] = $eligible;
 
         // --- Custodial wallet (proposal §3): ensure a unique deposit address,
-        //     load the five wallet balances + deposit/withdraw history + log.
+        //     load the five wallet balances + deposit/withdraw history + on-chain log.
         $this->load->model('Custodialwallet_model', 'cw');
         $data['wallet'] = $this->cw->ensureAddress($uid);          // creates one if missing
         $data['five_wallets'] = $this->cw->fiveWallets($uid);
         $data['deposits'] = $this->cw->deposits($uid, 20);
-        $data['wallet_log'] = $this->cw->monitorLog($uid, 20);
+        // ✓ NEW: Use on-chain transactions instead of deprecated monitorLog
+        $onchain_txs = $this->cw->getOnchainTransactions($uid, [], 1, 20);
+        $data['wallet_log'] = $onchain_txs['rows'] ?? [];
         $data['withdraws'] = $this->db->where('user_id', $uid)
                                       ->order_by('created_at', 'DESC')->limit(20)
                                       ->get('withdrawals')->result_array();
@@ -114,23 +116,53 @@ class Profile extends MY_Controller
         // Manual "update wallet": credit this user's confirmed USDT deposits
         // (same engine as the cron) so clicking the button funds the USDT wallet.
         $credited = 0;
+        $enriched = 0;
         try {
             $this->load->model('Depositlistener_model', 'listener');
             $r = $this->listener->scan($uid);
             $credited = (int)($r['credited'] ?? 0);
-        } catch (Exception $e) { /* best effort — cron will catch up */ }
+            $enriched = (int)($r['enriched'] ?? 0);
+            log_message('info', "[wallet_check] Scan result: credited=$credited, enriched=$enriched");
+        } catch (Exception $e) {
+            log_message('error', '[wallet_check] Scan failed: ' . $e->getMessage());
+        }
 
         try {
+            // Get monitor data (balance check)
             $m = $this->cw->monitor($uid);
-            if (!$m)
+            if (!$m) {
+                log_message('error', "[wallet_check] No wallet for user $uid");
                 return $this->_json(["status" => "error", "message" => "No wallet address yet."], 404);
-            return $this->_json([
+            }
+
+            log_message('info', "[wallet_check] Monitor: RPC=" . ($m['rpc_balance'] ?? 0) . ", DB=" . ($m['db_balance'] ?? 0));
+
+            // ✓ Get complete on-chain transactions with ALL details
+            $onchain_filters = [];
+            $onchain_data = $this->cw->getOnchainTransactions($uid, $onchain_filters, 1, 50);
+
+            log_message('info', "[wallet_check] Fetched " . count($onchain_data['rows']) . " on-chain transactions");
+
+            // Build complete response with enriched data
+            $response = [
                 "status"   => "success",
                 "credited" => $credited,
-                "message"  => $credited > 0 ? ($credited.' deposit(s) credited.') : 'Wallet up to date.',
+                "enriched" => $enriched,
+                "message"  => $credited > 0
+                    ? ($credited.' deposit(s) credited, '.$enriched.' enriched.')
+                    : 'Wallet up to date.',
                 "data"     => $m,
-            ]);
+                // ✓ Complete on-chain transaction data with from/to addresses
+                "onchain_transactions" => [
+                    "rows" => $onchain_data['rows'],      // Complete TX data
+                    "counts" => $onchain_data['counts'],  // Type counts (INCOMING/OUTGOING)
+                    "paging" => $onchain_data['paging'],  // Pagination info
+                ],
+            ];
+
+            return $this->_json($response);
         } catch (Exception $e) {
+            log_message('error', '[wallet_check] Exception: ' . $e->getMessage() . ' at ' . $e->getFile() . ':' . $e->getLine());
             return $this->_json(["status" => "error", "message" => "Chain read failed: " . $e->getMessage()], 502);
         }
     }

@@ -346,6 +346,411 @@ class Custodialwallet_model extends CI_Model
     }
 
     /**
+     * Record complete on-chain transaction details in onchain_transactions table
+     * Called when Etherscan API returns full transaction data
+     * Stores: from_address, to_address, amount, gas, timestamp, block, etc.
+     */
+    public function recordOnchainTransaction($tx_hash, $etherscan_tx_data, $user_id = null)
+    {
+        if (empty($tx_hash) || !is_array($etherscan_tx_data)) {
+            return false;
+        }
+
+        // Extract all available data from Etherscan response
+        $tx_hash = strtolower(trim($tx_hash));
+        $from = strtolower($etherscan_tx_data['from'] ?? '');
+        $to = strtolower($etherscan_tx_data['to'] ?? '');
+
+        // Convert wei to decimal (assuming 18 decimals for USDT)
+        $value_wei = isset($etherscan_tx_data['value']) ? (string)$etherscan_tx_data['value'] : '0';
+        $amount = bcdiv($value_wei, bcpow('10', '18', 0), 18); // wei to USDT
+
+        $block = isset($etherscan_tx_data['blockNumber']) ? (int)$etherscan_tx_data['blockNumber'] : 0;
+        $timestamp = isset($etherscan_tx_data['timeStamp']) ? (int)$etherscan_tx_data['timeStamp'] : 0;
+        $gas_used = isset($etherscan_tx_data['gasUsed']) ? (int)$etherscan_tx_data['gasUsed'] : 0;
+        $status_rep = isset($etherscan_tx_data['statusRep']) ? (int)$etherscan_tx_data['statusRep'] : 1;
+        $tx_index = isset($etherscan_tx_data['transactionIndex']) ? (int)$etherscan_tx_data['transactionIndex'] : 0;
+
+        // Determine if incoming or outgoing
+        $is_incoming = ($to === strtolower($etherscan_tx_data['to'] ?? ''));
+        $tx_type = $is_incoming ? 'deposit' : 'transfer';
+
+        // Check if already exists
+        $existing = $this->db->where('tx_hash', $tx_hash)
+            ->get('onchain_transactions')
+            ->row_array();
+
+        // Map to actual table columns (not value, but amount)
+        $data = [
+            'tx_hash' => $tx_hash,
+            'from_address' => $from,
+            'to_address' => $to,
+            'amount' => $amount,  // ✓ Use 'amount' not 'value'
+            'tx_type' => $tx_type,
+            'block_number' => $block,
+            'confirmation_count' => 0,
+            'status' => $status_rep === 1 ? 'confirmed' : 'failed',
+            'network' => 'bsc',
+            'tx_index' => $tx_index,  // ✓ Use 'tx_index' not 'transaction_index'
+            'gas_used' => $gas_used,
+            'block_timestamp' => $timestamp > 0 ? date('Y-m-d H:i:s', $timestamp) : date('Y-m-d H:i:s'),
+            'created_at' => $timestamp > 0 ? date('Y-m-d H:i:s', $timestamp) : date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+
+        if ($user_id) {
+            $data['user_id'] = (int)$user_id;
+        }
+
+        if ($existing) {
+            // Update existing record with newly fetched details
+            return $this->db->where('tx_hash', $tx_hash)
+                ->update('onchain_transactions', $data) > 0;
+        } else {
+            // Insert new record
+            return $this->db->insert('onchain_transactions', $data);
+        }
+    }
+
+    /**
+     * Bulk enrich all recent wallet deposits with full Etherscan transaction data
+     * Called from wallet_check endpoint to populate onchain_transactions with complete details
+     * Uses existing token_settings API configuration
+     */
+    public function enrichAllRecentDeposits($user_id = null, $limit = 50)
+    {
+        // Load token settings (API key and URL)
+        $settings = $this->db->select('explorer_api_url, explorer_api_key, usdt_contract, chain_id, usdt_decimals')
+            ->from('token_settings')
+            ->where('network', 'mainnet')
+            ->limit(1)
+            ->get()
+            ->row_array();
+
+        if (!$settings || empty($settings['explorer_api_key'])) {
+            log_message('error', 'Cannot enrich deposits: API key not configured');
+            return ['success' => false, 'message' => 'API key not configured'];
+        }
+
+        // Get custodial wallets to check
+        $query = $this->db->from('user_wallet');
+        if ($user_id) {
+            $query->where('user_id', (int)$user_id);
+        }
+        $wallets = $query->limit($limit)->get()->result_array();
+
+        if (empty($wallets)) {
+            return ['success' => true, 'enriched' => 0, 'message' => 'No wallets to enrich'];
+        }
+
+        $api_url = trim($settings['explorer_api_url']);
+        $api_key = trim($settings['explorer_api_key']);
+        $usdt_contract = $settings['usdt_contract'];
+        $chain_id = (int)$settings['chain_id'];
+        $decimals = (int)($settings['usdt_decimals'] ?? 18);
+
+        $enriched_count = 0;
+        $failed_count = 0;
+
+        foreach ($wallets as $wallet) {
+            $wallet_addr = $wallet['wallet_address'];
+            $user_id_val = (int)$wallet['user_id'];
+
+            log_message('info', "Enriching deposits for wallet {$wallet_addr}");
+
+            // Call Etherscan API for this wallet
+            $q = http_build_query([
+                'chainid' => $chain_id,
+                'module' => 'account',
+                'action' => 'tokentx',
+                'contractaddress' => $usdt_contract,
+                'address' => $wallet_addr,
+                'page' => 1,
+                'offset' => 50,
+                'sort' => 'desc',
+                'apikey' => $api_key,
+            ]);
+
+            $ch = curl_init($api_url . '?' . $q);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 25,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+            $response = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($http_code !== 200 || !$response) {
+                log_message('error', "Etherscan API failed for {$wallet_addr}: HTTP {$http_code}");
+                $failed_count++;
+                continue;
+            }
+
+            $data = json_decode($response, true);
+            if (!isset($data['result']) || !is_array($data['result'])) {
+                log_message('warning', "No transactions found for {$wallet_addr}");
+                continue;
+            }
+
+            // Process each transaction
+            foreach ($data['result'] as $tx) {
+                // Only store incoming transfers
+                if (strtolower($tx['to'] ?? '') !== strtolower($wallet_addr)) {
+                    continue;
+                }
+
+                try {
+                    if ($this->recordOnchainTransaction($tx['hash'], $tx, $user_id_val)) {
+                        $enriched_count++;
+                        log_message('info', "Enriched TX: {$tx['hash']} (from: {$tx['from']}, to: {$tx['to']})");
+                    }
+                } catch (Exception $e) {
+                    log_message('error', "Failed to record TX {$tx['hash']}: " . $e->getMessage());
+                }
+
+                usleep(50000); // 0.05s rate limiting
+            }
+
+            usleep(100000); // 0.1s delay between wallets
+        }
+
+        return [
+            'success' => true,
+            'enriched' => $enriched_count,
+            'failed' => $failed_count,
+            'message' => "Enriched {$enriched_count} transaction(s)",
+        ];
+    }
+
+    /**
+     * Enrich transaction with Etherscan API details (from_address, to_address, value, balances)
+     * Only called when balance mismatch is detected to avoid paid API hits
+     * Uses API key from token_settings table (admin configured)
+     */
+    public function enrichTransactionFromEtherscan($tx_hash, $user_wallet_address = '')
+    {
+        $tx_hash = trim($tx_hash);
+        if (empty($tx_hash)) return false;
+
+        // Load Etherscan API config from token_settings table
+        $settings = $this->db->select('explorer_api_url, explorer_api_key')
+            ->from('token_settings')
+            ->where('network', 'mainnet')
+            ->limit(1)
+            ->get()
+            ->row_array();
+
+        if (!$settings || empty($settings['explorer_api_key'])) {
+            log_message('error', 'Etherscan API key not configured in token_settings');
+            return false;
+        }
+
+        $api_key = trim($settings['explorer_api_key']);
+        $api_url = trim($settings['explorer_api_url']) ?: 'https://api.bscscan.com/api';
+
+        // 1. Fetch transaction details (from, to, value, input)
+        $tx_data = $this->_fetchFromEtherscan($api_url, $api_key, 'eth_getTransactionByHash', ['txhash' => $tx_hash]);
+        if (!$tx_data) return false;
+
+        $tx = $tx_data['result'];
+        $enriched = [
+            'from' => strtolower($tx['from'] ?? ''),
+            'to'   => strtolower($tx['to'] ?? ''),
+            'value' => isset($tx['value']) ? hexdec($tx['value']) : 0,
+            'gas_used' => isset($tx['gas']) ? hexdec($tx['gas']) : 0,
+            'block_number' => isset($tx['blockNumber']) ? hexdec($tx['blockNumber']) : 0,
+            'balance_before' => null,
+            'balance_after' => null,
+        ];
+
+        // 2. Fetch transaction receipt for gas usage and block details
+        $receipt_data = $this->_fetchFromEtherscan($api_url, $api_key, 'eth_getTransactionReceipt', ['txhash' => $tx_hash]);
+        if ($receipt_data && isset($receipt_data['result']['gasUsed'])) {
+            $enriched['gas_used'] = hexdec($receipt_data['result']['gasUsed']);
+        }
+
+        // 3. Fetch account balance at block height (before transaction)
+        if (!empty($user_wallet_address) && isset($tx['blockNumber'])) {
+            $block_before = hexdec($tx['blockNumber']) - 1;
+            $balance_before_data = $this->_fetchFromEtherscan(
+                $api_url,
+                $api_key,
+                'eth_getBalance',
+                [
+                    'address' => strtolower($user_wallet_address),
+                    'tag' => '0x' . dechex($block_before)
+                ]
+            );
+            if ($balance_before_data && isset($balance_before_data['result'])) {
+                // Convert from wei to USDT (assuming 18 decimals)
+                $enriched['balance_before'] = hexdec($balance_before_data['result']) / 1e18;
+            }
+        }
+
+        // 4. Fetch account balance at block height (after transaction)
+        if (!empty($user_wallet_address) && isset($tx['blockNumber'])) {
+            $balance_after_data = $this->_fetchFromEtherscan(
+                $api_url,
+                $api_key,
+                'eth_getBalance',
+                [
+                    'address' => strtolower($user_wallet_address),
+                    'tag' => '0x' . dechex(hexdec($tx['blockNumber']))
+                ]
+            );
+            if ($balance_after_data && isset($balance_after_data['result'])) {
+                // Convert from wei to USDT (assuming 18 decimals)
+                $enriched['balance_after'] = hexdec($balance_after_data['result']) / 1e18;
+            }
+        }
+
+        return $enriched;
+    }
+
+    /**
+     * Helper: Make Etherscan API call
+     */
+    private function _fetchFromEtherscan($api_url, $api_key, $action, $params = [])
+    {
+        $query_params = array_merge($params, [
+            'module'  => 'proxy',
+            'action'  => $action,
+            'apikey'  => $api_key,
+        ]);
+
+        $url = $api_url . '?' . http_build_query($query_params);
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+
+        $response = curl_exec($ch);
+        $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($http_code !== 200 || !$response) {
+            log_message('error', "Etherscan API error (action={$action}): HTTP {$http_code}");
+            return false;
+        }
+
+        $data = json_decode($response, true);
+        if (!isset($data['result'])) {
+            log_message('error', "Etherscan API: No result for action={$action}");
+            return false;
+        }
+
+        return $data;
+    }
+
+    /**
+     * Update transaction with fetched Etherscan data
+     * Called when balance mismatch is detected
+     */
+    public function updateTransactionFromEtherscan($tx_hash, $user_wallet_address = '')
+    {
+        $enriched = $this->enrichTransactionFromEtherscan($tx_hash, $user_wallet_address);
+        if (!$enriched) return false;
+
+        // Update onchain_transactions with fetched from/to addresses and balance snapshots
+        $update_data = [
+            'from_address' => $enriched['from'],
+            'to_address'   => $enriched['to'],
+            'value'        => $enriched['value'],
+            'updated_at'   => date('Y-m-d H:i:s'),
+        ];
+
+        // Add balance snapshots if available
+        if (!is_null($enriched['balance_before'])) {
+            $update_data['balance_before'] = $enriched['balance_before'];
+        }
+        if (!is_null($enriched['balance_after'])) {
+            $update_data['balance_after'] = $enriched['balance_after'];
+        }
+
+        $updated = $this->db->where('tx_hash', $tx_hash)->update('onchain_transactions', $update_data);
+
+        if ($updated > 0) {
+            log_message('info', "Enriched TX {$tx_hash}: from={$enriched['from']}, to={$enriched['to']}, before={$enriched['balance_before']}, after={$enriched['balance_after']}");
+        }
+
+        return $updated > 0;
+    }
+
+    /**
+     * Detect balance mismatch and enrich transaction data from Etherscan
+     * Only called when balance changes to minimize API calls
+     * Fetches complete transaction data including balance_before and balance_after
+     */
+    public function reconcileWithEtherscan($user_id, $before_balance, $after_balance)
+    {
+        $user_id = (int)$user_id;
+
+        // No mismatch, no need to call expensive API
+        if (bccomp((string)$before_balance, (string)$after_balance, 8) === 0) {
+            return ['mismatch' => false, 'updated' => []];
+        }
+
+        $user_wallet = $this->walletRow($user_id);
+        if (!$user_wallet || empty($user_wallet['wallet_address'])) {
+            return ['mismatch' => true, 'error' => 'User has no custodial address'];
+        }
+
+        $wallet_addr = strtolower($user_wallet['wallet_address']);
+
+        // Find recent transactions with missing data (from/to addresses OR balance snapshots)
+        $incomplete = $this->db
+            ->from('onchain_transactions')
+            ->where('status', 'confirmed')
+            ->group_start()
+            ->where('to_address', $wallet_addr)
+            ->or_where('from_address', $wallet_addr)
+            ->group_end()
+            ->group_start()  // Need to update if ANY of these are missing
+            ->where('(from_address IS NULL OR from_address = "")', null, false)
+            ->or_where('(to_address IS NULL OR to_address = "")', null, false)
+            ->or_where('(balance_before IS NULL)', null, false)
+            ->or_where('(balance_after IS NULL)', null, false)
+            ->group_end()
+            ->order_by('created_at', 'DESC')
+            ->limit(10)
+            ->get()
+            ->result_array();
+
+        if (empty($incomplete)) {
+            return ['mismatch' => true, 'info' => 'No incomplete transactions found'];
+        }
+
+        $updated = [];
+        $failed = [];
+
+        log_message('info', "Balance mismatch detected for user {$user_id}: {$before_balance} vs {$after_balance}. Enriching " . count($incomplete) . " transactions from Etherscan");
+
+        foreach ($incomplete as $tx) {
+            if ($this->updateTransactionFromEtherscan($tx['tx_hash'], $wallet_addr)) {
+                $updated[] = $tx['tx_hash'];
+            } else {
+                $failed[] = $tx['tx_hash'];
+            }
+            // Small delay to avoid rate limiting
+            usleep(100000); // 0.1s
+        }
+
+        return [
+            'mismatch' => true,
+            'updated'  => $updated,
+            'failed'   => $failed,
+            'count'    => count($updated),
+            'message' => count($updated) . ' enriched, ' . count($failed) . ' failed',
+        ];
+    }
+
+    /**
      * ✅ NEW: Fetch wallet history from on-chain transactions ONLY
      * Uses tx_type field from onchain_transactions table
      * Type-wise filter: deposit, transfer, bonus, earn, etc.

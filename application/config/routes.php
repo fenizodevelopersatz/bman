@@ -611,6 +611,7 @@ $route['user/wallet/history-json'] = 'user/Wallet_sync/history';                
 
 /* Instant deposit crediting — credit pending deposits without waiting for cron */
 $route['user/instant-credit-deposits'] = 'user/usersettings/historycontroller/instant_credit_deposits'; // POST AJAX
+$route['user/wallet-check-enrich'] = 'user/usersettings/historycontroller/wallet_check_enrich'; // GET AJAX — balance check + Etherscan enrichment
 
 $route['user/my-referral'] = 'user/usersettings/historycontroller/myreferralHistory';
 $route['user/referrals'] = 'user/usersettings/historycontroller/myreferralHistory';

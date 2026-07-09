@@ -126,12 +126,13 @@ class Depositlistener_model extends CI_Model
         if (!$wallets) return ['ok'=>true,'detected'=>0,'credited'=>0,'message'=>'No addresses to scan.'];
 
         $mode = $cfg['deposit_scan_mode'] ?? 'bscscan';
+        
         try {
             if ($mode === 'rpc') {
                 $current = (int)hexdec($this->rpc($cfg['rpc_url'], 'eth_blockNumber', []));
                 $detected = $this->detectViaRpc($cfg, $wallets, $current);
             } else {
-                $detected = $this->detectViaBscscan($cfg, $wallets);
+                $detected = $this->detectViaBscscan($cfg, $wallets);                
                 $current = $this->currentBlockForConfirmations($cfg);
             }
         } catch (Exception $e) {
@@ -139,8 +140,20 @@ class Depositlistener_model extends CI_Model
         }
 
         $credited = $this->creditConfirmed($current, (int)$cfg['minimum_confirmations'], $cfg, $only_user);
-        return ['ok'=>true, 'detected'=>$detected, 'credited'=>$credited,
-                'message'=>"Detected $detected new deposit(s), credited $credited."];
+
+        // ✓ NEW: Enrich detected deposits with full Etherscan data (from, to, gas, timestamp, etc.)
+        $enriched = 0;
+        try {
+            $this->load->model('Custodialwallet_model', 'cw');
+            $enrichment = $this->cw->enrichAllRecentDeposits($only_user, 100);
+            $enriched = $enrichment['enriched'] ?? 0;
+            log_message('info', "[Depositlistener] Enriched {$enriched} transaction(s) with Etherscan data");
+        } catch (Exception $e) {
+            log_message('error', '[Depositlistener] Enrichment failed: ' . $e->getMessage());
+        }
+
+        return ['ok'=>true, 'detected'=>$detected, 'credited'=>$credited, 'enriched'=>$enriched,
+                'message'=>"Detected $detected new deposit(s), credited $credited, enriched $enriched."];
     }
 
     private function currentBlockForConfirmations($cfg)
@@ -209,12 +222,14 @@ class Depositlistener_model extends CI_Model
             $ch = curl_init($api.'?'.$q);
             curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>25]);
             $raw = curl_exec($ch); curl_close($ch);
-            $j = json_decode($raw, true);
+            $j = json_decode($raw, true);            
             if (!isset($j['result']) || !is_array($j['result'])) continue; // no txns / rate-limited
+
             foreach ($j['result'] as $t) {
                 // only incoming transfers TO our address
                 if (strtolower($t['to'] ?? '') !== strtolower($w['wallet_address'])) continue;
                 $amount = bcdiv((string)$t['value'], bcpow('10', (string)$decimals, 0), 8);
+                
                 $detected += $this->recordDeposit(
                     (int)$w['user_id'], $w['wallet_address'], $t['hash'],
                     isset($t['transactionIndex']) ? $t['transactionIndex'] : 0,

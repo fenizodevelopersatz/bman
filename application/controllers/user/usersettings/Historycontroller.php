@@ -753,6 +753,78 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
         }
     }
 
+    /**
+     * AJAX endpoint: Check on-chain balance and enrich transaction data from Etherscan
+     * If balance mismatch detected, fetch complete transaction details (from/to, gas, timestamp, etc.)
+     * Populates onchain_transactions table with full Etherscan data
+     *
+     * GET /user/wallet-check-enrich
+     * Response: { success, balance_match, enriched_txs, updated_txs, db_balance, rpc_balance }
+     */
+    public function wallet_check_enrich()
+    {
+        if (!$this->input->is_ajax_request()) {
+            show_404();
+            return;
+        }
+
+        $user_id = (int) $this->session->userdata('user_userid');
+        if (!$user_id) {
+            return $this->_json(['success' => false, 'message' => 'Not logged in'], 401);
+        }
+
+        $this->load->model('Custodialwallet_model', 'cw');
+        $this->load->model('Walletledger_model', 'ledger');
+
+        try {
+            // 1. Get DB balance
+            $bal = $this->ledger->balances($user_id);
+            $db_usdt = (float)($bal['usdt'] ?? 0);
+
+            // 2. Get monitor data (includes RPC balance check)
+            $monitor = $this->cw->monitor($user_id);
+            $rpc_usdt = (float)($monitor['rpc_balance'] ?? 0);
+            $db_balance_check = (float)($monitor['db_balance'] ?? 0);
+
+            // 3. Check if balance matches
+            $balance_match = bccomp((string)$db_usdt, (string)$rpc_usdt, 8) === 0;
+
+            $enriched_result = [];
+            $updated_txs = [];
+
+            // 4. ALWAYS enrich recent deposits with full Etherscan data
+            // This ensures onchain_transactions table has complete details
+            $enriched_result = $this->cw->enrichAllRecentDeposits($user_id, 50);
+
+            // 5. If mismatch, also call reconcileWithEtherscan to fill missing balance snapshots
+            if (!$balance_match) {
+                $reconcile = $this->cw->reconcileWithEtherscan($user_id, $db_usdt, $rpc_usdt);
+                $updated_txs = $reconcile['updated'] ?? [];
+            }
+
+            return $this->_json([
+                'success' => true,
+                'balance_match' => $balance_match,
+                'db_balance' => $db_usdt,
+                'rpc_balance' => $rpc_usdt,
+                'difference' => abs($db_usdt - $rpc_usdt),
+                'enriched_count' => $enriched_result['enriched'] ?? 0,
+                'updated_txs' => $updated_txs,
+                'updated_count' => count($updated_txs),
+                'message' => ($enriched_result['enriched'] ?? 0) > 0
+                    ? "✓ Enriched {$enriched_result['enriched']} transaction(s) with full Etherscan data"
+                    : ($balance_match ? 'Balances match ✓' : 'Enriching transaction data from Etherscan...'),
+            ]);
+
+        } catch (Exception $e) {
+            return $this->_json([
+                'success' => false,
+                'message' => 'Check failed: ' . $e->getMessage(),
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function usdt_history_json()
     {
         if (!$this->input->is_ajax_request()) {
@@ -801,6 +873,17 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
         ]);
     }
 
+
+    /**
+     * ✅ Helper: Return JSON response
+     */
+    private function _json(array $data, $code = 200)
+    {
+        $this->output
+            ->set_content_type('application/json')
+            ->set_status_header($code)
+            ->set_output(json_encode($data));
+    }
 
     public function myreferralHistory()
     {
