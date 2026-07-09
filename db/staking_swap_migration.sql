@@ -88,112 +88,114 @@ DROP PROCEDURE IF EXISTS _add_duration_years;
 -- SECTION 2: Add coin distribution and cron status columns
 -- =============================================================================
 
--- Add coin_distribution_option_id column
-DROP PROCEDURE IF EXISTS _add_coin_dist_id;
+-- Add coin_distribution_option column (1-7 wallet distribution)
+DROP PROCEDURE IF EXISTS _add_coin_dist_option;
 DELIMITER //
-CREATE PROCEDURE _add_coin_dist_id()
+CREATE PROCEDURE _add_coin_dist_option()
 BEGIN
   DECLARE col_exists INT DEFAULT 0;
   SELECT COUNT(*) INTO col_exists FROM information_schema.COLUMNS
   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staking_swap_orders'
-    AND COLUMN_NAME = 'coin_distribution_option_id';
+    AND COLUMN_NAME = 'coin_distribution_option';
 
   IF col_exists = 0 THEN
     ALTER TABLE `staking_swap_orders`
-      ADD COLUMN `coin_distribution_option_id` INT UNSIGNED NULL DEFAULT 1
-      COMMENT 'ROI wallet: 1=exchange, 2=staking, 3=earning, 4=bonus'
+      ADD COLUMN `coin_distribution_option` INT UNSIGNED NULL DEFAULT 1
+      COMMENT 'BMAN distribution: 1-7 (see wallet allocation percentages)'
       AFTER `duration_years`;
-    SELECT 'Added coin_distribution_option_id column' as status;
+    SELECT 'Added coin_distribution_option column' as status;
   ELSE
-    SELECT 'coin_distribution_option_id column already exists' as status;
+    SELECT 'coin_distribution_option column already exists' as status;
   END IF;
 END//
 DELIMITER ;
-CALL _add_coin_dist_id();
-DROP PROCEDURE IF EXISTS _add_coin_dist_id;
+CALL _add_coin_dist_option();
+DROP PROCEDURE IF EXISTS _add_coin_dist_option;
 
--- Add cron_status column
-DROP PROCEDURE IF EXISTS _add_cron_status;
+-- Add cron_status_gas column
+DROP PROCEDURE IF EXISTS _add_cron_status_gas;
 DELIMITER //
-CREATE PROCEDURE _add_cron_status()
+CREATE PROCEDURE _add_cron_status_gas()
 BEGIN
   DECLARE col_exists INT DEFAULT 0;
   SELECT COUNT(*) INTO col_exists FROM information_schema.COLUMNS
   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staking_swap_orders'
-    AND COLUMN_NAME = 'cron_status';
+    AND COLUMN_NAME = 'cron_status_gas';
 
   IF col_exists = 0 THEN
     ALTER TABLE `staking_swap_orders`
-      ADD COLUMN `cron_status` VARCHAR(50) NOT NULL DEFAULT 'pending'
-      COMMENT 'ROI cron status: pending, processing, completed, skipped'
-      AFTER `coin_distribution_option_id`;
-    SELECT 'Added cron_status column' as status;
+      ADD COLUMN `cron_status_gas` TINYINT NOT NULL DEFAULT 0
+      COMMENT 'Gas fee cron: 0=need to execute, 1=completed'
+      AFTER `coin_distribution_option`;
+    SELECT 'Added cron_status_gas column' as status;
   ELSE
-    SELECT 'cron_status column already exists' as status;
+    SELECT 'cron_status_gas column already exists' as status;
   END IF;
 END//
 DELIMITER ;
-CALL _add_cron_status();
-DROP PROCEDURE IF EXISTS _add_cron_status;
+CALL _add_cron_status_gas();
+DROP PROCEDURE IF EXISTS _add_cron_status_gas;
 
--- =============================================================================
--- SECTION 3: Update staking_roi_ledger table
--- =============================================================================
-
--- Add wallet_column to staking_roi_ledger
-DROP PROCEDURE IF EXISTS _add_wallet_column;
+-- Add cron_status_usdt column
+DROP PROCEDURE IF EXISTS _add_cron_status_usdt;
 DELIMITER //
-CREATE PROCEDURE _add_wallet_column()
+CREATE PROCEDURE _add_cron_status_usdt()
 BEGIN
   DECLARE col_exists INT DEFAULT 0;
-  DECLARE table_exists INT DEFAULT 0;
+  SELECT COUNT(*) INTO col_exists FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staking_swap_orders'
+    AND COLUMN_NAME = 'cron_status_usdt';
 
-  -- First check if table exists
-  SELECT COUNT(*) INTO table_exists FROM information_schema.TABLES
-  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staking_roi_ledger';
-
-  IF table_exists = 1 THEN
-    SELECT COUNT(*) INTO col_exists FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staking_roi_ledger'
-      AND COLUMN_NAME = 'wallet_column';
-
-    IF col_exists = 0 THEN
-      ALTER TABLE `staking_roi_ledger`
-        ADD COLUMN `wallet_column` VARCHAR(24) NOT NULL DEFAULT 'earning'
-        COMMENT 'Wallet credited: exchange, staking, earning, bonus'
-        AFTER `roi_type`;
-      SELECT 'Added wallet_column to staking_roi_ledger' as status;
-    ELSE
-      SELECT 'wallet_column already exists in staking_roi_ledger' as status;
-    END IF;
+  IF col_exists = 0 THEN
+    ALTER TABLE `staking_swap_orders`
+      ADD COLUMN `cron_status_usdt` TINYINT NOT NULL DEFAULT 0
+      COMMENT 'USDT payment cron: 0=need to execute, 1=completed'
+      AFTER `cron_status_gas`;
+    SELECT 'Added cron_status_usdt column' as status;
   ELSE
-    SELECT 'Creating staking_roi_ledger table...' as status;
-    CREATE TABLE IF NOT EXISTS `staking_roi_ledger` (
-      `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-      `staking_id` INT UNSIGNED NOT NULL,
-      `user_id` INT NOT NULL,
-      `roi_amount` DECIMAL(30,8) NOT NULL,
-      `roi_type` VARCHAR(24) NOT NULL DEFAULT 'hourly',
-      `wallet_column` VARCHAR(24) NOT NULL DEFAULT 'earning' COMMENT 'exchange, staking, earning, bonus',
-      `processed_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (`id`),
-      KEY `idx_staking` (`staking_id`),
-      KEY `idx_user` (`user_id`),
-      KEY `idx_date` (`processed_at`),
-      KEY `idx_wallet` (`wallet_column`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-      COMMENT='ROI processing ledger with wallet distribution tracking';
+    SELECT 'cron_status_usdt column already exists' as status;
   END IF;
 END//
 DELIMITER ;
-CALL _add_wallet_column();
-DROP PROCEDURE IF EXISTS _add_wallet_column;
+CALL _add_cron_status_usdt();
+DROP PROCEDURE IF EXISTS _add_cron_status_usdt;
+
+-- Add cron_status_bman column
+DROP PROCEDURE IF EXISTS _add_cron_status_bman;
+DELIMITER //
+CREATE PROCEDURE _add_cron_status_bman()
+BEGIN
+  DECLARE col_exists INT DEFAULT 0;
+  SELECT COUNT(*) INTO col_exists FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staking_swap_orders'
+    AND COLUMN_NAME = 'cron_status_bman';
+
+  IF col_exists = 0 THEN
+    ALTER TABLE `staking_swap_orders`
+      ADD COLUMN `cron_status_bman` TINYINT NOT NULL DEFAULT 0
+      COMMENT 'BMAN distribution cron: 0=need to execute, 1=completed'
+      AFTER `cron_status_usdt`;
+    SELECT 'Added cron_status_bman column' as status;
+  ELSE
+    SELECT 'cron_status_bman column already exists' as status;
+  END IF;
+END//
+DELIMITER ;
+CALL _add_cron_status_bman();
+DROP PROCEDURE IF EXISTS _add_cron_status_bman;
+
+-- =============================================================================
+-- SECTION 3: No ROI ledger tracking (handled by separate ROI system)
+-- =============================================================================
+
+-- All purchase status is tracked in onchain_transactions
+-- No separate ROI ledger needed for purchase flow
 
 -- =============================================================================
 -- SECTION 4: Add indexes for performance
 -- =============================================================================
 
--- Add composite index for cron status lookups
+-- Add index for cron status lookups (find orders needing processing)
 DROP PROCEDURE IF EXISTS _add_cron_index;
 DELIMITER //
 CREATE PROCEDURE _add_cron_index()
@@ -201,14 +203,14 @@ BEGIN
   DECLARE idx_exists INT DEFAULT 0;
   SELECT COUNT(*) INTO idx_exists FROM information_schema.STATISTICS
   WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'staking_swap_orders'
-    AND INDEX_NAME = 'idx_cron_status';
+    AND INDEX_NAME = 'idx_cron_processing';
 
   IF idx_exists = 0 THEN
     ALTER TABLE `staking_swap_orders`
-      ADD KEY `idx_cron_status` (`cron_status`, `status`);
-    SELECT 'Added idx_cron_status index' as status;
+      ADD KEY `idx_cron_processing` (`cron_status_gas`, `cron_status_usdt`, `cron_status_bman`, `status`);
+    SELECT 'Added idx_cron_processing index' as status;
   ELSE
-    SELECT 'idx_cron_status index already exists' as status;
+    SELECT 'idx_cron_processing index already exists' as status;
   END IF;
 END//
 DELIMITER ;
@@ -231,7 +233,11 @@ SELECT
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = 'staking_swap_orders'
-  AND COLUMN_NAME IN ('plan_code', 'plan_id', 'duration_years', 'coin_distribution_option_id', 'cron_status')
+  AND COLUMN_NAME IN (
+    'plan_code', 'plan_id', 'duration_years',
+    'coin_distribution_option',
+    'cron_status_gas', 'cron_status_usdt', 'cron_status_bman'
+  )
 ORDER BY ORDINAL_POSITION;
 
 -- Verify indexes
