@@ -5,7 +5,7 @@ class Wallet_model extends CI_Model
     // ✅ YOUR TABLES
     private $history_table = 'history';
     private $withdraw_table = 'withdrawals'; // <-- change if your table name differs
-
+    
     private $bonus_table = 'wallet_transactions';
 
     private $b_user_id = 'user_id';
@@ -32,21 +32,20 @@ class Wallet_model extends CI_Model
     private $withdraw_pending = ['PENDING', '0'];             // edit
     private $withdraw_success = ['SUCCESS', 'APPROVED', '1'];   // edit
 
-    // -------------------------
-    // ✅ BONUS BALANCE (history type=bonus)
-    // -------------------------
+    // ⚠️ DEPRECATED: BONUS BALANCE (wallet_transactions removed - on-chain only)
     public function getBonusBalance($user_id)
     {
-        $row = $this->db
-            ->select("COALESCE(SUM({$this->b_amount}),0) AS amt", false)
-            ->from($this->bonus_table)
-            ->where($this->b_user_id, $user_id)
-            ->where($this->b_tx_type, 'bonus')
-            ->where($this->b_status, 'completed')
-            ->get()
-            ->row();
+        // wallet_transactions table no longer used
+        // $row = $this->db
+        //     ->select("COALESCE(SUM({$this->b_amount}),0) AS amt", false)
+        //     ->from($this->bonus_table)
+        //     ->where($this->b_user_id, $user_id)
+        //     ->where($this->b_tx_type, 'bonus')
+        //     ->where($this->b_status, 'completed')
+        //     ->get()
+        //     ->row();
 
-        return (float) ($row->amt ?? 0);
+        return 0.0;  // On-chain only - no internal ledger
     }
 
     public function getTotalEarnedBonusBalance($user_id)

@@ -677,22 +677,18 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
             'bonus'    => (float) $bal['bonus'],
         ];
 
-        // On-chain custodial deposit wallet + recent deposit history (BOTH confirmed + pending).
+        // On-chain custodial deposit wallet
         $wallet_row = $this->cw->ensureAddress($user_id);
         $this->data['deposit_wallet'] = $wallet_row ?: [];
         $this->data['wallet_monitor'] = $this->cw->monitor($user_id);
-        $this->data['deposit_history'] = $this->cw->deposits($user_id, 20);  // ✅ NOW includes pending on-chain deposits
-        $this->data['pending_deposits'] = $this->cw->getPendingDeposits($user_id);  // Count for UI badge
-        $this->data['usdt_history_filters'] = [
-            'type' => strtoupper(trim((string)$this->input->get('usdt_type'))),
-            'status' => strtoupper(trim((string)$this->input->get('usdt_status'))),
-            'from' => trim((string)$this->input->get('usdt_from')),
-            'to' => trim((string)$this->input->get('usdt_to')),
-        ];
         $this->data['wallet_check_url'] = site_url('member/profile/wallet_check');
 
-        // ✅ history list + counts + paging
-        $list = $this->wallet->getWalletHistory($user_id, $filters, $page, $per_page);
+        // ✅ NEW: Wallet history from on-chain transactions only (simplified architecture)
+        // Shows all confirmed USDT transfers (incoming/outgoing)
+        $onchain_filters = [
+            'type' => strtoupper(trim((string)$this->input->get('type'))), // INCOMING / OUTGOING / ALL
+        ];
+        $list = $this->cw->getOnchainTransactions($user_id, $onchain_filters, $page, $per_page);
 
         $this->data['transactions'] = $list['rows'];
         $this->data['counts']       = $list['counts'];

@@ -366,15 +366,11 @@ $route['update-commission-settings'] = 'admin/settings/Commissionsettings/update
    Core Blockchain Sync (Run every 5 minutes)
    ───────────────────────────────────────────────────────────────────────── */
 
-// Verify pending on-chain transactions (status, confirmations, gas) + sync balances
-// HTTP: /chain-sync-cron?token=YOUR_CRON_TOKEN
-// CLI:  php index.php chainsynccron run
-$route['chain-sync-cron'] = 'Chainsynccron/run';
+// ⚠️ DISABLED: ChainSync cron (use onchain_transactions directly)
+// $route['chain-sync-cron'] = 'Chainsynccron/run';
 
-// Detect incoming USDT deposits to custodial addresses + auto-credit when confirmed
-// HTTP: /credit-deposits-cron?token=YOUR_CRON_TOKEN
-// CLI:  php index.php depositcron run
-$route['credit-deposits-cron'] = 'Depositcron/run';
+// ⚠️ DISABLED: Deposit listener cron (use onchain_transactions directly)
+// $route['credit-deposits-cron'] = 'Depositcron/run';
 
 /* ─────────────────────────────────────────────────────────────────────────
    Staking & Matching (Run every 15 minutes)

@@ -1417,47 +1417,26 @@ function wallet_title_fallback($type)
         </div>
       </div>
 
-      <!-- Filters -->
+      <!-- Filters — On-Chain Transactions Only -->
       <div class="filters">
         <div class="filter-grid">
-          <input id="q" class="f-in" placeholder="Search: txn id, reference, note..."
-            value="<?= htmlspecialchars($q); ?>" />
+          <input id="q" class="f-in" placeholder="Search: tx hash, address..."
+            value="<?= htmlspecialchars($q ?? ''); ?>" />
           <select id="type" class="f-sel">
-            <option value="" <?= $type === '' ? 'selected' : ''; ?>>All Types</option>
-            <option value="CREDIT" <?= strtoupper($type) === 'CREDIT' ? 'selected' : ''; ?>>Credit</option>
-            <option value="DEBIT" <?= strtoupper($type) === 'DEBIT' ? 'selected' : ''; ?>>Debit</option>
-            <option value="WITHDRAW" <?= strtoupper($type) === 'WITHDRAW' ? 'selected' : ''; ?>>Withdraw</option>
-            <option value="TRANSFER" <?= strtoupper($type) === 'TRANSFER' ? 'selected' : ''; ?>>Transfer</option>
-            <option value="COMMISSION" <?= strtoupper($type) === 'COMMISSION' ? 'selected' : ''; ?>>Commission</option>
-            <option value="ORDER" <?= strtoupper($type) === 'ORDER' ? 'selected' : ''; ?>>Order</option>
+            <option value="" <?= ($type ?? '') === '' ? 'selected' : ''; ?>>All Transactions</option>
+            <option value="INCOMING" <?= strtoupper($type ?? '') === 'INCOMING' ? 'selected' : ''; ?>>Incoming (Deposits)</option>
+            <option value="OUTGOING" <?= strtoupper($type ?? '') === 'OUTGOING' ? 'selected' : ''; ?>>Outgoing (Transfers)</option>
           </select>
-          <select id="status" class="f-sel">
-            <option value="" <?= $status === '' ? 'selected' : ''; ?>>All Status</option>
-            <option value="SUCCESS" <?= strtoupper($status) === 'SUCCESS' ? 'selected' : ''; ?>>Success</option>
-            <option value="PENDING" <?= strtoupper($status) === 'PENDING' ? 'selected' : ''; ?>>Pending</option>
-            <option value="FAILED" <?= strtoupper($status) === 'FAILED' ? 'selected' : ''; ?>>Failed</option>
-          </select>
-          <input id="from" class="f-in" type="date" value="<?= htmlspecialchars($from); ?>" />
-          <input id="to" class="f-in" type="date" value="<?= htmlspecialchars($to); ?>" />
         </div>
 
         <div class="chips" id="chips">
-          <div class="chip <?= ($type === '' ? 'active' : ''); ?>" data-type=""><i class="ph ph-squares-four"></i> All
-            <span class="count"><?= (int) $c['ALL']; ?></span>
+          <div class="chip <?= (($type ?? '') === '' ? 'active' : ''); ?>" data-type=""><i class="ph ph-squares-four"></i> All
+            <span class="count"><?= (int) ($counts['ALL'] ?? 0); ?></span>
           </div>
-          <div class="chip <?= (strtoupper($type) === 'CREDIT' ? 'active' : ''); ?>" data-type="CREDIT"><i
-              class="ph ph-arrow-circle-down"></i> Credit <span class="count"><?= (int) $c['CREDIT']; ?></span></div>
-          <div class="chip <?= (strtoupper($type) === 'DEBIT' ? 'active' : ''); ?>" data-type="DEBIT"><i
-              class="ph ph-arrow-circle-up"></i> Debit <span class="count"><?= (int) $c['DEBIT']; ?></span></div>
-          <div class="chip <?= (strtoupper($type) === 'WITHDRAW' ? 'active' : ''); ?>" data-type="WITHDRAW"><i
-              class="ph ph-money"></i> Withdraw <span class="count"><?= (int) $c['WITHDRAW']; ?></span></div>
-          <div class="chip <?= (strtoupper($type) === 'TRANSFER' ? 'active' : ''); ?>" data-type="TRANSFER"><i
-              class="ph ph-arrows-left-right"></i> Transfer <span class="count"><?= (int) $c['TRANSFER']; ?></span>
-          </div>
-          <div class="chip <?= (strtoupper($type) === 'COMMISSION' ? 'active' : ''); ?>" data-type="COMMISSION"><i
-              class="ph ph-coins"></i> Commission <span class="count"><?= (int) $c['COMMISSION']; ?></span></div>
-          <div class="chip <?= (strtoupper($type) === 'ORDER' ? 'active' : ''); ?>" data-type="ORDER"><i
-              class="ph ph-bag"></i> Order <span class="count"><?= (int) $c['ORDER']; ?></span></div>
+          <div class="chip <?= (strtoupper($type ?? '') === 'INCOMING' ? 'active' : ''); ?>" data-type="INCOMING"><i
+              class="ph ph-arrow-circle-down"></i> Incoming <span class="count"><?= (int) ($counts['INCOMING'] ?? 0); ?></span></div>
+          <div class="chip <?= (strtoupper($type ?? '') === 'OUTGOING' ? 'active' : ''); ?>" data-type="OUTGOING"><i
+              class="ph ph-arrow-circle-up"></i> Outgoing <span class="count"><?= (int) ($counts['OUTGOING'] ?? 0); ?></span></div>
           <a class="chip" href="<?= base_url('user/wallet'); ?>"><i class="ph ph-x"></i> Clear </a>
         </div>
 
@@ -1522,15 +1501,32 @@ function wallet_title_fallback($type)
                       $icon = 'ph-bag';
 
                     ?>
-                    <tr class="row">
+                    <tr class="row" style="cursor:pointer;" onclick="showTransactionDetails(this, {
+                      id: <?= (int)($t->id ?? 0); ?>,
+                      tx_hash: '<?= htmlspecialchars($t->tx_hash ?? '', ENT_QUOTES); ?>',
+                      type: '<?= htmlspecialchars($t->tx_type ?? 'transfer', ENT_QUOTES); ?>',
+                      amount: '<?= htmlspecialchars($amt, ENT_QUOTES); ?>',
+                      from_address: '<?= htmlspecialchars($t->from_address ?? '', ENT_QUOTES); ?>',
+                      to_address: '<?= htmlspecialchars($t->to_address ?? '', ENT_QUOTES); ?>',
+                      block_number: <?= (int)($t->block_number ?? 0); ?>,
+                      confirmation_count: <?= (int)($t->confirmation_count ?? 0); ?>,
+                      created_at: '<?= htmlspecialchars($dt, ENT_QUOTES); ?>',
+                      status: '<?= htmlspecialchars($status, ENT_QUOTES); ?>',
+                      network: '<?= htmlspecialchars($t->network ?? 'bsc', ENT_QUOTES); ?>',
+                      flow: '<?= htmlspecialchars($flow, ENT_QUOTES); ?>'
+                    })">
                       <td>
                         <div class="tx-left">
-                          <div class="bullet"><i class="ph <?= $icon; ?>"></i></div>
+                          <div class="bullet"><i class="ph <?= $flow === 'CREDIT' ? 'ph-arrow-circle-down' : 'ph-arrow-circle-up'; ?>"></i></div>
                           <div>
                             <b><?= htmlspecialchars($title); ?></b>
                             <small>
-                              <?= $ref ? 'Ref: ' . htmlspecialchars($ref) . ' • ' : ''; ?>
-                              <?= $note ? htmlspecialchars($note) : 'Wallet update'; ?>
+                              TX: <?= htmlspecialchars(substr($t->tx_hash ?? '', 0, 16)); ?>...
+                              <?php if ($flow === 'CREDIT'): ?>
+                                From: <?= htmlspecialchars(substr($t->from_address ?? '', 0, 10)); ?>...
+                              <?php else: ?>
+                                To: <?= htmlspecialchars(substr($t->to_address ?? '', 0, 10)); ?>...
+                              <?php endif; ?>
                             </small>
                           </div>
                         </div>
@@ -1539,28 +1535,30 @@ function wallet_title_fallback($type)
                         <?= htmlspecialchars($dt); ?>
                       </td>
                       <td class="amt">
-                        <?= $currency; ?>     <?= number_format($amt, 2); ?>
+                        USDT <?= number_format((float)$amt, 4); ?>
                       </td>
                       <td>
                         <span class="status <?= $flow === 'CREDIT' ? 'st-credit' : 'st-debit'; ?>">
                           <i class="ph <?= $flow === 'CREDIT' ? 'ph-arrow-circle-down' : 'ph-arrow-circle-up'; ?>"></i>
-                          <?= $flow; ?>
+                          <?= $flow === 'CREDIT' ? 'INCOMING' : 'OUTGOING'; ?>
                         </span>
                       </td>
                       <td>
-                        <span
-                          class="status <?= $status === 'SUCCESS' ? 'st-credit' : ($status === 'PENDING' ? 'st-pending' : 'st-debit'); ?>">
-                          <i class="ph ph-dot-outline"></i> <?= htmlspecialchars($status); ?>
-                        </span>
+                        <small style="color:#10b981;font-weight:900;">
+                          <i class="ph ph-check-circle"></i> <?= (int)($t->confirmation_count ?? 0); ?> blocks
+                        </small>
                       </td>
                       <td>
                         <div class="row-actions">
-                          <button class="a-btn" type="button" title="Copy Ref"
-                            onclick="copyPlain('<?= htmlspecialchars($ref, ENT_QUOTES); ?>')"><i
+                          <a class="a-btn" href="https://bscscan.com/tx/<?= htmlspecialchars($t->tx_hash ?? ''); ?>" target="_blank" title="View on BscScan" onclick="event.stopPropagation()">
+                            <i class="ph ph-link-simple"></i>
+                          </a>
+                          <button class="a-btn" type="button" title="Copy TX Hash"
+                            onclick="event.stopPropagation(); copyPlain('<?= htmlspecialchars($t->tx_hash ?? '', ENT_QUOTES); ?>')"><i
                               class="ph ph-copy"></i></button>
-                          <button class="a-btn" type="button" title="Support"
-                            onclick="location.href='<?= base_url('user/support'); ?>'"><i
-                              class="ph ph-headset"></i></button>
+                          <button class="a-btn" type="button" title="View Details" onclick="event.stopPropagation(); showTransactionModal(this)">
+                            <i class="ph ph-info"></i>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1729,22 +1727,16 @@ function wallet_title_fallback($type)
     const usdtFiltersBase = <?= json_encode(base_url('user/wallet')); ?>;
     const usdtHistoryUrl = <?= json_encode(site_url('user/usersettings/historycontroller/usdt_history_json')); ?>;
 
-    // ✅ Build & submit filters via GET (same controller)
+    // ✅ Build & submit filters via GET (on-chain transactions only)
     function applyFilters(extra = {}) {
       const params = new URLSearchParams(window.location.search);
 
       const q = document.getElementById('q')?.value?.trim() || '';
       const type = document.getElementById('type')?.value?.trim() || '';
-      const status = document.getElementById('status')?.value?.trim() || '';
-      const from = document.getElementById('from')?.value || '';
-      const to = document.getElementById('to')?.value || '';
 
       // set/clear
       (q ? params.set('q', q) : params.delete('q'));
       (type ? params.set('type', type) : params.delete('type'));
-      (status ? params.set('status', status) : params.delete('status'));
-      (from ? params.set('from', from) : params.delete('from'));
-      (to ? params.set('to', to) : params.delete('to'));
 
       // reset page on filter change
       params.delete('page');
@@ -1759,7 +1751,7 @@ function wallet_title_fallback($type)
     }
 
     // ✅ apply on change
-    ['type', 'status', 'from', 'to'].forEach(id => {
+    ['type'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('change', () => applyFilters());
     });

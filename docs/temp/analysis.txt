@@ -3104,10 +3104,14 @@ Pending & Need to testing
 SELECT * FROM `wallet_monitor_log` Remove the table
 
 
-Do not use the wallet_scan_state, wallet_monitor_log, wallet_sync_cursor, wallet_transactions
-
-
-
+Do not use these table wallet_scan_state, wallet_monitor_log, wallet_sync_cursor, wallet_transactions
 
 
 SELECT * FROM `wallet_deposits`
+
+
+User usdt deposit Histoy of required details/History
+
+TO display the usdt balance, date, hash(explorer integration), status, from address, to address, Before balance, after balance, ip address, Token name, to required user's field on the pop
+
+I want to display the more details about the transaction of deposit on wallet history to show the pop up 

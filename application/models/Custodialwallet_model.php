@@ -25,17 +25,16 @@ class Custodialwallet_model extends CI_Model
 
     /* ----------------------------- balances ----------------------------- */
 
-    /** Internal balance of one wallet = credits − debits in the ledger. */
+    /** ⚠️ DEPRECATED: Use on-chain transactions only (see getOnchainTransactions) */
     public function balance($user_id, $wallet = 'exchange')
     {
-        if (!in_array($wallet, $this->wallets, true)) return '0';
-        $row = $this->db->select("
-                COALESCE(SUM(CASE WHEN status='completed' AND tx_type = ".$this->db->escape($wallet)." THEN amount ELSE 0 END), 0) AS credited,
-                COALESCE(SUM(CASE WHEN status='completed' AND tx_type='withdraw' AND source = ".$this->db->escape($wallet."_withdraw")." THEN amount ELSE 0 END), 0) AS debited
-            ", false)
-            ->where('user_id', (int)$user_id)
-            ->get('wallet_transactions')->row_array();
-        return bcsub((string)($row['credited'] ?? 0), (string)($row['debited'] ?? 0), 8);
+        // if (!in_array($wallet, $this->wallets, true)) return '0';
+        // $row = $this->db->select("...", false)
+        //     ->where('user_id', (int)$user_id)
+        //     ->get('wallet_transactions')->row_array();
+        // return bcsub(...);
+
+        return '0';  // No internal ledger balance - use on-chain only
     }
 
     public function balances($user_id)
@@ -45,62 +44,26 @@ class Custodialwallet_model extends CI_Model
         return $out;
     }
 
-    /* -------------------------- credit (NO key) ------------------------- */
+    /* ⚠️ DEPRECATED: Internal ledger removed - use on-chain transactions only */
 
     /**
-     * Credit BMAN to a user's internal wallet. This is how the platform
-     * "gives BMAN" for purchases, ROI, bonus, matching and admin grants —
-     * a ledger insert, no blockchain, no private key.
-     *
-     * @param int    $user_id
-     * @param string $amount  human BMAN, e.g. "25"
-     * @param string $wallet  exchange|earning|staking|bonus
-     * @param string $source  origin tag (e.g. 'roi_payout', 'matching_bonus')
-     * @return int inserted ledger row id
+     * ⚠️ DEPRECATED: Credit to internal wallet removed
+     * Use on-chain blockchain transactions instead
      */
     public function credit($user_id, $amount, $wallet = 'exchange', $source = 'admin_credit')
     {
-        if (!in_array($wallet, $this->wallets, true)) {
-            throw new InvalidArgumentException('Unknown wallet: '.$wallet);
-        }
-        if (bccomp((string)$amount, '0', 8) <= 0) {
-            throw new InvalidArgumentException('Amount must be greater than 0.');
-        }
-        $this->db->insert('wallet_transactions', [
-            'user_id'    => (int)$user_id,
-            'tx_type'    => $wallet,          // exchange|earning|staking|bonus
-            'source'     => substr($source, 0, 50),
-            'amount'     => (float)$amount,
-            'status'     => 'completed',
-            'created_at' => date('Y-m-d H:i:s'),
-        ]);
-        return (int)$this->db->insert_id();
+        // wallet_transactions table no longer used - on-chain only
+        return 0;
     }
 
     /**
-     * Debit a user's internal wallet (e.g. when moving Exchange → Staking on
-     * a stake purchase, or reserving a withdrawal). Guards against overdraw.
+     * ⚠️ DEPRECATED: Debit from internal wallet removed
+     * Use on-chain blockchain transactions instead
      */
     public function debit($user_id, $amount, $wallet = 'exchange', $source = 'internal')
     {
-        if (!in_array($wallet, $this->wallets, true)) {
-            throw new InvalidArgumentException('Unknown wallet: '.$wallet);
-        }
-        if (bccomp((string)$amount, '0', 8) <= 0) {
-            throw new InvalidArgumentException('Amount must be greater than 0.');
-        }
-        if (bccomp($this->balance($user_id, $wallet), (string)$amount, 8) < 0) {
-            throw new RuntimeException('Insufficient '.$wallet.' balance.');
-        }
-        $this->db->insert('wallet_transactions', [
-            'user_id'    => (int)$user_id,
-            'tx_type'    => 'withdraw',
-            'source'     => substr($wallet.'_withdraw', 0, 50),
-            'amount'     => (float)$amount,
-            'status'     => 'completed',
-            'created_at' => date('Y-m-d H:i:s'),
-        ]);
-        return (int)$this->db->insert_id();
+        // wallet_transactions table no longer used - on-chain only
+        return 0;
     }
 
     /** Internal wallet-to-wallet move for one user (e.g. Exchange → Staking). */
@@ -261,13 +224,7 @@ class Custodialwallet_model extends CI_Model
             'source'  => 'monitor', 'note' => $note ? substr($note, 0, 255) : 'reconciled from on-chain',
             'credited_at' => date('Y-m-d H:i:s'),
         ]);
-        $this->db->insert('wallet_monitor_log', [
-            'user_id' => (int)$user_id, 'address' => $m['address'], 'token' => 'USDT',
-            'onchain_balance' => $m['onchain_usdt'], 'db_balance' => $m['db_usdt'],
-            'difference' => $amount, 'action' => 'reconcile',
-            'changed_by' => $changed_by !== null ? (int)$changed_by : null,
-            'note' => $note ? substr($note, 0, 255) : null,
-        ]);
+        // ⚠️ REMOVED: wallet_monitor_log — no longer used (on-chain only)
         $this->db->trans_complete();
         if (!$this->db->trans_status()) return [false, 'Database error.'];
         return [true, 'Credited '.$amount.' USDT to the internal balance.'];
@@ -388,10 +345,106 @@ class Custodialwallet_model extends CI_Model
             ->result_array();
     }
 
-    public function monitorLog($user_id = 0, $limit = 100)
+    /**
+     * ✅ NEW: Fetch wallet history from on-chain transactions ONLY
+     * Uses tx_type field from onchain_transactions table
+     * Type-wise filter: deposit, transfer, bonus, earn, etc.
+     */
+    public function getOnchainTransactions($user_id, $filters = [], $page = 1, $per_page = 20)
     {
-        if ($user_id) $this->db->where('user_id', (int)$user_id);
-        return $this->db->order_by('created_at', 'DESC')->limit((int)$limit)
-                        ->get('wallet_monitor_log')->result_array();
+        $user_id = (int)$user_id;
+        $page = max(1, (int)$page);
+        $per_page = max(1, min((int)$per_page, 100));
+        $offset = ($page - 1) * $per_page;
+
+        // Get user's custodial wallet address
+        $user_wallet = $this->walletRow($user_id);
+        if (!$user_wallet || empty($user_wallet['wallet_address'])) {
+            return [
+                'rows' => [],
+                'counts' => ['ALL' => 0, 'INCOMING' => 0, 'OUTGOING' => 0],
+                'paging' => ['page' => 1, 'pages' => 0, 'total' => 0],
+            ];
+        }
+
+        $wallet_addr = strtolower($user_wallet['wallet_address']);
+
+        // Build total count query
+        $this->db->from('onchain_transactions');
+        $this->db->where('status', 'confirmed');
+        $this->db->group_start();
+        $this->db->where('to_address', $wallet_addr);
+        $this->db->or_where('from_address', $wallet_addr);
+        $this->db->group_end();
+        $total = $this->db->count_all_results();
+        $pages = ceil($total / $per_page);
+
+        // Get paginated results
+        $query = $this->db
+            ->from('onchain_transactions')
+            ->where('status', 'confirmed')
+            ->group_start()
+            ->where('to_address', $wallet_addr)
+            ->or_where('from_address', $wallet_addr)
+            ->group_end()
+            ->order_by('block_number', 'DESC')
+            ->order_by('created_at', 'DESC')
+            ->limit($per_page, $offset);
+
+        $rows = $query->get()->result_array();
+
+        // Transform rows for display
+        $transactions = [];
+        foreach ($rows as $tx) {
+            $is_incoming = strtolower($tx['to_address'] ?? '') === $wallet_addr;
+            $tx_type = strtoupper($tx['tx_type'] ?? 'transfer');
+
+            $transactions[] = [
+                'id' => $tx['id'] ?? null,
+                'tx_hash' => $tx['tx_hash'] ?? '',
+                'type' => $is_incoming ? 'CREDIT' : 'DEBIT',
+                'flow' => $is_incoming ? 'CREDIT' : 'DEBIT',
+                'title' => ucfirst($tx['tx_type'] ?? 'Transfer'),
+                'amount' => $tx['value'] ?? 0,
+                'status' => 'SUCCESS',
+                'from_address' => $tx['from_address'] ?? '',
+                'to_address' => $tx['to_address'] ?? '',
+                'block_number' => $tx['block_number'] ?? 0,
+                'confirmation_count' => $tx['confirmation_count'] ?? 0,
+                'created_at' => $tx['created_at'] ?? '',
+                'network' => $tx['network'] ?? 'bsc',
+                'tx_type' => $tx_type,
+            ];
+        }
+
+        // Count by direction
+        $counts = $this->db
+            ->select('
+                COUNT(*) as all_count,
+                SUM(CASE WHEN to_address = "'.$wallet_addr.'" THEN 1 ELSE 0 END) as incoming,
+                SUM(CASE WHEN from_address = "'.$wallet_addr.'" THEN 1 ELSE 0 END) as outgoing
+            ')
+            ->from('onchain_transactions')
+            ->where('status', 'confirmed')
+            ->group_start()
+            ->where('to_address', $wallet_addr)
+            ->or_where('from_address', $wallet_addr)
+            ->group_end()
+            ->get()
+            ->row_array();
+
+        return [
+            'rows' => $transactions,
+            'counts' => [
+                'ALL' => (int)($counts['all_count'] ?? 0),
+                'INCOMING' => (int)($counts['incoming'] ?? 0),
+                'OUTGOING' => (int)($counts['outgoing'] ?? 0),
+            ],
+            'paging' => [
+                'page' => $page,
+                'pages' => $pages,
+                'total' => $total,
+            ],
+        ];
     }
 }
