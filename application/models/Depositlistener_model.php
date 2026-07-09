@@ -53,6 +53,23 @@ class Depositlistener_model extends CI_Model
         return $j['result'] ?? null;
     }
 
+    private function httpGetJson($url, $timeout = 25)
+    {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => $timeout,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+        $raw = curl_exec($ch);
+        $err = curl_error($ch);
+        curl_close($ch);
+        if ($raw === false) throw new RuntimeException('HTTP transport error: '.$err);
+        $j = json_decode($raw, true);
+        if (!is_array($j)) throw new RuntimeException('Invalid JSON response from explorer API');
+        return $j;
+    }
+
     private function hexdec_str($hex)
     {
         $hex = ltrim((string)$hex, '0x');
@@ -108,13 +125,14 @@ class Depositlistener_model extends CI_Model
         $wallets = $this->db->get()->result_array();
         if (!$wallets) return ['ok'=>true,'detected'=>0,'credited'=>0,'message'=>'No addresses to scan.'];
 
+        $mode = $cfg['deposit_scan_mode'] ?? 'bscscan';
         try {
-            $current = (int)hexdec($this->rpc($cfg['rpc_url'], 'eth_blockNumber', []));
-            $mode = $cfg['deposit_scan_mode'] ?? 'bscscan';
             if ($mode === 'rpc') {
+                $current = (int)hexdec($this->rpc($cfg['rpc_url'], 'eth_blockNumber', []));
                 $detected = $this->detectViaRpc($cfg, $wallets, $current);
             } else {
                 $detected = $this->detectViaBscscan($cfg, $wallets);
+                $current = $this->currentBlockForConfirmations($cfg);
             }
         } catch (Exception $e) {
             return ['ok'=>false, 'detected'=>0, 'credited'=>0, 'message'=>$e->getMessage()];
@@ -123,6 +141,35 @@ class Depositlistener_model extends CI_Model
         $credited = $this->creditConfirmed($current, (int)$cfg['minimum_confirmations'], $cfg, $only_user);
         return ['ok'=>true, 'detected'=>$detected, 'credited'=>$credited,
                 'message'=>"Detected $detected new deposit(s), credited $credited."];
+    }
+
+    private function currentBlockForConfirmations($cfg)
+    {
+        $rpcUrl = trim((string)($cfg['rpc_url'] ?? ''));
+        if ($rpcUrl !== '') {
+            try {
+                return (int)hexdec($this->rpc($rpcUrl, 'eth_blockNumber', []));
+            } catch (Exception $e) {
+                log_message('error', '[Depositlistener] RPC block head failed: '.$e->getMessage());
+            }
+        }
+
+        $key = trim((string)($cfg['explorer_api_key'] ?? ''));
+        $api = trim((string)($cfg['explorer_api_url'] ?? ''));
+        if ($key !== '' && $api !== '') {
+            $q = http_build_query([
+                'chainid' => (int)($cfg['chain_id'] ?? 56),
+                'module' => 'proxy',
+                'action' => 'eth_blockNumber',
+                'apikey' => $key,
+            ]);
+            $j = $this->httpGetJson($api.'?'.$q);
+            if (isset($j['result'])) {
+                return (int)hexdec((string)$j['result']);
+            }
+        }
+
+        throw new RuntimeException('Unable to read current block height from RPC or explorer API.');
     }
 
     /** Insert a detected deposit if new (unique tx_hash+log_index). */

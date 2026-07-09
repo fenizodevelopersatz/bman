@@ -3094,3 +3094,20 @@ Pending & Need to testing
 1. Rank System integration 
 2. Binary Staking amount distribution checking & history showing on both side(partially completed)
 3. Report on admin side
+4. Admin side wallet history, Dashboard, ROI History, Internal Wallet transfer History, Admin Hot Wallet History
+5. Withdraw request & processing and show their history
+6. User dashboard integration and chart
+7. Notification
+
+
+
+SELECT * FROM `wallet_monitor_log` Remove the table
+
+
+Do not use the wallet_scan_state, wallet_monitor_log, wallet_sync_cursor, wallet_transactions
+
+
+
+
+
+SELECT * FROM `wallet_deposits`

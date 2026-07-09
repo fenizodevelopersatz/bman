@@ -191,7 +191,7 @@ class Custodialwallet_model extends CI_Model
     /**
      * Read the real on-chain balances of the user's address (USDT, BMAN, BNB)
      * and compare the USDT balance against our DB record. Returns null when the
-     * user has no address. Logs the scan to wallet_monitor_log.
+     * user has no address. ⚠️ NO logging for user balance checks (only admin reconcile logs).
      */
     public function monitor($user_id, $changed_by = null)
     {
@@ -211,16 +211,8 @@ class Custodialwallet_model extends CI_Model
         $db_usdt = $this->usdtBalance($user_id);
         $diff = bcsub((string)$onchain_usdt, (string)$db_usdt, 8);
 
-        $this->db->insert('wallet_monitor_log', [
-            'user_id'         => (int)$user_id,
-            'address'         => $addr,
-            'token'           => 'USDT',
-            'onchain_balance' => $onchain_usdt,
-            'db_balance'      => $db_usdt,
-            'difference'      => $diff,
-            'action'          => 'scan',
-            'changed_by'      => $changed_by !== null ? (int)$changed_by : null,
-        ]);
+        // ⚠️ REMOVED: wallet_monitor_log insert — was causing table bloat with every user balance check
+        // Only admin reconciliation logs (see reconcile() method below)
 
         return [
             'address'       => $addr,

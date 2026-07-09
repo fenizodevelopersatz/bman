@@ -697,7 +697,7 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
         $this->data['transactions'] = $list['rows'];
         $this->data['counts']       = $list['counts'];
         $this->data['paging']       = $list['paging'];
-
+        // echo "<pre>";print_r($this->data);exit;
         $this->load->view('user/wallet/view_mywallet_management', $this->data);
     }
 
