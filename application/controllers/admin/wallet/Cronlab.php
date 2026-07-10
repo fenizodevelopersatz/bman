@@ -42,13 +42,11 @@ class Cronlab extends CI_Controller
             'options' => $this->tx->filterOptions(),
             'cron_token' => $this->config->item('cron_token'),
             'jobs' => [
-                ['key' => 'deposit', 'label' => 'Deposit Credit', 'type' => 'deposit', 'endpoint' => 'credit-deposits-cron', 'method' => 'GET', 'description' => 'Scan custodial wallets, confirm deposits, and credit internal USDT.'],
-                ['key' => 'chain', 'label' => 'Chain Sync', 'type' => 'balance', 'endpoint' => 'chain-sync-cron', 'method' => 'GET', 'description' => 'Refresh on-chain balances and confirmation status via RPC-first sync.'],
+                ['key' => 'stakingpurchase', 'label' => 'Staking Purchase', 'type' => 'swap', 'endpoint' => 'staking-purchase-cron', 'method' => 'GET', 'description' => 'Process multi-step USDT→BMAN swaps with gas fee detection, USDT payment, and BMAN distribution per coin_distribution_option (1-7).'],
                 ['key' => 'roi', 'label' => 'ROI Run', 'type' => 'roi', 'endpoint' => 'earn-cron-made', 'method' => 'GET', 'description' => 'Credit daily ROI on active investments.'],
                 ['key' => 'rank', 'label' => 'Rank Update', 'type' => 'rank', 'endpoint' => 'rank-cron-made', 'method' => 'GET', 'description' => 'Update rank eligibility and rank payouts.'],
                 ['key' => 'binary', 'label' => 'Binary Match', 'type' => 'binary', 'endpoint' => 'binary-cron-made', 'method' => 'GET', 'description' => 'Run binary matching commission settlement.'],
                 ['key' => 'bonus', 'label' => 'Bonus Reduction', 'type' => 'bonus', 'endpoint' => 'bonus-reduction-cron', 'method' => 'GET', 'description' => 'Apply scheduled bonus reductions and admin credit.'],
-                ['key' => 'deliver', 'label' => 'Deliver BMAN', 'type' => 'swap', 'endpoint' => 'deliver-bman-cron', 'method' => 'GET', 'description' => 'Deliver BMAN for completed swap orders.'],
                 ['key' => 'match', 'label' => 'Staking Match', 'type' => 'staking', 'endpoint' => 'admin/staking/matching/run', 'method' => 'POST', 'description' => 'Trigger staking binary matching manually.'],
             ],
         ];
@@ -63,30 +61,29 @@ class Cronlab extends CI_Controller
 
         try {
             switch ($job) {
-                case 'deposit':
-                    $this->load->model('Depositlistener_model', 'listener');
-                    $res = $this->listener->scan($userId ?: null);
-                    return $this->_json(['status' => !empty($res['ok']) ? 'success' : 'error', 'message' => $res['message'] ?? 'done', 'data' => $res]);
                 case 'bonus':
                     $this->load->model('Bonusreduction_model', 'reduction');
                     $res = $this->reduction->run(['triggered_by' => 'cron']);
                     return $this->_json(['status' => !empty($res['status']) && $res['status'] === 'success' ? 'success' : 'success', 'message' => $res['message'] ?? 'done', 'data' => $res]);
-                case 'chain':
-                    $this->load->model('Chainsync_model', 'chain');
-                    $worker = $this->input->post('worker', true) ?: ('dev-' . substr(md5(gethostname() . '-' . getmypid()), 0, 8));
-                    $batch = (int)$this->input->post('batch') ?: null;
-                    $res = $this->chain->syncBatch($worker, $batch);
-                    return $this->_json(['status' => 'success', 'message' => 'chain sync completed', 'data' => $res]);
                 case 'roi':
                     return $this->_json(['status' => 'error', 'message' => 'ROI run helper not wired in this environment. Use /earn-cron-made for now.'], 501);
                 case 'rank':
                     return $this->_json(['status' => 'error', 'message' => 'Rank run helper not wired in this environment. Use /rank-cron-made for now.'], 501);
                 case 'binary':
                     return $this->_json(['status' => 'error', 'message' => 'Binary run helper not wired in this environment. Use /binary-cron-made for now.'], 501);
-                case 'deliver':
-                    $this->load->model('staking/Swapengine_model', 'swap');
-                    $res = $this->swap->deliverPendingOrders();
-                    return $this->_json(['status' => 'success', 'message' => 'deliver cron executed', 'data' => $res]);
+                case 'stakingpurchase':
+                    $this->load->model('staking/StakingSwap_model', 'staking_swap');
+                    $this->load->controller('StakingPurchasecron');
+                    $controller = new StakingPurchasecron();
+                    ob_start();
+                    $controller->run();
+                    $output = ob_get_clean();
+                    try {
+                        $res = json_decode($output, true);
+                    } catch (Exception $e) {
+                        $res = ['status' => 'error', 'message' => 'Failed to parse response', 'raw' => $output];
+                    }
+                    return $this->_json(['status' => 'success', 'message' => 'staking purchase cron executed', 'data' => $res]);
                 case 'match':
                     $this->load->model('staking/Stakingmatching_model', 'MB');
                     $res = $this->MB->run();

@@ -1127,25 +1127,37 @@ $hero_progress = 48;
       <div class="card" style="margin-top: 18px; border-radius: 28px;">
         <div class="card-h" style="padding:18px 22px;border-bottom:1px solid #f0f0f7;margin:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
           <h3 style="font-size:16px;font-weight:1100;margin:0;">Recent Staking Activity</h3>
-          <span class="chip"><i class="ph ph-clock-counter-clockwise"></i> Purchase + ROI trail</span>
+          <span class="chip"><i class="ph ph-clock-counter-clockwise"></i> On-chain Swaps</span>
         </div>
         <div style="padding:16px 20px;">
           <div class="table-scroll">
             <table class="table" style="border-spacing:0 8px;min-width:920px;">
               <thead>
-                <tr><th>Date</th><th>Type</th><th>Amount</th><th>Token</th><th>Status</th><th>Description</th></tr>
+                <tr><th>Date</th><th>Type</th><th>USDT</th><th>BMAN</th><th>Status</th><th>Description</th><th>Action</th></tr>
               </thead>
               <tbody>
                 <?php if (empty($recent_staking_activity)): ?>
-                  <tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:18px;">No recent staking activity found.</td></tr>
+                  <tr><td colspan="7" style="text-align:center;color:#9ca3af;padding:18px;">No recent staking activity found.</td></tr>
                 <?php else: foreach ($recent_staking_activity as $row): ?>
-                  <tr>
+                  <tr style="cursor:pointer;transition:background 0.2s;" onclick="showSwapDetails(<?= (int)($row->order_id ?? 0) ?>)" onmouseover="this.style.background='#f9f9fb'" onmouseout="this.style.background=''">
                     <td style="font-size:12px;"><?= htmlspecialchars((string)($row->history_date ?? '—')) ?></td>
                     <td><b><?= htmlspecialchars((string)($row->type ?? '—')) ?></b></td>
-                    <td><?= number_format((float)($row->amount ?? 0), 4) ?></td>
-                    <td><?= number_format((float)($row->token_amount ?? 0), 4) ?></td>
-                    <td><?= htmlspecialchars((string)($row->status ?? '—')) ?></td>
-                    <td><?= htmlspecialchars((string)($row->description ?? '—')) ?></td>
+                    <td><?= number_format((float)($row->amount ?? 0), 2) ?></td>
+                    <td><?= number_format((float)($row->token_amount ?? 0), 0) ?></td>
+                    <td>
+                      <?php
+                        $status = $row->status ?? '—';
+                        $badge_class = 'secondary';
+                        if (strpos($status, 'pending') !== false) $badge_class = 'warning';
+                        elseif ($status === 'swap_completed') $badge_class = 'success';
+                        elseif (strpos($status, 'failed') !== false) $badge_class = 'danger';
+                      ?>
+                      <span style="display:inline-block;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:900;background:var(--<?= $badge_class ?>);color:#fff;">
+                        <?= ucfirst(str_replace('_', ' ', $status)) ?>
+                      </span>
+                    </td>
+                    <td style="font-size:11px;color:#666;"><?= htmlspecialchars((string)($row->description ?? '—')) ?></td>
+                    <td><button class="btn-soft" onclick="event.stopPropagation();showSwapDetails(<?= (int)($row->order_id ?? 0) ?>)" style="padding:6px 10px;font-size:11px;">Details</button></td>
                   </tr>
                 <?php endforeach; endif; ?>
               </tbody>
@@ -1154,6 +1166,23 @@ $hero_progress = 48;
         </div>
       </div>
       <?php endif; ?>
+
+      <!-- ===================== SWAP DETAILS MODAL ===================== -->
+      <div class="modal-backdrop" id="swapDetailsModal" style="display:none;z-index:2000;">
+        <div class="modal" style="max-width:800px;max-height:90vh;overflow-y:auto;">
+          <div class="modal-h">
+            <b>Staking Purchase Details</b>
+            <button class="xbtn" onclick="closeSwapDetails()" style="cursor:pointer;"><i class="ph ph-x"></i></button>
+          </div>
+
+          <div class="modal-b" id="swapDetailsContent" style="padding:20px;">
+            <div style="text-align:center;padding:40px;">
+              <div class="spinner-border text-primary"></div>
+              <p style="margin-top:12px;color:#666;">Loading details...</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
     </main>
   </div>
@@ -1437,6 +1466,155 @@ $hero_progress = 48;
     function closeRules() {
       const m = document.getElementById('rulesModal');
       if (m) m.style.display = 'none';
+    }
+
+    // --------------------- Swap Details Modal ---------------------
+    function showSwapDetails(orderId) {
+      if (!orderId) { toastMini("Invalid order ID"); return; }
+
+      const modal = document.getElementById('swapDetailsModal');
+      const content = document.getElementById('swapDetailsContent');
+
+      if (!modal || !content) return;
+
+      modal.style.display = 'flex';
+
+      // Fetch details via AJAX
+      fetch('<?= base_url("user/lending/swap_order_details"); ?>', {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({ order_id: orderId })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.status) {
+          content.innerHTML = `<div style="color:red;text-align:center;">Error: ${data.message}</div>`;
+          return;
+        }
+
+        const d = data.data;
+        const s = d.status_info || {};
+
+        // Build HTML
+        let html = `
+          <div style="margin-bottom:20px;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+              <div style="font-size:24px;color:var(--${s.color || 'secondary'});">
+                <i class="ph ph-${s.icon || 'question-mark'}"></i>
+              </div>
+              <div>
+                <h4 style="margin:0;font-weight:1000;color:#111;">${s.label || d.current_status}</h4>
+                <p style="margin:4px 0 0;font-size:12px;color:#666;">Order: <code>${d.ref}</code></p>
+              </div>
+            </div>
+
+            <div style="background:#f9f9fb;border-radius:12px;padding:12px;margin-bottom:16px;">
+              <p style="margin:0;font-size:11px;color:#666;">Created: <b>${d.created_at}</b></p>
+              <p style="margin:4px 0 0;font-size:11px;color:#666;">Updated: <b>${d.updated_at}</b></p>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
+            <div class="card" style="box-shadow:none;border:1px solid #e7e7f3;">
+              <div style="font-size:11px;color:#666;font-weight:900;margin-bottom:4px;">USDT Sent</div>
+              <div style="font-size:16px;font-weight:1000;">${d.amounts.usdt.toFixed(2)}</div>
+            </div>
+            <div class="card" style="box-shadow:none;border:1px solid #e7e7f3;">
+              <div style="font-size:11px;color:#666;font-weight:900;margin-bottom:4px;">BMAN Received</div>
+              <div style="font-size:16px;font-weight:1000;">${Math.floor(d.amounts.bman).toLocaleString()}</div>
+            </div>
+            <div class="card" style="box-shadow:none;border:1px solid #e7e7f3;">
+              <div style="font-size:11px;color:#666;font-weight:900;margin-bottom:4px;">Bonus BMAN</div>
+              <div style="font-size:16px;font-weight:1000;color:#22C55E;">+ ${Math.floor(d.amounts.bonus_bman).toLocaleString()}</div>
+            </div>
+          </div>
+
+          <div style="border-top:1px solid #e7e7f3;padding-top:12px;margin-bottom:16px;">
+            <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">Distribution (Option ${d.distribution.option})</h5>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
+              <div><span style="color:#666;">Exchange Wallet:</span> <b>${Math.floor(d.distribution.exchange_bman).toLocaleString()} BMAN</b></div>
+              <div><span style="color:#666;">Earning Wallet:</span> <b>${Math.floor(d.distribution.earning_bman).toLocaleString()} BMAN</b></div>
+              <div><span style="color:#666;">Staking Wallet:</span> <b>${Math.floor(d.distribution.staking_bman).toLocaleString()} BMAN</b></div>
+              <div><span style="color:#666;">Bonus Wallet:</span> <b>${Math.floor(d.distribution.bonus_bman).toLocaleString()} BMAN</b></div>
+            </div>
+          </div>
+
+          <div style="border-top:1px solid #e7e7f3;padding-top:12px;margin-bottom:16px;">
+            <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">Plan Details</h5>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;">
+              <div><span style="color:#666;">Plan:</span> <b>${d.plan.code}</b></div>
+              <div><span style="color:#666;">Duration:</span> <b>${d.plan.duration_years} year(s)</b></div>
+            </div>
+          </div>
+
+          <div style="border-top:1px solid #e7e7f3;padding-top:12px;margin-bottom:16px;">
+            <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">Transaction Steps</h5>
+            <div style="font-size:12px;">
+        `;
+
+        // Transaction steps
+        const steps = [
+          { key: 'gas', label: '1. Gas Fee (BNB)', data: d.transactions.gas },
+          { key: 'usdt', label: '2. USDT Payment', data: d.transactions.usdt },
+          { key: 'bonus', label: '3. Bonus BMAN', data: d.transactions.bonus },
+          { key: 'bman_exchange', label: '4. Exchange BMAN', data: d.transactions.bman_exchange },
+          { key: 'bman_earning', label: '5. Earning BMAN', data: d.transactions.bman_earning },
+          { key: 'bman_staking', label: '6. Staking BMAN', data: d.transactions.bman_staking },
+          { key: 'bman_bonus', label: '7. Bonus Wallet BMAN', data: d.transactions.bman_bonus },
+        ];
+
+        steps.forEach(step => {
+          const status = step.data.status === 'confirmed' ? '✓' : '○';
+          const statusColor = step.data.status === 'confirmed' ? '#22C55E' : '#9ca3af';
+          const txDisplay = step.data.tx_hash ? step.data.tx_hash.substring(0, 10) + '...' : 'pending';
+
+          html += `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:#f9f9fb;border-radius:6px;">
+              <div style="width:20px;height:20px;border-radius:50%;background:${statusColor};color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:1000;">${status}</div>
+              <div style="flex:1;">
+                <div style="font-size:12px;font-weight:900;color:#111;">${step.label}</div>
+                <div style="font-size:11px;color:#666;">
+                  ${step.data.tx_hash ? `<code>${txDisplay}</code>` : '<i>Waiting...</i>'}
+                  ${step.data.explorer ? ` <a href="${step.data.explorer}" target="_blank" style="color:#667eea;text-decoration:none;"><i class="ph ph-arrow-up-right"></i></a>` : ''}
+                </div>
+              </div>
+            </div>
+          `;
+        });
+
+        html += `
+            </div>
+          </div>
+        `;
+
+        // Error message if any
+        if (d.error) {
+          html += `
+            <div style="background:#fff5f5;border:1px solid #feb2b2;border-radius:8px;padding:12px;margin-bottom:12px;">
+              <p style="margin:0;font-size:12px;font-weight:900;color:#c53030;">Error:</p>
+              <p style="margin:4px 0 0;font-size:11px;color:#742a2a;">${d.error}</p>
+            </div>
+          `;
+        }
+
+        html += `<div style="margin-top:16px;padding-top:12px;border-top:1px solid #e7e7f3;">
+          <button class="btn-soft" onclick="closeSwapDetails()" style="width:100%;padding:10px;cursor:pointer;">Close</button>
+        </div>`;
+
+        content.innerHTML = html;
+      })
+      .catch(err => {
+        console.error(err);
+        content.innerHTML = `<div style="color:red;text-align:center;">Failed to load details</div>`;
+      });
+    }
+
+    function closeSwapDetails() {
+      const modal = document.getElementById('swapDetailsModal');
+      if (modal) modal.style.display = 'none';
     }
 
     // --------------------- Investment details route ---------------------

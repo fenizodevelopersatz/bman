@@ -72,10 +72,12 @@
           <div class="card-toolbar gap-2">
             <select id="audit-type" class="form-select form-select-sm w-auto">
               <option value="">All Types</option>
-              <option value="profit">ROI</option>
-              <option value="swap">Swap</option>
+              <option value="gas_fee">Gas Fee</option>
               <option value="deposit">Deposit</option>
+              <option value="transfer">Transfer</option>
+              <option value="swap">Swap</option>
               <option value="swap_bonus">Swap Bonus</option>
+              <option value="profit">ROI</option>
             </select>
             <button id="audit-refresh" class="btn btn-sm btn-light-primary">Refresh</button>
           </div>
@@ -90,6 +92,15 @@
               </thead>
               <tbody id="audit-body"><tr><td colspan="9" class="text-center text-muted py-6">Loading...</td></tr></tbody>
             </table>
+          </div>
+          <div class="d-flex align-items-center justify-content-between pt-4 border-top">
+            <div class="text-muted fs-8">
+              Showing <span id="audit-showing">0</span> rows | Page <span id="audit-page">1</span>
+            </div>
+            <div class="gap-2 d-flex">
+              <button id="audit-prev" class="btn btn-sm btn-light">← Previous</button>
+              <button id="audit-next" class="btn btn-sm btn-light">Next →</button>
+            </div>
           </div>
         </div>
       </div>
@@ -155,7 +166,7 @@
     const res = await fetch(base + 'admin/wallet/onchain-transactions/list', { method:'POST', body: fd, headers:{'X-Requested-With':'XMLHttpRequest'} });
     const j = await res.json();
     if (j.status !== 'success') { body.innerHTML = '<tr><td colspan="9" class="text-danger py-6 text-center">Failed to load.</td></tr>'; return; }
-    if (!j.rows.length) { body.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-6">No rows.</td></tr>'; return; }
+    if (!j.rows.length) { body.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-6">No rows.</td></tr>'; document.getElementById('audit-showing').textContent = '0'; return; }
     body.innerHTML = j.rows.map(r => {
       const amt = Number(r.amount || 0).toLocaleString(undefined, { maximumFractionDigits: 8 });
       return '<tr>'+
@@ -170,10 +181,16 @@
         '<td></td>'+
       '</tr>';
     }).join('');
+    document.getElementById('audit-showing').textContent = j.rows.length;
+    document.getElementById('audit-page').textContent = page;
+    document.getElementById('audit-prev').disabled = page <= 1;
+    document.getElementById('audit-next').disabled = j.rows.length < limit;
   }
 
   document.getElementById('audit-refresh').addEventListener('click', loadAudit);
   document.getElementById('audit-type').addEventListener('change', ()=>{ page = 1; loadAudit(); });
+  document.getElementById('audit-prev').addEventListener('click', ()=>{ if (page > 1) { page--; loadAudit(); } });
+  document.getElementById('audit-next').addEventListener('click', ()=>{ page++; loadAudit(); });
   loadAudit();
 })();
 </script>

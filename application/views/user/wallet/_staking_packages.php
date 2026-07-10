@@ -258,7 +258,25 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   function quote(){ const fd=new FormData(); fd.append('package_id',cur.pkg.id); fetch(BASE+'user/lending/stake_quote',{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{ if(!j.status){ $('stkm-cost').textContent=j.message||'?'; return; } cur.usdt=j.usdt; cur.bal=j.usdt_balance; cur.quote=j; $('stkm-cost').textContent = Number(j.usdt).toLocaleString(undefined,{maximumFractionDigits:4})+' USDT'; $('stkm-lock').textContent = Number(j.bman).toLocaleString()+' BMAN'; $('stkm-bonus').textContent= Number(j.bonus).toLocaleString()+' BMAN'; $('stkm-bal').textContent  = Number(j.usdt_balance).toLocaleString(undefined,{maximumFractionDigits:2})+' USDT'; const bw = j.bman_wallets||{}; ['exchange','staking','bonus','earning'].forEach(function(w){ const el=$('stkm-bw-'+w); if(el) el.textContent=Number(bw[w]||0).toLocaleString()+' BMAN'; }); const short = j.usdt_balance + 1e-8 < j.usdt; $('stkm-warn').style.display = short?'block':'none'; $('stkm-go').disabled = short; renderLive(); }).catch(()=>{ $('stkm-cost').textContent='Quote failed'; }); }
   $('stkm-back').onclick = function(){ if(cur.step>1) renderStep(cur.step-1); };
   $('stkm-next').onclick = function(){ if(cur.step<5) renderStep(cur.step+1); };
-  window.stkConfirm = function(){ const go=$('stkm-go'); go.disabled=true; go.textContent='Processing?'; const fd=new FormData(); fd.append('package_id',cur.pkg.id); fd.append('plan_code',cur.plan); fd.append('duration_years',cur.years); const endpoint = SWAP_ON ? 'user/lending/swap_purchase' : 'user/lending/purchase_stake'; fetch(BASE+endpoint,{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{ go.textContent='Confirm & Stake'; if(window.Swal){ Swal.fire({icon:j.status?'success':'error',text:j.message,confirmButtonText:'Ok'}).then(()=>{ if(j.status) location.reload(); }); } else { alert(j.message); if(j.status) location.reload(); } if(!j.status) go.disabled=false; }).catch(()=>{ go.textContent='Confirm & Stake'; go.disabled=false; alert('Request failed.'); }); };
+  window.stkConfirm = function(){ const go=$('stkm-go'); go.disabled=true; go.textContent='Processing…'; const fd=new FormData();
+
+  // Append ALL required fields for backend
+  fd.append('package_id', cur.pkg.id);
+  fd.append('plan_code', cur.plan);
+  fd.append('duration_years', cur.years);
+  fd.append('coin_distribution_option_id', cur.dist);  // ✅ Distribution option (1-7)
+  fd.append('plan_id', 0);  // ✅ Plan ID
+
+  console.log('=== FORM SUBMISSION DATA ===');
+  console.log('package_id:', cur.pkg.id);
+  console.log('plan_code:', cur.plan);
+  console.log('duration_years:', cur.years);
+  console.log('coin_distribution_option_id:', cur.dist);
+  console.log('plan_id:', 0);
+  console.log('==============================');
+
+  const endpoint = SWAP_ON ? 'user/lending/swap_purchase' : 'user/lending/purchase_stake';
+  fetch(BASE+endpoint,{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{ go.textContent='Confirm & Stake'; if(window.Swal){ Swal.fire({icon:j.status?'success':'error',text:j.message,confirmButtonText:'Ok'}).then(()=>{ if(j.status) location.reload(); }); } else { alert(j.message); if(j.status) location.reload(); } if(!j.status) go.disabled=false; }).catch(()=>{ go.textContent='Confirm & Stake'; go.disabled=false; alert('Request failed.'); }); };
 })();
 </script>
 <?php endif; /* staking_packages */ ?>

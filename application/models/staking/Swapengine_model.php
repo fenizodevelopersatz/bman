@@ -146,72 +146,52 @@ class Swapengine_model extends CI_Model
             'ref' => $ref, 'user_id' => (int)$userId, 'package_id' => (int)$packageId,
             'user_address' => $userAddr, 'admin_address' => $adminAddr,
             'usdt_amount' => $usdt, 'bman_amount' => $bman, 'bonus_bman' => $bonus,
-            'exchange_rate' => (float)$cfg['exchange_rate'], 'status' => 'created',
+            'exchange_rate' => (float)$cfg['exchange_rate'], 'status' => 'pending_gas_fee',
             'dry_run' => $dryRun ? 1 : 0, 'attempts' => 1,
+            'gas_cron_status' => 0, 'usdt_cron_status' => 0, 'bonus_cron_status' => 0,
+            'bman_exchange_cron_status' => 0, 'bman_earning_cron_status' => 0,
+            'bman_staking_cron_status' => 0, 'bman_bonus_cron_status' => 0,
+            'coin_distribution_option' => 1,
         ]);
         $orderId = (int)$this->db->insert_id();
 
-        // ---- AUTO GAS TOP-UP: ensure the user's deposit address holds enough
-        //      BNB to pay for its own USDT transfer (funded from the treasury). ----
-        list($gasOk, $gasMsg, $gasTx) = $this->_ensureGas($userAddr, $dryRun, $cfg);
-        if ($gasTx) $this->_set($orderId, ['gas_tx_hash' => $gasTx]);
-        if (!$gasOk) {
-            $this->_set($orderId, ['status' => 'failed_gas', 'error' => substr($gasMsg,0,255)]);
-            return [false, 'Could not fund gas for the USDT transfer: '.$gasMsg];
-        }
+        // NOTE: Gas fee funding is now handled by StakingPurchasecron
+        // The cron will detect admin's BNB transfer and mark gas_cron_status = 1
+        // This allows order creation without requiring immediate gas availability
 
-        // ---- LEG 1 FIRST: settle USDT on-chain (user deposit addr -> admin).
-        //      BMAN is credited ONLY after this succeeds, so a gas/RPC failure
-        //      means the user is NOT credited (no free BMAN). ----
-        try {
-            if ($dryRun) {
-                $usdtTx = 'DRYRUN-usdt-'.$ref;
-            } else {
-                $userKey = $this->web3bman->decryptKey($uw['private_key']);
-                $r = $this->web3bman->sendToken($userKey, $adminAddr, (string)$usdt, $usdtC);
-                $usdtTx = $r['tx_hash'];
-            }
-            $this->_set($orderId, ['usdt_tx_hash' => $usdtTx, 'status' => 'usdt_sent']);
-        } catch (Exception $e) {
-            $this->_set($orderId, ['status' => 'failed_usdt', 'error' => substr($e->getMessage(),0,255)]);
-            return [false, 'USDT settlement failed — nothing credited: '.$e->getMessage()];
-        }
+        // ---- LEG 1: USDT transfer is now detected by cron via Etherscan
+        //      No on-chain sending here - user sends USDT manually or cron waits for detection
+        //      Status moved to 'pending_usdt' for cron to detect ----
+        // Skip actual transaction - let cron detect it via Etherscan
+        // This allows order creation without requiring user to have BNB for gas
+        $usdtTx = null; // Will be populated by cron when it detects the transfer
 
-        // ---- THEN INTERNAL LEDGER (what the user sees): USDT out, BMAN into the
-        //      Exchange wallet, 25% into the Bonus wallet. One transaction. ----
+        // ---- INTERNAL LEDGER: Record the swap intent (USDT will be detected by cron)
+        //      Credit BMAN to Exchange wallet immediately upon order creation
+        //      Bonus credited when cron detects bonus transfer ----
         $this->db->trans_begin();
+
+        // Debit USDT (marks user's intention to swap - cron will verify on-chain)
         list($okU) = $this->L->debit($userId, 'usdt', $usdt, 'swap', [
-            'reference_id' => $ref, 'description' => 'Swap: USDT sent to admin '.$adminAddr.' ['.$ref.']']);
+            'reference_id' => $ref, 'description' => 'Swap: USDT pending transfer to admin '.$adminAddr.' ['.$ref.']']);
+
+        // Credit BMAN to Exchange wallet immediately
         list($okE) = $this->L->credit($userId, 'exchange', $bman, 'swap', [
-            'reference_id' => $ref, 'description' => 'Swap: '.$bman.' BMAN returned to Exchange ['.$ref.']']);
-        $okB = true;
-        if ($bonus > 0) list($okB) = $this->L->credit($userId, 'bonus', $bonus, 'swap_bonus', [
-            'reference_id' => $ref, 'description' => 'Swap 25% bonus '.$bonus.' BMAN ['.$ref.']']);
-        if (!$okU || !$okE || !$okB || $this->db->trans_status() === false) {
+            'reference_id' => $ref, 'description' => 'Swap: '.$bman.' BMAN allocated to Exchange ['.$ref.']']);
+
+        // Note: Bonus will be credited by cron when it detects the bonus transfer
+
+        if (!$okU || !$okE || $this->db->trans_status() === false) {
             $this->db->trans_rollback();
-            // USDT already settled on-chain; flag for admin reconciliation.
-            $this->_set($orderId, ['status' => 'failed_credit', 'error' => 'ledger error after USDT settled — reconcile']);
-            return [false, 'USDT settled ('.$usdtTx.') but crediting failed — order parked '.$ref.' for admin.'];
+            $this->_set($orderId, ['status' => 'failed_credit', 'error' => 'ledger error']);
+            return [false, 'Failed to record swap in ledger - order parked '.$ref.'.'];
         }
         $this->db->trans_commit();
 
-        // ---- OPTIONAL on-chain BMAN delivery to the user's own address ----
-        if ($deliverBmanOnchain) {
-            $treasuryKey = $dryRun ? null : $this->tokens->treasuryPrivateKey();
-            try {
-                if ($dryRun) { $bmanTx = 'DRYRUN-bman-'.$ref; $bonusTx = $bonus > 0 ? 'DRYRUN-bonus-'.$ref : null; }
-                else {
-                    if (!$treasuryKey) throw new RuntimeException('Treasury key missing');
-                    $bmanTx  = $this->web3bman->sendToken($treasuryKey, $userAddr, (string)$bman, $bmanC)['tx_hash'];
-                    $bonusTx = $bonus > 0 ? $this->web3bman->sendToken($treasuryKey, $userAddr, (string)$bonus, $bmanC)['tx_hash'] : null;
-                }
-                $this->_set($orderId, ['bman_tx_hash' => $bmanTx, 'bonus_tx_hash' => $bonusTx]);
-            } catch (Exception $e) {
-                $this->_set($orderId, ['error' => 'on-chain BMAN delivery failed: '.substr($e->getMessage(),0,200)]);
-            }
-        }
+        // Order is now in 'pending_usdt' state - waiting for cron to detect USDT transfer
+        // Cron will handle: gas detection, USDT detection, bonus detection, BMAN distribution
+        $this->_set($orderId, ['status' => 'pending_usdt']);
 
-        $this->_set($orderId, ['status' => 'completed']);
         return [true, $this->order($orderId)];
     }
 

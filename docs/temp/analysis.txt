@@ -3208,3 +3208,10 @@ bman_exchange_tx_hash (exchange_cron_status)
 bman_earning_tx_hash (earning_cron_status)
 bman_staking_tx_hash (staking_cron_status)
 bman_bonus_tx_hash (bman_bonus_cron_status)
+
+
+
+Display the deposit history on wallet page
+Display the instant history of staking purchase & reduce their wallet balance
+User selectable Coin Condition wise real swaping with bman distribution cron is completed
+Rank is on progress

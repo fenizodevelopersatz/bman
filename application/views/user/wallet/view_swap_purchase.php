@@ -31,6 +31,45 @@
             </div>
 
             <div class="modal-body">
+                <!-- Distribution Option Selector -->
+                <div id="distribution-selector" class="mb-4 p-3 bg-light rounded">
+                    <label class="form-label"><strong>Select Coin Distribution Option:</strong></label>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist" id="opt1" value="1" checked onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
+                                <label class="form-check-label" for="opt1">Option 1: All Exchange</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist" id="opt2" value="2" onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
+                                <label class="form-check-label" for="opt2">Option 2: Split Exchange/Staking</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist" id="opt3" value="3" onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
+                                <label class="form-check-label" for="opt3">Option 3: Split with Earning</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist" id="opt4" value="4" onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
+                                <label class="form-check-label" for="opt4">Option 4: Include Bonus</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist" id="opt5" value="5" onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
+                                <label class="form-check-label" for="opt5">Option 5: Balanced Mix</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist" id="opt6" value="6" onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
+                                <label class="form-check-label" for="opt6">Option 6: Earning Focus</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist" id="opt7" value="7" onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
+                                <label class="form-check-label" for="opt7">Option 7: Bonus Focus</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="purchase-progress" class="mb-4">
                     <div class="progress" style="height: 25px;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated"
@@ -211,10 +250,56 @@
 <script>
 let currentOrderId = null;
 let statusCheckInterval = null;
+let purchaseFormData = {
+    package_id: null,
+    coin_distribution_option_id: 1,
+    plan_code: 'fixed',
+    plan_id: 0,
+    duration_years: 1
+};
+
+function setPurchaseFormValue(key, value) {
+    purchaseFormData[key] = value;
+    console.log('Updated Form Value:', key, '=', value);
+    console.log('Current Form Data:', purchaseFormData);
+}
 
 function showPurchaseModal(packageId) {
     // Get CSRF token from form (already present in view data)
     const csrfToken = document.querySelector('[name="csrf_token_name"]')?.value || '';
+    const csrfTokenName = document.querySelector('[name="csrf_token_name"]')?.getAttribute('name') || '';
+
+    // Get selected distribution option from radio buttons
+    const coinDistOption = document.querySelector('input[name="coin_dist"]:checked')?.value || '1';
+
+    // Update form data object with all values
+    purchaseFormData.package_id = packageId;
+    purchaseFormData.coin_distribution_option_id = coinDistOption;
+    purchaseFormData.plan_code = 'fixed';
+    purchaseFormData.plan_id = 0;
+    purchaseFormData.duration_years = 1;
+
+    console.log('=== PURCHASE FORM DATA ===');
+    console.log('package_id:', purchaseFormData.package_id);
+    console.log('coin_distribution_option_id:', purchaseFormData.coin_distribution_option_id);
+    console.log('plan_code:', purchaseFormData.plan_code);
+    console.log('plan_id:', purchaseFormData.plan_id);
+    console.log('duration_years:', purchaseFormData.duration_years);
+    console.log('==========================');
+
+    // Build request body with ALL required fields from purchaseFormData
+    const bodyParams = new URLSearchParams({
+        package_id: purchaseFormData.package_id,
+        coin_distribution_option_id: purchaseFormData.coin_distribution_option_id,
+        plan_code: purchaseFormData.plan_code,
+        plan_id: purchaseFormData.plan_id,
+        duration_years: purchaseFormData.duration_years,
+    });
+
+    // Add CSRF token if present
+    if (csrfTokenName) {
+        bodyParams.append(csrfTokenName, csrfToken);
+    }
 
     fetch('<?php echo base_url("user/lending/swap_purchase"); ?>', {
         method: 'POST',
@@ -222,10 +307,7 @@ function showPurchaseModal(packageId) {
             'X-Requested-With': 'XMLHttpRequest',
             'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({
-            package_id: packageId,
-            [csrfTokenName]: csrfToken,
-        })
+        body: bodyParams
     })
     .then(res => res.json())
     .then(data => {
@@ -251,8 +333,19 @@ function showPurchaseModal(packageId) {
 
         // Show modal and start checking status
         new bootstrap.Modal(document.getElementById('purchaseModal')).show();
-        updatePurchaseUI('pending_gas_fee');
-        startStatusCheck();
+        updatePurchaseUI(d.status || 'pending_usdt');
+
+        // Auto-close modal after 3 seconds and refresh page
+        setTimeout(() => {
+            const modalEl = document.getElementById('purchaseModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+
+            // Reload page to show updated staking activity
+            setTimeout(() => {
+                location.reload();
+            }, 500);
+        }, 3000);
     })
     .catch(err => {
         console.error(err);

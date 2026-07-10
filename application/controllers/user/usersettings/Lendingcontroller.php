@@ -172,40 +172,50 @@ class Lendingcontroller extends CI_Controller
         $userId = (int) $this->session->userdata('user_userid');
         if (!$userId) { echo json_encode(['status'=>false,'message'=>'Unauthorized']); return; }
 
+        // Get all required fields from POST
         $packageId = (int)$this->input->post('package_id');
-        $planCode = $this->input->post('plan_code') ?? 'fixed';
+        $planCode = (string)($this->input->post('plan_code') ?? 'fixed');
         $planId = (int)($this->input->post('plan_id') ?? 0);
         $durationYears = (int)($this->input->post('duration_years') ?? 1);
         $coinDistOptionId = (int)($this->input->post('coin_distribution_option_id') ?? 1);
+
+        // Validate inputs
+        if (!$packageId) { echo json_encode(['status'=>false,'message'=>'Package ID required']); return; }
+        if ($coinDistOptionId < 1 || $coinDistOptionId > 7) {
+            echo json_encode(['status'=>false,'message'=>'Invalid distribution option (1-7)']); return;
+        }
 
         $this->load->model('staking/Swapengine_model', 'SW');
         list($ok, $res) = $this->SW->execute($userId, $packageId);
         if (!$ok) { echo json_encode(['status'=>false,'message'=>$res]); return; }
 
-        // Add plan details to the response
-        $res['plan_code'] = $planCode;
-        $res['plan_id'] = $planId;
-        $res['duration_years'] = $durationYears;
-        $res['coin_distribution_option_id'] = $coinDistOptionId;
-
-        // If this is a new swap order, also update the staking_swap_orders record with plan details
-        if (!empty($res['order_id'])) {
-            $this->db->where('id', $res['order_id'])->update('staking_swap_orders', [
+        // Update swap order with ALL plan details
+        if (!empty($res['id'])) {
+            $updateOk = $this->db->where('id', $res['id'])->update('staking_swap_orders', [
+                'package_id' => $packageId,
                 'plan_code' => $planCode,
                 'plan_id' => $planId,
                 'duration_years' => $durationYears,
-                'coin_distribution_option_id' => $coinDistOptionId,
+                'coin_distribution_option' => $coinDistOptionId,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
+            if (!$updateOk) {
+                error_log('WARNING: Failed to update staking order '.$res['id'].' with plan details');
+            }
         }
 
         $dry = !empty($res['dry_run']);
         echo json_encode([
             'status'  => true,
-            'message' => ($dry ? '[DRY-RUN] ' : '').'Swap '.$res['status'].'. USDT '.$res['usdt_amount'].
-                         ' → BMAN '.$res['bman_amount'].' (+'.$res['bonus_bman'].' bonus). Plan: '.$planCode.' ('.
-                         $durationYears.' years).',
-            'data'    => $res,
+            'message' => ($dry ? '[DRY-RUN] ' : '').'Swap order created. USDT '.$res['usdt_amount'].
+                         ' → BMAN '.$res['bman_amount'].' (+'.$res['bonus_bman'].' bonus). Distribution: Option '.$coinDistOptionId.'. Plan: '.$planCode.' ('.
+                         $durationYears.' years). Status: '.$res['status'],
+            'data'    => array_merge($res, [
+                'plan_code' => $planCode,
+                'plan_id' => $planId,
+                'duration_years' => $durationYears,
+                'coin_distribution_option' => $coinDistOptionId,
+            ]),
         ]);
     }
 
@@ -641,22 +651,176 @@ class Lendingcontroller extends CI_Controller
      */
     private function getRecentStakingActivityForView($user_id)
     {
-        if ($this->db->table_exists('history')) {
-            $q = $this->db->query("
-                    SELECT history_date, type, amount, token_amount, description, status, hash_id
-                    FROM history
-                    WHERE user_id = ?
-                      AND (
-                        type IN ('staking_purchase','profit','roi-made','pair_commission','bonus','stake_purchase')
-                        OR description LIKE '%staking%'
-                        OR description LIKE '%ROI%'
-                      )
-                    ORDER BY history_date DESC
-                    LIMIT 50
-                ", [(int)$user_id]);
-            return $q->result();
+        if (!$this->db->table_exists('staking_swap_orders')) {
+            return [];
         }
-        return [];
+
+        // Fetch from staking_swap_orders (multi-step staking purchases)
+        $orders = $this->db->select('
+            id, ref, status, usdt_amount, bman_amount, bonus_bman,
+            coin_distribution_option, created_at, updated_at,
+            gas_tx_hash, usdt_tx_hash, bonus_tx_hash,
+            bman_exchange_tx_hash, bman_earning_tx_hash, bman_staking_tx_hash, bman_bonus_tx_hash,
+            gas_cron_status, usdt_cron_status, bonus_cron_status,
+            bman_exchange_cron_status, bman_earning_cron_status, bman_staking_cron_status, bman_bonus_cron_status,
+            error, package_id, plan_code, duration_years
+        ')
+        ->where('user_id', (int)$user_id)
+        ->order_by('created_at', 'DESC')
+        ->limit(50)
+        ->get('staking_swap_orders')
+        ->result_array();
+
+        // Format for display (convert to objects matching view expectations)
+        $result = [];
+        foreach ($orders as $o) {
+            $result[] = (object)[
+                'id' => $o['id'],
+                'ref' => $o['ref'],
+                'history_date' => $o['created_at'],
+                'type' => 'staking_purchase',
+                'amount' => (float)$o['usdt_amount'],
+                'token_amount' => (float)$o['bman_amount'],
+                'status' => $o['status'],
+                'description' => 'Staking purchase ' . number_format((float)$o['bman_amount'], 0) . ' BMAN (' .
+                                ($o['plan_code'] ? $o['plan_code'] : 'fixed') . '/' .
+                                ($o['duration_years'] ? $o['duration_years'] : 1) . 'y) — ' . ucfirst(str_replace('_', ' ', $o['status'])),
+                'hash_id' => $o['gas_tx_hash'],
+                // Additional fields for popup details
+                'order_id' => $o['id'],
+                'bonus_bman' => (float)$o['bonus_bman'],
+                'coin_distribution_option' => $o['coin_distribution_option'],
+                'gas_tx_hash' => $o['gas_tx_hash'],
+                'usdt_tx_hash' => $o['usdt_tx_hash'],
+                'bonus_tx_hash' => $o['bonus_tx_hash'],
+                'bman_exchange_tx_hash' => $o['bman_exchange_tx_hash'],
+                'bman_earning_tx_hash' => $o['bman_earning_tx_hash'],
+                'bman_staking_tx_hash' => $o['bman_staking_tx_hash'],
+                'bman_bonus_tx_hash' => $o['bman_bonus_tx_hash'],
+                'gas_cron_status' => $o['gas_cron_status'],
+                'usdt_cron_status' => $o['usdt_cron_status'],
+                'bonus_cron_status' => $o['bonus_cron_status'],
+                'bman_exchange_cron_status' => $o['bman_exchange_cron_status'],
+                'bman_earning_cron_status' => $o['bman_earning_cron_status'],
+                'bman_staking_cron_status' => $o['bman_staking_cron_status'],
+                'bman_bonus_cron_status' => $o['bman_bonus_cron_status'],
+                'error' => $o['error'],
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * AJAX: Get on-chain swap order details with transaction status
+     */
+    public function swap_order_details()
+    {
+        $userId = (int)$this->session->userdata('user_userid');
+        if (!$userId) { echo json_encode(['status'=>false,'message'=>'Unauthorized']); return; }
+
+        $orderId = (int)$this->input->post('order_id');
+        if (!$orderId) { echo json_encode(['status'=>false,'message'=>'Invalid order ID']); return; }
+
+        $o = $this->db->select('*')
+            ->where('id', $orderId)
+            ->where('user_id', $userId)
+            ->get('staking_swap_orders')
+            ->row_array();
+
+        if (!$o) { echo json_encode(['status'=>false,'message'=>'Order not found']); return; }
+
+        // Get explorer URL from config
+        $ts = $this->db->select('explorer_url')->get_where('token_settings',['status'=>1])->row_array();
+        $explorer = rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
+
+        // Status indicators
+        $statusMap = [
+            'pending_gas_fee' => ['icon'=>'hourglass-start','label'=>'Waiting for Gas Fee','color'=>'warning'],
+            'pending_usdt' => ['icon'=>'hourglass-half','label'=>'Waiting for USDT','color'=>'warning'],
+            'pending_bman' => ['icon'=>'hourglass-end','label'=>'Processing BMAN','color'=>'info'],
+            'swap_completed' => ['icon'=>'check-circle','label'=>'Completed','color'=>'success'],
+            'failed_gas' => ['icon'=>'x-circle','label'=>'Gas Fee Failed','color'=>'danger'],
+            'failed_usdt' => ['icon'=>'x-circle','label'=>'USDT Failed','color'=>'danger'],
+        ];
+
+        $status = $statusMap[$o['status']] ?? ['icon'=>'question-mark','label'=>$o['status'],'color'=>'secondary'];
+
+        echo json_encode([
+            'status' => true,
+            'data' => [
+                'order_id' => (int)$o['id'],
+                'ref' => $o['ref'],
+                'created_at' => $o['created_at'],
+                'updated_at' => $o['updated_at'],
+                'current_status' => $o['status'],
+                'status_info' => $status,
+                'amounts' => [
+                    'usdt' => (float)$o['usdt_amount'],
+                    'bman' => (float)$o['bman_amount'],
+                    'bonus_bman' => (float)$o['bonus_bman'],
+                ],
+                'distribution' => [
+                    'option' => (int)$o['coin_distribution_option'],
+                    'exchange_bman' => (float)($o['bman_exchange_amount'] ?? 0),
+                    'earning_bman' => (float)($o['bman_earning_amount'] ?? 0),
+                    'staking_bman' => (float)($o['bman_staking_amount'] ?? 0),
+                    'bonus_bman' => (float)$o['bonus_bman'],
+                ],
+                'plan' => [
+                    'code' => $o['plan_code'] ?? 'fixed',
+                    'duration_years' => (int)$o['duration_years'] ?? 1,
+                    'package_id' => (int)$o['package_id'],
+                ],
+                'cron_status' => [
+                    'gas' => (int)$o['gas_cron_status'],
+                    'usdt' => (int)$o['usdt_cron_status'],
+                    'bonus' => (int)$o['bonus_cron_status'],
+                    'bman_exchange' => (int)$o['bman_exchange_cron_status'],
+                    'bman_earning' => (int)$o['bman_earning_cron_status'],
+                    'bman_staking' => (int)$o['bman_staking_cron_status'],
+                    'bman_bonus' => (int)$o['bman_bonus_cron_status'],
+                ],
+                'transactions' => [
+                    'gas' => [
+                        'tx_hash' => $o['gas_tx_hash'],
+                        'status' => $o['gas_cron_status'] == 1 ? 'confirmed' : 'pending',
+                        'explorer' => !empty($o['gas_tx_hash']) && strlen($o['gas_tx_hash']) > 20 ? $explorer.'/tx/'.$o['gas_tx_hash'] : null,
+                    ],
+                    'usdt' => [
+                        'tx_hash' => $o['usdt_tx_hash'],
+                        'status' => $o['usdt_cron_status'] == 1 ? 'confirmed' : 'pending',
+                        'explorer' => !empty($o['usdt_tx_hash']) && strlen($o['usdt_tx_hash']) > 20 ? $explorer.'/tx/'.$o['usdt_tx_hash'] : null,
+                    ],
+                    'bonus' => [
+                        'tx_hash' => $o['bonus_tx_hash'],
+                        'status' => $o['bonus_cron_status'] == 1 ? 'confirmed' : 'pending',
+                        'explorer' => !empty($o['bonus_tx_hash']) && strlen($o['bonus_tx_hash']) > 20 ? $explorer.'/tx/'.$o['bonus_tx_hash'] : null,
+                    ],
+                    'bman_exchange' => [
+                        'tx_hash' => $o['bman_exchange_tx_hash'],
+                        'status' => $o['bman_exchange_cron_status'] == 1 ? 'confirmed' : 'pending',
+                        'explorer' => !empty($o['bman_exchange_tx_hash']) && strlen($o['bman_exchange_tx_hash']) > 20 ? $explorer.'/tx/'.$o['bman_exchange_tx_hash'] : null,
+                    ],
+                    'bman_earning' => [
+                        'tx_hash' => $o['bman_earning_tx_hash'],
+                        'status' => $o['bman_earning_cron_status'] == 1 ? 'confirmed' : 'pending',
+                        'explorer' => !empty($o['bman_earning_tx_hash']) && strlen($o['bman_earning_tx_hash']) > 20 ? $explorer.'/tx/'.$o['bman_earning_tx_hash'] : null,
+                    ],
+                    'bman_staking' => [
+                        'tx_hash' => $o['bman_staking_tx_hash'],
+                        'status' => $o['bman_staking_cron_status'] == 1 ? 'confirmed' : 'pending',
+                        'explorer' => !empty($o['bman_staking_tx_hash']) && strlen($o['bman_staking_tx_hash']) > 20 ? $explorer.'/tx/'.$o['bman_staking_tx_hash'] : null,
+                    ],
+                    'bman_bonus' => [
+                        'tx_hash' => $o['bman_bonus_tx_hash'],
+                        'status' => $o['bman_bonus_cron_status'] == 1 ? 'confirmed' : 'pending',
+                        'explorer' => !empty($o['bman_bonus_tx_hash']) && strlen($o['bman_bonus_tx_hash']) > 20 ? $explorer.'/tx/'.$o['bman_bonus_tx_hash'] : null,
+                    ],
+                ],
+                'error' => $o['error'],
+            ],
+        ]);
     }
 
     /**
