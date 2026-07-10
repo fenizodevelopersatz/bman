@@ -71,10 +71,10 @@ $route['balance-info-admin'] = 'admin/Administrator/balance_info';
 $route['staking-roi-cron'] = 'Staking_roi_cron';
 $route['roi-maturity-test'] = 'RoiMaturityCron/test';
 $route['roi-maturity-process'] = 'RoiMaturityCron/process';
-$route['roi-monthly-distribution-test'] = 'cron/RoiMonthlyDistribution_cron/test';
-$route['roi-monthly-distribution-process'] = 'cron/RoiMonthlyDistribution_cron/process';
-$route['roi-maturity-payment-test'] = 'cron/RoiMaturityPayment_cron/test';
-$route['roi-maturity-payment-process'] = 'cron/RoiMaturityPayment_cron/process';
+$route['roi-monthly-distribution-test'] = 'RoiMonthlyDistribution_cron/test';
+$route['roi-monthly-distribution-process'] = 'RoiMonthlyDistribution_cron/process';
+$route['roi-maturity-payment-test'] = 'RoiMaturityPayment_cron/test';
+$route['roi-maturity-payment-process'] = 'RoiMaturityPayment_cron/process';
 
 /****************** ADMIN ROUTES ********/
 $route['logout'] = 'admin/settings/Sitesettings/logout';

@@ -202,25 +202,34 @@ class Lendingcontroller extends CI_Controller
         list($ok, $res) = $this->SW->execute($userId, $packageId);
         if (!$ok) { echo json_encode(['status'=>false,'message'=>$res]); return; }
 
-        // Calculate ROI rate from staking_packages
-        $roiRate = 0;
+        // ROI rates live in staking_roi_structure (active): Fixed = total %, Regular =
+        // monthly %. Combo blends both. (staking_packages has NO roi column.)
+        $fixedPct = 0; $monthlyPct = 0;
         if ($packageId) {
-            $pkg = $this->db->get_where('staking_packages', ['id' => $packageId])->row_array();
-            if ($pkg) {
-                $roiData = json_decode($pkg['roi'] ?? '{}', true);
-                $roiKey = $planCode . '_' . $durationYears;
-                if (!empty($roiData[$roiKey]['roi_percent'])) {
-                    $roiRate = (float)$roiData[$roiKey]['roi_percent'];
-                }
+            $rs = $this->db->where(['package_id' => $packageId, 'duration_years' => $durationYears, 'is_active' => 1])
+                           ->where_in('plan_code', ['fixed', 'regular'])
+                           ->get('staking_roi_structure')->result_array();
+            foreach ($rs as $r) {
+                if ($r['plan_code'] === 'fixed')   $fixedPct   = (float)$r['roi_percent'];
+                if ($r['plan_code'] === 'regular') $monthlyPct = (float)$r['roi_percent'];
             }
         }
+        // Primary rate on the record: fixed→total%, regular/combo→monthly%
+        $roiRate = ($planType === 'regular' || $planType === 'combo') ? $monthlyPct : $fixedPct;
 
-        // Calculate maturity date
-        $maturityDate = date('Y-m-d H:i:s', strtotime("+{$durationYears} years", strtotime($res['created_at'] ?? 'now')));
+        $createdAt    = $res['created_at'] ?? date('Y-m-d H:i:s');
+        $maturityDate = date('Y-m-d H:i:s', strtotime("+{$durationYears} years", strtotime($createdAt)));
+        $bmanAmount   = (float)$res['bman_amount'];
+        $months       = $durationYears * 12;
 
-        // Calculate total ROI amount at maturity: Principal × (ROI% / 100)
-        $bmanAmount = (float)$res['bman_amount'];
-        $maturityRoiAmount = $bmanAmount * ($roiRate / 100);
+        // Total ROI over the term (monthly plans accrue monthly ROI for the full term).
+        if ($planType === 'fixed') {
+            $maturityRoiAmount = $bmanAmount * ($fixedPct / 100);
+        } elseif ($planType === 'regular') {
+            $maturityRoiAmount = $bmanAmount * ($monthlyPct / 100) * $months;
+        } else { // combo: monthly ROI for the term + fixed lump at maturity
+            $maturityRoiAmount = $bmanAmount * ($monthlyPct / 100) * $months + $bmanAmount * ($fixedPct / 100);
+        }
 
         // Update swap order with the purchase/plan details only. ROI rate + maturity
         // date live in roi_staking_management (created below); the ROI payouts live in
@@ -249,11 +258,13 @@ class Lendingcontroller extends CI_Controller
                     'ORDER-' . $res['id'],
                     $planType,
                     [
-                        'principal_amount' => (float)$res['bman_amount'],
+                        'principal_amount' => $bmanAmount,
                         'roi_rate_percent' => $roiRate,
-                        'roi_percent' => $roiRate,
-                        'duration_years' => $durationYears,
-                        'maturity_date' => $maturityDate,
+                        'fixed_percent'    => $fixedPct,
+                        'monthly_percent'  => $monthlyPct,
+                        'duration_years'   => $durationYears,
+                        'created_at'       => $createdAt,
+                        'maturity_date'    => $maturityDate,
                     ]
                 );
 

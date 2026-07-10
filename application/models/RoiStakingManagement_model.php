@@ -16,10 +16,30 @@ class RoiStakingManagement_model extends CI_Model
      */
     public function createROIRecord($stakingOrderId, $userId, $orderRef, $planType, $data)
     {
-        $principal = (float)$data['principal_amount'];
-        $roiRate = (float)$data['roi_rate_percent'];
-        $durationYears = (int)$data['duration_years'];
-        $totalROI = $principal * ($roiRate / 100);
+        // Monthly-for-full-term model:
+        //   Fixed   = one lump of (principal × fixed%) at maturity (fixed% is a TOTAL rate).
+        //   Regular = (principal × monthly%) credited every month for duration_years×12 months;
+        //             principal returned to staking wallet at maturity.
+        //   Combo   = regular monthly ROI for the full term + a fixed lump at maturity.
+        $principal      = (float)$data['principal_amount'];
+        $fixedPct       = (float)($data['fixed_percent']  ?? $data['roi_rate_percent'] ?? 0);
+        $monthlyPct     = (float)($data['monthly_percent'] ?? 0);
+        $durationYears  = (int)$data['duration_years'];
+        $months         = max(1, $durationYears * 12);
+        $createdAt      = $data['created_at'] ?? date('Y-m-d H:i:s');
+        $maturityDate   = $data['maturity_date'];
+        $firstMonthDate = date('Y-m-d H:i:s', strtotime('+1 month', strtotime($createdAt)));
+
+        $monthlyAmount = $principal * ($monthlyPct / 100);
+        $fixedAmount   = $principal * ($fixedPct / 100);
+
+        if ($planType === 'fixed') {
+            $roiRate = $fixedPct;   $totalROI = $fixedAmount;
+        } elseif ($planType === 'regular') {
+            $roiRate = $monthlyPct; $totalROI = $monthlyAmount * $months;
+        } else { // combo
+            $roiRate = $monthlyPct; $totalROI = $monthlyAmount * $months + $fixedAmount;
+        }
 
         $recordData = [
             'staking_swap_orders_id' => $stakingOrderId,
@@ -30,40 +50,38 @@ class RoiStakingManagement_model extends CI_Model
             'roi_rate_percent' => $roiRate,
             'total_roi_amount' => $totalROI,
             'duration_years' => $durationYears,
+            'remaining_to_pay' => $totalROI,
+            'total_paid_amount' => 0,
+            'overall_status' => 'active',
+            'created_at' => date('Y-m-d H:i:s'),
         ];
 
-        // Plan-specific calculations
         switch ($planType) {
             case 'fixed':
-                $recordData['fixed_payment_amount'] = $totalROI;
-                $recordData['fixed_maturity_date'] = $data['maturity_date'];
-                $recordData['next_payment_date'] = $data['maturity_date'];
+                $recordData['fixed_payment_amount'] = $fixedAmount;
+                $recordData['fixed_maturity_date']  = $maturityDate;
+                $recordData['fixed_status']         = 'pending';
+                $recordData['next_payment_date']    = $maturityDate;
                 break;
 
             case 'regular':
-                $monthlyPayment = $totalROI / 3;
-                $recordData['regular_payment_amount'] = $monthlyPayment;
-                $recordData['payment_day_5_amount'] = $monthlyPayment;
-                $recordData['payment_day_15_amount'] = $monthlyPayment;
-                $recordData['payment_day_25_amount'] = $monthlyPayment;
-                $recordData['next_payment_date'] = $this->getNextPaymentDate(5);
+                $recordData['regular_payment_amount']     = $monthlyAmount;
+                $recordData['regular_payment_count']      = $months;   // total monthly credits
+                $recordData['regular_payments_completed'] = 0;
+                $recordData['fixed_maturity_date']        = $maturityDate; // principal return at maturity
+                $recordData['next_payment_date']          = $firstMonthDate;
                 break;
 
             case 'combo':
-                $monthlyPayment = $totalROI / 4;
-                $maturityPayment = $totalROI / 4;
-                $recordData['regular_payment_amount'] = $monthlyPayment;
-                $recordData['fixed_payment_amount'] = $maturityPayment;
-                $recordData['fixed_maturity_date'] = $data['maturity_date'];
-                $recordData['payment_day_5_amount'] = $monthlyPayment;
-                $recordData['payment_day_15_amount'] = $monthlyPayment;
-                $recordData['payment_day_25_amount'] = $monthlyPayment;
-                $recordData['next_payment_date'] = $this->getNextPaymentDate(5);
+                $recordData['regular_payment_amount']     = $monthlyAmount;
+                $recordData['regular_payment_count']      = $months;
+                $recordData['regular_payments_completed'] = 0;
+                $recordData['fixed_payment_amount']       = $fixedAmount; // lump at maturity
+                $recordData['fixed_maturity_date']        = $maturityDate;
+                $recordData['fixed_status']               = 'pending';
+                $recordData['next_payment_date']          = $firstMonthDate;
                 break;
         }
-
-        $recordData['remaining_to_pay'] = $totalROI;
-        $recordData['created_at'] = date('Y-m-d H:i:s');
 
         if ($this->db->insert($this->table, $recordData)) {
             return $this->db->insert_id();
