@@ -69,6 +69,10 @@ $route['balance-info-admin'] = 'admin/Administrator/balance_info';
 
 /****************** CRON ROUTES ********/
 $route['staking-roi-cron'] = 'Staking_roi_cron';
+$route['roi-maturity-test'] = 'RoiMaturityCron/test';
+$route['roi-maturity-process'] = 'RoiMaturityCron/process';
+$route['cron/roi_maturity/test'] = 'RoiMaturityCron/test';
+$route['cron/roi_maturity/process'] = 'RoiMaturityCron/process';
 
 /****************** ADMIN ROUTES ********/
 $route['logout'] = 'admin/settings/Sitesettings/logout';

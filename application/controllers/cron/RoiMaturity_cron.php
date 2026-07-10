@@ -19,13 +19,39 @@ class RoiMaturity_cron extends CI_Controller
     }
 
     /**
+     * Test endpoint - returns JSON for monitoring
+     */
+    public function test()
+    {
+        try {
+            $response = [
+                'status' => true,
+                'message' => 'ROI Maturity CRON is accessible',
+                'timestamp' => date('Y-m-d H:i:s'),
+                'endpoint' => '/cron/roi_maturity/process',
+                'next_step' => 'Run process() endpoint to execute CRON'
+            ];
+            echo json_encode($response);
+        } catch (Exception $e) {
+            echo json_encode(['status' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
+    /**
      * Main CRON: Check & process matured investments
+     * Returns JSON for monitoring
      */
     public function process()
     {
+        $format = $this->input->get('format') ?? 'text'; // 'text' or 'json'
+
         try {
-            echo "=== ROI MATURITY CRON PROCESS ===\n";
-            echo "Started at: " . date('Y-m-d H:i:s') . "\n\n";
+            if ($format === 'json') {
+                header('Content-Type: application/json');
+            }
+
+            $output = "=== ROI MATURITY CRON PROCESS ===\n";
+            $output .= "Started at: " . date('Y-m-d H:i:s') . "\n\n";
 
             // Get all staking orders that have matured
             $maturedOrders = $this->db
@@ -36,20 +62,26 @@ class RoiMaturity_cron extends CI_Controller
                 ->get()
                 ->result_array();
 
-            echo "Found " . count($maturedOrders) . " matured staking orders\n\n";
+            $output .= "Found " . count($maturedOrders) . " matured staking orders\n\n";
 
             if (empty($maturedOrders)) {
-                echo "No matured orders to process\n";
+                $output .= "No matured orders to process\n";
+                if ($format === 'json') {
+                    echo json_encode(['status' => true, 'message' => 'No matured orders', 'count' => 0]);
+                } else {
+                    echo $output;
+                }
                 return;
             }
 
             $processedCount = 0;
             $failedCount = 0;
+            $processedOrders = [];
 
             // Process each matured order
             foreach ($maturedOrders as $order) {
                 try {
-                    echo "Processing Order ID: {$order['id']} (User: {$order['user_id']})\n";
+                    $output .= "Processing Order ID: {$order['id']} (User: {$order['user_id']})\n";
 
                     // Calculate ROI details
                     $roiData = $this->calculateMaturityROI($order);
@@ -58,11 +90,11 @@ class RoiMaturity_cron extends CI_Controller
                         throw new Exception("Failed to calculate ROI for order {$order['id']}");
                     }
 
-                    echo "  Principal: {$roiData['principal']} BMAN\n";
-                    echo "  ROI Rate: {$roiData['roi_rate']}%\n";
-                    echo "  Total ROI Earned: {$roiData['total_roi']} BMAN\n";
-                    echo "  Already Paid: {$roiData['already_paid']} BMAN\n";
-                    echo "  Remaining: {$roiData['remaining']} BMAN\n";
+                    $output .= "  Principal: {$roiData['principal']} BMAN\n";
+                    $output .= "  ROI Rate: {$roiData['roi_rate']}%\n";
+                    $output .= "  Total ROI Earned: {$roiData['total_roi']} BMAN\n";
+                    $output .= "  Already Paid: {$roiData['already_paid']} BMAN\n";
+                    $output .= "  Remaining: {$roiData['remaining']} BMAN\n";
 
                     // Update status to processing
                     $this->db->where('id', $order['id'])
@@ -89,11 +121,17 @@ class RoiMaturity_cron extends CI_Controller
                             'updated_at' => date('Y-m-d H:i:s'),
                         ]);
 
-                    echo "  ✓ Order {$order['id']} processed successfully\n\n";
+                    $output .= "  ✓ Order {$order['id']} processed successfully\n\n";
+                    $processedOrders[] = [
+                        'id' => $order['id'],
+                        'user_id' => $order['user_id'],
+                        'principal' => $roiData['principal'],
+                        'roi_remaining' => $roiData['remaining']
+                    ];
                     $processedCount++;
 
                 } catch (Exception $e) {
-                    echo "  ✗ Error processing order {$order['id']}: " . $e->getMessage() . "\n\n";
+                    $output .= "  ✗ Error processing order {$order['id']}: " . $e->getMessage() . "\n\n";
 
                     // Mark as failed
                     $this->db->where('id', $order['id'])
@@ -107,13 +145,34 @@ class RoiMaturity_cron extends CI_Controller
                 }
             }
 
-            echo "\n=== CRON SUMMARY ===\n";
-            echo "Processed: {$processedCount}\n";
-            echo "Failed: {$failedCount}\n";
-            echo "Completed at: " . date('Y-m-d H:i:s') . "\n";
+            $output .= "\n=== CRON SUMMARY ===\n";
+            $output .= "Processed: {$processedCount}\n";
+            $output .= "Failed: {$failedCount}\n";
+            $output .= "Completed at: " . date('Y-m-d H:i:s') . "\n";
+
+            // Output response
+            if ($format === 'json') {
+                echo json_encode([
+                    'status' => true,
+                    'message' => 'ROI maturity processing completed',
+                    'timestamp' => date('Y-m-d H:i:s'),
+                    'stats' => [
+                        'found' => count($maturedOrders),
+                        'processed' => $processedCount,
+                        'failed' => $failedCount
+                    ],
+                    'orders' => $processedOrders
+                ]);
+            } else {
+                echo $output;
+            }
 
         } catch (Exception $e) {
-            echo "CRON ERROR: " . $e->getMessage() . "\n";
+            if ($format === 'json') {
+                echo json_encode(['status' => false, 'error' => $e->getMessage()]);
+            } else {
+                echo "CRON ERROR: " . $e->getMessage() . "\n";
+            }
         }
     }
 

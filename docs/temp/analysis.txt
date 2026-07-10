@@ -2467,7 +2467,7 @@ use cron to need to checking binary matching of level completed or not
 
 Binary Matching Bonus
 
-Here we need to checking the matching of binary tree level 
+Here we need to checking the matching of binary tree level
 
 Total Matching Bonus
 
