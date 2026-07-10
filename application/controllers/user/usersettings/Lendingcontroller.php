@@ -181,10 +181,14 @@ class Lendingcontroller extends CI_Controller
         $planCode = (string)($this->input->post('plan_code') ?? 'fixed');
         $planId = (int)($this->input->post('plan_id') ?? 0);
         $durationYears = (int)($this->input->post('duration_years') ?? 1);
+        $planType = (string)($this->input->post('plan_type') ?? 'fixed');  // ✅ ROI plan type
         $coinDistOptionId = (int)($this->input->post('coin_distribution_option_id') ?? 1);
 
         // Validate inputs
         if (!$packageId) { echo json_encode(['status'=>false,'message'=>'Package ID required']); return; }
+        if (!in_array($planType, ['fixed', 'regular', 'combo'])) {
+            echo json_encode(['status'=>false,'message'=>'Invalid ROI plan type']); return;
+        }
         if ($coinDistOptionId < 1 || $coinDistOptionId > 7) {
             echo json_encode(['status'=>false,'message'=>'Invalid distribution option (1-7)']); return;
         }
@@ -231,27 +235,44 @@ class Lendingcontroller extends CI_Controller
                 error_log('WARNING: Failed to update staking order '.$res['id'].' with plan details');
             }
 
-            // Create initial ROI distribution record for maturity tracking
-            $this->createROIDistributionRecord($res['id'], $userId, [
-                'principal_amount' => (float)$res['bman_amount'],
-                'bonus_amount' => (float)$res['bonus_bman'],
-                'duration_years' => $durationYears,
-                'roi_rate_percent' => $roiRate,
-                'maturity_roi_amount' => $maturityRoiAmount,
-                'created_at' => $res['created_at'],
-                'maturity_date' => $maturityDate,
-            ]);
+            // ✅ Create ROI Staking Management record with plan_type
+            try {
+                $this->load->model('RoiStakingManagement_model', 'roi_mgmt');
+                $roiRecordId = $this->roi_mgmt->createROIRecord(
+                    $res['id'],
+                    $userId,
+                    'ORDER-' . $res['id'],
+                    $planType,
+                    [
+                        'principal_amount' => (float)$res['bman_amount'],
+                        'roi_rate_percent' => $roiRate,
+                        'roi_percent' => $roiRate,
+                        'duration_years' => $durationYears,
+                        'maturity_date' => $maturityDate,
+                    ]
+                );
+
+                // Store the ROI staking management ID in the staking order
+                if ($roiRecordId) {
+                    $this->db->where('id', $res['id'])
+                             ->update('staking_swap_orders', ['roi_staking_management_id' => $roiRecordId]);
+                }
+            } catch (Exception $e) {
+                error_log('ERROR creating ROI record: ' . $e->getMessage());
+            }
         }
 
         $dry = !empty($res['dry_run']);
+        $roiPlanLabel = ['fixed' => 'Fixed', 'regular' => 'Regular', 'combo' => 'Combo'][$planType] ?? $planType;
         echo json_encode([
             'status'  => true,
             'message' => ($dry ? '[DRY-RUN] ' : '').'Swap order created. USDT '.$res['usdt_amount'].
-                         ' → BMAN '.$res['bman_amount'].' (+'.$res['bonus_bman'].' bonus). Distribution: Option '.$coinDistOptionId.'. Plan: '.$planCode.' ('.
+                         ' → BMAN '.$res['bman_amount'].' (+'.$res['bonus_bman'].' bonus). ROI Plan: '.$roiPlanLabel.'. Distribution: Option '.$coinDistOptionId.'. Term: '.$planCode.' ('.
                          $durationYears.' years). Status: '.$res['status'],
             'data'    => array_merge($res, [
                 'plan_code' => $planCode,
                 'plan_id' => $planId,
+                'plan_type' => $planType,
                 'duration_years' => $durationYears,
                 'coin_distribution_option' => $coinDistOptionId,
             ]),
@@ -772,6 +793,15 @@ class Lendingcontroller extends CI_Controller
         // Get ROI rate from stored value in staking_swap_orders
         $roiRate = (float)($o['roi_rate'] ?? 0);
 
+        // Get ROI staking management details if available
+        $roiData = null;
+        $roiRecordId = (int)($o['roi_staking_management_id'] ?? 0);
+        if ($roiRecordId) {
+            $roiData = $this->db->where('id', $roiRecordId)
+                               ->get('roi_staking_management')
+                               ->row_array();
+        }
+
         // Get explorer URL from config
         $ts = $this->db->select('explorer_url')->get_where('token_settings',['status'=>1])->row_array();
         $explorer = rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
@@ -818,6 +848,25 @@ class Lendingcontroller extends CI_Controller
                 'maturity_date' => $o['maturity_date'] ?? null,
                 'roi_return_status' => $o['roi_return_status'] ?? 'pending',
                 'maturity_roi_amount' => (float)($o['maturity_roi_amount'] ?? 0),
+                'plan_type' => $o['plan_type'] ?? 'fixed',  // ✅ ROI plan type from ROI staking management
+                'roi_details' => $roiData ? [
+                    'id' => (int)$roiData['id'],
+                    'plan_type' => $roiData['plan_type'],
+                    'principal_amount' => (float)$roiData['principal_amount'],
+                    'total_roi_amount' => (float)$roiData['total_roi_amount'],
+                    'fixed_payment_amount' => (float)($roiData['fixed_payment_amount'] ?? 0),
+                    'fixed_maturity_date' => $roiData['fixed_maturity_date'],
+                    'fixed_status' => $roiData['fixed_status'],
+                    'payment_day_5_amount' => (float)($roiData['payment_day_5_amount'] ?? 0),
+                    'payment_day_5_status' => $roiData['payment_day_5_status'],
+                    'payment_day_15_amount' => (float)($roiData['payment_day_15_amount'] ?? 0),
+                    'payment_day_15_status' => $roiData['payment_day_15_status'],
+                    'payment_day_25_amount' => (float)($roiData['payment_day_25_amount'] ?? 0),
+                    'payment_day_25_status' => $roiData['payment_day_25_status'],
+                    'overall_status' => $roiData['overall_status'],
+                    'total_paid_amount' => (float)($roiData['total_paid_amount'] ?? 0),
+                    'next_payment_date' => $roiData['next_payment_date'],
+                ] : null,
                 'cron_status' => [
                     'gas' => (int)$o['gas_cron_status'],
                     'usdt' => (int)$o['usdt_cron_status'],

@@ -65,7 +65,10 @@ class RoiStakingManagement_model extends CI_Model
         $recordData['remaining_to_pay'] = $totalROI;
         $recordData['created_at'] = date('Y-m-d H:i:s');
 
-        return $this->db->insert($this->table, $recordData);
+        if ($this->db->insert($this->table, $recordData)) {
+            return $this->db->insert_id();
+        }
+        return false;
     }
 
     /**

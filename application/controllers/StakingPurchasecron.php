@@ -261,14 +261,44 @@ class StakingPurchasecron extends CI_Controller
     }
 
     /**
-     * Step 1: Detect gas fee payment (0.0008 BNB to user)
+     * Step 1: Detect gas fee payment (calculated per-user based on purchase)
+     * ONLY credits after 12 block confirmations
      */
     private function _detectAndRecordGasFee(&$order)
     {
+        // FIRST: Validate coin_distribution_option_id is valid
+        $option = (int)($order['coin_distribution_option'] ?? 0);
+        if ($option < 1 || $option > 7) {
+            $msg = 'Invalid coin_distribution_option_id: ' . $option . ' (must be 1-7)';
+            $this->_recordFailureMessage($order['id'], 'gas', $msg);
+            return false;
+        }
+
         $user_address = strtolower($order['user_address']);
         $config = $this->db->get_where('token_settings', ['status' => 1])->row_array();
         $api_key = $config['etherscan_api_key'] ?? '';
         $etherscan_url = $config['etherscan_url'] ?? 'https://api.bscscan.com';
+        $required_confirmations = 12;
+
+        // Calculate gas fee for this user's purchase
+        $gas_fee_bnb = $this->_calculateGasFeForUser($order);
+        if ($gas_fee_bnb <= 0) {
+            $msg = 'Cannot calculate gas fee for this purchase';
+            $this->_recordFailureMessage($order['id'], 'gas', $msg);
+            return false;
+        }
+
+        // Get current block number for confirmation check
+        $block_url = $etherscan_url . '/api?module=proxy&action=eth_blockNumber&apikey=' . $api_key;
+        $block_response = @file_get_contents($block_url);
+        $block_data = json_decode($block_response, true);
+        $current_block = hexdec($block_data['result'] ?? 0);
+
+        if ($current_block == 0) {
+            $msg = 'Cannot determine current block number for gas fee confirmation';
+            $this->_recordFailureMessage($order['id'], 'gas', $msg);
+            return false;
+        }
 
         // Query Etherscan for BNB transfers TO user
         $url = $etherscan_url . '/api?module=account&action=txlist&address=' . $user_address
@@ -289,23 +319,37 @@ class StakingPurchasecron extends CI_Controller
                 return false;
             }
 
-            // Look for BNB transfer to user (0.0005 - 0.01 BNB)
+            // Look for BNB transfer to user matching calculated gas fee (±20% tolerance)
+            $min_bnb = $gas_fee_bnb * 0.8;
+            $max_bnb = $gas_fee_bnb * 1.2;
+
             foreach ($data['result'] as $tx) {
                 $to = strtolower($tx['to'] ?? '');
                 $value = (float)hexdec($tx['value'] ?? 0) / 1e18;
+                $tx_block = (int)($tx['blockNumber'] ?? 0);
+                $tx_hash = strtolower($tx['hash'] ?? '');
 
-                if ($to === $user_address && $value >= 0.0005 && $value <= 0.01) {
-                    $tx_hash = strtolower($tx['hash'] ?? '');
+                // Match: BNB sent to user with amount close to calculated gas fee
+                if ($to === $user_address && $value >= $min_bnb && $value <= $max_bnb) {
+                    // Check block confirmations
+                    $confirmations = $current_block - $tx_block;
 
-                    // Record in onchain_transactions
+                    if ($confirmations < $required_confirmations) {
+                        $msg = "Gas fee TX pending confirmations: $confirmations/$required_confirmations";
+                        $this->_recordFailureMessage($order['id'], 'gas', $msg);
+                        return false;
+                    }
+
+                    // Record in onchain_transactions with CONFIRMED status
                     $this->db->insert('onchain_transactions', [
                         'tx_hash' => $tx_hash,
                         'from_address' => strtolower($tx['from'] ?? ''),
                         'to_address' => $to,
                         'amount' => $value * 1e18,
                         'tx_type' => 'gas_fee',
-                        'status' => 'processing',
-                        'block_number' => $tx['blockNumber'] ?? 0,
+                        'status' => 'completed', // Only completed after confirmations
+                        'block_number' => $tx_block,
+                        'confirmations' => $confirmations,
                         'user_id' => $order['user_id'],
                         'created_at' => date('Y-m-d H:i:s'),
                     ]);
@@ -693,6 +737,32 @@ class StakingPurchasecron extends CI_Controller
             $this->_recordFailureMessage($order['id'], 'bman_bonus', $msg);
             return false;
         }
+    }
+
+    /**
+     * Calculate gas fee for this user's specific purchase
+     * Gas fee = base fee + (percentage of USDT amount)
+     */
+    private function _calculateGasFeForUser(&$order)
+    {
+        $base_gas_fee = 0.0005; // Base gas fee in BNB
+        $usdt_to_bnb_rate = 0.00025; // ~0.25 BNB per 1000 USDT (configurable)
+
+        // Get USDT cost from quote if available
+        $usdt_cost = (float)($order['usdt_cost'] ?? 0);
+        if ($usdt_cost <= 0) {
+            // Fallback: use order amount
+            $usdt_cost = (float)($order['usdt_amount'] ?? 0);
+        }
+
+        // Calculate additional gas based on transaction size
+        $additional_gas = ($usdt_cost / 1000) * $usdt_to_bnb_rate;
+
+        // Total: base + percentage
+        $total_gas = $base_gas_fee + $additional_gas;
+
+        // Cap between 0.0005 and 0.01 BNB
+        return max(0.0005, min(0.01, $total_gas));
     }
 
     /**

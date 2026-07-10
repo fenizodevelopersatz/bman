@@ -1696,6 +1696,107 @@ $hero_progress = 48;
         html += `
               </div>
 
+              <!-- Plan-Specific Payment Schedule -->`;
+
+        // Add plan-specific payment details if ROI data available
+        if (d.roi_details) {
+          const roi = d.roi_details;
+          const planType = roi.plan_type || 'fixed';
+
+          html += `<div style="margin-top:16px;padding:14px;background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(34,197,94,.08));border:1px solid #d1d5db;border-radius:12px;margin-bottom:16px;">
+            <div style="font-size:11px;font-weight:900;color:#4338ca;margin-bottom:12px;text-transform:uppercase;display:flex;align-items:center;gap:8px;">
+              <i class="ph ph-${planType === 'fixed' ? 'lock-key' : planType === 'regular' ? 'calendar-dots' : 'shuffle'}"></i>
+              ${planType === 'fixed' ? 'Fixed Plan' : planType === 'regular' ? 'Regular Plan' : 'Combo Plan'} - Payment Schedule
+            </div>`;
+
+          if (planType === 'fixed') {
+            // Fixed: Single maturity payment
+            const isCompleted = roi.fixed_status === 'completed';
+            html += `<div style="display:grid;grid-template-columns:1fr;gap:8px;">
+              <div style="background:#fff;border:${isCompleted ? '2px solid #22c55e' : '1px solid #e7e7f3'};border-radius:10px;padding:12px;">
+                <div style="font-size:11px;font-weight:900;color:#666;margin-bottom:6px;text-transform:uppercase;">💰 Maturity Payment (Day 1)</div>
+                <div style="font-size:16px;font-weight:1100;color:${isCompleted ? '#22c55e' : '#667eea'};">${roi.fixed_payment_amount.toLocaleString('en-US', {maximumFractionDigits: 2})} BMAN</div>
+                <div style="font-size:10px;color:#999;margin-top:4px;">Due: ${roi.fixed_maturity_date ? new Date(roi.fixed_maturity_date).toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'}) : 'N/A'}</div>
+                <div style="margin-top:8px;padding:6px 8px;background:${isCompleted ? '#dcfce7' : '#fef3c7'};border-radius:6px;font-size:10px;font-weight:900;color:${isCompleted ? '#15803d' : '#92400e'};text-transform:uppercase;">
+                  ${isCompleted ? '✓ Completed' : '○ Pending'}
+                </div>
+              </div>
+            </div>`;
+          } else if (planType === 'regular') {
+            // Regular: 3 monthly payments
+            const payments = [
+              { day: 5, amount: roi.payment_day_5_amount, status: roi.payment_day_5_status },
+              { day: 15, amount: roi.payment_day_15_amount, status: roi.payment_day_15_status },
+              { day: 25, amount: roi.payment_day_25_amount, status: roi.payment_day_25_status }
+            ];
+            const completedCount = payments.filter(p => p.status === 'completed').length;
+
+            html += `<div style="margin-bottom:8px;font-size:10px;color:#666;font-weight:900;">Progress: ${completedCount} of 3 payments completed</div>
+              <div style="display:flex;gap:8px;margin-bottom:12px;">
+                <div style="flex:1;height:6px;background:#e7e7f3;border-radius:3px;overflow:hidden;">
+                  <div style="height:100%;background:linear-gradient(90deg,#667eea,#22c55e);width:${(completedCount/3)*100}%;"></div>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">`;
+
+            payments.forEach(p => {
+              const isCompleted = p.status === 'completed';
+              html += `<div style="background:#fff;border:${isCompleted ? '2px solid #22c55e' : '1px solid #e7e7f3'};border-radius:10px;padding:10px;text-align:center;">
+                <div style="font-size:10px;font-weight:900;color:#666;margin-bottom:4px;">Day ${p.day}</div>
+                <div style="font-size:14px;font-weight:1100;color:${isCompleted ? '#22c55e' : '#667eea'};">${p.amount.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+                <div style="font-size:8px;color:#999;margin-bottom:4px;">BMAN</div>
+                <div style="padding:4px 6px;background:${isCompleted ? '#dcfce7' : '#fef3c7'};border-radius:4px;font-size:9px;font-weight:900;color:${isCompleted ? '#15803d' : '#92400e'};text-transform:uppercase;">
+                  ${isCompleted ? '✓' : '○'}
+                </div>
+              </div>`;
+            });
+
+            html += `</div>`;
+          } else if (planType === 'combo') {
+            // Combo: 3 monthly + 1 maturity
+            const monthlyPayments = [
+              { day: 5, amount: roi.payment_day_5_amount, status: roi.payment_day_5_status },
+              { day: 15, amount: roi.payment_day_15_amount, status: roi.payment_day_15_status },
+              { day: 25, amount: roi.payment_day_25_amount, status: roi.payment_day_25_status }
+            ];
+            const maturityPayment = { amount: roi.fixed_payment_amount, status: roi.fixed_status, date: roi.fixed_maturity_date };
+            const completedCount = monthlyPayments.filter(p => p.status === 'completed').length + (maturityPayment.status === 'completed' ? 1 : 0);
+
+            html += `<div style="margin-bottom:8px;font-size:10px;color:#666;font-weight:900;">Progress: ${completedCount} of 4 payments completed</div>
+              <div style="display:flex;gap:8px;margin-bottom:12px;">
+                <div style="flex:1;height:6px;background:#e7e7f3;border-radius:3px;overflow:hidden;">
+                  <div style="height:100%;background:linear-gradient(90deg,#667eea,#22c55e);width:${(completedCount/4)*100}%;"></div>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px;">`;
+
+            monthlyPayments.forEach(p => {
+              const isCompleted = p.status === 'completed';
+              html += `<div style="background:#fff;border:${isCompleted ? '2px solid #22c55e' : '1px solid #e7e7f3'};border-radius:10px;padding:10px;text-align:center;">
+                <div style="font-size:10px;font-weight:900;color:#666;margin-bottom:4px;">Monthly (Day ${p.day})</div>
+                <div style="font-size:14px;font-weight:1100;color:${isCompleted ? '#22c55e' : '#667eea'};">${p.amount.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+                <div style="font-size:8px;color:#999;margin-bottom:4px;">BMAN</div>
+                <div style="padding:4px 6px;background:${isCompleted ? '#dcfce7' : '#fef3c7'};border-radius:4px;font-size:9px;font-weight:900;color:${isCompleted ? '#15803d' : '#92400e'};text-transform:uppercase;">
+                  ${isCompleted ? '✓' : '○'}
+                </div>
+              </div>`;
+            });
+
+            html += `</div><div style="background:#fff;border:${maturityPayment.status === 'completed' ? '2px solid #22c55e' : '1px solid #e7e7f3'};border-radius:10px;padding:10px;text-align:center;">
+              <div style="font-size:10px;font-weight:900;color:#666;margin-bottom:4px;">Maturity</div>
+              <div style="font-size:14px;font-weight:1100;color:${maturityPayment.status === 'completed' ? '#22c55e' : '#667eea'};">${maturityPayment.amount.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+              <div style="font-size:8px;color:#999;margin-bottom:4px;">BMAN</div>
+              <div style="font-size:9px;color:#666;margin-bottom:4px;">${maturityPayment.date ? new Date(maturityPayment.date).toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'}) : 'N/A'}</div>
+              <div style="padding:4px 6px;background:${maturityPayment.status === 'completed' ? '#dcfce7' : '#fef3c7'};border-radius:4px;font-size:9px;font-weight:900;color:${maturityPayment.status === 'completed' ? '#15803d' : '#92400e'};text-transform:uppercase;">
+                ${maturityPayment.status === 'completed' ? '✓' : '○'}
+              </div>
+            </div>`;
+          }
+
+          html += `</div>`;
+        }
+
+        html += `
               <!-- Maturity Date & ROI Status & Maturity Amount Section -->
               <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:16px;padding-top:16px;border-top:2px solid #e7e7f3;">
                 <div style="background:#fff;border:1px solid #e7e7f3;border-radius:10px;padding:12px;">
