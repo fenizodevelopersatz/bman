@@ -1,37 +1,47 @@
 # ROI Maturity CRON - Cron Lab Setup
 
-## Quick Setup for Cron Lab
+## ⚡ Quick Setup for Cron Lab
 
-### Test Endpoint (Health Check)
+### 📋 Copy-Paste Ready URLs
 
-**URL:**
+**For Cron Lab - ROI Maturity Process:**
 ```
-http://192.168.29.185:8000/roi_maturity_test.php?action=test&format=json
+http://yoursite.com/cron/roi_maturity/process
 ```
 
-**Alternative URLs:**
-- `http://yoursite.com/roi_maturity_test.php?action=test&format=json`
-- `http://yoursite.com/roi-maturity-test` (if CodeIgniter routing is working)
-
-**Response:**
-```json
-{
-    "status": true,
-    "message": "ROI Maturity CRON System is operational",
-    "timestamp": "2026-07-10 12:16:13",
-    "database": "Connected",
-    "roi_distribution_table": "exists",
-    "matured_orders_pending": 0
-}
+**Full Example with Domain:**
+```
+http://192.168.29.185:8000/cron/roi_maturity/process
 ```
 
 ---
 
-### Process Endpoint (Run CRON)
+## 🎯 Cron Lab Setup (3 Steps)
+
+### Step 1: Open Cron Lab
+Navigate to: `http://192.168.29.185:8000/admin/wallet/cron-lab`
+
+### Step 2: Click "Add CRON Job"
+
+### Step 3: Fill in Details
+```
+CRON Name:     ROI Maturity Process
+Endpoint URL:  http://192.168.29.185:8000/cron/roi_maturity/process
+Schedule:      0 * * * * (every hour)
+Timeout:       300 seconds
+```
+
+### Step 4: Save & Monitor
+
+---
+
+## Example Responses
+
+### Process Endpoint Response
 
 **URL:**
 ```
-http://192.168.29.185:8000/roi_maturity_test.php?action=process&format=json
+GET /cron/roi_maturity/process
 ```
 
 **Response:**
@@ -56,33 +66,53 @@ http://192.168.29.185:8000/roi_maturity_test.php?action=process&format=json
 }
 ```
 
+### Test Endpoint Response
+
+**URL:**
+```
+GET /cron/roi_maturity/test
+```
+
+**Response:**
+```json
+{
+    "status": true,
+    "message": "ROI Maturity CRON System is operational",
+    "timestamp": "2026-07-10 12:16:13",
+    "database": "Connected",
+    "roi_distribution_table": "exists",
+    "matured_orders_pending": 0
+}
+```
+
 ---
 
 ## Cron Lab Configuration
 
-### Step 1: Add Test CRON Job
-
-**In Cron Lab UI:**
-1. Click "**Add New CRON**"
-2. **CRON Name:** `ROI Maturity Test`
-3. **Endpoint:** `http://192.168.29.185:8000/roi_maturity_test.php?action=test&format=json`
-4. **Interval:** Every 1 minute (for testing)
-5. **Expected Response:** JSON with `"status": true`
-
-**Purpose:** Verifies the system is operational before running actual processing
-
----
-
-### Step 2: Add Process CRON Job
+### RECOMMENDED: Add ROI Maturity Process Job
 
 **In Cron Lab UI:**
 1. Click "**Add New CRON**"
 2. **CRON Name:** `ROI Maturity Process`
-3. **Endpoint:** `http://192.168.29.185:8000/roi_maturity_test.php?action=process&format=json`
-4. **Interval:** Every 1 hour (recommended)
-5. **Expected Response:** JSON with `"status": true` and stats
+3. **Endpoint:** `http://192.168.29.185:8000/cron/roi_maturity/process`
+4. **Interval:** Every 1 hour (recommended: `0 * * * *`)
+5. **Expected Response:** JSON with `"status": true` and statistics
+6. **Timeout:** 300 seconds (to allow processing time)
 
-**Purpose:** Automatically processes matured staking investments and releases ROI
+**Purpose:** Automatically processes matured staking investments and releases ROI to users
+
+---
+
+### Alternative: Add Test CRON Job (Optional)
+
+**In Cron Lab UI:**
+1. Click "**Add New CRON**"
+2. **CRON Name:** `ROI Maturity Test`
+3. **Endpoint:** `http://192.168.29.185:8000/cron/roi_maturity/test`
+4. **Interval:** Every 5 minutes (for health monitoring)
+5. **Expected Response:** JSON with `"status": true`
+
+**Purpose:** Verifies the system is operational (optional for monitoring)
 
 ---
 
@@ -140,14 +170,21 @@ Return Statistics JSON
 
 ## URL Reference
 
+### 🚀 RECOMMENDED for Cron Lab
+
 | Purpose | URL | Format |
 |---------|-----|--------|
-| Test (JSON) | `/roi_maturity_test.php?action=test&format=json` | JSON ✓ |
-| Test (Text) | `/roi_maturity_test.php?action=test&format=text` | Plain text |
-| Process (JSON) | `/roi_maturity_test.php?action=process&format=json` | JSON ✓ |
-| Process (Text) | `/roi_maturity_test.php?action=process&format=text` | Plain text |
+| **Process** | `/cron/roi_maturity/process` | Routed ✅ |
+| **Test** | `/cron/roi_maturity/test` | Routed ✅ |
 
-**Recommended:** Use JSON format for Cron Lab monitoring
+### Alternative URLs (Standalone)
+
+| Purpose | URL | Format |
+|---------|-----|--------|
+| Test (JSON) | `/roi_maturity_test.php?action=test&format=json` | JSON |
+| Process (JSON) | `/roi_maturity_test.php?action=process&format=json` | JSON |
+
+**For Cron Lab:** Use the routed URLs (recommended)
 
 ---
 
