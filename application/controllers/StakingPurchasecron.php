@@ -798,7 +798,13 @@ class StakingPurchasecron extends CI_Controller
     }
 
     /**
-     * Update wallet_ledger with BMAN distribution
+     * Credit a user's BMAN distribution slice through the canonical ledger.
+     *
+     * Balances live in `user_wallets` (exchange_balance/earning_balance/…), and the
+     * ONLY safe writer is Walletledger_model::credit(), which updates the balance +
+     * appends a wallet_ledger journal row + row-locks + enforces a UNIQUE(tx_hash,
+     * wallet_type) idempotency guard. We back each credit with the on-chain BMAN
+     * tx_hash so re-running the cron never double-credits.
      */
     private function _updateWalletLedger(&$order, $wallet_type)
     {
@@ -807,14 +813,28 @@ class StakingPurchasecron extends CI_Controller
             return;
         }
 
-        // Map wallet type to ledger column
-        $column = $wallet_type . '_wallet'; // exchange_wallet, earning_wallet, staking_wallet, bonus_wallet
+        $this->load->model('Walletledger_model', 'L');
 
-        $this->db->where('user_id', $order['user_id'])
-            ->set($column, "{$column} + {$amount}", false)
-            ->update('wallet_ledger');
+        // on-chain BMAN transfer hash backing this credit (idempotency key)
+        $tx_hash = $this->_getExchangeTxHash($order);
 
-        log_message('info', $this->log_prefix . ' Updated ' . $wallet_type . ' wallet with ' . $amount . ' BMAN for user ' . $order['user_id']);
+        list($ok, $info) = $this->L->credit(
+            (int)$order['user_id'],
+            $wallet_type, // exchange | earning | staking | bonus → mapped to *_balance
+            $amount,
+            'stake_purchase',
+            [
+                'tx_hash'      => $tx_hash ?: null,
+                'reference_id' => 'ORDER-' . $order['id'],
+                'description'  => ucfirst($wallet_type) . ' allocation ' . $amount . ' BMAN (order ' . $order['id'] . ')',
+            ]
+        );
+
+        if (!$ok) {
+            log_message('error', $this->log_prefix . ' Ledger credit FAILED for ' . $wallet_type . ' user ' . $order['user_id'] . ': ' . $info);
+        } else {
+            log_message('info', $this->log_prefix . ' Credited ' . $wallet_type . ' (+' . $amount . ' BMAN) user ' . $order['user_id'] . ' [' . $info . ']');
+        }
     }
 
     /**
