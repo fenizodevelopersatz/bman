@@ -9,7 +9,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * Run hourly or as needed via: GET /cron/roi_maturity/process
  */
 
-class RoiMaturity_cron extends CI_Controller
+class RoiMaturityCron extends CI_Controller
 {
     public function __construct()
     {
