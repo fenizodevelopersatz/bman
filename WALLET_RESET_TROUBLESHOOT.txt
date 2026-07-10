@@ -1,0 +1,45 @@
+=============================================================================
+WALLET RESET - TROUBLESHOOTING STEPS
+=============================================================================
+
+ISSUE: 404 Not Found on POST to /admin/staking/walletreset/reset_user
+
+SOLUTION STEPS (in order):
+
+1. CLEAR BROWSER CACHE
+   - Press Ctrl+Shift+Delete to open Cache/History
+   - Clear "Cookies and other site data" for your domain
+   - Close and reopen browser
+
+2. TEST ENDPOINT
+   - Go to: http://192.168.29.185:9000/admin/staking/walletreset/test
+   - Should see JSON: { "status": "success", "message": "Controller loaded" }
+   - If 404: Continue to step 3
+
+3. RESTART WEB SERVER
+   - Stop Apache/Nginx
+   - Wait 5 seconds
+   - Start Apache/Nginx
+   - Reload page
+
+4. CHECK PHP ERRORS
+   - Look at: application/logs/log-2026-07-10.php
+   - Search for "walletreset" or "404"
+   - Check for PHP syntax errors
+
+5. VERIFY FILE PERMISSIONS
+   - Check controller file exists:
+     application/controllers/admin/staking/Walletreset.php
+   - Should be readable by web server
+
+6. TEST WITH CURL (if you have CLI access)
+   - curl -X POST "http://localhost:9000/admin/staking/walletreset/reset_user" \
+     -d "user_id=123&confirm=yes" \
+     -H "X-Requested-With: XMLHttpRequest"
+
+7. ALTERNATIVE: USE SQL DIRECTLY
+   - If web UI doesn't work, use SQL procedures:
+   - CALL reset_user_staking(123);
+   - CALL reset_recent_staking(7);
+
+=============================================================================

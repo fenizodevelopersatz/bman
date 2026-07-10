@@ -153,7 +153,7 @@ class StakingPurchasecron extends CI_Controller
         }
 
         // Step 4-7: BMAN Distribution to wallets (only process if status is pending_bman or swap_completed)
-        if (in_array($order['status'], ['pending_bman', 'swap_completed'])) {
+        if (in_array($order['status'] ?? null, ['pending_bman', 'swap_completed'])) {
             $this->_processWalletDistributions($order, $summary);
         }
     }
@@ -741,7 +741,7 @@ class StakingPurchasecron extends CI_Controller
             $column => $message,
         ]);
 
-        log_message('warning', $this->log_prefix . ' Step "' . $step . '" failure for order ' . $order_id . ': ' . $message);
+        log_message('error', $this->log_prefix . ' Step "' . $step . '" failure for order ' . $order_id . ': ' . $message);
     }
 
     /**
