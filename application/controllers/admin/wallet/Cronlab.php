@@ -44,6 +44,7 @@ class Cronlab extends CI_Controller
             'jobs' => [
                 ['key' => 'stakingpurchase', 'label' => 'Staking Purchase', 'type' => 'swap', 'endpoint' => 'staking-purchase-cron', 'method' => 'GET', 'description' => 'Process multi-step USDT→BMAN swaps with gas fee detection, USDT payment, and BMAN distribution per coin_distribution_option (1-7).'],
                 ['key' => 'roi', 'label' => 'ROI Run', 'type' => 'roi', 'endpoint' => 'earn-cron-made', 'method' => 'GET', 'description' => 'Credit daily ROI on active investments.'],
+                ['key' => 'roi_maturity', 'label' => 'ROI Maturity Process', 'type' => 'roi', 'endpoint' => 'cron/roi_maturity/process', 'method' => 'GET', 'description' => 'Process matured staking investments and release final ROI payouts to user earning wallets.'],
                 ['key' => 'rank', 'label' => 'Rank Update', 'type' => 'rank', 'endpoint' => 'rank-cron-made', 'method' => 'GET', 'description' => 'Update rank eligibility and rank payouts.'],
                 ['key' => 'binary', 'label' => 'Binary Match', 'type' => 'binary', 'endpoint' => 'binary-cron-made', 'method' => 'GET', 'description' => 'Run binary matching commission settlement.'],
                 ['key' => 'bonus', 'label' => 'Bonus Reduction', 'type' => 'bonus', 'endpoint' => 'bonus-reduction-cron', 'method' => 'GET', 'description' => 'Apply scheduled bonus reductions and admin credit.'],
