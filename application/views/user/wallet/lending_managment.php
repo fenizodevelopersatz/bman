@@ -1498,6 +1498,13 @@ $hero_progress = 48;
         const d = data.data;
         const s = d.status_info || {};
 
+        // Calculate days since purchase
+        const createdDate = new Date(d.created_at);
+        const now = new Date();
+        const daysSince = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
+        const roiDays = [1, 7, 30, 90, 180, 365, 730];
+        const maturityDays = d.plan?.duration_years ? d.plan.duration_years * 365 : 730;
+
         // Build HTML
         let html = `
           <div style="margin-bottom:20px;">
@@ -1515,7 +1522,20 @@ $hero_progress = 48;
               <p style="margin:0;font-size:11px;color:#666;">Created: <b>${d.created_at}</b></p>
               <p style="margin:4px 0 0;font-size:11px;color:#666;">Updated: <b>${d.updated_at}</b></p>
             </div>
+
+            <!-- Tab Navigation -->
+            <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid #e7e7f3;padding-bottom:0;">
+              <button onclick="switchSwapTab(event, 'swap-tab')" class="swap-tab-btn active" style="padding:12px 16px;background:none;border:none;border-bottom:3px solid #667eea;color:#667eea;font-weight:900;cursor:pointer;font-size:13px;">
+                📊 SWAP STATUS
+              </button>
+              <button onclick="switchSwapTab(event, 'roi-tab')" class="swap-tab-btn" style="padding:12px 16px;background:none;border:none;border-bottom:3px solid transparent;color:#666;font-weight:900;cursor:pointer;font-size:13px;">
+                💰 ROI PROGRESS
+              </button>
+            </div>
           </div>
+
+          <!-- Tab 1: Swap Status -->
+          <div id="swap-tab" class="swap-tab-content" style="display:block;">
 
           <!-- Swap Status Progress -->
           <div style="background:linear-gradient(135deg,rgba(99,102,241,.05),rgba(34,197,94,.05));border:1px solid #e7e7f3;border-radius:12px;padding:12px;margin-bottom:16px;">
@@ -1644,6 +1664,75 @@ $hero_progress = 48;
         html += `
             </div>
           </div>
+          </div>
+
+          <!-- Tab 2: ROI Progress -->
+          <div id="roi-tab" class="swap-tab-content" style="display:none;">
+            <div style="background:linear-gradient(135deg,rgba(34,197,94,.05),rgba(99,102,241,.05));border:1px solid #e7e7f3;border-radius:12px;padding:16px;margin-bottom:16px;">
+              <div style="font-size:12px;font-weight:900;color:#15803d;margin-bottom:12px;text-transform:uppercase;">📈 ROI EARNING PROGRESS</div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                <div style="background:#fff;border:1px solid #e7e7f3;border-radius:10px;padding:12px;text-align:center;">
+                  <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:4px;">DAYS STAKING</div>
+                  <div style="font-size:22px;font-weight:1100;color:#22c55e;">${daysSince}</div>
+                  <div style="font-size:9px;color:#999;">of ${maturityDays} days</div>
+                </div>
+                <div style="background:#fff;border:1px solid #e7e7f3;border-radius:10px;padding:12px;text-align:center;">
+                  <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:4px;">DAILY ROI</div>
+                  <div style="font-size:22px;font-weight:1100;color:#667eea;">${(d.amounts.bman * d.roi_rate / 100 / 365).toFixed(2)}</div>
+                  <div style="font-size:9px;color:#999;">BMAN/day</div>
+                </div>
+              </div>
+
+              <!-- Progress Bar -->
+              <div style="margin-bottom:16px;">
+                <div style="font-size:10px;font-weight:900;color:#666;margin-bottom:6px;">STAKING PROGRESS</div>
+                <div style="height:8px;background:#e7e7f3;border-radius:4px;overflow:hidden;">
+                  <div style="height:100%;background:linear-gradient(90deg,#667eea,#22c55e);width:${Math.min(100, (daysSince/maturityDays)*100)}%;"></div>
+                </div>
+                <div style="font-size:9px;color:#666;margin-top:4px;text-align:right;">${Math.min(100, (daysSince/maturityDays)*100).toFixed(0)}% Complete</div>
+              </div>
+
+              <!-- ROI Timeline -->
+              <div style="font-size:11px;font-weight:900;color:#666;margin-bottom:8px;text-transform:uppercase;">ROI MILESTONES</div>
+              <div style="display:flex;flex-direction:column;gap:8px;">
+        `;
+
+        // ROI milestone progress
+        roiDays.forEach(days => {
+          if (days <= maturityDays) {
+            const roiAmount = d.amounts.bman * d.roi_rate / 100 * (days / 365);
+            const isCompleted = daysSince >= days;
+            const isActive = daysSince >= days - 5 && daysSince < days;
+
+            let label = '';
+            if (days === 1) label = 'Day 1';
+            else if (days === 7) label = 'Week 1';
+            else if (days === 30) label = 'Month 1';
+            else if (days === 90) label = 'Quarter 1';
+            else if (days === 180) label = 'Half Year';
+            else if (days === 365) label = 'Year 1';
+            else if (days === 730) label = 'Maturity';
+
+            html += `
+              <div style="display:flex;align-items:center;gap:8px;padding:10px;background:${isActive ? 'rgba(102,126,234,.1)' : 'rgba(0,0,0,.02)'};border-radius:8px;border-left:3px solid ${isCompleted ? '#22c55e' : isActive ? '#667eea' : '#e7e7f3'};">
+                <div style="flex:1;">
+                  <div style="font-size:12px;font-weight:900;color:#111;">${isCompleted ? '✓' : '○'} ${label}</div>
+                  <div style="font-size:10px;color:#999;">Day ${days}</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="font-size:12px;font-weight:900;color:${isCompleted ? '#22c55e' : '#667eea'};">${Math.floor(roiAmount).toLocaleString()} BMAN</div>
+                  <div style="font-size:9px;color:#999;">${isCompleted ? 'Earned' : 'Pending'}</div>
+                </div>
+              </div>
+            `;
+          }
+        });
+
+        html += `
+              </div>
+            </div>
+          </div>
         `;
 
         // Error message if any
@@ -1671,6 +1760,31 @@ $hero_progress = 48;
     function closeSwapDetails() {
       const modal = document.getElementById('swapDetailsModal');
       if (modal) modal.style.display = 'none';
+    }
+
+    // Switch between tabs
+    function switchSwapTab(event, tabName) {
+      event.preventDefault();
+
+      // Hide all tabs
+      document.querySelectorAll('.swap-tab-content').forEach(tab => {
+        tab.style.display = 'none';
+      });
+
+      // Remove active class from all buttons
+      document.querySelectorAll('.swap-tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.style.borderBottomColor = 'transparent';
+        btn.style.color = '#666';
+      });
+
+      // Show selected tab
+      document.getElementById(tabName).style.display = 'block';
+
+      // Add active class to clicked button
+      event.target.classList.add('active');
+      event.target.style.borderBottomColor = '#667eea';
+      event.target.style.color = '#667eea';
     }
 
     // Calculate ROI based on principal, rate, and duration
