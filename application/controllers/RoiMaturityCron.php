@@ -14,8 +14,7 @@ class RoiMaturityCron extends CI_Controller
     public function __construct()
     {
         parent::__construct();
-        $this->load->model('Wallet_model');
-        $this->load->model('User_model');
+        // Models not needed - CRON uses direct database queries
     }
 
     /**
