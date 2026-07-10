@@ -76,7 +76,7 @@ class StakingSwap_model extends CI_Model
             'plan_code' => $plan_code,
             'plan_id' => $plan_id,
             'duration_years' => $duration_years,
-            'coin_distribution_option_id' => $coin_dist_option_id,
+            'coin_distribution_option' => $coin_dist_option_id,
             'status' => 'pending_gas_fee',
             'cron_status' => 'pending',
             'created_at' => date('Y-m-d H:i:s'),

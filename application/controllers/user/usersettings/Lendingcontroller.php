@@ -217,15 +217,15 @@ class Lendingcontroller extends CI_Controller
         $bmanAmount = (float)$res['bman_amount'];
         $maturityRoiAmount = $bmanAmount * ($roiRate / 100);
 
-        // Update swap order with ALL plan details + ROI rate + maturity date + maturity ROI amount
+        // Update swap order with the purchase/plan details only. ROI rate + maturity
+        // date live in roi_staking_management (created below); the ROI payouts live in
+        // roi_distribution — staking_swap_orders no longer stores roi_rate/maturity_date.
         if (!empty($res['id'])) {
             $updateOk = $this->db->where('id', $res['id'])->update('staking_swap_orders', [
                 'package_id' => $packageId,
                 'plan_code' => $planCode,
                 'plan_id' => $planId,
                 'duration_years' => $durationYears,
-                'roi_rate' => $roiRate,
-                'maturity_date' => $maturityDate,
                 'roi_return_status' => 'pending',
                 'maturity_roi_amount' => $maturityRoiAmount,
                 'coin_distribution_option' => $coinDistOptionId,
@@ -790,10 +790,7 @@ class Lendingcontroller extends CI_Controller
 
         if (!$o) { echo json_encode(['status'=>false,'message'=>'Order not found']); return; }
 
-        // Get ROI rate from stored value in staking_swap_orders
-        $roiRate = (float)($o['roi_rate'] ?? 0);
-
-        // Get ROI staking management details if available
+        // Get ROI staking management details if available (single source for ROI rate + maturity)
         $roiData = null;
         $roiRecordId = (int)($o['roi_staking_management_id'] ?? 0);
         if ($roiRecordId) {
@@ -801,6 +798,10 @@ class Lendingcontroller extends CI_Controller
                                ->get('roi_staking_management')
                                ->row_array();
         }
+
+        // ROI rate + maturity date now live in roi_staking_management, not staking_swap_orders
+        $roiRate = (float)($roiData['roi_rate_percent'] ?? 0);
+        $maturityDate = $roiData['fixed_maturity_date'] ?? null;
 
         // Get explorer URL from config
         $ts = $this->db->select('explorer_url')->get_where('token_settings',['status'=>1])->row_array();
@@ -845,7 +846,7 @@ class Lendingcontroller extends CI_Controller
                     'package_id' => (int)$o['package_id'],
                 ],
                 'roi_rate' => (float)$roiRate,
-                'maturity_date' => $o['maturity_date'] ?? null,
+                'maturity_date' => $maturityDate,
                 'roi_return_status' => $o['roi_return_status'] ?? 'pending',
                 'maturity_roi_amount' => (float)($o['maturity_roi_amount'] ?? 0),
                 'plan_type' => $o['plan_type'] ?? 'fixed',  // ✅ ROI plan type from ROI staking management

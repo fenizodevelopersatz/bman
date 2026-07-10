@@ -53,11 +53,14 @@ class RoiMaturity_cron extends CI_Controller
             $output = "=== ROI MATURITY CRON PROCESS ===\n";
             $output .= "Started at: " . date('Y-m-d H:i:s') . "\n\n";
 
-            // Get all staking orders that have matured
+            // Get all matured orders. ROI rate + maturity live in roi_staking_management
+            // now (not staking_swap_orders); alias them to the old names so the
+            // downstream calc keeps working unchanged.
             $maturedOrders = $this->db
-                ->select('sso.*')
+                ->select('sso.*, rsm.roi_rate_percent AS roi_rate, rsm.fixed_maturity_date AS maturity_date')
                 ->from('staking_swap_orders sso')
-                ->where('sso.maturity_date <=', date('Y-m-d H:i:s'))
+                ->join('roi_staking_management rsm', 'rsm.staking_swap_orders_id = sso.id', 'inner')
+                ->where('rsm.fixed_maturity_date <=', date('Y-m-d H:i:s'))
                 ->where('sso.roi_return_status !=', 'completed')
                 ->get()
                 ->result_array();

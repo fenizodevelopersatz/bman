@@ -81,8 +81,8 @@ class Staking extends CI_Controller
                 'maturity_date' => date('Y-m-d H:i:s', strtotime($order['created_at'] . ' + ' . $maturity_days . ' days')),
 
                 // Distribution
-                'coin_distribution_option_id' => $order['coin_distribution_option_id'] ?? 1,
-                'distribution_breakdown' => $this->_getDistributionBreakdown($principal, $order['coin_distribution_option_id'] ?? 1),
+                'coin_distribution_option_id' => $order['coin_distribution_option'] ?? 1,
+                'distribution_breakdown' => $this->_getDistributionBreakdown($principal, $order['coin_distribution_option'] ?? 1),
 
                 // Status
                 'status' => $order['status'],
