@@ -192,6 +192,11 @@ class Lendingcontroller extends CI_Controller
         if ($coinDistOptionId < 1 || $coinDistOptionId > 7) {
             echo json_encode(['status'=>false,'message'=>'Invalid distribution option (1-7)']); return;
         }
+        // plan_code == the ROI plan (fixed/regular/combo). Never persist a stray
+        // "null"/invalid value — fall back to the validated plan_type.
+        if (!in_array($planCode, ['fixed', 'regular', 'combo'], true)) {
+            $planCode = $planType;
+        }
 
         $this->load->model('staking/Swapengine_model', 'SW');
         list($ok, $res) = $this->SW->execute($userId, $packageId);
@@ -855,7 +860,8 @@ class Lendingcontroller extends CI_Controller
                     'bonus_bman' => (float)$o['bonus_bman'],
                 ],
                 'plan' => [
-                    'code' => $o['plan_code'] ?? 'fixed',
+                    'code' => in_array($o['plan_code'], ['fixed','regular','combo'], true)
+                              ? $o['plan_code'] : ($roiData['plan_type'] ?? 'fixed'),
                     'duration_years' => (int)$o['duration_years'] ?? 1,
                     'package_id' => (int)$o['package_id'],
                 ],

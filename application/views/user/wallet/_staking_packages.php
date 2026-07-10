@@ -516,7 +516,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
 
     // Append ALL required fields for backend
     fd.append('package_id', cur.pkg.id);
-    fd.append('plan_code', cur.plan);
+    fd.append('plan_code', cur.roi_plan || 'fixed');  // plan_code == selected ROI plan (fixed/regular/combo)
     fd.append('duration_years', cur.years);
     fd.append('plan_type', cur.roi_plan);  // ✅ ROI Plan Type (fixed|regular|combo)
     fd.append('coin_distribution_option_id', cur.dist);  // ✅ Distribution option (1-7)
@@ -524,7 +524,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
 
     console.log('=== FORM SUBMISSION DATA ===');
     console.log('package_id:', cur.pkg.id);
-    console.log('plan_code:', cur.plan);
+    console.log('plan_code:', cur.roi_plan || 'fixed');
     console.log('duration_years:', cur.years);
     console.log('plan_type:', cur.roi_plan);
     console.log('coin_distribution_option_id:', cur.dist);
