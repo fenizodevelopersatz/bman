@@ -2512,7 +2512,7 @@ Stake Ceiling
         B(1 Bman)                      C(10000 Bman)
         /       \                       /       \
     /            \                      /            \
- D(10000 Bman)   E(10000 Bman)      D(10000 Bman)   E(10000 Bman)
+ D(10000 Bman)   E(10000 Bman)      F(10000 Bman)   G(10000 Bman)
 
 Most take the first user because all are same stakings of investment So take 10000 * 10% => 100 Bman to give
 A recieved on the Earning Wallet from B :  Binary matching ( 10% - > 8% earning Wallet) : Level 2
@@ -2523,6 +2523,12 @@ B received on the Staking Wallet from B:   Binary matching ( 10% - > 2% staking 
 
 C recieved on the Earning Wallet from B :  Binary matching ( 10% - > 8% earning Wallet): Level 1
 C received on the Staking Wallet from B:   Binary matching ( 10% - > 2% staking Wallet): Level 1 So when Ceiling reached then go to admin ceiling wallet
+
+Then B is below one level is completed so take downline of 
+D and E is lowest price to given to thier spillover sponsor of B
+F and G is lowest price to given to thier spillover sponsor of C
+
+A
 //////////////////////////////////////////////////////////////////
 
 
@@ -3220,3 +3226,49 @@ Rank is on progress
 Ready for CRON every based on staking_swap_orders and now added the matured date also then cron is checked current date is matured date of ROI give the ROI return amount and realease the invesment amount
 Make the new table ROI manage with forigien key of staking_swap_orders
 staking_swap_orders -> ROI table onchain details, status -> ROI on onchain_transaction(history of wallet)
+
+
+
+So manage new table of ROI staking
+1. Fixed type
+2. Regular type 
+3. Combo(Fixed + Regular)
+        100,000 -> 2Year -> ROI_RATE 150% => 100000 * 150% = 150000 
+
+
+ROI Regular Plan
+ROI is credited every month on day(s) 5,15,25. You receive a steady monthly percentage across the whole term.
+
+Combo Plan
+A blend of Fixed and Regular: part of your ROI pays monthly while the rest is settled at maturity.
+ Credit: Mixed
+ 2 / 3 / 5 yrs
+how to manage on the table and crons with status of 5th, 15th, 25th
+And combo is the both type finish the maturity time and also 
+
+
+
+Fixed plan is ok one records to manage but regular is 3 records and timing of distribution 5, 15, 25 & combo this both
+So manage new table of ROI staking
+1. Fixed type
+2. Regular type 
+3. Combo(Fixed + Regular)
+        100,000 -> 2Year -> ROI_RATE 150% => 100000 * 150% = 150000 
+
+
+ROI Regular Plan
+ROI is credited every month on day(s) 5,15,25. You receive a steady monthly percentage across the whole term.
+
+Combo Plan
+A blend of Fixed and Regular: part of your ROI pays monthly while the rest is settled at maturity.
+ Credit: Mixed
+ 2 / 3 / 5 yrs
+how to manage on the table and crons with status of 5th, 15th, 25th
+And combo is the both type finish the maturity time and also 
+
+staking purchase -> ROI DETAIL->ROI STAKING TABLE->
+Fixed single records
+Regular generate the 3 records of 5, 15, 25 and also return the maturity details also
+Combo is fixed + regular 3=> 4 records is the correct way i do not know but deep analysis and implement the cron also until to distribute the amount to earning wallet reached to manage the status & gas fee also
+
+ROI MODULE RECHECK AND FULL IMPLEMENT
