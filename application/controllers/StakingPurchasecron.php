@@ -36,6 +36,74 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 class StakingPurchasecron extends CI_Controller
 {
     private $log_prefix = '[STAKING_PURCHASE_CRON]';
+    private $_cfg_cache = null;
+
+    /* =====================================================================
+     * Chain/explorer helpers — mirror the proven Depositlistener_model so the
+     * SAME token_settings columns + Etherscan-V2 (multichain) format are used.
+     * The old code invented columns (etherscan_api_key/url, usdt_address,
+     * bman_address) and omitted chainid, so every lookup returned empty.
+     * ===================================================================== */
+
+    /** Active chain/token settings (cached for the run). */
+    private function _cfg()
+    {
+        if ($this->_cfg_cache === null) {
+            $this->_cfg_cache = $this->db->get_where('token_settings', ['status' => 1])->row_array() ?: [];
+        }
+        return $this->_cfg_cache;
+    }
+
+    /** Build an Etherscan-V2 explorer API URL (multichain → needs chainid). */
+    private function _apiUrl(array $params)
+    {
+        $cfg = $this->_cfg();
+        $api = trim((string)($cfg['explorer_api_url'] ?? '')) ?: 'https://api.etherscan.io/v2/api';
+        $params = array_merge([
+            'chainid' => (int)($cfg['chain_id'] ?? 56),
+            'apikey'  => trim((string)($cfg['explorer_api_key'] ?? '')),
+        ], $params);
+        return $api . '?' . http_build_query($params);
+    }
+
+    /** GET JSON from the explorer API via cURL. Returns decoded array or null. */
+    private function _apiGet(array $params, $timeout = 25)
+    {
+        $ch = curl_init($this->_apiUrl($params));
+        curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => $timeout]);
+        $raw = curl_exec($ch);
+        curl_close($ch);
+        return json_decode((string)$raw, true);
+    }
+
+    /** Current chain head — RPC first (fast/reliable), else explorer proxy. 0 on failure. */
+    private function _currentBlock()
+    {
+        $cfg = $this->_cfg();
+        $rpc = trim((string)($cfg['rpc_url'] ?? ''));
+        if ($rpc !== '') {
+            $payload = json_encode(['jsonrpc' => '2.0', 'id' => 1, 'method' => 'eth_blockNumber', 'params' => []]);
+            $ch = curl_init($rpc);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_POST => true,
+                CURLOPT_HTTPHEADER => ['Content-Type: application/json'], CURLOPT_POSTFIELDS => $payload,
+            ]);
+            $raw = curl_exec($ch);
+            curl_close($ch);
+            $j = json_decode((string)$raw, true);
+            if (isset($j['result'])) return (int)hexdec((string)$j['result']);
+        }
+        $j = $this->_apiGet(['module' => 'proxy', 'action' => 'eth_blockNumber']);
+        if (isset($j['result'])) return (int)hexdec((string)$j['result']);
+        return 0;
+    }
+
+    /** Confirmations required before crediting (token_settings.minimum_confirmations, default 12). */
+    private function _minConfirmations()
+    {
+        $n = (int)($this->_cfg()['minimum_confirmations'] ?? 0);
+        return $n > 0 ? $n : 12;
+    }
 
     public function run()
     {
@@ -276,86 +344,68 @@ class StakingPurchasecron extends CI_Controller
         }
 
         $user_address = strtolower($order['user_address']);
-        $config = $this->db->get_where('token_settings', ['status' => 1])->row_array();
-        $api_key = $config['etherscan_api_key'] ?? '';
-        $etherscan_url = $config['etherscan_url'] ?? 'https://api.bscscan.com';
-        $required_confirmations = 12;
+        $required_confirmations = $this->_minConfirmations();
 
-        // Calculate gas fee for this user's purchase
-        $gas_fee_bnb = $this->_calculateGasFeForUser($order);
-        if ($gas_fee_bnb <= 0) {
-            $msg = 'Cannot calculate gas fee for this purchase';
-            $this->_recordFailureMessage($order['id'], 'gas', $msg);
-            return false;
-        }
+        // Expected gas fee for this user's purchase (reference/record only — NOT a
+        // strict match gate; the admin's actual BNB top-up varies with gas price).
+        $expected_gas_bnb = $this->_calculateGasFeForUser($order);
 
-        // Get current block number for confirmation check
-        $block_url = $etherscan_url . '/api?module=proxy&action=eth_blockNumber&apikey=' . $api_key;
-        $block_response = @file_get_contents($block_url);
-        $block_data = json_decode($block_response, true);
-        $current_block = hexdec($block_data['result'] ?? 0);
+        // Accept any sane BNB gas credit to the user (covers 0.0005–0.02 BNB).
+        $min_bnb = 0.0001;
+        $max_bnb = 0.05;
 
+        // Current chain head for confirmation math
+        $current_block = $this->_currentBlock();
         if ($current_block == 0) {
-            $msg = 'Cannot determine current block number for gas fee confirmation';
+            $msg = 'Cannot read current block height (RPC + explorer both failed)';
             $this->_recordFailureMessage($order['id'], 'gas', $msg);
             return false;
         }
-
-        // Query Etherscan for BNB transfers TO user
-        $url = $etherscan_url . '/api?module=account&action=txlist&address=' . $user_address
-             . '&startblock=0&endblock=99999999&sort=desc&apikey=' . $api_key;
 
         try {
-            $response = @file_get_contents($url);
-            if (!$response) {
-                $msg = 'Etherscan API no response for gas fee detection';
-                $this->_recordFailureMessage($order['id'], 'gas', $msg);
-                return false;
-            }
+            // BNB (native) transfers TO the user address
+            $data = $this->_apiGet([
+                'module' => 'account', 'action' => 'txlist', 'address' => $user_address,
+                'startblock' => 0, 'endblock' => 99999999, 'page' => 1, 'offset' => 50, 'sort' => 'desc',
+            ]);
 
-            $data = json_decode($response, true);
             if (!is_array($data) || !isset($data['result']) || !is_array($data['result']) || empty($data['result'])) {
-                $msg = 'No BNB transactions found on Etherscan for user address';
+                $msg = 'No BNB transactions found on explorer for user address yet';
                 $this->_recordFailureMessage($order['id'], 'gas', $msg);
                 return false;
             }
-
-            // Look for BNB transfer to user matching calculated gas fee (±20% tolerance)
-            $min_bnb = $gas_fee_bnb * 0.8;
-            $max_bnb = $gas_fee_bnb * 1.2;
 
             foreach ($data['result'] as $tx) {
                 $to = strtolower($tx['to'] ?? '');
-                $value = (float)hexdec($tx['value'] ?? 0) / 1e18;
+                // Native BNB value is decimal wei on the txlist endpoint
+                $value = (float)$tx['value'] / 1e18;
                 $tx_block = (int)($tx['blockNumber'] ?? 0);
                 $tx_hash = strtolower($tx['hash'] ?? '');
+                $is_error = ($tx['isError'] ?? '0') === '1';
 
-                // Match: BNB sent to user with amount close to calculated gas fee
-                if ($to === $user_address && $value >= $min_bnb && $value <= $max_bnb) {
-                    // Check block confirmations
+                if (!$is_error && $to === $user_address && $value >= $min_bnb && $value <= $max_bnb) {
                     $confirmations = $current_block - $tx_block;
-
                     if ($confirmations < $required_confirmations) {
                         $msg = "Gas fee TX pending confirmations: $confirmations/$required_confirmations";
                         $this->_recordFailureMessage($order['id'], 'gas', $msg);
                         return false;
                     }
 
-                    // Record in onchain_transactions with CONFIRMED status
                     $this->db->insert('onchain_transactions', [
                         'tx_hash' => $tx_hash,
                         'from_address' => strtolower($tx['from'] ?? ''),
                         'to_address' => $to,
-                        'amount' => $value * 1e18,
+                        'amount' => $tx['value'],
                         'tx_type' => 'gas_fee',
-                        'status' => 'completed', // Only completed after confirmations
+                        'status' => 'completed',
                         'block_number' => $tx_block,
                         'confirmations' => $confirmations,
                         'user_id' => $order['user_id'],
                         'created_at' => date('Y-m-d H:i:s'),
                     ]);
 
-                    // Update order: set gas_tx_hash, gas_cron_status=1, clear message, status→pending_usdt
+                    // Gas received → advance to pending_usdt (update in-memory too so the
+                    // same cron run can progress USDT/BMAN steps for this order).
                     $this->db->where('id', $order['id'])->update('staking_swap_orders', [
                         'gas_tx_hash' => $tx_hash,
                         'gas_cron_status' => 1,
@@ -363,13 +413,16 @@ class StakingPurchasecron extends CI_Controller
                         'status' => 'pending_usdt',
                         'updated_at' => date('Y-m-d H:i:s'),
                     ]);
+                    $order['gas_cron_status'] = 1;
+                    $order['status'] = 'pending_usdt';
 
-                    log_message('info', $this->log_prefix . ' Gas fee CONFIRMED for order ' . $order['id'] . ' (' . $confirmations . ' confirmations, ' . $value . ' BNB): ' . $tx_hash);
+                    log_message('info', $this->log_prefix . ' Gas CONFIRMED order ' . $order['id']
+                        . ' (' . $confirmations . ' conf, ' . $value . ' BNB, expected ~' . sprintf('%.6f', $expected_gas_bnb) . '): ' . $tx_hash);
                     return true;
                 }
             }
 
-            $msg = 'Gas fee TX matching calculated amount (' . sprintf('%.6f', $gas_fee_bnb) . ' BNB ±20%) not found on Etherscan yet';
+            $msg = 'Gas BNB credit (0.0001–0.05 BNB) to user not found on explorer yet';
             $this->_recordFailureMessage($order['id'], 'gas', $msg);
             return false;
         } catch (Exception $e) {
@@ -384,55 +437,74 @@ class StakingPurchasecron extends CI_Controller
      */
     private function _detectAndRecordUsdtPayment(&$order)
     {
+        // Gas must be confirmed first (user needs BNB to pay the USDT transfer gas).
+        if ((int)$order['gas_cron_status'] !== 1) {
+            $this->_recordFailureMessage($order['id'], 'usdt', 'Waiting for gas fee step to complete first');
+            return false;
+        }
+
         $user_address = strtolower($order['user_address']);
         $admin_address = strtolower($order['admin_address']);
-        $config = $this->db->get_where('token_settings', ['status' => 1])->row_array();
-        $usdt_contract = strtolower($config['usdt_address'] ?? '');
-        $api_key = $config['etherscan_api_key'] ?? '';
-        $etherscan_url = $config['etherscan_url'] ?? 'https://api.bscscan.com';
+        $cfg = $this->_cfg();
+        $usdt_contract = trim((string)($cfg['usdt_contract'] ?? ''));
+        $usdt_decimals = (int)($cfg['usdt_decimals'] ?? 18);
+        $required_confirmations = $this->_minConfirmations();
+        $expected_usdt = (float)($order['usdt_amount'] ?? 0);
+
+        if ($usdt_contract === '') {
+            $this->_recordFailureMessage($order['id'], 'usdt', 'USDT contract not configured in token_settings');
+            return false;
+        }
+
+        $current_block = $this->_currentBlock();
+        if ($current_block == 0) {
+            $this->_recordFailureMessage($order['id'], 'usdt', 'Cannot read current block height');
+            return false;
+        }
 
         try {
-            // Query Etherscan for USDT transfers FROM user TO admin
-            $url = $etherscan_url . '/api?module=account&action=tokentx&contractaddress=' . $usdt_contract
-                 . '&address=' . $user_address . '&startblock=0&endblock=99999999&sort=desc&apikey=' . $api_key;
+            // USDT (BEP-20) transfers involving the user address
+            $data = $this->_apiGet([
+                'module' => 'account', 'action' => 'tokentx', 'contractaddress' => $usdt_contract,
+                'address' => $user_address, 'startblock' => 0, 'endblock' => 99999999,
+                'page' => 1, 'offset' => 50, 'sort' => 'desc',
+            ]);
 
-            $response = @file_get_contents($url);
-            if (!$response) {
-                $msg = 'Etherscan API no response for USDT detection';
-                $this->_recordFailureMessage($order['id'], 'usdt', $msg);
-                return false;
-            }
-
-            $data = json_decode($response, true);
             if (!is_array($data) || !isset($data['result']) || !is_array($data['result']) || empty($data['result'])) {
-                $msg = 'No USDT transfers found on Etherscan for user address';
-                $this->_recordFailureMessage($order['id'], 'usdt', $msg);
+                $this->_recordFailureMessage($order['id'], 'usdt', 'No USDT transfers found on explorer for user address yet');
                 return false;
             }
 
-            // Look for USDT transfer from user to admin
             foreach ($data['result'] as $tx) {
                 $from = strtolower($tx['from'] ?? '');
                 $to = strtolower($tx['to'] ?? '');
-                $value = $tx['value'] ?? 0;
+                $raw = (string)($tx['value'] ?? '0');
+                $amount = (float)bcdiv($raw, bcpow('10', (string)$usdt_decimals, 0), 8);
+                $tx_block = (int)($tx['blockNumber'] ?? 0);
+                $tx_hash = strtolower($tx['hash'] ?? '');
 
-                if ($from === $user_address && $to === $admin_address) {
-                    $tx_hash = strtolower($tx['hash'] ?? '');
+                // Must be user → admin, amount at least the order's USDT cost (1% tolerance).
+                if ($from === $user_address && $to === $admin_address && $amount + 1e-8 >= $expected_usdt * 0.99) {
+                    $confirmations = $current_block - $tx_block;
+                    if ($confirmations < $required_confirmations) {
+                        $this->_recordFailureMessage($order['id'], 'usdt', "USDT TX pending confirmations: $confirmations/$required_confirmations");
+                        return false;
+                    }
 
-                    // Record in onchain_transactions
                     $this->db->insert('onchain_transactions', [
                         'tx_hash' => $tx_hash,
                         'from_address' => $from,
                         'to_address' => $to,
-                        'amount' => $value,
+                        'amount' => $raw,
                         'tx_type' => 'deposit',
-                        'status' => 'processing',
-                        'block_number' => $tx['blockNumber'] ?? 0,
+                        'status' => 'completed',
+                        'block_number' => $tx_block,
+                        'confirmations' => $confirmations,
                         'user_id' => $order['user_id'],
                         'created_at' => date('Y-m-d H:i:s'),
                     ]);
 
-                    // Update order: set usdt_tx_hash, usdt_cron_status=1, clear message, status→pending_bman
+                    // USDT received by admin → advance to pending_bman (in-memory too).
                     $this->db->where('id', $order['id'])->update('staking_swap_orders', [
                         'usdt_tx_hash' => $tx_hash,
                         'usdt_cron_status' => 1,
@@ -440,18 +512,19 @@ class StakingPurchasecron extends CI_Controller
                         'status' => 'pending_bman',
                         'updated_at' => date('Y-m-d H:i:s'),
                     ]);
+                    $order['usdt_cron_status'] = 1;
+                    $order['status'] = 'pending_bman';
 
-                    log_message('info', $this->log_prefix . ' USDT payment detected for order ' . $order['id'] . ': ' . $tx_hash);
+                    log_message('info', $this->log_prefix . ' USDT CONFIRMED order ' . $order['id']
+                        . ' (' . $confirmations . ' conf, ' . $amount . ' USDT ≥ ' . $expected_usdt . '): ' . $tx_hash);
                     return true;
                 }
             }
 
-            $msg = 'USDT transfer from user to admin not found on Etherscan yet';
-            $this->_recordFailureMessage($order['id'], 'usdt', $msg);
+            $this->_recordFailureMessage($order['id'], 'usdt', 'USDT transfer user → admin (≥' . $expected_usdt . ') not found on explorer yet');
             return false;
         } catch (Exception $e) {
-            $msg = 'Exception: ' . $e->getMessage();
-            $this->_recordFailureMessage($order['id'], 'usdt', $msg);
+            $this->_recordFailureMessage($order['id'], 'usdt', 'Exception: ' . $e->getMessage());
             return false;
         }
     }
@@ -463,10 +536,10 @@ class StakingPurchasecron extends CI_Controller
     {
         $user_address = strtolower($order['user_address']);
         $admin_address = strtolower($order['admin_address']);
-        $config = $this->db->get_where('token_settings', ['status' => 1])->row_array();
-        $bman_contract = strtolower($config['bman_address'] ?? '');
-        $api_key = $config['etherscan_api_key'] ?? '';
-        $etherscan_url = $config['etherscan_url'] ?? 'https://api.bscscan.com';
+        $cfg = $this->_cfg();
+        $bman_contract = trim((string)($cfg['bman_contract'] ?? ''));
+        $bman_decimals = (int)($cfg['bman_decimals'] ?? 18);
+        $required_confirmations = $this->_minConfirmations();
 
         $bonus_amount = (float)($order['bonus_bman'] ?? 0);
         if ($bonus_amount == 0) {
@@ -476,69 +549,82 @@ class StakingPurchasecron extends CI_Controller
                     'bonus_cron_status' => 1,
                     'bonus_cron_status_message' => null,
                 ]);
+                $order['bonus_cron_status'] = 1;
             }
             return true;
         }
 
+        if ($bman_contract === '') {
+            $this->_recordFailureMessage($order['id'], 'bonus', 'BMAN contract not configured in token_settings');
+            return false;
+        }
+
+        $current_block = $this->_currentBlock();
+        if ($current_block == 0) {
+            $this->_recordFailureMessage($order['id'], 'bonus', 'Cannot read current block height');
+            return false;
+        }
+
         try {
-            // Query Etherscan for BMAN transfers FROM admin TO user
-            $url = $etherscan_url . '/api?module=account&action=tokentx&contractaddress=' . $bman_contract
-                 . '&address=' . $admin_address . '&startblock=0&endblock=99999999&sort=desc&apikey=' . $api_key;
+            // BMAN (BEP-20) transfers involving the admin address
+            $data = $this->_apiGet([
+                'module' => 'account', 'action' => 'tokentx', 'contractaddress' => $bman_contract,
+                'address' => $admin_address, 'startblock' => 0, 'endblock' => 99999999,
+                'page' => 1, 'offset' => 100, 'sort' => 'desc',
+            ]);
 
-            $response = @file_get_contents($url);
-            if (!$response) {
-                $msg = 'Etherscan API no response for bonus BMAN detection';
-                $this->_recordFailureMessage($order['id'], 'bonus', $msg);
-                return false;
-            }
-
-            $data = json_decode($response, true);
             if (!is_array($data) || !isset($data['result']) || !is_array($data['result']) || empty($data['result'])) {
-                $msg = 'No BMAN transfers found on Etherscan for admin address';
-                $this->_recordFailureMessage($order['id'], 'bonus', $msg);
+                $this->_recordFailureMessage($order['id'], 'bonus', 'No BMAN transfers found on explorer for admin address yet');
                 return false;
             }
 
-            // Look for bonus BMAN transfer from admin to user
+            // Bonus BMAN transfer admin → user, amount ≈ bonus_bman (1% tolerance)
             foreach ($data['result'] as $tx) {
                 $from = strtolower($tx['from'] ?? '');
                 $to = strtolower($tx['to'] ?? '');
+                $raw = (string)($tx['value'] ?? '0');
+                $amount = (float)bcdiv($raw, bcpow('10', (string)$bman_decimals, 0), 8);
+                $tx_block = (int)($tx['blockNumber'] ?? 0);
 
-                if ($from === $admin_address && $to === $user_address) {
+                if ($from === $admin_address && $to === $user_address && $amount + 1e-8 >= $bonus_amount * 0.99) {
+                    $confirmations = $current_block - $tx_block;
+                    if ($confirmations < $required_confirmations) {
+                        $this->_recordFailureMessage($order['id'], 'bonus', "Bonus BMAN TX pending confirmations: $confirmations/$required_confirmations");
+                        return false;
+                    }
+
                     $tx_hash = strtolower($tx['hash'] ?? '');
-
-                    // Record in onchain_transactions
                     $this->db->insert('onchain_transactions', [
                         'tx_hash' => $tx_hash,
                         'from_address' => $from,
                         'to_address' => $to,
-                        'amount' => $tx['value'] ?? 0,
+                        'amount' => $raw,
                         'tx_type' => 'transfer',
-                        'status' => 'processing',
-                        'block_number' => $tx['blockNumber'] ?? 0,
+                        'status' => 'completed',
+                        'block_number' => $tx_block,
+                        'confirmations' => $confirmations,
                         'user_id' => $order['user_id'],
                         'created_at' => date('Y-m-d H:i:s'),
                     ]);
 
-                    // Update order: set bonus_tx_hash, bonus_cron_status=1, clear message
                     $this->db->where('id', $order['id'])->update('staking_swap_orders', [
                         'bonus_tx_hash' => $tx_hash,
                         'bonus_cron_status' => 1,
                         'bonus_cron_status_message' => null,
                         'updated_at' => date('Y-m-d H:i:s'),
                     ]);
+                    $order['bonus_cron_status'] = 1;
 
-                    log_message('info', $this->log_prefix . ' Bonus BMAN detected for order ' . $order['id'] . ': ' . $tx_hash);
+                    log_message('info', $this->log_prefix . ' Bonus BMAN CONFIRMED order ' . $order['id']
+                        . ' (' . $confirmations . ' conf, ' . $amount . ' BMAN): ' . $tx_hash);
                     return true;
                 }
             }
 
-            $msg = 'Bonus BMAN transfer from admin to user not found on Etherscan yet';
-            $this->_recordFailureMessage($order['id'], 'bonus', $msg);
+            $this->_recordFailureMessage($order['id'], 'bonus', 'Bonus BMAN transfer admin → user (≈' . $bonus_amount . ') not found on explorer yet');
             return false;
         } catch (Exception $e) {
-            $msg = 'Exception: ' . $e->getMessage();
-            $this->_recordFailureMessage($order['id'], 'bonus', $msg);
+            $this->_recordFailureMessage($order['id'], 'bonus', 'Exception: ' . $e->getMessage());
             return false;
         }
     }
@@ -549,100 +635,102 @@ class StakingPurchasecron extends CI_Controller
      */
     private function _detectAndDistributeBmanToExchange(&$order)
     {
+        // USDT must be confirmed first — we only release BMAN after the buyer paid.
+        if ((int)$order['usdt_cron_status'] !== 1) {
+            $this->_recordFailureMessage($order['id'], 'bman_exchange', 'Waiting for USDT payment step to complete first');
+            return false;
+        }
+
         $user_address = strtolower($order['user_address']);
         $admin_address = strtolower($order['admin_address']);
-        $config = $this->db->get_where('token_settings', ['status' => 1])->row_array();
-        $bman_contract = strtolower($config['bman_address'] ?? '');
-        $api_key = $config['etherscan_api_key'] ?? '';
-        $etherscan_url = $config['etherscan_url'] ?? 'https://api.bscscan.com';
-        $required_confirmations = 12; // Require 12 block confirmations before crediting
+        $cfg = $this->_cfg();
+        $bman_contract = trim((string)($cfg['bman_contract'] ?? ''));
+        $bman_decimals = (int)($cfg['bman_decimals'] ?? 18);
+        $required_confirmations = $this->_minConfirmations();
+        $principal_bman = (float)$order['bman_amount'];
+        $bonus_bman = (float)($order['bonus_bman'] ?? 0);
+
+        if ($bman_contract === '') {
+            $this->_recordFailureMessage($order['id'], 'bman_exchange', 'BMAN contract not configured in token_settings');
+            return false;
+        }
+
+        $current_block = $this->_currentBlock();
+        if ($current_block == 0) {
+            $this->_recordFailureMessage($order['id'], 'bman_exchange', 'Cannot read current block height');
+            return false;
+        }
 
         try {
-            // Get current block number for confirmation check
-            $block_url = $etherscan_url . '/api?module=proxy&action=eth_blockNumber&apikey=' . $api_key;
-            $block_response = @file_get_contents($block_url);
-            $block_data = json_decode($block_response, true);
-            $current_block = hexdec($block_data['result'] ?? 0);
+            // BMAN (BEP-20) transfers involving the admin address
+            $data = $this->_apiGet([
+                'module' => 'account', 'action' => 'tokentx', 'contractaddress' => $bman_contract,
+                'address' => $admin_address, 'startblock' => 0, 'endblock' => 99999999,
+                'page' => 1, 'offset' => 100, 'sort' => 'desc',
+            ]);
 
-            if ($current_block == 0) {
-                $msg = 'Cannot determine current block number for confirmation check';
-                $this->_recordFailureMessage($order['id'], 'bman_exchange', $msg);
-                return false;
-            }
-
-            // Query Etherscan for BMAN transfers FROM admin TO user
-            $url = $etherscan_url . '/api?module=account&action=tokentx&contractaddress=' . $bman_contract
-                 . '&address=' . $admin_address . '&startblock=0&endblock=99999999&sort=desc&apikey=' . $api_key;
-
-            $response = @file_get_contents($url);
-            if (!$response) {
-                $msg = 'Etherscan API no response for exchange wallet BMAN detection';
-                $this->_recordFailureMessage($order['id'], 'bman_exchange', $msg);
-                return false;
-            }
-
-            $data = json_decode($response, true);
             if (!is_array($data) || !isset($data['result']) || !is_array($data['result']) || empty($data['result'])) {
-                $msg = 'No BMAN transfers found on Etherscan for admin address';
-                $this->_recordFailureMessage($order['id'], 'bman_exchange', $msg);
+                $this->_recordFailureMessage($order['id'], 'bman_exchange', 'No BMAN transfers found on explorer for admin address yet');
                 return false;
             }
 
-            // Look for BMAN transfer from admin to user
+            // Match the PRINCIPAL BMAN transfer (admin → user, amount ≈ bman_amount).
+            // Amount matching separates it from the smaller bonus transfer (bonus_bman).
+            $bonus_tx = strtolower((string)($order['bonus_tx_hash'] ?? ''));
             foreach ($data['result'] as $tx) {
                 $from = strtolower($tx['from'] ?? '');
                 $to = strtolower($tx['to'] ?? '');
-                $value = $tx['value'] ?? 0;
+                $raw = (string)($tx['value'] ?? '0');
+                $amount = (float)bcdiv($raw, bcpow('10', (string)$bman_decimals, 0), 8);
                 $tx_block = (int)($tx['blockNumber'] ?? 0);
                 $tx_hash = strtolower($tx['hash'] ?? '');
 
-                if ($from === $admin_address && $to === $user_address) {
-                    // Check if transaction has sufficient confirmations
-                    $confirmations = $current_block - $tx_block;
+                // skip the bonus transfer explicitly; require amount ≈ principal (1% tol)
+                $is_principal = ($amount + 1e-8 >= $principal_bman * 0.99) && ($amount <= $principal_bman * 1.01 + 1e-8);
+                if ($tx_hash === $bonus_tx) continue;
 
+                if ($from === $admin_address && $to === $user_address && $is_principal) {
+                    $confirmations = $current_block - $tx_block;
                     if ($confirmations < $required_confirmations) {
-                        $msg = "BMAN TX pending confirmations: $confirmations/$required_confirmations";
-                        $this->_recordFailureMessage($order['id'], 'bman_exchange', $msg);
+                        $this->_recordFailureMessage($order['id'], 'bman_exchange', "BMAN TX pending confirmations: $confirmations/$required_confirmations");
                         return false;
                     }
 
-                    // Record in onchain_transactions with CONFIRMED status (not processing)
                     $this->db->insert('onchain_transactions', [
                         'tx_hash' => $tx_hash,
                         'from_address' => $from,
                         'to_address' => $to,
-                        'amount' => $value,
+                        'amount' => $raw,
                         'tx_type' => 'transfer',
-                        'status' => 'completed', // Only mark completed after confirmations
+                        'status' => 'completed',
                         'block_number' => $tx_block,
                         'confirmations' => $confirmations,
                         'user_id' => $order['user_id'],
                         'created_at' => date('Y-m-d H:i:s'),
                     ]);
 
-                    // Update order: set exchange TX hash, bman_exchange_cron_status=1, clear message
-                    // NOW ONLY CREDIT WALLET AFTER CONFIRMED ON-CHAIN
+                    // Record the on-chain hash FIRST (so _getExchangeTxHash / earning /
+                    // staking / bonus slices all reference it), then credit exchange slice.
                     $this->db->where('id', $order['id'])->update('staking_swap_orders', [
                         'bman_exchange_tx_hash' => $tx_hash,
                         'bman_exchange_cron_status' => 1,
                         'bman_exchange_cron_status_message' => null,
                         'updated_at' => date('Y-m-d H:i:s'),
                     ]);
+                    $order['bman_exchange_cron_status'] = 1;
 
-                    // ONLY NOW distribute to exchange wallet after on-chain confirmation
                     $this->_updateWalletLedger($order, 'exchange');
 
-                    log_message('info', $this->log_prefix . ' BMAN to exchange wallet CONFIRMED for order ' . $order['id'] . ' (' . $confirmations . ' confirmations): ' . $tx_hash);
+                    log_message('info', $this->log_prefix . ' Principal BMAN CONFIRMED order ' . $order['id']
+                        . ' (' . $confirmations . ' conf, ' . $amount . ' BMAN): ' . $tx_hash);
                     return true;
                 }
             }
 
-            $msg = 'BMAN transfer from admin to user not found on Etherscan yet';
-            $this->_recordFailureMessage($order['id'], 'bman_exchange', $msg);
+            $this->_recordFailureMessage($order['id'], 'bman_exchange', 'Principal BMAN transfer admin → user (≈' . $principal_bman . ') not found on explorer yet');
             return false;
         } catch (Exception $e) {
-            $msg = 'Exception: ' . $e->getMessage();
-            $this->_recordFailureMessage($order['id'], 'bman_exchange', $msg);
+            $this->_recordFailureMessage($order['id'], 'bman_exchange', 'Exception: ' . $e->getMessage());
             return false;
         }
     }
