@@ -1570,7 +1570,7 @@ $hero_progress = 48;
               </div>
             </div>
 
-            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;">
               <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:8px;text-align:center;">
                 <div style="font-size:9px;color:#4338ca;font-weight:1000;">ROI RATE</div>
                 <div style="font-size:13px;font-weight:1100;color:#4338ca;margin-top:2px;">${d.roi_rate}%</div>
@@ -1579,10 +1579,6 @@ $hero_progress = 48;
                 <div style="font-size:9px;color:#a16207;font-weight:1000;">DURATION</div>
                 <div style="font-size:13px;font-weight:1100;color:#a16207;margin-top:2px;">${d.plan.duration_years} Year${d.plan.duration_years > 1 ? 's' : ''}</div>
               </div>
-              <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:8px;text-align:center;">
-                <div style="font-size:9px;color:#b91c1c;font-weight:1000;">BONUS</div>
-                <div style="font-size:13px;font-weight:1100;color:#b91c1c;margin-top:2px;">${Math.floor(d.amounts.bonus_bman).toLocaleString()}</div>
-              </div>
             </div>
 
             <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:10px;">
@@ -1590,8 +1586,7 @@ $hero_progress = 48;
               <div style="font-size:10px;color:#334155;line-height:1.5;">
                 <div style="margin-bottom:3px;">• <strong>Principal is LOCKED</strong> until maturity</div>
                 <div style="margin-bottom:3px;">• <strong>ROI is LIQUID</strong> earned hourly</div>
-                <div style="margin-bottom:3px;">• <strong>At Maturity:</strong> <span style="font-weight:1100;color:#4338ca;">${Math.floor(d.amounts.bman + calcROI(d.amounts.bman, d.roi_rate, d.plan.duration_years)).toLocaleString()} BMAN</span></div>
-                <div>• <strong>Bonus 25%</strong> stays yours (not part of ROI)</div>
+                <div>• <strong>At Maturity:</strong> <span style="font-weight:1100;color:#4338ca;">${Math.floor(d.amounts.bman + calcROI(d.amounts.bman, d.roi_rate, d.plan.duration_years)).toLocaleString()} BMAN</span></div>
               </div>
             </div>
           </div>
