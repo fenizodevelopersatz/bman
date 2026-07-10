@@ -407,13 +407,13 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     $('stkm-next').style.display = cur.step===4 ? 'none' : 'block';
     $('stkm-go').style.display = cur.step===4 ? 'block' : 'none';
   }
-  function renderRoi(){ const roiMap=cur.pkg?.roi||{}; if(!cur.pkg){ $('stkm-roi').textContent='?'; return; } if(cur.plan==='combo'){ const f=roiMap['fixed_'+cur.years], r=roiMap['regular_'+cur.years]; $('stkm-roi').textContent=(f?f.pct+'% total':'?')+' + '+(r?r.pct+'%/mo':'?')+' (50/50)'; } else { const c=roiMap[cur.plan+'_'+cur.years]; $('stkm-roi').textContent=c?(c.pct+'%'+(c.basis==='monthly'?' /mo':' total')):'?'; } }
+  function renderRoi(){ const roiMap=cur.pkg?.roi||{}; if(!cur.pkg){ $('stkm-roi').textContent='?'; return; } if(cur.roi_plan==='combo'){ const f=roiMap['fixed_'+cur.years], r=roiMap['regular_'+cur.years]; $('stkm-roi').textContent=(f?f.pct+'% total':'?')+' + '+(r?r.pct+'%/mo':'?')+' (50/50)'; } else { const c=roiMap[cur.roi_plan+'_'+cur.years]; $('stkm-roi').textContent=c?(c.pct+'%'+(c.basis==='monthly'?' /mo':' total')):'?'; } }
   function calcDist(amount){ const m=DISTS[cur.dist]||DISTS[7]; const exchange=amount*m.exchange/100, earning=amount*m.earning/100, staking=amount*m.staking/100, bonus=amount*m.bonus/100, instant=amount*0.25; return {m,exchange,earning,staking,bonus,instant,totalBonus:bonus+instant}; }
   function renderROIDetails(){
-    if(!cur.pkg || !cur.plan || !cur.years) return;
+    if(!cur.pkg || !cur.roi_plan || !cur.years) return;
     const principal = +cur.pkg.stake||0;
     const roi = cur.pkg.roi || {};
-    const roiData = roi[cur.plan+'_'+cur.years] || {pct:0};
+    const roiData = roi[cur.roi_plan+'_'+cur.years] || {pct:0};
     const ratePercent = +roiData.pct||0;
     const years = +cur.years||1;
 
