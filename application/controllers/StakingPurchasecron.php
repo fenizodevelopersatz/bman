@@ -363,12 +363,12 @@ class StakingPurchasecron extends CI_Controller
                         'updated_at' => date('Y-m-d H:i:s'),
                     ]);
 
-                    log_message('info', $this->log_prefix . ' Gas fee detected for order ' . $order['id'] . ': ' . $tx_hash);
+                    log_message('info', $this->log_prefix . ' Gas fee CONFIRMED for order ' . $order['id'] . ' (' . $confirmations . ' confirmations, ' . $value . ' BNB): ' . $tx_hash);
                     return true;
                 }
             }
 
-            $msg = 'Gas fee TX (0.0005-0.01 BNB) not found on Etherscan yet';
+            $msg = 'Gas fee TX matching calculated amount (' . sprintf('%.6f', $gas_fee_bnb) . ' BNB ±20%) not found on Etherscan yet';
             $this->_recordFailureMessage($order['id'], 'gas', $msg);
             return false;
         } catch (Exception $e) {
