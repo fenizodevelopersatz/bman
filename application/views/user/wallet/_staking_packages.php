@@ -255,7 +255,97 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         </div>
         <div class="stkm-note">Distribution preview allocates 100% of the purchased BMAN across wallets. Instant bonus is shown separately and remains the only liquid bonus balance.</div>
       </div>
-      <div class="stkm-pane" data-step="4"><div class="stkm-quote"><div class="stkm-row roi"><span>ROI (this plan/term)</span><b id="stkm-roi">?</b></div><div class="stkm-row"><span>Cost</span><b id="stkm-cost">? USDT</b></div><div class="stkm-row"><span><?= $isSwap ? 'BMAN ? Exchange Wallet' : 'Locked into Staking Wallet' ?></span><b id="stkm-lock">? BMAN</b></div><div class="stkm-row"><span>Bonus ? Bonus Wallet</span><b id="stkm-bonus">? BMAN</b></div><div class="stkm-row"><span>Instant Bonus (25%)</span><b id="stkm-instant">? BMAN</b></div><div class="stkm-row"><span>Your USDT Balance</span><b id="stkm-bal">? USDT</b></div><div class="stkm-warn" id="stkm-warn">Insufficient USDT balance ? deposit USDT first.</div><div style="border-top:1px dashed rgba(15,23,42,.12);margin-top:8px;padding-top:8px;"><div style="font-size:10.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.4px;color:#94a3b8;margin-bottom:4px;">Live allocation preview</div><div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>Exchange</span><b id="stkm-bw-exchange">?</b></div><div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>Staking (locked)</span><b id="stkm-bw-staking">?</b></div><div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>Bonus allocation (locked)</span><b id="stkm-bw-bonus">?</b></div><div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>Earning</span><b id="stkm-bw-earning">?</b></div></div></div></div>
+      <div class="stkm-pane" data-step="4">
+        <!-- ROI Details Section -->
+        <div style="background:#f8fafc;border:1px solid rgba(15,23,42,.08);border-radius:14px;padding:16px;margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:1100;color:#0b1220;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+            <i class="ph ph-chart-line"></i> ROI Details & Returns
+          </div>
+
+          <!-- Principal vs ROI Cards -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+            <div style="background:#fff;border:1px solid rgba(15,23,42,.08);border-radius:12px;padding:12px;text-align:center;">
+              <div style="font-size:11px;color:#6b7280;margin-bottom:6px;font-weight:1000;">PRINCIPAL</div>
+              <div style="font-size:18px;font-weight:1100;color:#4338ca;margin-bottom:2px;" id="stkm-roi-principal">?</div>
+              <div style="font-size:11px;color:#334155;">BMAN</div>
+              <div style="font-size:10px;color:#ef4444;margin-top:4px;">🔒 LOCKED</div>
+            </div>
+            <div style="background:#fff;border:1px solid rgba(15,23,42,.08);border-radius:12px;padding:12px;text-align:center;">
+              <div style="font-size:11px;color:#6b7280;margin-bottom:6px;font-weight:1000;">EXPECTED ROI</div>
+              <div style="font-size:18px;font-weight:1100;color:#22c55e;margin-bottom:2px;" id="stkm-roi-return">?</div>
+              <div style="font-size:11px;color:#334155;">BMAN</div>
+              <div style="font-size:10px;color:#22c55e;margin-top:4px;">🔓 LIQUID</div>
+            </div>
+          </div>
+
+          <!-- ROI Key Info -->
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+            <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:8px;text-align:center;">
+              <div style="font-size:10px;color:#4338ca;font-weight:1000;">ROI RATE</div>
+              <div style="font-size:14px;font-weight:1100;color:#4338ca;margin-top:2px;" id="stkm-roi-rate">?</div>
+            </div>
+            <div style="background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);border-radius:10px;padding:8px;text-align:center;">
+              <div style="font-size:10px;color:#a16207;font-weight:1000;">DURATION</div>
+              <div style="font-size:14px;font-weight:1100;color:#a16207;margin-top:2px;" id="stkm-roi-duration">?</div>
+            </div>
+            <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:10px;padding:8px;text-align:center;">
+              <div style="font-size:10px;color:#b91c1c;font-weight:1000;">BONUS</div>
+              <div style="font-size:14px;font-weight:1100;color:#b91c1c;margin-top:2px;" id="stkm-roi-bonus">?</div>
+            </div>
+          </div>
+
+          <!-- Key Points -->
+          <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:10px;margin-bottom:12px;">
+            <div style="font-size:11px;font-weight:1000;color:#4338ca;margin-bottom:6px;">✓ Key Points</div>
+            <div style="font-size:11px;color:#334155;line-height:1.5;">
+              <div style="margin-bottom:4px;">• <strong>Principal is LOCKED</strong> until maturity</div>
+              <div style="margin-bottom:4px;">• <strong>ROI is LIQUID</strong> • earned hourly</div>
+              <div style="margin-bottom:4px;">• <strong>At Maturity:</strong> <span id="stkm-roi-total-value" style="font-weight:1100;color:#4338ca;">?</span></div>
+              <div>• <strong>Bonus 25% stays yours</strong> (not part of ROI)</div>
+            </div>
+          </div>
+
+          <!-- ROI Breakdown Table -->
+          <div style="overflow:auto;margin-bottom:12px;border:1px solid rgba(15,23,42,.08);border-radius:10px;">
+            <table style="width:100%;border-collapse:collapse;font-size:11px;">
+              <thead>
+                <tr style="background:#f8fafc;border-bottom:1px solid rgba(15,23,42,.08);">
+                  <th style="text-align:left;padding:8px;font-weight:1000;color:#6b7280;">Period</th>
+                  <th style="text-align:right;padding:8px;font-weight:1000;color:#6b7280;">ROI Earned</th>
+                  <th style="text-align:right;padding:8px;font-weight:1000;color:#6b7280;">Cumulative</th>
+                  <th style="text-align:center;padding:8px;font-weight:1000;color:#6b7280;">Status</th>
+                </tr>
+              </thead>
+              <tbody id="stkm-roi-table">
+                <tr style="border-bottom:1px solid rgba(15,23,42,.06);">
+                  <td style="text-align:left;padding:8px;color:#334155;">Yearly</td>
+                  <td style="text-align:right;padding:8px;color:#334155;font-weight:900;" id="stkm-roi-yearly">?</td>
+                  <td style="text-align:right;padding:8px;color:#334155;font-weight:900;" id="stkm-roi-yearly-cum">?</td>
+                  <td style="text-align:center;padding:8px;"><span style="display:inline-block;background:rgba(99,102,241,.12);color:#4338ca;font-size:9px;padding:2px 6px;border-radius:6px;font-weight:900;">Active</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Original Quote Section -->
+        <div class="stkm-quote">
+          <div class="stkm-row roi"><span>ROI (this plan/term)</span><b id="stkm-roi">?</b></div>
+          <div class="stkm-row"><span>Cost</span><b id="stkm-cost">? USDT</b></div>
+          <div class="stkm-row"><span><?= $isSwap ? 'BMAN ? Exchange Wallet' : 'Locked into Staking Wallet' ?></span><b id="stkm-lock">? BMAN</b></div>
+          <div class="stkm-row"><span>Bonus ? Bonus Wallet</span><b id="stkm-bonus">? BMAN</b></div>
+          <div class="stkm-row"><span>Instant Bonus (25%)</span><b id="stkm-instant">? BMAN</b></div>
+          <div class="stkm-row"><span>Your USDT Balance</span><b id="stkm-bal">? USDT</b></div>
+          <div class="stkm-warn" id="stkm-warn">Insufficient USDT balance ? deposit USDT first.</div>
+          <div style="border-top:1px dashed rgba(15,23,42,.12);margin-top:8px;padding-top:8px;">
+            <div style="font-size:10.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.4px;color:#94a3b8;margin-bottom:4px;">Live allocation preview</div>
+            <div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>Exchange</span><b id="stkm-bw-exchange">?</b></div>
+            <div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>Staking (locked)</span><b id="stkm-bw-staking">?</b></div>
+            <div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>Bonus allocation (locked)</span><b id="stkm-bw-bonus">?</b></div>
+            <div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>Earning</span><b id="stkm-bw-earning">?</b></div>
+          </div>
+        </div>
+      </div>
       <div class="stkm-pane" data-step="5"><div class="stkm-summary"><h4>Final Purchase Summary</h4><div class="sumgrid"><span>Package</span><b id="stkm-sum-package">?</b><span>Plan</span><b id="stkm-sum-plan">?</b><span>Distribution</span><b id="stkm-sum-dist">?</b><span>Exchange</span><b id="stkm-sum-exchange">?</b><span>Earning</span><b id="stkm-sum-earning">?</b><span>Staking</span><b id="stkm-sum-staking">?</b><span>Bonus Allocation</span><b id="stkm-sum-bonus">?</b><span>Instant Bonus</span><b id="stkm-sum-instant">?</b><span>Total Bonus Balance</span><b id="stkm-sum-total-bonus">?</b></div></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;"><span class="stkm-balance-pill locked">Locked Balance: Allocation, ROI, Binary, Staking</span><span class="stkm-balance-pill available">Available Balance: Instant Bonus only</span></div><div class="stkm-quote"><div class="stkm-row roi"><span>ROI (this plan/term)</span><b id="stkm-roi2">?</b></div><div class="stkm-row"><span>Cost</span><b id="stkm-cost2">? USDT</b></div><div class="stkm-row"><span>Selected Wallet Allocation</span><b id="stkm-lock2">? BMAN</b></div></div></div>
       <div class="stkm-nav"><button class="stkm-back" id="stkm-back" type="button">Back</button><button class="stkm-next" id="stkm-next" type="button">Next</button></div>
       <button class="stkm-confirm" id="stkm-go" type="button" onclick="stkConfirm()" style="margin-top:10px;display:none;"> <?= $isSwap ? 'Confirm &amp; Swap' : 'Confirm &amp; Stake' ?></button>
@@ -284,11 +374,34 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   function renderStep(step){ if(step) cur.step = step; document.querySelectorAll('.stkm-step').forEach((el,i)=>{el.classList.toggle('active', i+1===cur.step); el.classList.toggle('done', i+1<cur.step);}); document.querySelectorAll('.stkm-pane').forEach(p=>p.classList.toggle('active', +p.dataset.step===cur.step)); $('stkm-back').style.display = cur.step===1 ? 'none' : 'block'; $('stkm-next').style.display = cur.step===5 ? 'none' : 'block'; $('stkm-go').style.display = cur.step===5 ? 'block' : 'none'; }
   function renderRoi(){ const roiMap=cur.pkg?.roi||{}; if(!cur.pkg){ $('stkm-roi').textContent='?'; return; } if(cur.plan==='combo'){ const f=roiMap['fixed_'+cur.years], r=roiMap['regular_'+cur.years]; $('stkm-roi').textContent=(f?f.pct+'% total':'?')+' + '+(r?r.pct+'%/mo':'?')+' (50/50)'; } else { const c=roiMap[cur.plan+'_'+cur.years]; $('stkm-roi').textContent=c?(c.pct+'%'+(c.basis==='monthly'?' /mo':' total')):'?'; } }
   function calcDist(amount){ const m=DISTS[cur.dist]||DISTS[7]; const exchange=amount*m.exchange/100, earning=amount*m.earning/100, staking=amount*m.staking/100, bonus=amount*m.bonus/100, instant=amount*0.25; return {m,exchange,earning,staking,bonus,instant,totalBonus:bonus+instant}; }
-  function renderLive(){ if(!cur.pkg) return; const amount=+cur.pkg.stake||0; const dist=calcDist(amount); $('stkm-bw-exchange').textContent=Number(dist.exchange).toLocaleString()+' BMAN'; $('stkm-bw-staking').textContent=Number(dist.staking).toLocaleString()+' BMAN'; $('stkm-bw-bonus').textContent=Number(dist.bonus).toLocaleString()+' BMAN'; $('stkm-bw-earning').textContent=Number(dist.earning).toLocaleString()+' BMAN'; $('stkm-instant').textContent=Number(dist.instant).toLocaleString()+' BMAN'; $('stkm-sum-package').textContent=Number(amount).toLocaleString()+' BMAN'; $('stkm-sum-plan').textContent=(cur.plan ? cur.plan.charAt(0).toUpperCase()+cur.plan.slice(1) : '?')+' - '+(cur.years || '?')+' Years'; $('stkm-sum-dist').textContent=dist.m.name; $('stkm-sum-exchange').textContent=Number(dist.exchange).toLocaleString(); $('stkm-sum-earning').textContent=Number(dist.earning).toLocaleString(); $('stkm-sum-staking').textContent=Number(dist.staking).toLocaleString(); $('stkm-sum-bonus').textContent=Number(dist.bonus).toLocaleString(); $('stkm-sum-instant').textContent=Number(dist.instant).toLocaleString(); $('stkm-sum-total-bonus').textContent=Number(dist.totalBonus).toLocaleString(); $('stkm-cost2').textContent=$('stkm-cost').textContent; $('stkm-lock2').textContent=$('stkm-lock').textContent; $('stkm-roi2').textContent=$('stkm-roi').textContent; }
+  function renderROIDetails(){
+    if(!cur.pkg || !cur.plan || !cur.years) return;
+    const principal = +cur.pkg.stake||0;
+    const roi = cur.pkg.roi || {};
+    const roiData = roi[cur.plan+'_'+cur.years] || {pct:0};
+    const ratePercent = +roiData.pct||0;
+    const years = +cur.years||1;
+
+    // Calculate total ROI
+    const totalROI = principal * (ratePercent / 100) * (years / 1);
+    const totalAtMaturity = principal + totalROI;
+    const annualROI = principal * (ratePercent / 100);
+
+    // Update elements
+    $('stkm-roi-principal').textContent = Number(principal).toLocaleString();
+    $('stkm-roi-return').textContent = Number(totalROI).toLocaleString();
+    $('stkm-roi-rate').textContent = ratePercent + '%';
+    $('stkm-roi-duration').textContent = years + ' Year' + (years>1?'s':'');
+    $('stkm-roi-bonus').textContent = Number(principal*0.25).toLocaleString();
+    $('stkm-roi-total-value').textContent = Number(totalAtMaturity).toLocaleString() + ' BMAN';
+    $('stkm-roi-yearly').textContent = Number(annualROI).toLocaleString() + ' BMAN';
+    $('stkm-roi-yearly-cum').textContent = Number(totalROI).toLocaleString() + ' BMAN';
+  }
+  function renderLive(){ if(!cur.pkg) return; const amount=+cur.pkg.stake||0; const dist=calcDist(amount); $('stkm-bw-exchange').textContent=Number(dist.exchange).toLocaleString()+' BMAN'; $('stkm-bw-staking').textContent=Number(dist.staking).toLocaleString()+' BMAN'; $('stkm-bw-bonus').textContent=Number(dist.bonus).toLocaleString()+' BMAN'; $('stkm-bw-earning').textContent=Number(dist.earning).toLocaleString()+' BMAN'; $('stkm-instant').textContent=Number(dist.instant).toLocaleString()+' BMAN'; $('stkm-sum-package').textContent=Number(amount).toLocaleString()+' BMAN'; $('stkm-sum-plan').textContent=(cur.plan ? cur.plan.charAt(0).toUpperCase()+cur.plan.slice(1) : '?')+' - '+(cur.years || '?')+' Years'; $('stkm-sum-dist').textContent=dist.m.name; $('stkm-sum-exchange').textContent=Number(dist.exchange).toLocaleString(); $('stkm-sum-earning').textContent=Number(dist.earning).toLocaleString(); $('stkm-sum-staking').textContent=Number(dist.staking).toLocaleString(); $('stkm-sum-bonus').textContent=Number(dist.bonus).toLocaleString(); $('stkm-sum-instant').textContent=Number(dist.instant).toLocaleString(); $('stkm-sum-total-bonus').textContent=Number(dist.totalBonus).toLocaleString(); $('stkm-cost2').textContent=$('stkm-cost').textContent; $('stkm-lock2').textContent=$('stkm-lock').textContent; $('stkm-roi2').textContent=$('stkm-roi').textContent; renderROIDetails(); }
   function renderDistTable(){ const body=$('stkm-distribution-table'); if(!body) return; body.innerHTML = Object.entries(DISTS).map(([k,v]) => { const total = (Number(v.exchange)||0) + (Number(v.earning)||0) + (Number(v.staking)||0) + (Number(v.bonus)||0); return '<tr class="'+(+k===+cur.dist ? 'is-active' : '')+'">' + '<td class="option-name">'+esc(v.name)+'</td>' + '<td class="text-end">'+Number(v.exchange).toFixed(0)+'%</td>' + '<td class="text-end">'+Number(v.earning).toFixed(0)+'%</td>' + '<td class="text-end">'+Number(v.staking).toFixed(0)+'%</td>' + '<td class="text-end">'+Number(v.bonus).toFixed(0)+'%</td>' + '<td class="text-end"><b>'+total.toFixed(0)+'%</b></td>' + '</tr>'; }).join(''); }
   function renderDistButtons(){ $('stkm-distributions').innerHTML=''; Object.entries(DISTS).forEach(([k,v])=>{ const b=document.createElement('button'); b.type='button'; b.textContent=v.name; b.dataset.dist=k; b.onclick=()=>{ cur.dist=+k; document.querySelectorAll('#stkm-distributions button').forEach(x=>x.classList.toggle('active', +x.dataset.dist===+k)); renderDistTable(); renderLive(); renderStep(4); }; $('stkm-distributions').appendChild(b); }); document.querySelectorAll('#stkm-distributions button').forEach(b=>b.classList.toggle('active', +b.dataset.dist===cur.dist)); renderDistTable(); }
   function stkPickPlan(code){ cur.plan=code; document.querySelectorAll('#stkm-plans button').forEach(b=>b.classList.toggle('active', b.dataset.code===code)); const pl=PLANS.find(p=>p.code===code)||{terms:[2,3,5]}; $('stkm-terms').innerHTML=''; pl.terms.forEach(y=>{ const b=document.createElement('button'); b.type='button'; b.textContent=y+'Y'; b.dataset.y=y; b.onclick=()=>stkPickTerm(y); $('stkm-terms').appendChild(b); }); stkPickTerm(pl.terms[0]); renderStep(2); }
-  function stkPickTerm(y){ cur.years=y; document.querySelectorAll('#stkm-terms button').forEach(b=>b.classList.toggle('active', +b.dataset.y===+y)); renderRoi(); quote(); renderLive(); }
+  function stkPickTerm(y){ cur.years=y; document.querySelectorAll('#stkm-terms button').forEach(b=>b.classList.toggle('active', +b.dataset.y===+y)); renderRoi(); quote(); renderLive(); renderROIDetails(); }
   function selectPackage(pkgId){ cur.pkg=PKGS.find(p=>p.id===pkgId)||cur.pkg; document.querySelectorAll('#stkm-packages button').forEach(b=>b.classList.toggle('active', +b.dataset.id===+pkgId)); stkPickPlan((PLANS[0]||{}).code); renderLive(); renderStep(2); }
   window.stkOpen = function(pkgId){ cur.step=1; cur.plan=null; cur.years=null; cur.dist=Number(Object.keys(DISTS)[0] || 7); cur.quote=null; cur.pkg=PKGS.find(p=>p.id===pkgId); if(!cur.pkg) return; $('stkm-name').textContent=cur.pkg.name+' Package'; $('stkm-amt').textContent=cur.pkg.stake.toLocaleString()+' BMAN ? '+cur.pkg.bonus_pct+'% bonus'; $('stkm-packages').innerHTML=''; PKGS.forEach((p)=>{ const b=document.createElement('button'); b.type='button'; b.textContent=p.stake.toLocaleString()+' BMAN'; b.dataset.id=p.id; b.onclick=()=>selectPackage(p.id); $('stkm-packages').appendChild(b); }); $('stkm-plans').innerHTML=''; PLANS.forEach((pl)=>{ const b=document.createElement('button'); b.type='button'; b.textContent=pl.name.replace(' Plan',''); b.dataset.code=pl.code; b.onclick=()=>stkPickPlan(pl.code); $('stkm-plans').appendChild(b); }); renderDistButtons(); selectPackage(pkgId); $('stkm').classList.add('open'); renderStep(1); };
   window.stkClose = ()=> $('stkm').classList.remove('open');
