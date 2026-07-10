@@ -1695,6 +1695,20 @@ $hero_progress = 48;
 
         html += `
               </div>
+
+              <!-- Maturity Date & ROI Status Section -->
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;padding-top:16px;border-top:2px solid #e7e7f3;">
+                <div style="background:#fff;border:1px solid #e7e7f3;border-radius:10px;padding:12px;">
+                  <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:6px;text-transform:uppercase;">📅 Maturity Date</div>
+                  <div style="font-size:14px;font-weight:1100;color:#111827;">${d.maturity_date ? new Date(d.maturity_date).toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'}) : 'N/A'}</div>
+                  <div style="font-size:9px;color:#999;margin-top:4px;">ROI return completes on</div>
+                </div>
+                <div style="background:#fff;border:1px solid #e7e7f3;border-radius:10px;padding:12px;">
+                  <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:6px;text-transform:uppercase;">🔄 ROI Return Status</div>
+                  <div style="font-size:14px;font-weight:1100;color:${d.roi_return_status === 'completed' ? '#22c55e' : d.roi_return_status === 'in_progress' ? '#f59e0b' : '#667eea'};">${(d.roi_return_status || 'pending').toUpperCase()}</div>
+                  <div style="font-size:9px;color:#999;margin-top:4px;">Distribution ${d.roi_return_status === 'completed' ? 'Complete' : d.roi_return_status === 'in_progress' ? 'In Progress' : 'Pending'}</div>
+                </div>
+              </div>
             </div>
           </div>
         `;

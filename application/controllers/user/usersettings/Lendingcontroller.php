@@ -206,7 +206,10 @@ class Lendingcontroller extends CI_Controller
             }
         }
 
-        // Update swap order with ALL plan details + ROI rate
+        // Calculate maturity date
+        $maturityDate = date('Y-m-d H:i:s', strtotime("+{$durationYears} years", strtotime($res['created_at'] ?? 'now')));
+
+        // Update swap order with ALL plan details + ROI rate + maturity date
         if (!empty($res['id'])) {
             $updateOk = $this->db->where('id', $res['id'])->update('staking_swap_orders', [
                 'package_id' => $packageId,
@@ -214,6 +217,8 @@ class Lendingcontroller extends CI_Controller
                 'plan_id' => $planId,
                 'duration_years' => $durationYears,
                 'roi_rate' => $roiRate,
+                'maturity_date' => $maturityDate,
+                'roi_return_status' => 'pending',
                 'coin_distribution_option' => $coinDistOptionId,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
