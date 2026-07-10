@@ -198,10 +198,10 @@ class StakingPurchasecron extends CI_Controller
         $head    = $this->_currentBlock();
         $summary = [
             'total_orders' => count($orders),
-            'gas'   => ['processed' => 0, 'failed' => 0],
-            'usdt'  => ['processed' => 0, 'failed' => 0],
-            'bonus' => ['processed' => 0, 'failed' => 0],
-            'bman'  => ['processed' => 0, 'failed' => 0],
+            'gas'   => ['processed' => 0, 'waiting' => 0, 'failed' => 0],
+            'usdt'  => ['processed' => 0, 'waiting' => 0, 'failed' => 0],
+            'bonus' => ['processed' => 0, 'waiting' => 0, 'failed' => 0],
+            'bman'  => ['processed' => 0, 'waiting' => 0, 'failed' => 0],
         ];
         if ($head === 0 && !$this->_isDryRun()) {
             return array_merge($summary, ['error' => 'cannot read current block height']);
@@ -216,19 +216,19 @@ class StakingPurchasecron extends CI_Controller
 
     private function _processOrder(&$order, $head, &$summary)
     {
-        if ((int)$order['gas_cron_status'] === 0) {
-            $this->_stepGas($order, $head) ? $summary['gas']['processed']++ : $summary['gas']['failed']++;
-        }
-        if ((int)$order['usdt_cron_status'] === 0) {
-            $this->_stepUsdt($order, $head) ? $summary['usdt']['processed']++ : $summary['usdt']['failed']++;
-        }
-        if ((int)$order['bonus_cron_status'] === 0) {
-            $this->_stepBonus($order, $head) ? $summary['bonus']['processed']++ : $summary['bonus']['failed']++;
-        }
-        if ((int)$order['bman_cron_status'] === 0) {
-            $this->_stepBman($order, $head) ? $summary['bman']['processed']++ : $summary['bman']['failed']++;
-        }
+        if ((int)$order['gas_cron_status'] === 0)   $this->_tally($this->_stepGas($order, $head),   $summary['gas']);
+        if ((int)$order['usdt_cron_status'] === 0)  $this->_tally($this->_stepUsdt($order, $head),  $summary['usdt']);
+        if ((int)$order['bonus_cron_status'] === 0) $this->_tally($this->_stepBonus($order, $head), $summary['bonus']);
+        if ((int)$order['bman_cron_status'] === 0)  $this->_tally($this->_stepBman($order, $head),  $summary['bman']);
         $this->_checkAndCompleteOrder($order);
+    }
+
+    /** Map a step result to the summary bucket: true=processed, 'waiting'=waiting, false=failed. */
+    private function _tally($result, &$bucket)
+    {
+        if ($result === true)            $bucket['processed']++;
+        elseif ($result === 'waiting')   $bucket['waiting']++;
+        else                             $bucket['failed']++;
     }
 
     /* ------------------------------- gas ------------------------------- */
@@ -275,7 +275,7 @@ class StakingPurchasecron extends CI_Controller
     private function _stepUsdt(&$order, $head)
     {
         if ((int)$order['gas_cron_status'] !== 1) {
-            return $this->_fail($order['id'], 'usdt', 'Waiting for gas step first');
+            return $this->_waiting($order['id'], 'usdt', 'Waiting for gas step first');
         }
 
         if (!empty($order['usdt_tx_hash'])) {
@@ -306,7 +306,7 @@ class StakingPurchasecron extends CI_Controller
         $bonus = (float)($order['bonus_bman'] ?? 0);
         if ($bonus <= 0) { $this->_setOrder($order, ['bonus_cron_status' => 1, 'bonus_cron_status_message' => null]); return true; }
         if ((int)$order['usdt_cron_status'] !== 1) {
-            return $this->_fail($order['id'], 'bonus', 'Waiting for USDT step first');
+            return $this->_waiting($order['id'], 'bonus', 'Waiting for USDT step first');
         }
 
         if (!empty($order['bonus_tx_hash'])) {
@@ -335,7 +335,7 @@ class StakingPurchasecron extends CI_Controller
     private function _stepBman(&$order, $head)
     {
         if ((int)$order['usdt_cron_status'] !== 1) {
-            return $this->_fail($order['id'], 'bman', 'Waiting for USDT step first');
+            return $this->_waiting($order['id'], 'bman', 'Waiting for USDT step first');
         }
 
         if (!empty($order['bman_tx_hash'])) {
@@ -408,7 +408,7 @@ class StakingPurchasecron extends CI_Controller
         }
         $min = $this->_minConfirmations();
         if ($conf < $min) {
-            return $this->_fail($order['id'], $step, "Awaiting confirmations: $conf/$min");
+            return $this->_waiting($order['id'], $step, "Awaiting confirmations: $conf/$min");
         }
         $onConfirmed();
         log_message('info', $this->log_prefix . " $step CONFIRMED order {$order['id']} ($conf conf): $hash");
@@ -517,10 +517,20 @@ class StakingPurchasecron extends CI_Controller
         foreach ($data as $k => $v) $order[$k] = $v;
     }
 
+    /** Real error — counts as failed. */
     private function _fail($orderId, $step, $message)
     {
         $this->db->where('id', $orderId)->update('staking_swap_orders',
             [$step . '_cron_status_message' => substr($message, 0, 500)]);
         return false;
+    }
+
+    /** Normal in-progress state (gated on a prior step, or awaiting confirmations).
+     *  NOT an error — counts as 'waiting' so Cron Lab doesn't read it as a failure. */
+    private function _waiting($orderId, $step, $message)
+    {
+        $this->db->where('id', $orderId)->update('staking_swap_orders',
+            [$step . '_cron_status_message' => substr($message, 0, 500)]);
+        return 'waiting';
     }
 }
