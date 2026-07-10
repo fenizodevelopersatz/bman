@@ -1585,47 +1585,6 @@ $hero_progress = 48;
             </div>
           </div>
 
-          <div style="border-top:1px solid #e7e7f3;padding-top:12px;margin-bottom:16px;background:#f9f9fb;border-radius:10px;padding:12px;">
-            <h5 style="margin:0 0 12px;font-size:13px;font-weight:1000;color:#111;display:flex;align-items:center;gap:8px;">
-              <i class="ph ph-chart-line"></i> ROI Details & Returns
-            </h5>
-
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-              <div style="background:#fff;border:1px solid #e7e7f3;border-radius:10px;padding:10px;text-align:center;">
-                <div style="font-size:10px;color:#666;margin-bottom:6px;font-weight:900;">PRINCIPAL</div>
-                <div style="font-size:16px;font-weight:1100;color:#4338ca;margin-bottom:2px;">${Math.floor(d.amounts.bman).toLocaleString()}</div>
-                <div style="font-size:10px;color:#666;">BMAN</div>
-                <div style="font-size:9px;color:#ef4444;margin-top:4px;">🔒 LOCKED</div>
-              </div>
-              <div style="background:#fff;border:1px solid #e7e7f3;border-radius:10px;padding:10px;text-align:center;">
-                <div style="font-size:10px;color:#666;margin-bottom:6px;font-weight:900;">EXPECTED ROI</div>
-                <div style="font-size:16px;font-weight:1100;color:#22c55e;margin-bottom:2px;">${calcROI(d.amounts.bman, d.roi_rate, d.plan.duration_years).toLocaleString()}</div>
-                <div style="font-size:10px;color:#666;">BMAN</div>
-                <div style="font-size:9px;color:#22c55e;margin-top:4px;">🔓 LIQUID</div>
-              </div>
-            </div>
-
-            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;">
-              <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:8px;text-align:center;">
-                <div style="font-size:9px;color:#4338ca;font-weight:1000;">ROI RATE</div>
-                <div style="font-size:13px;font-weight:1100;color:#4338ca;margin-top:2px;">${d.roi_rate}%</div>
-              </div>
-              <div style="background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);border-radius:10px;padding:8px;text-align:center;">
-                <div style="font-size:9px;color:#a16207;font-weight:1000;">DURATION</div>
-                <div style="font-size:13px;font-weight:1100;color:#a16207;margin-top:2px;">${d.plan.duration_years} Year${d.plan.duration_years > 1 ? 's' : ''}</div>
-              </div>
-            </div>
-
-            <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:10px;">
-              <div style="font-size:10px;font-weight:1000;color:#4338ca;margin-bottom:6px;">✓ Key Points</div>
-              <div style="font-size:10px;color:#334155;line-height:1.5;">
-                <div style="margin-bottom:3px;">• <strong>Principal is LOCKED</strong> until maturity</div>
-                <div style="margin-bottom:3px;">• <strong>ROI is LIQUID</strong> earned hourly</div>
-                <div>• <strong>At Maturity:</strong> <span style="font-weight:1100;color:#4338ca;">${Math.floor(d.amounts.bman + calcROI(d.amounts.bman, d.roi_rate, d.plan.duration_years)).toLocaleString()} BMAN</span></div>
-              </div>
-            </div>
-          </div>
-
           <div style="border-top:1px solid #e7e7f3;padding-top:12px;margin-bottom:16px;">
             <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">Transaction Steps</h5>
             <div style="font-size:12px;">

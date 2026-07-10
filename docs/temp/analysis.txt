@@ -3215,3 +3215,8 @@ Display the deposit history on wallet page
 Display the instant history of staking purchase & reduce their wallet balance
 User selectable Coin Condition wise real swaping with bman distribution cron is completed
 Rank is on progress
+
+
+Ready for CRON every based on staking_swap_orders and now added the matured date also then cron is checked current date is matured date of ROI give the ROI return amount and realease the invesment amount
+Make the new table ROI manage with forigien key of staking_swap_orders
+staking_swap_orders -> ROI table onchain details, status -> ROI on onchain_transaction(history of wallet)
