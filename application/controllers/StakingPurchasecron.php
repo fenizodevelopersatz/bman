@@ -500,6 +500,7 @@ class StakingPurchasecron extends CI_Controller
 
     /**
      * Step 4: Detect BMAN to Exchange Wallet (always required in all options)
+     * ONLY credits wallet after on-chain confirmation with sufficient block confirmations
      */
     private function _detectAndDistributeBmanToExchange(&$order)
     {
@@ -509,8 +510,21 @@ class StakingPurchasecron extends CI_Controller
         $bman_contract = strtolower($config['bman_address'] ?? '');
         $api_key = $config['etherscan_api_key'] ?? '';
         $etherscan_url = $config['etherscan_url'] ?? 'https://api.bscscan.com';
+        $required_confirmations = 12; // Require 12 block confirmations before crediting
 
         try {
+            // Get current block number for confirmation check
+            $block_url = $etherscan_url . '/api?module=proxy&action=eth_blockNumber&apikey=' . $api_key;
+            $block_response = @file_get_contents($block_url);
+            $block_data = json_decode($block_response, true);
+            $current_block = hexdec($block_data['result'] ?? 0);
+
+            if ($current_block == 0) {
+                $msg = 'Cannot determine current block number for confirmation check';
+                $this->_recordFailureMessage($order['id'], 'bman_exchange', $msg);
+                return false;
+            }
+
             // Query Etherscan for BMAN transfers FROM admin TO user
             $url = $etherscan_url . '/api?module=account&action=tokentx&contractaddress=' . $bman_contract
                  . '&address=' . $admin_address . '&startblock=0&endblock=99999999&sort=desc&apikey=' . $api_key;
@@ -534,24 +548,35 @@ class StakingPurchasecron extends CI_Controller
                 $from = strtolower($tx['from'] ?? '');
                 $to = strtolower($tx['to'] ?? '');
                 $value = $tx['value'] ?? 0;
+                $tx_block = (int)($tx['blockNumber'] ?? 0);
+                $tx_hash = strtolower($tx['hash'] ?? '');
 
                 if ($from === $admin_address && $to === $user_address) {
-                    $tx_hash = strtolower($tx['hash'] ?? '');
+                    // Check if transaction has sufficient confirmations
+                    $confirmations = $current_block - $tx_block;
 
-                    // Record in onchain_transactions
+                    if ($confirmations < $required_confirmations) {
+                        $msg = "BMAN TX pending confirmations: $confirmations/$required_confirmations";
+                        $this->_recordFailureMessage($order['id'], 'bman_exchange', $msg);
+                        return false;
+                    }
+
+                    // Record in onchain_transactions with CONFIRMED status (not processing)
                     $this->db->insert('onchain_transactions', [
                         'tx_hash' => $tx_hash,
                         'from_address' => $from,
                         'to_address' => $to,
                         'amount' => $value,
                         'tx_type' => 'transfer',
-                        'status' => 'processing',
-                        'block_number' => $tx['blockNumber'] ?? 0,
+                        'status' => 'completed', // Only mark completed after confirmations
+                        'block_number' => $tx_block,
+                        'confirmations' => $confirmations,
                         'user_id' => $order['user_id'],
                         'created_at' => date('Y-m-d H:i:s'),
                     ]);
 
                     // Update order: set exchange TX hash, bman_exchange_cron_status=1, clear message
+                    // NOW ONLY CREDIT WALLET AFTER CONFIRMED ON-CHAIN
                     $this->db->where('id', $order['id'])->update('staking_swap_orders', [
                         'bman_exchange_tx_hash' => $tx_hash,
                         'bman_exchange_cron_status' => 1,
@@ -559,10 +584,10 @@ class StakingPurchasecron extends CI_Controller
                         'updated_at' => date('Y-m-d H:i:s'),
                     ]);
 
-                    // Distribute to exchange wallet (% based on option)
+                    // ONLY NOW distribute to exchange wallet after on-chain confirmation
                     $this->_updateWalletLedger($order, 'exchange');
 
-                    log_message('info', $this->log_prefix . ' BMAN to exchange wallet detected for order ' . $order['id'] . ': ' . $tx_hash);
+                    log_message('info', $this->log_prefix . ' BMAN to exchange wallet CONFIRMED for order ' . $order['id'] . ' (' . $confirmations . ' confirmations): ' . $tx_hash);
                     return true;
                 }
             }
