@@ -193,13 +193,27 @@ class Lendingcontroller extends CI_Controller
         list($ok, $res) = $this->SW->execute($userId, $packageId);
         if (!$ok) { echo json_encode(['status'=>false,'message'=>$res]); return; }
 
-        // Update swap order with ALL plan details
+        // Calculate ROI rate from staking_packages
+        $roiRate = 0;
+        if ($packageId) {
+            $pkg = $this->db->get_where('staking_packages', ['id' => $packageId])->row_array();
+            if ($pkg) {
+                $roiData = json_decode($pkg['roi'] ?? '{}', true);
+                $roiKey = $planCode . '_' . $durationYears;
+                if (!empty($roiData[$roiKey]['roi_percent'])) {
+                    $roiRate = (float)$roiData[$roiKey]['roi_percent'];
+                }
+            }
+        }
+
+        // Update swap order with ALL plan details + ROI rate
         if (!empty($res['id'])) {
             $updateOk = $this->db->where('id', $res['id'])->update('staking_swap_orders', [
                 'package_id' => $packageId,
                 'plan_code' => $planCode,
                 'plan_id' => $planId,
                 'duration_years' => $durationYears,
+                'roi_rate' => $roiRate,
                 'coin_distribution_option' => $coinDistOptionId,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
@@ -734,20 +748,8 @@ class Lendingcontroller extends CI_Controller
 
         if (!$o) { echo json_encode(['status'=>false,'message'=>'Order not found']); return; }
 
-        // Get ROI rate from staking_packages
-        $roiRate = 0;
-        if (!empty($o['package_id'])) {
-            $pkg = $this->db->select('roi')->get_where('staking_packages', ['id'=>$o['package_id']])->row_array();
-            if ($pkg && !empty($pkg['roi'])) {
-                $roi = json_decode($pkg['roi'], true);
-                $planCode = $o['plan_code'] ?? 'fixed';
-                $duration = (int)$o['duration_years'] ?? 1;
-                $roiKey = $planCode.'_'.$duration;
-                if (!empty($roi[$roiKey])) {
-                    $roiRate = (float)($roi[$roiKey]['roi_percent'] ?? 0);
-                }
-            }
-        }
+        // Get ROI rate from stored value in staking_swap_orders
+        $roiRate = (float)($o['roi_rate'] ?? 0);
 
         // Get explorer URL from config
         $ts = $this->db->select('explorer_url')->get_where('token_settings',['status'=>1])->row_array();
