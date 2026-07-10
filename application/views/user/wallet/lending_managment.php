@@ -1630,7 +1630,7 @@ $hero_progress = 48;
             <div style="background:linear-gradient(135deg,rgba(34,197,94,.05),rgba(99,102,241,.05));border:1px solid #e7e7f3;border-radius:12px;padding:16px;margin-bottom:16px;">
               <div style="font-size:12px;font-weight:900;color:#15803d;margin-bottom:12px;text-transform:uppercase;">📈 ROI EARNING PROGRESS</div>
 
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
                 <div style="background:#fff;border:1px solid #e7e7f3;border-radius:10px;padding:12px;text-align:center;">
                   <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:4px;">DAYS STAKING</div>
                   <div style="font-size:22px;font-weight:1100;color:#22c55e;">${daysSince}</div>
@@ -1640,6 +1640,11 @@ $hero_progress = 48;
                   <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:4px;">DAILY ROI</div>
                   <div style="font-size:22px;font-weight:1100;color:#667eea;">${(d.amounts.bman * d.roi_rate / 100 / 365).toFixed(2)}</div>
                   <div style="font-size:9px;color:#999;">BMAN/day</div>
+                </div>
+                <div style="background:linear-gradient(135deg,rgba(99,102,241,.1),rgba(67,56,202,.1));border:2px solid #4338ca;border-radius:10px;padding:12px;text-align:center;">
+                  <div style="font-size:10px;color:#4338ca;font-weight:900;margin-bottom:4px;">ROI RATE</div>
+                  <div style="font-size:28px;font-weight:1200;color:#4338ca;">${d.roi_rate}%</div>
+                  <div style="font-size:9px;color:#4338ca;">Total Rate</div>
                 </div>
               </div>
 
