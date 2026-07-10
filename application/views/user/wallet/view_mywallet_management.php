@@ -1267,7 +1267,7 @@ function wallet_title_fallback($type)
           <div class="wico" style="background:<?= $m[2] ?>1a;color:<?= $m[2] ?>;"><i class="ph <?= $m[1] ?>"></i></div>
           <div>
             <div class="wlbl"><?= $m[0] ?></div>
-            <div class="wval"><?= number_format((float) ($wallet_bman[$k] ?? 0)) ?> <small>BMAN</small></div>
+            <div class="wval"><?= rtrim(rtrim(number_format((float) ($wallet_bman[$k] ?? 0), 4), '0'), '.') ?: '0' ?> <small>BMAN</small></div>
           </div>
         </div>
         <?php endforeach; ?>
