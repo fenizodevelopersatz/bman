@@ -719,10 +719,8 @@ class Lendingcontroller extends CI_Controller
         $orders = $this->db->select('
             id, ref, status, usdt_amount, bman_amount, bonus_bman,
             coin_distribution_option, created_at, updated_at,
-            gas_tx_hash, usdt_tx_hash, bonus_tx_hash,
-            bman_exchange_tx_hash, bman_earning_tx_hash, bman_staking_tx_hash, bman_bonus_tx_hash,
-            gas_cron_status, usdt_cron_status, bonus_cron_status,
-            bman_exchange_cron_status, bman_earning_cron_status, bman_staking_cron_status, bman_bonus_cron_status,
+            gas_tx_hash, usdt_tx_hash, bonus_tx_hash, bman_tx_hash,
+            gas_cron_status, usdt_cron_status, bonus_cron_status, bman_cron_status,
             error, package_id, plan_code, duration_years
         ')
         ->where('user_id', (int)$user_id)
@@ -753,17 +751,11 @@ class Lendingcontroller extends CI_Controller
                 'gas_tx_hash' => $o['gas_tx_hash'],
                 'usdt_tx_hash' => $o['usdt_tx_hash'],
                 'bonus_tx_hash' => $o['bonus_tx_hash'],
-                'bman_exchange_tx_hash' => $o['bman_exchange_tx_hash'],
-                'bman_earning_tx_hash' => $o['bman_earning_tx_hash'],
-                'bman_staking_tx_hash' => $o['bman_staking_tx_hash'],
-                'bman_bonus_tx_hash' => $o['bman_bonus_tx_hash'],
+                'bman_tx_hash' => $o['bman_tx_hash'],
                 'gas_cron_status' => $o['gas_cron_status'],
                 'usdt_cron_status' => $o['usdt_cron_status'],
                 'bonus_cron_status' => $o['bonus_cron_status'],
-                'bman_exchange_cron_status' => $o['bman_exchange_cron_status'],
-                'bman_earning_cron_status' => $o['bman_earning_cron_status'],
-                'bman_staking_cron_status' => $o['bman_staking_cron_status'],
-                'bman_bonus_cron_status' => $o['bman_bonus_cron_status'],
+                'bman_cron_status' => $o['bman_cron_status'],
                 'error' => $o['error'],
             ];
         }
@@ -803,6 +795,28 @@ class Lendingcontroller extends CI_Controller
         $roiRate = (float)($roiData['roi_rate_percent'] ?? 0);
         $maturityDate = $roiData['fixed_maturity_date'] ?? null;
 
+        // Distribution lives ONLY in wallet_ledger now (one custodial address, internal
+        // split). Derive per-wallet credited amounts + tx for this order from the ledger.
+        $dist = [
+            'exchange' => ['amount' => 0.0, 'tx' => null], 'earning' => ['amount' => 0.0, 'tx' => null],
+            'staking'  => ['amount' => 0.0, 'tx' => null], 'bonus'   => ['amount' => 0.0, 'tx' => null],
+        ];
+        $ledgerRows = $this->db->select('wallet_type, credit, tx_hash')
+            ->where('reference_id', $o['ref'])
+            ->where('reference_type', 'stake_purchase')
+            ->get('wallet_ledger')->result_array();
+        foreach ($ledgerRows as $lr) {
+            $w = $lr['wallet_type'];
+            if (isset($dist[$w])) {
+                $dist[$w]['amount'] += (float)$lr['credit'];
+                if (!empty($lr['tx_hash'])) $dist[$w]['tx'] = $lr['tx_hash'];
+            }
+        }
+        // The BMAN principal is one on-chain transfer; the 4-wallet split is internal,
+        // so every wallet slice shares bman_tx_hash and the single bman_cron_status.
+        $bmanDone = (int)($o['bman_cron_status'] ?? 0) === 1;
+        $bmanTx   = $o['bman_tx_hash'] ?? null;
+
         // Get explorer URL from config
         $ts = $this->db->select('explorer_url')->get_where('token_settings',['status'=>1])->row_array();
         $explorer = rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
@@ -835,9 +849,9 @@ class Lendingcontroller extends CI_Controller
                 ],
                 'distribution' => [
                     'option' => (int)$o['coin_distribution_option'],
-                    'exchange_bman' => (float)($o['bman_exchange_amount'] ?? 0),
-                    'earning_bman' => (float)($o['bman_earning_amount'] ?? 0),
-                    'staking_bman' => (float)($o['bman_staking_amount'] ?? 0),
+                    'exchange_bman' => $dist['exchange']['amount'],
+                    'earning_bman' => $dist['earning']['amount'],
+                    'staking_bman' => $dist['staking']['amount'],
                     'bonus_bman' => (float)$o['bonus_bman'],
                 ],
                 'plan' => [
@@ -872,10 +886,11 @@ class Lendingcontroller extends CI_Controller
                     'gas' => (int)$o['gas_cron_status'],
                     'usdt' => (int)$o['usdt_cron_status'],
                     'bonus' => (int)$o['bonus_cron_status'],
-                    'bman_exchange' => (int)$o['bman_exchange_cron_status'],
-                    'bman_earning' => (int)$o['bman_earning_cron_status'],
-                    'bman_staking' => (int)$o['bman_staking_cron_status'],
-                    'bman_bonus' => (int)$o['bman_bonus_cron_status'],
+                    // 4-wallet split is one internal step now → all track bman_cron_status
+                    'bman_exchange' => (int)$bmanDone,
+                    'bman_earning' => (int)$bmanDone,
+                    'bman_staking' => (int)$bmanDone,
+                    'bman_bonus' => (int)$bmanDone,
                 ],
                 'transactions' => [
                     'gas' => [
@@ -893,30 +908,26 @@ class Lendingcontroller extends CI_Controller
                         'status' => $o['bonus_cron_status'] == 1 ? 'confirmed' : 'pending',
                         'explorer' => !empty($o['bonus_tx_hash']) && strlen($o['bonus_tx_hash']) > 20 ? $explorer.'/tx/'.$o['bonus_tx_hash'] : null,
                     ],
-                    'bman_exchange' => [
-                        'tx_hash' => $o['bman_exchange_tx_hash'],
-                        'status' => $o['bman_exchange_cron_status'] == 1 ? 'confirmed' : 'pending',
-                        'explorer' => !empty($o['bman_exchange_tx_hash']) && strlen($o['bman_exchange_tx_hash']) > 20 ? $explorer.'/tx/'.$o['bman_exchange_tx_hash'] : null,
-                    ],
-                    'bman_earning' => [
-                        'tx_hash' => $o['bman_earning_tx_hash'],
-                        'status' => $o['bman_earning_cron_status'] == 1 ? 'confirmed' : 'pending',
-                        'explorer' => !empty($o['bman_earning_tx_hash']) && strlen($o['bman_earning_tx_hash']) > 20 ? $explorer.'/tx/'.$o['bman_earning_tx_hash'] : null,
-                    ],
-                    'bman_staking' => [
-                        'tx_hash' => $o['bman_staking_tx_hash'],
-                        'status' => $o['bman_staking_cron_status'] == 1 ? 'confirmed' : 'pending',
-                        'explorer' => !empty($o['bman_staking_tx_hash']) && strlen($o['bman_staking_tx_hash']) > 20 ? $explorer.'/tx/'.$o['bman_staking_tx_hash'] : null,
-                    ],
-                    'bman_bonus' => [
-                        'tx_hash' => $o['bman_bonus_tx_hash'],
-                        'status' => $o['bman_bonus_cron_status'] == 1 ? 'confirmed' : 'pending',
-                        'explorer' => !empty($o['bman_bonus_tx_hash']) && strlen($o['bman_bonus_tx_hash']) > 20 ? $explorer.'/tx/'.$o['bman_bonus_tx_hash'] : null,
-                    ],
+                    // Per-wallet slices all reference the single principal BMAN transfer
+                    // (bman_tx_hash); amounts come from wallet_ledger ($dist above).
+                    'bman_exchange' => $this->_swapTxCell($dist['exchange']['tx'] ?: $bmanTx, $bmanDone, $explorer),
+                    'bman_earning'  => $this->_swapTxCell($dist['earning']['tx'] ?: $bmanTx, $bmanDone, $explorer),
+                    'bman_staking'  => $this->_swapTxCell($dist['staking']['tx'] ?: $bmanTx, $bmanDone, $explorer),
+                    'bman_bonus'    => $this->_swapTxCell($dist['bonus']['tx'] ?: $bmanTx, $bmanDone, $explorer),
                 ],
                 'error' => $o['error'],
             ],
         ]);
+    }
+
+    /** Build a {tx_hash,status,explorer} cell for a swap transaction step. */
+    private function _swapTxCell($hash, $confirmed, $explorer)
+    {
+        return [
+            'tx_hash'  => $hash,
+            'status'   => $confirmed ? 'confirmed' : 'pending',
+            'explorer' => (!empty($hash) && strlen($hash) > 20) ? $explorer.'/tx/'.$hash : null,
+        ];
     }
 
     /**
