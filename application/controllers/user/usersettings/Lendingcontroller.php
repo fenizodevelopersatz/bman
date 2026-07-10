@@ -209,7 +209,11 @@ class Lendingcontroller extends CI_Controller
         // Calculate maturity date
         $maturityDate = date('Y-m-d H:i:s', strtotime("+{$durationYears} years", strtotime($res['created_at'] ?? 'now')));
 
-        // Update swap order with ALL plan details + ROI rate + maturity date
+        // Calculate total ROI amount at maturity: Principal × (ROI% / 100)
+        $bmanAmount = (float)$res['bman_amount'];
+        $maturityRoiAmount = $bmanAmount * ($roiRate / 100);
+
+        // Update swap order with ALL plan details + ROI rate + maturity date + maturity ROI amount
         if (!empty($res['id'])) {
             $updateOk = $this->db->where('id', $res['id'])->update('staking_swap_orders', [
                 'package_id' => $packageId,
@@ -219,6 +223,7 @@ class Lendingcontroller extends CI_Controller
                 'roi_rate' => $roiRate,
                 'maturity_date' => $maturityDate,
                 'roi_return_status' => 'pending',
+                'maturity_roi_amount' => $maturityRoiAmount,
                 'coin_distribution_option' => $coinDistOptionId,
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
@@ -232,6 +237,7 @@ class Lendingcontroller extends CI_Controller
                 'bonus_amount' => (float)$res['bonus_bman'],
                 'duration_years' => $durationYears,
                 'roi_rate_percent' => $roiRate,
+                'maturity_roi_amount' => $maturityRoiAmount,
                 'created_at' => $res['created_at'],
                 'maturity_date' => $maturityDate,
             ]);
@@ -811,6 +817,7 @@ class Lendingcontroller extends CI_Controller
                 'roi_rate' => (float)$roiRate,
                 'maturity_date' => $o['maturity_date'] ?? null,
                 'roi_return_status' => $o['roi_return_status'] ?? 'pending',
+                'maturity_roi_amount' => (float)($o['maturity_roi_amount'] ?? 0),
                 'cron_status' => [
                     'gas' => (int)$o['gas_cron_status'],
                     'usdt' => (int)$o['usdt_cron_status'],

@@ -1696,8 +1696,13 @@ $hero_progress = 48;
         html += `
               </div>
 
-              <!-- Maturity Date & ROI Status Section -->
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;padding-top:16px;border-top:2px solid #e7e7f3;">
+              <!-- Maturity Date & ROI Status & Maturity Amount Section -->
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:16px;padding-top:16px;border-top:2px solid #e7e7f3;">
+                <div style="background:#fff;border:1px solid #e7e7f3;border-radius:10px;padding:12px;">
+                  <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:6px;text-transform:uppercase;">💰 Maturity ROI Amount</div>
+                  <div style="font-size:14px;font-weight:1100;color:#22c55e;">${d.maturity_roi_amount ? parseFloat(d.maturity_roi_amount).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 8}) : '0.00'} BMAN</div>
+                  <div style="font-size:9px;color:#999;margin-top:4px;">Total ROI at maturity</div>
+                </div>
                 <div style="background:#fff;border:1px solid #e7e7f3;border-radius:10px;padding:12px;">
                   <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:6px;text-transform:uppercase;">📅 Maturity Date</div>
                   <div style="font-size:14px;font-weight:1100;color:#111827;">${d.maturity_date ? new Date(d.maturity_date).toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'}) : 'N/A'}</div>
