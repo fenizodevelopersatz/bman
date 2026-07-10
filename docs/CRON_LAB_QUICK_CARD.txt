@@ -1,0 +1,91 @@
+================================================================================
+                    CRON LAB - ROI MATURITY SETUP
+================================================================================
+
+COPY-PASTE THIS INTO CRON LAB:
+
+CRON NAME:     ROI Maturity Process
+ENDPOINT URL:  http://192.168.29.185:8000/cron/roi_maturity/process
+SCHEDULE:      0 * * * * (Every hour)
+TIMEOUT:       300 seconds
+FORMAT:        JSON
+
+================================================================================
+
+WHAT IT DOES:
+- Checks for staking orders that have reached maturity date
+- Calculates remaining ROI to be distributed
+- Credits BMAN to user's earning wallet
+- Records transaction for audit trail
+- Updates status to completed
+
+================================================================================
+
+EXPECTED RESPONSE:
+{
+  "status": true,
+  "message": "ROI maturity processing completed",
+  "stats": {
+    "found": X,
+    "processed": Y,
+    "failed": Z
+  }
+}
+
+================================================================================
+
+OPTIONAL - HEALTH CHECK:
+
+CRON NAME:     ROI Maturity Test
+ENDPOINT URL:  http://192.168.29.185:8000/cron/roi_maturity/test
+SCHEDULE:      */5 * * * * (Every 5 minutes)
+PURPOSE:       Verify system is operational
+
+================================================================================
+
+ALTERNATIVE URLS (if routed URL doesn't work):
+
+Process:  http://192.168.29.185:8000/roi_maturity_test.php?action=process&format=json
+Test:     http://192.168.29.185:8000/roi_maturity_test.php?action=test&format=json
+
+================================================================================
+
+TROUBLESHOOTING:
+
+✗ 404 Not Found
+  → Check URL domain/port (192.168.29.185:8000)
+  → Use the routed URL: /cron/roi_maturity/process
+
+✗ Database Connection Error
+  → Verify MySQL is running
+  → Check credentials in roi_maturity_test.php
+
+✗ No Orders Processing
+  → Normal if no staking orders have matured yet
+  → Will process automatically when maturity_date <= NOW()
+
+✗ Want to Test Immediately?
+  → Update staking_swap_orders maturity_date to past date:
+     UPDATE staking_swap_orders SET maturity_date = '2025-01-01' WHERE id = 1;
+
+================================================================================
+
+STATUS: ✅ READY FOR DEPLOYMENT
+
+Routes Configured:
+  ✓ /cron/roi_maturity/process
+  ✓ /cron/roi_maturity/test
+  ✓ /roi-maturity-process
+  ✓ /roi-maturity-test
+
+Database Ready:
+  ✓ roi_distribution table created
+  ✓ maturity_date column added
+  ✓ roi_return_status column added
+
+CRON Controller:
+  ✓ RoiMaturityCron.php implemented
+  ✓ JSON responses enabled
+  ✓ Error handling in place
+
+================================================================================
