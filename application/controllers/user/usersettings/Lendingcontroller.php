@@ -799,6 +799,8 @@ class Lendingcontroller extends CI_Controller
                     'package_id' => (int)$o['package_id'],
                 ],
                 'roi_rate' => (float)$roiRate,
+                'maturity_date' => $o['maturity_date'] ?? null,
+                'roi_return_status' => $o['roi_return_status'] ?? 'pending',
                 'cron_status' => [
                     'gas' => (int)$o['gas_cron_status'],
                     'usdt' => (int)$o['usdt_cron_status'],
