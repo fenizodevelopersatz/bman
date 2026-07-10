@@ -197,66 +197,30 @@ class Swapengine_model extends CI_Model
     }
 
     /**
-     * Resume a parked order (failed_gas / failed_usdt / failed_credit). Idempotent:
-     * re-sends USDT only if it never settled (usdt_tx_hash empty) and credits the
-     * wallets only if not already credited for this ref. Returns [ok, message].
+     * Admin "Retry" for a parked order. By design this NEVER credits balances and
+     * NEVER settles funds directly — StakingPurchasecron is the sole authority that
+     * broadcasts on-chain legs and credits wallets (only after confirmations).
+     * Retry simply clears the per-step error messages so the cron re-broadcasts any
+     * missing transaction on its next run. Returns [ok, message].
      */
     public function resume($orderId)
     {
         $o = $this->order($orderId);
         if (!$o) return [false, 'Order not found.'];
-        if ($o['status'] === 'completed') return [false, 'Order is already completed.'];
-
-        $cfg = $this->config();
-        if (!$cfg) return [false, 'Token settings not configured.'];
-        $dryRun    = (int)($cfg['swap_dry_run'] ?? 1) === 1;
-        $uid       = (int)$o['user_id'];
-        $usdt      = (float)$o['usdt_amount'];
-        $bman      = (float)$o['bman_amount'];
-        $bonus     = (float)$o['bonus_bman'];
-        $userAddr  = $o['user_address'];
-        $adminAddr = $o['admin_address'];
-        $ref       = $o['ref'];
-        $usdtC     = $cfg['usdt_contract'] ?? '';
-
-        $this->load->model('Walletledger_model', 'L');
-        $this->_set($orderId, ['attempts' => (int)$o['attempts'] + 1, 'error' => null]);
-
-        // (1) settle USDT on-chain if it never did
-        if (empty($o['usdt_tx_hash'])) {
-            $uw = $this->userWallet($uid);
-            if (!$uw) return [false, 'User deposit wallet missing.'];
-            list($gasOk, $gasMsg, $gasTx) = $this->_ensureGas($userAddr, $dryRun, $cfg);
-            if ($gasTx) $this->_set($orderId, ['gas_tx_hash' => $gasTx]);
-            if (!$gasOk) { $this->_set($orderId, ['status' => 'failed_gas', 'error' => substr($gasMsg,0,255)]); return [false, 'Gas: '.$gasMsg]; }
-            try {
-                $usdtTx = $dryRun ? 'DRYRUN-usdt-'.$ref
-                    : $this->web3bman->sendToken($this->web3bman->decryptKey($uw['private_key']), $adminAddr, (string)$usdt, $usdtC)['tx_hash'];
-                $this->_set($orderId, ['usdt_tx_hash' => $usdtTx, 'status' => 'usdt_sent']);
-            } catch (Exception $e) {
-                $this->_set($orderId, ['status' => 'failed_usdt', 'error' => substr($e->getMessage(),0,255)]);
-                return [false, 'USDT settlement failed: '.$e->getMessage()];
-            }
+        if (in_array($o['status'], ['swap_completed', 'completed'], true)) {
+            return [false, 'Order is already completed.'];
         }
 
-        // (2) credit the wallets once (idempotent guard on ref)
-        $already = $this->db->where(['reference_id' => $ref, 'reference_type' => 'swap', 'user_id' => $uid])
-                            ->count_all_results('wallet_ledger');
-        if (!$already) {
-            $this->db->trans_begin();
-            $this->L->debit($uid, 'usdt', $usdt, 'swap', ['reference_id'=>$ref,'description'=>'Swap USDT ['.$ref.'] (resume)']);
-            $this->L->credit($uid, 'exchange', $bman, 'swap', ['reference_id'=>$ref,'description'=>'Swap '.$bman.' BMAN → Exchange ['.$ref.'] (resume)']);
-            if ($bonus > 0) $this->L->credit($uid, 'bonus', $bonus, 'swap_bonus', ['reference_id'=>$ref,'description'=>'Swap 25% bonus ['.$ref.'] (resume)']);
-            if ($this->db->trans_status() === false) {
-                $this->db->trans_rollback();
-                $this->_set($orderId, ['status' => 'failed_credit', 'error' => 'ledger error on resume']);
-                return [false, 'Crediting failed on resume.'];
-            }
-            $this->db->trans_commit();
-        }
+        $this->_set($orderId, [
+            'attempts' => (int)($o['attempts'] ?? 0) + 1,
+            'error'    => null,
+            'gas_cron_status_message'   => null,
+            'usdt_cron_status_message'  => null,
+            'bonus_cron_status_message' => null,
+            'bman_cron_status_message'  => null,
+        ]);
 
-        $this->_set($orderId, ['status' => 'completed']);
-        return [true, 'Order '.$ref.' completed.'];
+        return [true, 'Order '.$o['ref'].' re-queued — the staking purchase cron will rebroadcast any missing on-chain transactions on its next run.'];
     }
 
     /**

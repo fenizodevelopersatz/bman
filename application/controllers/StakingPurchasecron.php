@@ -2,38 +2,32 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * StakingPurchasecron — automatic USDT ↔ BMAN staking purchase processing.
+ * StakingPurchasecron — FULL AUTO-BROADCASTER for USDT ↔ BMAN staking purchases.
  *
- * The ONLY on-chain movements are:
- *   USDT  user  ── on-chain ─▶ admin   (the buyer pays)
- *   BMAN  admin ── on-chain ─▶ user    (principal + optional 25% bonus)
- * Everything else (splitting BMAN into exchange/earning/staking/bonus) is an
- * INTERNAL ledger operation on the one custodial address — no extra chain tx.
+ * 100% on-chain, no manual transfers. Per order the cron both BROADCASTS and
+ * VERIFIES four legs, in strict sequence, using the treasury + user custodial keys:
  *
- * 4 independent cron steps (each: 0 = pending, 1 = completed):
- *   1. gas_cron_status   — Gas fee BNB  admin → user (so the user can pay USDT gas)
- *   2. usdt_cron_status  — USDT payment user → admin        [on-chain]
- *   3. bonus_cron_status — 25% bonus BMAN admin → user      [on-chain] → credit bonus wallet
- *   4. bman_cron_status  — principal BMAN admin → user      [on-chain]
- *                          then split INTERNALLY per coin_distribution_option into
- *                          exchange / earning / staking / bonus wallets.
+ *   1. gas   : treasury → user   (BNB)   — calc required gas, fund the user wallet
+ *   2. usdt  : user → admin      (USDT)  — signed with the user's custodial key
+ *   3. bman  : treasury → user   (BMAN)  — principal, then INTERNAL split per option
+ *   4. bonus : treasury → user   (BMAN)  — 25% bonus → bonus wallet
  *
- * Coin distribution options (1-7) — INTERNAL split of the principal only:
- *   1: 100% exchange
- *   2:  90% exchange, 10% bonus
- *   3:  80% exchange, 10% earning, 10% bonus
- *   4:  80% exchange, 10% earning, 10% staking
- *   5:  90% exchange, 10% earning
- *   6:  90% exchange, 10% staking
- *   7:  70% exchange, 10% earning, 10% staking, 10% bonus
+ * Each leg: if not yet sent → broadcast + store its tx_hash; else → verify that
+ * hash has `minimum_confirmations` blocks (and did not revert), then mark the step
+ * done and (for bman/bonus) credit user_wallets via Walletledger_model. Legs are
+ * gated: usdt waits gas=1; bman + bonus wait usdt=1. So an order settles over a few
+ * runs (one confirmation window per leg).
  *
- * Sequencing: usdt waits for gas=1; bonus + bman wait for usdt=1. Each step only
- * completes after `minimum_confirmations` on-chain confirmations. Wallet credits
- * go through Walletledger_model (idempotent on tx_hash+wallet_type) so re-running
- * the cron never double-credits. Failure detail is stored per step in
- * *_cron_status_message for the Cron Lab UI.
+ * SAFETY: token_settings.swap_dry_run = 1 simulates everything (DRYRUN-* hashes,
+ * instant "confirmation") and still credits internally — so the whole flow can be
+ * exercised without moving real funds. Real broadcasts happen ONLY when
+ * swap_dry_run = 0 and swap_enabled = 1.
  *
- * Run it hourly:
+ * Crediting authority: this cron is the ONLY place balances are credited, and ONLY
+ * after on-chain confirmation. Admin "Retry" must never credit — it only clears the
+ * error so this cron re-broadcasts the missing leg.
+ *
+ * Run it every minute (BSC ~3s blocks):
  *   CLI  :  php index.php stakingpurchasecron run
  *   HTTP :  /staking-purchase-cron?token=YOUR_CRON_TOKEN
  */
@@ -44,7 +38,6 @@ class StakingPurchasecron extends CI_Controller
 
     public function run()
     {
-        // CLI always allowed; over HTTP require the cron token
         if (!is_cli()) {
             $expected = $this->config->item('cron_token');
             if (!$expected || $this->input->get('token', true) !== $expected) {
@@ -53,11 +46,14 @@ class StakingPurchasecron extends CI_Controller
         }
 
         $this->load->model('Walletledger_model', 'L');
+        $this->load->model('Tokenmaster_model', 'tokens');
+        $this->load->library('web3bman');
 
         try {
             $result = [
                 'status'  => 'success',
                 'message' => 'Staking purchase cron completed',
+                'mode'    => $this->_isDryRun() ? 'DRY_RUN' : 'LIVE',
                 'details' => ['steps' => $this->_processAllPendingSteps()],
                 'ran_at'  => date('Y-m-d H:i:s'),
             ];
@@ -69,12 +65,8 @@ class StakingPurchasecron extends CI_Controller
         echo json_encode($result) . PHP_EOL;
     }
 
-    /* =====================================================================
-     * Chain / explorer helpers — same token_settings columns + Etherscan-V2
-     * (multichain) format as the proven Depositlistener_model.
-     * ===================================================================== */
+    /* ============================ config / chain ============================ */
 
-    /** Active chain/token settings (cached for the run). */
     private function _cfg()
     {
         if ($this->_cfg_cache === null) {
@@ -83,7 +75,19 @@ class StakingPurchasecron extends CI_Controller
         return $this->_cfg_cache;
     }
 
-    /** Build an Etherscan-V2 explorer API URL (multichain → needs chainid). */
+    private function _isDryRun() { return (int)($this->_cfg()['swap_dry_run'] ?? 1) === 1; }
+    private function _isEnabled() { return (int)($this->_cfg()['swap_enabled'] ?? 0) === 1; }
+    private function _minConfirmations() { $n = (int)($this->_cfg()['minimum_confirmations'] ?? 0); return $n > 0 ? $n : 12; }
+
+    /** BNB needed for one BEP-20 transfer (gas_limit × gas_price gwei × 1.5 buffer). */
+    private function _gasNeededBnb()
+    {
+        $cfg = $this->_cfg();
+        $gasLimit = (float)($cfg['gas_limit'] ?: 210000);
+        $gwei     = (float)($cfg['gas_price'] ?: 5);
+        return $gasLimit * $gwei * 1e-9 * 1.5;
+    }
+
     private function _apiUrl(array $params)
     {
         $cfg = $this->_cfg();
@@ -95,7 +99,6 @@ class StakingPurchasecron extends CI_Controller
         return $api . '?' . http_build_query($params);
     }
 
-    /** GET JSON from the explorer API via cURL. Returns decoded array or null. */
     private function _apiGet(array $params, $timeout = 25)
     {
         $ch = curl_init($this->_apiUrl($params));
@@ -105,7 +108,6 @@ class StakingPurchasecron extends CI_Controller
         return json_decode((string)$raw, true);
     }
 
-    /** Current chain head — RPC first (fast/reliable), else explorer proxy. 0 on failure. */
     private function _currentBlock()
     {
         $cfg = $this->_cfg();
@@ -127,42 +129,73 @@ class StakingPurchasecron extends CI_Controller
         return 0;
     }
 
-    /** Confirmations required before crediting (token_settings.minimum_confirmations, default 12). */
-    private function _minConfirmations()
+    /**
+     * Confirmations of a specific tx hash:
+     *   >= 0  confirmations (0 = pending / not yet mined)
+     *   -1    reverted / failed on-chain
+     * DRYRUN hashes are treated as fully confirmed.
+     */
+    private function _txConfirmations($hash, $head)
     {
-        $n = (int)($this->_cfg()['minimum_confirmations'] ?? 0);
-        return $n > 0 ? $n : 12;
+        if (empty($hash)) return 0;
+        if (strpos($hash, 'DRYRUN') === 0) return $this->_minConfirmations();
+
+        $tx = $this->_apiGet(['module' => 'proxy', 'action' => 'eth_getTransactionByHash', 'txhash' => $hash]);
+        $blk = $tx['result']['blockNumber'] ?? null;
+        if (empty($blk)) return 0; // pending / unknown
+
+        $rc = $this->_apiGet(['module' => 'proxy', 'action' => 'eth_getTransactionReceipt', 'txhash' => $hash]);
+        $st = $rc['result']['status'] ?? null;
+        if ($st !== null && hexdec($st) === 0) return -1; // reverted
+
+        return max(0, $head - (int)hexdec($blk));
     }
 
-    /* =====================================================================
-     * Order processing
-     * ===================================================================== */
+    /* ============================= keys ============================= */
 
-    /** Pending orders = any of the 4 cron steps still 0. Excludes fully-settled. */
+    private function _treasuryKey()
+    {
+        return $this->tokens->treasuryPrivateKey();
+    }
+
+    private function _userKey($order)
+    {
+        $w = $this->db->select('private_key')->where('user_id', (int)$order['user_id'])
+                      ->get('user_wallet')->row_array();
+        if (empty($w['private_key'])) return null;
+        try { return $this->web3bman->decryptKey($w['private_key']); }
+        catch (Exception $e) { return null; }
+    }
+
+    /* ============================ order loop ============================ */
+
     private function _getPendingOrders()
     {
         return $this->db->select(
-                'id, ref, user_id, package_id, user_address, admin_address, status, ' .
+                'id, ref, user_id, package_id, plan_id, plan_code, duration_years, ' .
+                'user_address, admin_address, status, ' .
                 'usdt_amount, bman_amount, bonus_bman, coin_distribution_option, ' .
                 'gas_cron_status, usdt_cron_status, bonus_cron_status, bman_cron_status, ' .
                 'gas_tx_hash, usdt_tx_hash, bonus_tx_hash, bman_tx_hash'
             )
             ->group_start()
-                ->where('gas_cron_status', 0)
-                ->or_where('usdt_cron_status', 0)
-                ->or_where('bonus_cron_status', 0)
-                ->or_where('bman_cron_status', 0)
+                ->where('gas_cron_status', 0)->or_where('usdt_cron_status', 0)
+                ->or_where('bonus_cron_status', 0)->or_where('bman_cron_status', 0)
             ->group_end()
             ->where('status !=', 'cancelled')
-            ->order_by('id', 'ASC')
-            ->limit(50)
-            ->get('staking_swap_orders')
-            ->result_array();
+            ->order_by('id', 'ASC')->limit(50)
+            ->get('staking_swap_orders')->result_array();
     }
 
     private function _processAllPendingSteps()
     {
+        // Broadcasting requires the swap to be enabled (unless simulating).
+        if (!$this->_isEnabled() && !$this->_isDryRun()) {
+            return ['skipped' => 'swap_enabled = 0'];
+        }
+
         $orders  = $this->_getPendingOrders();
+        $head    = $this->_currentBlock();
         $summary = [
             'total_orders' => count($orders),
             'gas'   => ['processed' => 0, 'failed' => 0],
@@ -170,256 +203,219 @@ class StakingPurchasecron extends CI_Controller
             'bonus' => ['processed' => 0, 'failed' => 0],
             'bman'  => ['processed' => 0, 'failed' => 0],
         ];
+        if ($head === 0 && !$this->_isDryRun()) {
+            return array_merge($summary, ['error' => 'cannot read current block height']);
+        }
 
         foreach ($orders as $order) {
-            try {
-                $this->_processOrderSteps($order, $summary);
-            } catch (Exception $e) {
-                log_message('error', $this->log_prefix . ' order ' . $order['id'] . ': ' . $e->getMessage());
-            }
+            try { $this->_processOrder($order, $head, $summary); }
+            catch (Exception $e) { log_message('error', $this->log_prefix . ' order ' . $order['id'] . ': ' . $e->getMessage()); }
         }
         return $summary;
     }
 
-    /** One order through the 4 sequential steps. In-memory state advances so a
-     *  single run can carry an order from gas → usdt → bonus → bman. */
-    private function _processOrderSteps(&$order, &$summary)
+    private function _processOrder(&$order, $head, &$summary)
     {
-        // 1) Gas fee (BNB admin → user)
         if ((int)$order['gas_cron_status'] === 0) {
-            $this->_detectGasFee($order) ? $summary['gas']['processed']++ : $summary['gas']['failed']++;
+            $this->_stepGas($order, $head) ? $summary['gas']['processed']++ : $summary['gas']['failed']++;
         }
-
-        // 2) USDT payment (user → admin) — needs gas first
         if ((int)$order['usdt_cron_status'] === 0) {
-            $this->_detectUsdtPayment($order) ? $summary['usdt']['processed']++ : $summary['usdt']['failed']++;
+            $this->_stepUsdt($order, $head) ? $summary['usdt']['processed']++ : $summary['usdt']['failed']++;
         }
-
-        // 3) 25% bonus BMAN (admin → user) — credit bonus wallet. Needs USDT first.
         if ((int)$order['bonus_cron_status'] === 0) {
-            $this->_detectBonusBman($order) ? $summary['bonus']['processed']++ : $summary['bonus']['failed']++;
+            $this->_stepBonus($order, $head) ? $summary['bonus']['processed']++ : $summary['bonus']['failed']++;
         }
-
-        // 4) Principal BMAN (admin → user) → split internally per option. Needs USDT first.
         if ((int)$order['bman_cron_status'] === 0) {
-            $this->_detectAndDistributeBman($order) ? $summary['bman']['processed']++ : $summary['bman']['failed']++;
+            $this->_stepBman($order, $head) ? $summary['bman']['processed']++ : $summary['bman']['failed']++;
         }
-
         $this->_checkAndCompleteOrder($order);
     }
 
-    /* ------------------------------- Step 1: gas ------------------------------- */
+    /* ------------------------------- gas ------------------------------- */
 
-    /** Detect BNB gas credited to the user (admin → user). Broad amount range —
-     *  the exact top-up varies with gas price. Confirmations enforced. */
-    private function _detectGasFee(&$order)
+    private function _stepGas(&$order, $head)
     {
         $option = (int)($order['coin_distribution_option'] ?? 0);
         if ($option < 1 || $option > 7) {
-            return $this->_fail($order['id'], 'gas', 'Invalid coin_distribution_option: ' . $option . ' (must be 1-7)');
+            return $this->_fail($order['id'], 'gas', 'Invalid coin_distribution_option: ' . $option);
         }
 
-        $user   = strtolower($order['user_address']);
-        $minConf = $this->_minConfirmations();
-        $head    = $this->_currentBlock();
-        if ($head === 0) return $this->_fail($order['id'], 'gas', 'Cannot read current block height');
-
-        $data = $this->_apiGet([
-            'module' => 'account', 'action' => 'txlist', 'address' => $user,
-            'startblock' => 0, 'endblock' => 99999999, 'page' => 1, 'offset' => 50, 'sort' => 'desc',
-        ]);
-        if (!isset($data['result']) || !is_array($data['result']) || empty($data['result'])) {
-            return $this->_fail($order['id'], 'gas', 'No BNB transactions found for user address yet');
+        // Already broadcast → verify confirmations
+        if (!empty($order['gas_tx_hash'])) {
+            return $this->_verifyLeg($order, 'gas', $order['gas_tx_hash'], $head, function () use (&$order) {
+                $this->_setOrder($order, ['gas_cron_status' => 1, 'gas_cron_status_message' => null, 'status' => 'pending_usdt']);
+            });
         }
 
-        foreach ($data['result'] as $tx) {
-            $to    = strtolower($tx['to'] ?? '');
-            $value = (float)($tx['value'] ?? 0) / 1e18; // native BNB is decimal wei on txlist
-            $isErr = ($tx['isError'] ?? '0') === '1';
-            if ($isErr || $to !== $user || $value < 0.0001 || $value > 0.05) continue;
+        $need = $this->_gasNeededBnb();
+        $user = $order['user_address'];
 
-            $conf = $head - (int)($tx['blockNumber'] ?? 0);
-            if ($conf < $minConf) return $this->_fail($order['id'], 'gas', "Gas TX pending confirmations: $conf/$minConf");
-
-            $hash = strtolower($tx['hash'] ?? '');
-            $this->_recordOnchain($order, $hash, strtolower($tx['from'] ?? ''), $to, (string)$tx['value'], 'gas_fee', null, $conf, (int)$tx['blockNumber']);
-            $this->db->where('id', $order['id'])->update('staking_swap_orders', [
-                'gas_tx_hash' => $hash, 'gas_cron_status' => 1, 'gas_cron_status_message' => null,
-                'status' => 'pending_usdt', 'updated_at' => date('Y-m-d H:i:s'),
-            ]);
-            $order['gas_cron_status'] = 1;
-            $order['status'] = 'pending_usdt';
-            log_message('info', $this->log_prefix . " gas CONFIRMED order {$order['id']} ($conf conf, $value BNB): $hash");
-            return true;
+        // Skip funding if the user already holds enough BNB (live only).
+        if (!$this->_isDryRun()) {
+            try {
+                if ((float)$this->web3bman->getBnbBalance($user) >= $need) {
+                    $this->_setOrder($order, ['gas_cron_status' => 1, 'gas_cron_status_message' => null, 'status' => 'pending_usdt']);
+                    log_message('info', $this->log_prefix . " gas: user {$user} already funded (order {$order['id']})");
+                    return true;
+                }
+            } catch (Exception $e) { /* fall through to send */ }
         }
-        return $this->_fail($order['id'], 'gas', 'BNB gas credit (0.0001–0.05) to user not found yet');
+
+        // Broadcast gas: treasury → user (send ~2× need so a small reserve remains)
+        return $this->_broadcast($order, 'gas', function () use ($order, $user, $need) {
+            $key = $this->_treasuryKey();
+            if (!$key) throw new RuntimeException('treasury key unavailable');
+            $r = $this->web3bman->sendBnb($key, $user, sprintf('%.8f', $need * 2));
+            return $r['tx_hash'];
+        }, 'gas_tx_hash');
     }
 
-    /* ------------------------------- Step 2: usdt ------------------------------ */
+    /* ------------------------------- usdt ------------------------------- */
 
-    /** Detect USDT user → admin, amount ≥ order usdt_amount. Needs gas confirmed. */
-    private function _detectUsdtPayment(&$order)
+    private function _stepUsdt(&$order, $head)
     {
         if ((int)$order['gas_cron_status'] !== 1) {
-            return $this->_fail($order['id'], 'usdt', 'Waiting for gas fee step first');
+            return $this->_fail($order['id'], 'usdt', 'Waiting for gas step first');
         }
 
-        $cfg      = $this->_cfg();
-        $contract = trim((string)($cfg['usdt_contract'] ?? ''));
-        $decimals = (int)($cfg['usdt_decimals'] ?? 18);
-        if ($contract === '') return $this->_fail($order['id'], 'usdt', 'USDT contract not configured');
-
-        $user = strtolower($order['user_address']);
-        $admin = strtolower($order['admin_address']);
-        $expected = (float)($order['usdt_amount'] ?? 0);
-        $minConf  = $this->_minConfirmations();
-        $head     = $this->_currentBlock();
-        if ($head === 0) return $this->_fail($order['id'], 'usdt', 'Cannot read current block height');
-
-        $data = $this->_apiGet([
-            'module' => 'account', 'action' => 'tokentx', 'contractaddress' => $contract,
-            'address' => $user, 'startblock' => 0, 'endblock' => 99999999, 'page' => 1, 'offset' => 50, 'sort' => 'desc',
-        ]);
-        if (!isset($data['result']) || !is_array($data['result']) || empty($data['result'])) {
-            return $this->_fail($order['id'], 'usdt', 'No USDT transfers found for user address yet');
+        if (!empty($order['usdt_tx_hash'])) {
+            return $this->_verifyLeg($order, 'usdt', $order['usdt_tx_hash'], $head, function () use (&$order) {
+                $this->_recordOnchain($order, $order['usdt_tx_hash'], $order['user_address'], $order['admin_address'],
+                    $order['usdt_amount'], 'deposit', 'usdt');
+                $this->_setOrder($order, ['usdt_cron_status' => 1, 'usdt_cron_status_message' => null, 'status' => 'pending_bman']);
+            });
         }
 
-        foreach ($data['result'] as $tx) {
-            $from = strtolower($tx['from'] ?? '');
-            $to   = strtolower($tx['to'] ?? '');
-            $raw  = (string)($tx['value'] ?? '0');
-            $amount = (float)bcdiv($raw, bcpow('10', (string)$decimals, 0), 8);
-            if ($from !== $user || $to !== $admin || $amount + 1e-8 < $expected * 0.99) continue;
+        $cfg = $this->_cfg();
+        $usdtContract = trim((string)($cfg['usdt_contract'] ?? ''));
+        if ($usdtContract === '') return $this->_fail($order['id'], 'usdt', 'USDT contract not configured');
 
-            $conf = $head - (int)($tx['blockNumber'] ?? 0);
-            if ($conf < $minConf) return $this->_fail($order['id'], 'usdt', "USDT TX pending confirmations: $conf/$minConf");
-
-            $hash = strtolower($tx['hash'] ?? '');
-            $this->_recordOnchain($order, $hash, $from, $to, $raw, 'deposit', 'usdt', $conf, (int)$tx['blockNumber']);
-            $this->db->where('id', $order['id'])->update('staking_swap_orders', [
-                'usdt_tx_hash' => $hash, 'usdt_cron_status' => 1, 'usdt_cron_status_message' => null,
-                'status' => 'pending_bman', 'updated_at' => date('Y-m-d H:i:s'),
-            ]);
-            $order['usdt_cron_status'] = 1;
-            $order['status'] = 'pending_bman';
-            log_message('info', $this->log_prefix . " usdt CONFIRMED order {$order['id']} ($conf conf, $amount USDT): $hash");
-            return true;
-        }
-        return $this->_fail($order['id'], 'usdt', "USDT user → admin (≥$expected) not found yet");
+        // Broadcast USDT: user (custodial key) → admin
+        return $this->_broadcast($order, 'usdt', function () use ($order, $usdtContract) {
+            $key = $this->_userKey($order);
+            if (!$key) throw new RuntimeException('user custodial key unavailable');
+            $r = $this->web3bman->sendToken($key, $order['admin_address'], (string)$order['usdt_amount'], $usdtContract);
+            return $r['tx_hash'];
+        }, 'usdt_tx_hash');
     }
 
-    /* ------------------------------ Step 3: bonus ------------------------------ */
+    /* ------------------------------- bonus ------------------------------- */
 
-    /** Detect the 25% bonus BMAN (admin → user) and credit the bonus wallet. */
-    private function _detectBonusBman(&$order)
+    private function _stepBonus(&$order, $head)
     {
         $bonus = (float)($order['bonus_bman'] ?? 0);
-        if ($bonus <= 0) { // nothing to do
-            $this->db->where('id', $order['id'])->update('staking_swap_orders',
-                ['bonus_cron_status' => 1, 'bonus_cron_status_message' => null]);
-            $order['bonus_cron_status'] = 1;
+        if ($bonus <= 0) { $this->_setOrder($order, ['bonus_cron_status' => 1, 'bonus_cron_status_message' => null]); return true; }
+        if ((int)$order['usdt_cron_status'] !== 1) {
+            return $this->_fail($order['id'], 'bonus', 'Waiting for USDT step first');
+        }
+
+        if (!empty($order['bonus_tx_hash'])) {
+            return $this->_verifyLeg($order, 'bonus', $order['bonus_tx_hash'], $head, function () use (&$order, $bonus) {
+                $this->_recordOnchain($order, $order['bonus_tx_hash'], $order['admin_address'], $order['user_address'],
+                    $bonus, 'transfer', 'bonus');
+                $this->_credit($order, 'bonus', $bonus, $order['bonus_tx_hash']);
+                $this->_setOrder($order, ['bonus_cron_status' => 1, 'bonus_cron_status_message' => null]);
+            });
+        }
+
+        $cfg = $this->_cfg();
+        $bmanContract = trim((string)($cfg['bman_contract'] ?? ''));
+        if ($bmanContract === '') return $this->_fail($order['id'], 'bonus', 'BMAN contract not configured');
+
+        return $this->_broadcast($order, 'bonus', function () use ($order, $bonus, $bmanContract) {
+            $key = $this->_treasuryKey();
+            if (!$key) throw new RuntimeException('treasury key unavailable');
+            $r = $this->web3bman->sendToken($key, $order['user_address'], (string)$bonus, $bmanContract);
+            return $r['tx_hash'];
+        }, 'bonus_tx_hash');
+    }
+
+    /* --------------------------- principal BMAN --------------------------- */
+
+    private function _stepBman(&$order, $head)
+    {
+        if ((int)$order['usdt_cron_status'] !== 1) {
+            return $this->_fail($order['id'], 'bman', 'Waiting for USDT step first');
+        }
+
+        if (!empty($order['bman_tx_hash'])) {
+            return $this->_verifyLeg($order, 'bman', $order['bman_tx_hash'], $head, function () use (&$order) {
+                $this->_recordOnchain($order, $order['bman_tx_hash'], $order['admin_address'], $order['user_address'],
+                    $order['bman_amount'], 'transfer', 'exchange');
+                // INTERNAL split of the principal into the ledger (one custodial address).
+                foreach (['exchange', 'earning', 'staking', 'bonus'] as $wallet) {
+                    $amount = $this->_walletShare($order, $wallet);
+                    if ($amount > 0) $this->_credit($order, $wallet, $amount, $order['bman_tx_hash']);
+                }
+                $this->_setOrder($order, ['bman_cron_status' => 1, 'bman_cron_status_message' => null]);
+            });
+        }
+
+        $cfg = $this->_cfg();
+        $bmanContract = trim((string)($cfg['bman_contract'] ?? ''));
+        if ($bmanContract === '') return $this->_fail($order['id'], 'bman', 'BMAN contract not configured');
+
+        return $this->_broadcast($order, 'bman', function () use ($order, $bmanContract) {
+            $key = $this->_treasuryKey();
+            if (!$key) throw new RuntimeException('treasury key unavailable');
+            $r = $this->web3bman->sendToken($key, $order['user_address'], (string)$order['bman_amount'], $bmanContract);
+            return $r['tx_hash'];
+        }, 'bman_tx_hash');
+    }
+
+    /* ----------------------------- primitives ----------------------------- */
+
+    /**
+     * Broadcast a leg: dry-run stores a DRYRUN hash; live invokes $send() which
+     * returns the real tx_hash. The hash is persisted immediately (so a crash
+     * can't cause a double-send). Confirmation happens on a later run.
+     */
+    private function _broadcast(&$order, $step, callable $send, $hashCol)
+    {
+        try {
+            if ($this->_isDryRun()) {
+                $hash = 'DRYRUN-' . $step . '-' . $order['ref'];
+            } else {
+                $hash = $send();
+                if (empty($hash)) throw new RuntimeException('empty tx hash from broadcast');
+            }
+            $this->_setOrder($order, [$hashCol => $hash, $step . '_cron_status_message' => 'Broadcast sent, awaiting confirmations']);
+            log_message('info', $this->log_prefix . " $step BROADCAST order {$order['id']}: $hash");
+
+            // In dry-run the hash "confirms" instantly — process it in the same run.
+            if ($this->_isDryRun()) {
+                switch ($step) {
+                    case 'gas':   return $this->_stepGas($order, PHP_INT_MAX);
+                    case 'usdt':  return $this->_stepUsdt($order, PHP_INT_MAX);
+                    case 'bonus': return $this->_stepBonus($order, PHP_INT_MAX);
+                    case 'bman':  return $this->_stepBman($order, PHP_INT_MAX);
+                }
+            }
             return true;
+        } catch (Exception $e) {
+            return $this->_fail($order['id'], $step, 'Broadcast failed: ' . $e->getMessage());
         }
-        if ((int)$order['usdt_cron_status'] !== 1) {
-            return $this->_fail($order['id'], 'bonus', 'Waiting for USDT payment step first');
+    }
+
+    /** Verify a leg's tx hash reached minConf (and did not revert); run $onConfirmed. */
+    private function _verifyLeg(&$order, $step, $hash, $head, callable $onConfirmed)
+    {
+        $conf = $this->_txConfirmations($hash, $head);
+        if ($conf === -1) {
+            // reverted → clear hash so a later run (or admin Retry) rebroadcasts
+            $this->_setOrder($order, [$step . '_tx_hash' => null]);
+            return $this->_fail($order['id'], $step, 'On-chain tx reverted — will rebroadcast');
         }
-
-        $tx = $this->_findAdminToUserBman($order, $bonus, 'bonus');
-        if ($tx === null) return false; // message already recorded
-
-        // credit bonus wallet internally
-        $this->_credit($order, 'bonus', $bonus, $tx['hash']);
-        $this->db->where('id', $order['id'])->update('staking_swap_orders', [
-            'bonus_tx_hash' => $tx['hash'], 'bonus_cron_status' => 1, 'bonus_cron_status_message' => null,
-            'updated_at' => date('Y-m-d H:i:s'),
-        ]);
-        $order['bonus_cron_status'] = 1;
-        $order['bonus_tx_hash'] = $tx['hash'];
-        log_message('info', $this->log_prefix . " bonus BMAN CONFIRMED order {$order['id']} (+$bonus bonus): {$tx['hash']}");
+        $min = $this->_minConfirmations();
+        if ($conf < $min) {
+            return $this->_fail($order['id'], $step, "Awaiting confirmations: $conf/$min");
+        }
+        $onConfirmed();
+        log_message('info', $this->log_prefix . " $step CONFIRMED order {$order['id']} ($conf conf): $hash");
         return true;
     }
 
-    /* --------------------------- Step 4: principal BMAN ------------------------ */
-
-    /** Detect the principal BMAN (admin → user) then split INTERNALLY per option. */
-    private function _detectAndDistributeBman(&$order)
-    {
-        if ((int)$order['usdt_cron_status'] !== 1) {
-            return $this->_fail($order['id'], 'bman', 'Waiting for USDT payment step first');
-        }
-
-        $principal = (float)$order['bman_amount'];
-        $tx = $this->_findAdminToUserBman($order, $principal, 'bman');
-        if ($tx === null) return false;
-
-        // Record the on-chain hash first so all internal slices reference it.
-        $this->db->where('id', $order['id'])->update('staking_swap_orders', [
-            'bman_tx_hash' => $tx['hash'], 'bman_cron_status' => 1, 'bman_cron_status_message' => null,
-            'updated_at' => date('Y-m-d H:i:s'),
-        ]);
-        $order['bman_cron_status'] = 1;
-        $order['bman_tx_hash'] = $tx['hash'];
-
-        // INTERNAL split of the principal into the 5-wallet ledger (one custodial address).
-        foreach (['exchange', 'earning', 'staking', 'bonus'] as $wallet) {
-            $amount = $this->_walletShare($order, $wallet);
-            if ($amount > 0) $this->_credit($order, $wallet, $amount, $tx['hash']);
-        }
-
-        log_message('info', $this->log_prefix . " principal BMAN CONFIRMED order {$order['id']} ($principal split opt "
-            . (int)$order['coin_distribution_option'] . "): {$tx['hash']}");
-        return true;
-    }
-
-    /* ------------------------------- shared bits ------------------------------- */
-
-    /** Find an admin → user BMAN transfer of ~$want (1% tol). Returns ['hash'=>..]
-     *  after confirmations, or null (recording the reason on $step). Skips the
-     *  bonus tx when matching the principal and vice-versa via amount matching. */
-    private function _findAdminToUserBman(&$order, $want, $step)
-    {
-        $cfg      = $this->_cfg();
-        $contract = trim((string)($cfg['bman_contract'] ?? ''));
-        $decimals = (int)($cfg['bman_decimals'] ?? 18);
-        if ($contract === '') { $this->_fail($order['id'], $step, 'BMAN contract not configured'); return null; }
-
-        $user  = strtolower($order['user_address']);
-        $admin = strtolower($order['admin_address']);
-        $minConf = $this->_minConfirmations();
-        $head    = $this->_currentBlock();
-        if ($head === 0) { $this->_fail($order['id'], $step, 'Cannot read current block height'); return null; }
-
-        // Avoid matching the SAME tx for both bonus and principal.
-        $skip = $step === 'bman' ? strtolower((string)($order['bonus_tx_hash'] ?? '')) : strtolower((string)($order['bman_tx_hash'] ?? ''));
-
-        $data = $this->_apiGet([
-            'module' => 'account', 'action' => 'tokentx', 'contractaddress' => $contract,
-            'address' => $admin, 'startblock' => 0, 'endblock' => 99999999, 'page' => 1, 'offset' => 100, 'sort' => 'desc',
-        ]);
-        if (!isset($data['result']) || !is_array($data['result']) || empty($data['result'])) {
-            $this->_fail($order['id'], $step, 'No BMAN transfers found for admin address yet'); return null;
-        }
-
-        foreach ($data['result'] as $tx) {
-            $from = strtolower($tx['from'] ?? '');
-            $to   = strtolower($tx['to'] ?? '');
-            $hash = strtolower($tx['hash'] ?? '');
-            $raw  = (string)($tx['value'] ?? '0');
-            $amount = (float)bcdiv($raw, bcpow('10', (string)$decimals, 0), 8);
-            if ($hash === $skip || $from !== $admin || $to !== $user) continue;
-            if ($amount + 1e-8 < $want * 0.99 || $amount > $want * 1.01 + 1e-8) continue;
-
-            $conf = $head - (int)($tx['blockNumber'] ?? 0);
-            if ($conf < $minConf) { $this->_fail($order['id'], $step, "BMAN TX pending confirmations: $conf/$minConf"); return null; }
-
-            $this->_recordOnchain($order, $hash, $from, $to, $raw, 'transfer', $step === 'bonus' ? 'bonus' : 'exchange', $conf, (int)$tx['blockNumber']);
-            return ['hash' => $hash];
-        }
-        $this->_fail($order['id'], $step, ucfirst($step) . " BMAN admin → user (≈$want) not found yet");
-        return null;
-    }
-
-    /** Percentage of the PRINCIPAL that goes to a wallet, per coin_distribution_option. */
+    /** Percentage of the PRINCIPAL for a wallet, per coin_distribution_option. */
     private function _walletShare(&$order, $wallet)
     {
         $pct = [
@@ -452,49 +448,75 @@ class StakingPurchasecron extends CI_Controller
         else      log_message('info',  $this->log_prefix . " credited $wallet (+$amount BMAN) user {$order['user_id']} [$info]");
     }
 
-    /** Append an audit row to onchain_transactions (history only; never drives logic). */
-    private function _recordOnchain(&$order, $hash, $from, $to, $rawAmount, $txType, $walletType, $conf, $block)
+    /** Append an audit row to onchain_transactions (history only). */
+    private function _recordOnchain(&$order, $hash, $from, $to, $amount, $txType, $walletType)
     {
-        // Skip if this tx_hash already recorded for this wallet_type
         if ($hash) {
             $dupe = $this->db->where(['tx_hash' => $hash, 'wallet_type' => $walletType])->count_all_results('onchain_transactions');
             if ($dupe > 0) return;
         }
         $this->db->insert('onchain_transactions', [
             'tx_hash' => $hash, 'wallet_type' => $walletType, 'tx_type' => $txType, 'status' => 'confirmed',
-            'from_address' => $from, 'to_address' => $to, 'user_id' => $order['user_id'],
-            'amount' => $rawAmount, 'block_number' => $block, 'confirmation_count' => $conf,
+            'from_address' => strtolower((string)$from), 'to_address' => strtolower((string)$to),
+            'user_id' => $order['user_id'], 'amount' => $amount,
             'reference_type' => 'stake_purchase', 'reference_id' => $order['ref'] ?? ('ORDER-' . $order['id']),
             'created_at' => date('Y-m-d H:i:s'),
         ]);
     }
 
-    /** Mark an order complete once all 4 steps are done. */
     private function _checkAndCompleteOrder(&$order)
     {
-        $done = (int)$order['gas_cron_status'] === 1
-             && (int)$order['usdt_cron_status'] === 1
-             && (int)$order['bonus_cron_status'] === 1
-             && (int)$order['bman_cron_status'] === 1;
+        $done = (int)$order['gas_cron_status'] === 1 && (int)$order['usdt_cron_status'] === 1
+             && (int)$order['bonus_cron_status'] === 1 && (int)$order['bman_cron_status'] === 1;
         if (!$done || $order['status'] === 'swap_completed') return;
 
-        $this->db->insert('user_stakes', [
-            'user_id'      => $order['user_id'],
-            'package_id'   => $order['package_id'] ?? 0,
-            'bman_amount'  => (float)$order['bman_amount'],
-            'bonus_bman'   => (float)($order['bonus_bman'] ?? 0),
-            'status'       => 'active',
-            'activated_at' => date('Y-m-d H:i:s'),
-            'created_at'   => date('Y-m-d H:i:s'),
-        ]);
-        $this->db->where('id', $order['id'])->update('staking_swap_orders', [
-            'status' => 'swap_completed', 'cron_status' => 'completed', 'updated_at' => date('Y-m-d H:i:s'),
-        ]);
-        $order['status'] = 'swap_completed';
+        // Activate the stake once (idempotent on swap_order_id). ROI terms live in
+        // roi_staking_management (created at purchase); mirror them into user_stakes.
+        if ((int)$this->db->where('swap_order_id', (int)$order['id'])->count_all_results('user_stakes') === 0) {
+            $roi = $this->db->where('staking_swap_orders_id', (int)$order['id'])
+                            ->get('roi_staking_management')->row_array();
+            $planCode = in_array((string)($order['plan_code'] ?? ''), ['fixed', 'regular', 'combo'], true)
+                ? $order['plan_code'] : 'fixed';
+            $years    = (int)($order['duration_years'] ?: 1);
+            $maturity = !empty($roi['fixed_maturity_date'])
+                ? date('Y-m-d', strtotime($roi['fixed_maturity_date']))
+                : date('Y-m-d', strtotime("+{$years} years"));
+
+            $this->db->insert('user_stakes', [
+                'user_id'                => (int)$order['user_id'],
+                'package_id'             => (int)($order['package_id'] ?? 0),
+                'plan_id'                => (int)($order['plan_id'] ?? 0),
+                'plan_code'              => $planCode,
+                'duration_years'         => $years,
+                'stake_amount'           => (float)$order['bman_amount'],
+                'roi_percent'            => (float)($roi['roi_rate_percent'] ?? 0),
+                'roi_basis'              => $planCode === 'fixed' ? 'total' : 'monthly',
+                'bonus_amount'           => (float)($order['bonus_bman'] ?? 0),
+                'distribution_option_id' => (int)($order['coin_distribution_option'] ?? 1),
+                'start_date'             => date('Y-m-d'),
+                'maturity_date'          => $maturity,
+                'status'                 => 'active',
+                'tx_hash'                => $order['bman_tx_hash'] ?? null,
+                'network'                => $this->_cfg()['network'] ?? 'mainnet',
+                'chain_status'           => 'confirmed',
+                'swap_order_id'          => (int)$order['id'],
+                'created_at'             => date('Y-m-d H:i:s'),
+            ]);
+            if ($roi) $this->db->where('id', $roi['id'])->update('roi_staking_management', ['overall_status' => 'active']);
+        }
+
+        $this->_setOrder($order, ['status' => 'swap_completed', 'cron_status' => 'completed']);
         log_message('info', $this->log_prefix . " order {$order['id']} COMPLETED — stake activated.");
     }
 
-    /** Record a per-step failure/waiting message and return false. */
+    /** Persist order fields + mirror them into the in-memory $order for this run. */
+    private function _setOrder(&$order, array $data)
+    {
+        $data['updated_at'] = date('Y-m-d H:i:s');
+        $this->db->where('id', $order['id'])->update('staking_swap_orders', $data);
+        foreach ($data as $k => $v) $order[$k] = $v;
+    }
+
     private function _fail($orderId, $step, $message)
     {
         $this->db->where('id', $orderId)->update('staking_swap_orders',
