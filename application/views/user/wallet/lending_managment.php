@@ -1517,18 +1517,33 @@ $hero_progress = 48;
             </div>
           </div>
 
+          <!-- Swap Status Progress -->
+          <div style="background:linear-gradient(135deg,rgba(99,102,241,.05),rgba(34,197,94,.05));border:1px solid #e7e7f3;border-radius:12px;padding:12px;margin-bottom:16px;">
+            <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px;">📊 SWAP STATUS</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <div style="flex:1;height:6px;background:#e7e7f3;border-radius:3px;overflow:hidden;">
+                <div style="height:100%;background:linear-gradient(90deg,#667eea,#22c55e);width:${d.cron_status?.gas === 1 && d.cron_status?.usdt === 1 && d.cron_status?.bonus === 1 ? 100 : (d.cron_status?.gas === 1 && d.cron_status?.usdt === 1 ? 66 : (d.cron_status?.gas === 1 ? 33 : 10))}%;"></div>
+              </div>
+              <div style="font-size:11px;color:#4338ca;font-weight:900;">${d.status_info?.label || 'Processing'}</div>
+            </div>
+          </div>
+
+          <!-- BMAN Values Summary -->
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">
-            <div class="card" style="box-shadow:none;border:1px solid #e7e7f3;">
-              <div style="font-size:11px;color:#666;font-weight:900;margin-bottom:4px;">USDT Sent</div>
-              <div style="font-size:16px;font-weight:1000;">${d.amounts.usdt.toFixed(2)}</div>
+            <div class="card" style="box-shadow:none;border:1px solid #e7e7f3;background:#fbfbff;">
+              <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:6px;text-transform:uppercase;">💵 USDT Payment</div>
+              <div style="font-size:18px;font-weight:1100;color:#334155;">${d.amounts.usdt.toFixed(2)}</div>
+              <div style="font-size:9px;color:#999;margin-top:4px;">sent</div>
             </div>
-            <div class="card" style="box-shadow:none;border:1px solid #e7e7f3;">
-              <div style="font-size:11px;color:#666;font-weight:900;margin-bottom:4px;">BMAN Received</div>
-              <div style="font-size:16px;font-weight:1000;">${Math.floor(d.amounts.bman).toLocaleString()}</div>
+            <div class="card" style="box-shadow:none;border:2px solid #22c55e;background:#f0fdf4;">
+              <div style="font-size:10px;color:#15803d;font-weight:900;margin-bottom:6px;text-transform:uppercase;">🚀 BMAN To Receive</div>
+              <div style="font-size:18px;font-weight:1100;color:#22c55e;">${Math.floor(d.amounts.bman).toLocaleString()}</div>
+              <div style="font-size:9px;color:#15803d;margin-top:4px;">pending</div>
             </div>
-            <div class="card" style="box-shadow:none;border:1px solid #e7e7f3;">
-              <div style="font-size:11px;color:#666;font-weight:900;margin-bottom:4px;">Bonus BMAN</div>
-              <div style="font-size:16px;font-weight:1000;color:#22C55E;">+ ${Math.floor(d.amounts.bonus_bman).toLocaleString()}</div>
+            <div class="card" style="box-shadow:none;border:1px solid #e7e7f3;background:#fef3c7;">
+              <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:6px;text-transform:uppercase;">🎁 Bonus BMAN</div>
+              <div style="font-size:18px;font-weight:1100;color:#b45309;">+ ${Math.floor(d.amounts.bonus_bman).toLocaleString()}</div>
+              <div style="font-size:9px;color:#999;margin-top:4px;">extra</div>
             </div>
           </div>
 
