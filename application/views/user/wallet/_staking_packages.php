@@ -512,7 +512,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   window.stkClose = ()=> $('stkm').classList.remove('open');
   function quote(){ const fd=new FormData(); fd.append('package_id',cur.pkg.id); fetch(BASE+'user/lending/stake_quote',{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{ if(!j.status){ $('stkm-cost').textContent=j.message||'?'; return; } cur.usdt=j.usdt; cur.bal=j.usdt_balance; cur.quote=j; $('stkm-cost').textContent = Number(j.usdt).toLocaleString(undefined,{maximumFractionDigits:4})+' USDT'; $('stkm-lock').textContent = Number(j.bman).toLocaleString()+' BMAN'; $('stkm-bonus').textContent= Number(j.bonus).toLocaleString()+' BMAN'; $('stkm-bal').textContent  = Number(j.usdt_balance).toLocaleString(undefined,{maximumFractionDigits:2})+' USDT'; const bw = j.bman_wallets||{}; ['exchange','staking','bonus','earning'].forEach(function(w){ const el=$('stkm-bw-'+w); if(el) el.textContent=Number(bw[w]||0).toLocaleString()+' BMAN'; }); const short = j.usdt_balance + 1e-8 < j.usdt; $('stkm-warn').style.display = short?'block':'none'; $('stkm-go').disabled = short; renderLive(); }).catch(()=>{ $('stkm-cost').textContent='Quote failed'; }); }
   $('stkm-back').onclick = function(){ if(cur.step>1) renderStep(cur.step-1); };
-  $('stkm-next').onclick = function(){ if(cur.step<5) renderStep(cur.step+1); };
+  $('stkm-next').onclick = function(){ if(cur.step<4) renderStep(cur.step+1); };
   window.stkConfirm = function(){
     const go=$('stkm-go');
     go.disabled=true;
