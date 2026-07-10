@@ -413,14 +413,23 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     if(!cur.pkg || !cur.roi_plan || !cur.years) return;
     const principal = +cur.pkg.stake||0;
     const roi = cur.pkg.roi || {};
-    const roiData = roi[cur.roi_plan+'_'+cur.years] || {pct:0};
+    const roiData = roi[cur.roi_plan+'_'+cur.years] || {pct:0, basis:'total'};
     const ratePercent = +roiData.pct||0;
+    const basis = roiData.basis || 'total';
     const years = +cur.years||1;
 
-    // Calculate total ROI
-    const totalROI = principal * (ratePercent / 100) * (years / 1);
+    // Calculate total ROI based on basis (total vs monthly)
+    let totalROI, annualROI;
+    if(basis === 'monthly'){
+      // Monthly rate: multiply by 12 months per year
+      annualROI = principal * (ratePercent / 100) * 12;
+      totalROI = annualROI * years;
+    } else {
+      // Total rate per year
+      annualROI = principal * (ratePercent / 100);
+      totalROI = annualROI * years;
+    }
     const totalAtMaturity = principal + totalROI;
-    const annualROI = principal * (ratePercent / 100);
 
     // Update preview tab elements
     $('stkm-roi-principal').textContent = Number(principal).toLocaleString();
