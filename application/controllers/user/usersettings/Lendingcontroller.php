@@ -225,6 +225,16 @@ class Lendingcontroller extends CI_Controller
             if (!$updateOk) {
                 error_log('WARNING: Failed to update staking order '.$res['id'].' with plan details');
             }
+
+            // Create initial ROI distribution record for maturity tracking
+            $this->createROIDistributionRecord($res['id'], $userId, [
+                'principal_amount' => (float)$res['bman_amount'],
+                'bonus_amount' => (float)$res['bonus_bman'],
+                'duration_years' => $durationYears,
+                'roi_rate_percent' => $roiRate,
+                'created_at' => $res['created_at'],
+                'maturity_date' => $maturityDate,
+            ]);
         }
 
         $dry = !empty($res['dry_run']);
@@ -2975,6 +2985,40 @@ class Lendingcontroller extends CI_Controller
             'count' => count($orders),
             'orders' => $orders,
         ]);
+    }
+
+    /**
+     * Create initial ROI distribution record when staking is purchased
+     * This record tracks maturity and ROI payout status
+     */
+    private function createROIDistributionRecord($stakingOrderId, $userId, $data)
+    {
+        if (!$this->db->table_exists('roi_distribution')) {
+            return false;
+        }
+
+        $daysElapsed = ceil((strtotime($data['maturity_date']) - strtotime($data['created_at'])) / 86400);
+        $totalROI = $data['principal_amount'] * ($data['roi_rate_percent'] / 100) * ($daysElapsed / 365);
+
+        $recordData = [
+            'staking_swap_orders_id' => $stakingOrderId,
+            'user_id' => $userId,
+            'principal_amount' => $data['principal_amount'],
+            'duration_years' => $data['duration_years'],
+            'roi_rate_percent' => $data['roi_rate_percent'],
+            'total_roi_earned' => $totalROI,
+            'roi_already_paid' => 0,
+            'roi_remaining' => $totalROI,
+            'bonus_amount' => $data['bonus_amount'],
+            'purchase_date' => $data['created_at'],
+            'maturity_date' => $data['maturity_date'],
+            'days_elapsed' => $daysElapsed,
+            'is_matured' => 0,
+            'distribution_status' => 'pending',
+            'created_at' => date('Y-m-d H:i:s'),
+        ];
+
+        return $this->db->insert('roi_distribution', $recordData);
     }
 
 
