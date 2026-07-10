@@ -55,7 +55,7 @@
                           $shortTx = function($h){ return $h ? (strpos($h,'DRYRUN')===0 ? 'dry' : substr($h,0,10).'…') : '—'; };
                         ?>
                           <tr>
-                            <td class="text-monospace fs-8"><?php echo html_escape($o['ref']); ?><?php if((int)$o['dry_run']===1): ?> <span class="badge badge-light-warning">dry</span><?php endif; ?></td>
+                            <td class="text-monospace fs-8"><?php echo html_escape($o['ref']); ?><?php if((int)($cfg['swap_dry_run']??0)===1): ?> <span class="badge badge-light-warning">dry</span><?php endif; ?></td>
                             <td><?php echo html_escape(($o['username']??'')?:('#'.$o['user_id'])); ?><div class="text-muted fs-8"><?php echo html_escape($o['referral_id']??''); ?></div></td>
                             <td class="text-end"><?php echo number_format((float)$o['usdt_amount'],4); ?></td>
                             <td class="text-end"><?php echo number_format((float)$o['bman_amount']); ?></td>

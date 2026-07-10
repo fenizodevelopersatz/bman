@@ -79,7 +79,6 @@ class StakingSwap_model extends CI_Model
             'coin_distribution_option_id' => $coin_dist_option_id,
             'status' => 'pending_gas_fee',
             'cron_status' => 'pending',
-            'dry_run' => 0, // Live mode
             'created_at' => date('Y-m-d H:i:s'),
         ];
 

@@ -147,10 +147,11 @@ class Swapengine_model extends CI_Model
             'user_address' => $userAddr, 'admin_address' => $adminAddr,
             'usdt_amount' => $usdt, 'bman_amount' => $bman, 'bonus_bman' => $bonus,
             'exchange_rate' => (float)$cfg['exchange_rate'], 'status' => 'pending_gas_fee',
-            'dry_run' => $dryRun ? 1 : 0, 'attempts' => 1,
+            'attempts' => 1,
+            // 4-step cron state machine (StakingPurchasecron). dry_run is global now
+            // (token_settings.swap_dry_run), not a per-order column.
             'gas_cron_status' => 0, 'usdt_cron_status' => 0, 'bonus_cron_status' => 0,
-            'bman_exchange_cron_status' => 0, 'bman_earning_cron_status' => 0,
-            'bman_staking_cron_status' => 0, 'bman_bonus_cron_status' => 0,
+            'bman_cron_status' => 0,
             'coin_distribution_option' => 1,
         ]);
         $orderId = (int)$this->db->insert_id();
@@ -189,11 +190,10 @@ class Swapengine_model extends CI_Model
         }
         $this->db->trans_commit();
 
-        // Order is now in 'pending_usdt' state - waiting for cron to detect USDT transfer
-        // Cron will handle: gas detection, USDT detection, bonus detection, BMAN distribution
-        $this->_set($orderId, ['status' => 'pending_usdt']);
-
-        return [true, $this->order($orderId)];
+        // Order stays in 'pending_gas_fee' — StakingPurchasecron drives the state
+        // machine: gas → usdt → bonus → bman (+ internal wallet split).
+        // dry_run is surfaced from the global flag (no per-order column anymore).
+        return [true, array_merge($this->order($orderId), ['dry_run' => $dryRun ? 1 : 0])];
     }
 
     /**
@@ -272,7 +272,7 @@ class Swapengine_model extends CI_Model
         if ((float)$o['bman_amount'] <= 0) return [false, 'Nothing to deliver.'];
 
         $cfg   = $this->config();
-        $dry   = (int)($cfg['swap_dry_run'] ?? 1) === 1 || (int)$o['dry_run'] === 1;
+        $dry   = (int)($cfg['swap_dry_run'] ?? 1) === 1; // global flag (no per-order dry_run column)
         $bmanC = $cfg['bman_contract'] ?? '';
         if (!$bmanC) return [false, 'BMAN contract not configured.'];
         $userAddr = $o['user_address'];
@@ -308,7 +308,11 @@ class Swapengine_model extends CI_Model
     /** Deliver BMAN for all completed orders that still need it (cron). */
     public function deliverPending($limit = 50)
     {
-        $rows = $this->db->where('status', 'completed')->where('bman_amount >', 0)->where('dry_run', 0)
+        // dry_run is global now — in dry-run mode nothing is delivered on-chain.
+        $cfg = $this->config();
+        if ((int)($cfg['swap_dry_run'] ?? 1) === 1) return ['processed' => 0, 'delivered' => 0, 'failed' => 0];
+
+        $rows = $this->db->where('status', 'completed')->where('bman_amount >', 0)
                          ->group_start()->where('bman_tx_hash', null)->or_where('bman_tx_hash', '')->group_end()
                          ->order_by('id','ASC')->limit((int)$limit)->get('staking_swap_orders')->result_array();
         $delivered = 0; $failed = 0;
