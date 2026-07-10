@@ -283,7 +283,7 @@ class StakingPurchasecron extends CI_Controller
             }
 
             $data = json_decode($response, true);
-            if (empty($data['result'])) {
+            if (!is_array($data) || !isset($data['result']) || !is_array($data['result']) || empty($data['result'])) {
                 $msg = 'No BNB transactions found on Etherscan for user address';
                 $this->_recordFailureMessage($order['id'], 'gas', $msg);
                 return false;
@@ -359,7 +359,7 @@ class StakingPurchasecron extends CI_Controller
             }
 
             $data = json_decode($response, true);
-            if (empty($data['result'])) {
+            if (!is_array($data) || !isset($data['result']) || !is_array($data['result']) || empty($data['result'])) {
                 $msg = 'No USDT transfers found on Etherscan for user address';
                 $this->_recordFailureMessage($order['id'], 'usdt', $msg);
                 return false;
@@ -448,7 +448,7 @@ class StakingPurchasecron extends CI_Controller
             }
 
             $data = json_decode($response, true);
-            if (empty($data['result'])) {
+            if (!is_array($data) || !isset($data['result']) || !is_array($data['result']) || empty($data['result'])) {
                 $msg = 'No BMAN transfers found on Etherscan for admin address';
                 $this->_recordFailureMessage($order['id'], 'bonus', $msg);
                 return false;
@@ -523,7 +523,7 @@ class StakingPurchasecron extends CI_Controller
             }
 
             $data = json_decode($response, true);
-            if (empty($data['result'])) {
+            if (!is_array($data) || !isset($data['result']) || !is_array($data['result']) || empty($data['result'])) {
                 $msg = 'No BMAN transfers found on Etherscan for admin address';
                 $this->_recordFailureMessage($order['id'], 'bman_exchange', $msg);
                 return false;

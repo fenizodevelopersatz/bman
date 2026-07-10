@@ -64,6 +64,10 @@ class Lendingcontroller extends CI_Controller
         $ts = $this->db->select('swap_enabled')->get_where('token_settings', ['status'=>1])->row_array();
         $this->data['swap_enabled'] = (int)($ts['swap_enabled'] ?? 0);
 
+        // Coin distribution options are managed in the admin master table.
+        $this->load->model('Coindistribution_model', 'dist');
+        $this->data['coin_distribution_options'] = $this->dist->activeOptions();
+
         // Packages (map DB fields -> view fields)
         $this->data['packages'] = $this->getPackagesForView();
 

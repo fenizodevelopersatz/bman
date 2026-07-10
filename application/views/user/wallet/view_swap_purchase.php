@@ -34,39 +34,35 @@
                 <!-- Distribution Option Selector -->
                 <div id="distribution-selector" class="mb-4 p-3 bg-light rounded">
                     <label class="form-label"><strong>Select Coin Distribution Option:</strong></label>
+                    <?php
+                        $distributionOptions = $coin_distribution_options ?? [];
+                        if (empty($distributionOptions)) {
+                            $distributionOptions = [
+                                ['id' => 1, 'option_name' => 'Option 1', 'description' => 'All Exchange', 'exchange_percentage' => 100, 'earning_percentage' => 0, 'staking_percentage' => 0, 'bonus_percentage' => 0],
+                                ['id' => 2, 'option_name' => 'Option 2', 'description' => 'Split Exchange/Staking', 'exchange_percentage' => 80, 'earning_percentage' => 10, 'staking_percentage' => 5, 'bonus_percentage' => 5],
+                                ['id' => 3, 'option_name' => 'Option 3', 'description' => 'Split with Earning', 'exchange_percentage' => 70, 'earning_percentage' => 15, 'staking_percentage' => 10, 'bonus_percentage' => 5],
+                                ['id' => 4, 'option_name' => 'Option 4', 'description' => 'Include Bonus', 'exchange_percentage' => 60, 'earning_percentage' => 20, 'staking_percentage' => 10, 'bonus_percentage' => 10],
+                                ['id' => 5, 'option_name' => 'Option 5', 'description' => 'Balanced Mix', 'exchange_percentage' => 50, 'earning_percentage' => 20, 'staking_percentage' => 20, 'bonus_percentage' => 10],
+                                ['id' => 6, 'option_name' => 'Option 6', 'description' => 'Earning Focus', 'exchange_percentage' => 40, 'earning_percentage' => 30, 'staking_percentage' => 20, 'bonus_percentage' => 10],
+                                ['id' => 7, 'option_name' => 'Option 7', 'description' => 'Bonus Focus', 'exchange_percentage' => 70, 'earning_percentage' => 10, 'staking_percentage' => 10, 'bonus_percentage' => 10],
+                            ];
+                        }
+                    ?>
                     <div class="row">
+                        <?php foreach ($distributionOptions as $index => $opt): ?>
                         <div class="col-md-6">
                             <div class="form-check mb-2">
-                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist" id="opt1" value="1" checked onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
-                                <label class="form-check-label" for="opt1">Option 1: All Exchange</label>
-                            </div>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist" id="opt2" value="2" onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
-                                <label class="form-check-label" for="opt2">Option 2: Split Exchange/Staking</label>
-                            </div>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist" id="opt3" value="3" onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
-                                <label class="form-check-label" for="opt3">Option 3: Split with Earning</label>
-                            </div>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist" id="opt4" value="4" onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
-                                <label class="form-check-label" for="opt4">Option 4: Include Bonus</label>
+                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist"
+                                    id="opt<?= (int)$opt['id'] ?>" value="<?= (int)$opt['id'] ?>"
+                                    <?= $index === 0 ? 'checked' : '' ?>
+                                    onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
+                                <label class="form-check-label" for="opt<?= (int)$opt['id'] ?>">
+                                    <?= htmlspecialchars((string)$opt['option_name']) ?>:
+                                    <?= htmlspecialchars((string)($opt['description'] ?? '')) ?>
+                                </label>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="form-check mb-2">
-                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist" id="opt5" value="5" onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
-                                <label class="form-check-label" for="opt5">Option 5: Balanced Mix</label>
-                            </div>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist" id="opt6" value="6" onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
-                                <label class="form-check-label" for="opt6">Option 6: Earning Focus</label>
-                            </div>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input distribution-radio" type="radio" name="coin_dist" id="opt7" value="7" onchange="setPurchaseFormValue('coin_distribution_option_id', this.value)">
-                                <label class="form-check-label" for="opt7">Option 7: Bonus Focus</label>
-                            </div>
-                        </div>
+                        <?php endforeach; ?>
                     </div>
                 </div>
 
@@ -252,7 +248,7 @@ let currentOrderId = null;
 let statusCheckInterval = null;
 let purchaseFormData = {
     package_id: null,
-    coin_distribution_option_id: 1,
+    coin_distribution_option_id: document.querySelector('input[name="coin_dist"]:checked')?.value || 1,
     plan_code: 'fixed',
     plan_id: 0,
     duration_years: 1

@@ -1233,11 +1233,7 @@
         </div>
 
       </div>
-    </main>
-
-    <aside class="right-panel">
-      <?php $this->load->view('user/layout/v2/user_inner_right_panle'); ?>
-    </aside>
+    </main>    
   </div>
 
   <!-- Modal -->
