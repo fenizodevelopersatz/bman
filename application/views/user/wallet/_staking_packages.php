@@ -436,25 +436,11 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     if(!cur.pkg) return;
     const amount=+cur.pkg.stake||0;
     const dist=calcDist(amount);
-    $('stkm-bw-exchange').textContent=Number(dist.exchange).toLocaleString()+' BMAN';
-    $('stkm-bw-staking').textContent=Number(dist.staking).toLocaleString()+' BMAN';
-    $('stkm-bw-bonus').textContent=Number(dist.bonus).toLocaleString()+' BMAN';
-    $('stkm-bw-earning').textContent=Number(dist.earning).toLocaleString()+' BMAN';
-    $('stkm-instant').textContent=Number(dist.instant).toLocaleString()+' BMAN';
-    $('stkm-sum-package').textContent=Number(amount).toLocaleString()+' BMAN';
-    const roiPlanName = cur.roi_plan ? ROI_PLANS.find(p=>p.code===cur.roi_plan)?.name || '?' : '?';
-    $('stkm-sum-roi-plan').textContent=roiPlanName;
-    $('stkm-sum-plan').textContent=(cur.plan ? cur.plan.charAt(0).toUpperCase()+cur.plan.slice(1) : '?')+' - '+(cur.years || '?')+' Years';
-    $('stkm-sum-dist').textContent=dist.m.name;
-    $('stkm-sum-exchange').textContent=Number(dist.exchange).toLocaleString();
-    $('stkm-sum-earning').textContent=Number(dist.earning).toLocaleString();
-    $('stkm-sum-staking').textContent=Number(dist.staking).toLocaleString();
-    $('stkm-sum-bonus').textContent=Number(dist.bonus).toLocaleString();
-    $('stkm-sum-instant').textContent=Number(dist.instant).toLocaleString();
-    $('stkm-sum-total-bonus').textContent=Number(dist.totalBonus).toLocaleString();
-    $('stkm-cost2').textContent=$('stkm-cost').textContent;
-    $('stkm-lock2').textContent=$('stkm-lock').textContent;
-    $('stkm-roi2').textContent=$('stkm-roi').textContent;
+    if($('stkm-bw-exchange')) $('stkm-bw-exchange').textContent=Number(dist.exchange).toLocaleString()+' BMAN';
+    if($('stkm-bw-staking')) $('stkm-bw-staking').textContent=Number(dist.staking).toLocaleString()+' BMAN';
+    if($('stkm-bw-bonus')) $('stkm-bw-bonus').textContent=Number(dist.bonus).toLocaleString()+' BMAN';
+    if($('stkm-bw-earning')) $('stkm-bw-earning').textContent=Number(dist.earning).toLocaleString()+' BMAN';
+    if($('stkm-instant')) $('stkm-instant').textContent=Number(dist.instant).toLocaleString()+' BMAN';
     renderROIDetails();
   }
   function renderDistTable(){ const body=$('stkm-distribution-table'); if(!body) return; body.innerHTML = Object.entries(DISTS).map(([k,v]) => { const total = (Number(v.exchange)||0) + (Number(v.earning)||0) + (Number(v.staking)||0) + (Number(v.bonus)||0); return '<tr class="'+(+k===+cur.dist ? 'is-active' : '')+'">' + '<td class="option-name">'+esc(v.name)+'</td>' + '<td class="text-end">'+Number(v.exchange).toFixed(0)+'%</td>' + '<td class="text-end">'+Number(v.earning).toFixed(0)+'%</td>' + '<td class="text-end">'+Number(v.staking).toFixed(0)+'%</td>' + '<td class="text-end">'+Number(v.bonus).toFixed(0)+'%</td>' + '<td class="text-end"><b>'+total.toFixed(0)+'%</b></td>' + '</tr>'; }).join(''); }
