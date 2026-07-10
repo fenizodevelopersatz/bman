@@ -1557,12 +1557,12 @@ $hero_progress = 48;
             </div>
             <div class="card" style="box-shadow:none;border:2px solid #22c55e;background:#f0fdf4;">
               <div style="font-size:10px;color:#15803d;font-weight:900;margin-bottom:6px;text-transform:uppercase;">🚀 BMAN To Receive</div>
-              <div style="font-size:18px;font-weight:1100;color:#22c55e;">${Math.floor(d.amounts.bman).toLocaleString()}</div>
-              <div style="font-size:9px;color:#15803d;margin-top:4px;">pending</div>
+              <div style="font-size:18px;font-weight:1100;color:#22c55e;">${Number(d.amounts.bman).toLocaleString(undefined,{maximumFractionDigits:4})}</div>
+              <div style="font-size:9px;color:#15803d;margin-top:4px;">${d.current_status === 'swap_completed' ? 'received' : 'pending'}</div>
             </div>
             <div class="card" style="box-shadow:none;border:1px solid #e7e7f3;background:#fef3c7;">
               <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:6px;text-transform:uppercase;">🎁 Bonus BMAN</div>
-              <div style="font-size:18px;font-weight:1100;color:#b45309;">+ ${Math.floor(d.amounts.bonus_bman).toLocaleString()}</div>
+              <div style="font-size:18px;font-weight:1100;color:#b45309;">+ ${Number(d.amounts.bonus_bman).toLocaleString(undefined,{maximumFractionDigits:4})}</div>
               <div style="font-size:9px;color:#999;margin-top:4px;">extra</div>
             </div>
           </div>
@@ -1570,10 +1570,10 @@ $hero_progress = 48;
           <div style="border-top:1px solid #e7e7f3;padding-top:12px;margin-bottom:16px;">
             <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">Distribution (Option ${d.distribution.option})</h5>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
-              <div><span style="color:#666;">Exchange Wallet:</span> <b>${Math.floor(d.distribution.exchange_bman).toLocaleString()} BMAN</b></div>
-              <div><span style="color:#666;">Earning Wallet:</span> <b>${Math.floor(d.distribution.earning_bman).toLocaleString()} BMAN</b></div>
-              <div><span style="color:#666;">Staking Wallet:</span> <b>${Math.floor(d.distribution.staking_bman).toLocaleString()} BMAN</b></div>
-              <div><span style="color:#666;">Bonus Wallet:</span> <b>${Math.floor(d.distribution.bonus_bman).toLocaleString()} BMAN</b></div>
+              <div><span style="color:#666;">Exchange Wallet:</span> <b>${Number(d.distribution.exchange_bman).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b></div>
+              <div><span style="color:#666;">Earning Wallet:</span> <b>${Number(d.distribution.earning_bman).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b></div>
+              <div><span style="color:#666;">Staking Wallet:</span> <b>${Number(d.distribution.staking_bman).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b></div>
+              <div><span style="color:#666;">Bonus Wallet:</span> <b>${Number(d.distribution.bonus_bman).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b></div>
             </div>
           </div>
 
@@ -1685,7 +1685,7 @@ $hero_progress = 48;
                   <div style="font-size:10px;color:#999;">Day ${days}</div>
                 </div>
                 <div style="text-align:right;">
-                  <div style="font-size:12px;font-weight:900;color:${isCompleted ? '#22c55e' : '#667eea'};">${Math.floor(roiAmount).toLocaleString()} BMAN</div>
+                  <div style="font-size:12px;font-weight:900;color:${isCompleted ? '#22c55e' : '#667eea'};">${Number(roiAmount).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</div>
                   <div style="font-size:9px;color:#999;">${isCompleted ? 'Earned' : 'Pending'}</div>
                 </div>
               </div>
