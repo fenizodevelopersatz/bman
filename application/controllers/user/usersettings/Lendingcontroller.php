@@ -734,6 +734,21 @@ class Lendingcontroller extends CI_Controller
 
         if (!$o) { echo json_encode(['status'=>false,'message'=>'Order not found']); return; }
 
+        // Get ROI rate from staking_packages
+        $roiRate = 0;
+        if (!empty($o['package_id'])) {
+            $pkg = $this->db->select('roi')->get_where('staking_packages', ['id'=>$o['package_id']])->row_array();
+            if ($pkg && !empty($pkg['roi'])) {
+                $roi = json_decode($pkg['roi'], true);
+                $planCode = $o['plan_code'] ?? 'fixed';
+                $duration = (int)$o['duration_years'] ?? 1;
+                $roiKey = $planCode.'_'.$duration;
+                if (!empty($roi[$roiKey])) {
+                    $roiRate = (float)($roi[$roiKey]['roi_percent'] ?? 0);
+                }
+            }
+        }
+
         // Get explorer URL from config
         $ts = $this->db->select('explorer_url')->get_where('token_settings',['status'=>1])->row_array();
         $explorer = rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
@@ -776,6 +791,7 @@ class Lendingcontroller extends CI_Controller
                     'duration_years' => (int)$o['duration_years'] ?? 1,
                     'package_id' => (int)$o['package_id'],
                 ],
+                'roi_rate' => (float)$roiRate,
                 'cron_status' => [
                     'gas' => (int)$o['gas_cron_status'],
                     'usdt' => (int)$o['usdt_cron_status'],

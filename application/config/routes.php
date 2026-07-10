@@ -346,16 +346,6 @@ $route['commission-settings'] = 'admin/settings/Commissionsettings';
 $route['update-commission-settings'] = 'admin/settings/Commissionsettings/update';
 
 /*************** CRON ****************/
-// $route['earn-cron-made-roi'] = 'Cron/run_roi';
-// $route['rank-cron-made'] = 'Cron/update_all_users_rank';
-// $route['rank-cron-made'] = 'Cron/run_monthly_rank_commission';
-
-// $route['cron-rank-made'] = 'myrank/run_monthly_rank_commission';
-// $route['binary-cron-made'] = 'Cron/binary_commission_call';
-// $route['binary-cron-made'] = 'DailyCommission/binary_commission_call';
-
-
-/*************** CRON ****************/
 $route['credit-deposits-cron'] = 'Depositcron/run';   // auto-credit confirmed USDT deposits (token-gated over HTTP)
 $route['staking-purchase-cron'] = 'StakingPurchasecron/run';  // process staking USDT→BMAN swaps: detect gas/USDT/BMAN + distribute per coin_distribution_option (hourly, token-gated)
 $route['earn-cron-made'] = 'Cron/run_roi';
