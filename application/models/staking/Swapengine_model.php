@@ -166,22 +166,23 @@ class Swapengine_model extends CI_Model
         // This allows order creation without requiring user to have BNB for gas
         $usdtTx = null; // Will be populated by cron when it detects the transfer
 
-        // ---- INTERNAL LEDGER: Record the swap intent (USDT will be detected by cron)
-        //      Credit BMAN to Exchange wallet immediately upon order creation
-        //      Bonus credited when cron detects bonus transfer ----
+        // ---- INTERNAL LEDGER: Record the swap intent only (USDT debit).
+        //      BMAN + bonus are credited by StakingPurchasecron after on-chain
+        //      detection + confirmation — never at purchase time. ----
         $this->db->trans_begin();
 
         // Debit USDT (marks user's intention to swap - cron will verify on-chain)
         list($okU) = $this->L->debit($userId, 'usdt', $usdt, 'swap', [
             'reference_id' => $ref, 'description' => 'Swap: USDT pending transfer to admin '.$adminAddr.' ['.$ref.']']);
 
-        // Credit BMAN to Exchange wallet immediately
-        list($okE) = $this->L->credit($userId, 'exchange', $bman, 'swap', [
-            'reference_id' => $ref, 'description' => 'Swap: '.$bman.' BMAN allocated to Exchange ['.$ref.']']);
+        // IMPORTANT: BMAN is intentionally NOT credited here.
+        // StakingPurchasecron is the SOLE authority that credits wallets
+        // (exchange/earning/staking/bonus per coin_distribution_option) and ONLY
+        // after it detects + confirms the real on-chain BMAN transfer (admin → user)
+        // with its tx_hash. Crediting here would (a) hand out BMAN with no on-chain
+        // proof, (b) ignore the distribution option, and (c) double-credit vs the cron.
 
-        // Note: Bonus will be credited by cron when it detects the bonus transfer
-
-        if (!$okU || !$okE || $this->db->trans_status() === false) {
+        if (!$okU || $this->db->trans_status() === false) {
             $this->db->trans_rollback();
             $this->_set($orderId, ['status' => 'failed_credit', 'error' => 'ledger error']);
             return [false, 'Failed to record swap in ledger - order parked '.$ref.'.'];

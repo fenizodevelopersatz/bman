@@ -108,7 +108,8 @@ class StakingPurchasecron extends CI_Controller
     private function _getPendingOrders()
     {
         return $this->db->select(
-                'id, user_id, user_address, admin_address, bman_amount, bonus_bman, coin_distribution_option, ' .
+                'id, user_id, user_address, admin_address, package_id, status, ' .
+                'usdt_amount, bman_amount, bonus_bman, coin_distribution_option, ' .
                 'gas_cron_status, usdt_cron_status, bonus_cron_status, ' .
                 'bman_exchange_cron_status, bman_earning_cron_status, bman_staking_cron_status, bman_bonus_cron_status'
             )
@@ -748,12 +749,8 @@ class StakingPurchasecron extends CI_Controller
         $base_gas_fee = 0.0005; // Base gas fee in BNB
         $usdt_to_bnb_rate = 0.00025; // ~0.25 BNB per 1000 USDT (configurable)
 
-        // Get USDT cost from quote if available
-        $usdt_cost = (float)($order['usdt_cost'] ?? 0);
-        if ($usdt_cost <= 0) {
-            // Fallback: use order amount
-            $usdt_cost = (float)($order['usdt_amount'] ?? 0);
-        }
+        // USDT cost of this specific order (now selected in _getPendingOrders)
+        $usdt_cost = (float)($order['usdt_amount'] ?? 0);
 
         // Calculate additional gas based on transaction size
         $additional_gas = ($usdt_cost / 1000) * $usdt_to_bnb_rate;
