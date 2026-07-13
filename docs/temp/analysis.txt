@@ -3097,7 +3097,7 @@ Today Plan:
 
 
 Pending & Need to testing
-1. Rank System integration 
+1. Rank System integration
 2. Binary Staking amount distribution checking & history showing on both side(partially completed)
 3. Report on admin side
 4. Admin side wallet history, Dashboard, ROI History, Internal Wallet transfer History, Admin Hot Wallet History
@@ -3275,3 +3275,23 @@ ROI MODULE RECHECK AND FULL IMPLEMENT
 
 
 gas_tx_hash
+
+
+Completed
+1. Coin based amount distributions from live net amount when live net failed to restart from continue (suppose no gas fee from admin/display the low balance notification)
+2. Geneology Tree shows unlimited and refresh
+
+
+Today Plan
+1. Rank System integration
+2. Binary Staking amount distribution checking & history showing on both side(partially completed)
+3. Report on admin side
+
+
+1. Rank System integration
+2. Binary Staking amount distribution checking & history showing on both side(partially completed)
+3. Report on admin side
+4. Admin side wallet history, Dashboard, ROI History, Internal Wallet transfer History, Admin Hot Wallet History
+5. Withdraw request & processing and show their history
+6. User dashboard integration and chart
+7. Notification

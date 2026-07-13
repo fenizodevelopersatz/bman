@@ -128,14 +128,27 @@ class Genealogycontroller extends MY_Controller
     {
         header('Content-Type: application/json');
 
-        $rootId = (int) $this->session->userdata('user_userid');
+        $sessionId = (int) $this->session->userdata('user_userid');
         $depth = (int) $this->input->get('depth');
         if ($depth <= 0)
-            $depth = 10; // default limit: 10 levels of downline
+            $depth = 10; // default limit: 10 levels of downline per page
         $depth = min(10, max(1, $depth));
 
-        // this returns array of arrays
-        $rows = $this->BinaryModel->getDownlineMembers($rootId);
+        // Pagination: the binary tree can go arbitrarily deep, but a full level-by-level
+        // fetch grows 2^depth, so instead of raising the depth cap we let the frontend
+        // "drill into" any node at the current frontier and re-root the view there.
+        // root_id must be the caller's own downline (or themselves) — never an arbitrary user.
+        $rootId = (int) $this->input->get('root_id');
+        if ($rootId <= 0) {
+            $rootId = $sessionId;
+        } elseif ($rootId !== $sessionId && !$this->BinaryModel->isDescendantOf($rootId, $sessionId)) {
+            echo json_encode(['status' => false, 'message' => 'Not authorized for this member'], JSON_UNESCAPED_SLASHES);
+            exit;
+        }
+
+        // Fetch one level deeper than requested purely to detect whether a frontier
+        // node still has further downline, so the UI can show a "load more" affordance.
+        $rows = $this->BinaryModel->getDownlineMembers($rootId, $depth + 1);
 
         $tree = $this->buildBinaryTreeFromFlat($rows, $rootId, $depth, false); // false = DO NOT fill empty nodes
 
@@ -203,15 +216,23 @@ class Genealogycontroller extends MY_Controller
         }
 
         // link children
-        foreach ($map as $id => $node) {
+        // NOTE: must link by reference. $rows is inserted in parent-before-child order
+        // (fetchDownline appends a member, then immediately recurses into that member's
+        // own children), so a plain by-value foreach copies a node into its parent's
+        // 'left'/'right' slot BEFORE that node's own children get attached to it —
+        // silently dropping every grandchild (and everything deeper), no matter the
+        // requested depth. Binding $node (and the parent slot) by reference keeps them
+        // pointing at the same live $map entry, so later mutations stay visible.
+        foreach ($map as $id => &$node) {
             $pid = (int) $node['mid'];
             if ($pid > 0 && isset($map[$pid])) {
                 if ($node['position'] === 'RIGHT')
-                    $map[$pid]['right'] = $node;
+                    $map[$pid]['right'] = &$node;
                 else
-                    $map[$pid]['left'] = $node;
+                    $map[$pid]['left'] = &$node;
             }
         }
+        unset($node);
 
         $root = $map[$rootId];
         return $this->pruneAndFill($root, 1, $maxDepth, $fillEmpty);
@@ -403,8 +424,12 @@ class Genealogycontroller extends MY_Controller
         $node['right_cf'] = (float) $st['right_cf'];
         $node['pairs'] = (int) $st['pairs'];
 
-        // cut children at max level
+        // cut children at max level -- flag (not fetch) one level further so the UI
+        // can offer "load more downline" pagination on this node instead of pretending
+        // the tree simply ends here.
         if ($level >= $max) {
+            $node['left_has_more'] = !empty($node['left']['id'] ?? null);
+            $node['right_has_more'] = !empty($node['right']['id'] ?? null);
             $node['left'] = null;
             $node['right'] = null;
             return $node;

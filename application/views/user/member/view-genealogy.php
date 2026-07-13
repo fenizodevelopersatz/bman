@@ -351,6 +351,45 @@
       color: #fff;
     }
 
+    /* ===== Pagination: breadcrumb trail + "load more downline" node ===== */
+    .tree-breadcrumb {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 10px 14px;
+      border-bottom: 1px solid #f5f5f7;
+      font-size: 12px;
+      font-weight: 800;
+      color: #6b7280;
+    }
+    .tree-breadcrumb a {
+      color: var(--primary, #6e56cf);
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .tree-breadcrumb a:hover { text-decoration: underline; }
+    .tree-breadcrumb i { color: #c7c7d1; font-size: 11px; }
+
+    .node.more-node {
+      align-items: center;
+      justify-content: center;
+      width: 220px;
+      min-height: 90px;
+      border: 1.5px dashed #c9c3f5;
+      background: #f7f6ff;
+      color: var(--primary, #6e56cf);
+      font-weight: 900;
+      font-size: 12.5px;
+      text-align: center;
+      gap: 6px;
+    }
+    .node.more-node:hover {
+      background: #efeaff;
+      transform: translateY(-2px);
+    }
+    .node.more-node i { font-size: 20px; }
+
     /* ===== Flat views (genealogy / generation / level / direct) ===== */
     .alt-view { display: block; width: 100%; }
     .alt-empty {
@@ -383,6 +422,16 @@
     .mini-card .mc-inv { text-align: right; flex: 0 0 auto; }
     .mini-card .mc-inv small { display: block; font-size: 10px; color: #6b7280; font-weight: 700; }
     .mini-card .mc-inv b { font-size: 13px; font-weight: 900; color: #10b981; }
+    .mini-card.more-mini {
+      border-left-color: var(--primary, #6e56cf);
+      border-style: dashed;
+      background: #f7f6ff;
+      color: var(--primary, #6e56cf);
+      font-weight: 900;
+      font-size: 12.5px;
+    }
+    .mini-card.more-mini:hover { background: #efeaff; }
+    .mini-card.more-mini i { font-size: 18px; }
 
     .alt-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .alt-col .alt-h, .alt-lvl .alt-h {
@@ -1155,6 +1204,9 @@
                     class="ph ph-plus"></i></button>
               </div>
 
+              <button class="zbtn" type="button" title="Refresh Tree" onclick="refreshTree()"><i
+                  class="ph ph-arrow-clockwise"></i></button>
+
               <button class="btn-dark" type="button" onclick="location.href='<?= base_url('user/genealogy'); ?>'">
                 Genealogy <i class="ph ph-graph"></i>
               </button>
@@ -1170,6 +1222,9 @@
               <span class="mini-note" style="margin-left:auto;">Tip: Click any member card for details.</span>
             </div>
           </div>
+
+          <!-- Pagination trail: shown once the user drills into a "load more downline" node -->
+          <div class="tree-breadcrumb" id="treeBreadcrumb"></div>
 
           <div class="tree-canvas" id="treeCanvas">
             <div class="tree-inner" id="treeInner">
@@ -1315,9 +1370,14 @@
       setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 250); }, 1400);
     }
 
-    async function loadTree(depth = 10) {
+    // Pagination: rootId re-roots the fetch at a downline member instead of the
+    // logged-in user, so "load more" can page arbitrarily deep without ever
+    // fetching/rendering more than one page's worth of levels at a time.
+    async function loadTree(depth = 10, rootId = null) {
       try {
-        const res = await fetch(`${TREE_URL}?depth=${encodeURIComponent(depth)}`, { credentials: 'same-origin' });
+        let url = `${TREE_URL}?depth=${encodeURIComponent(depth)}`;
+        if (rootId) url += `&root_id=${encodeURIComponent(rootId)}`;
+        const res = await fetch(url, { credentials: 'same-origin' });
         const json = await res.json();
 
         if (!json || json.status !== true) {
@@ -1333,6 +1393,61 @@
         console.error(e);
         toastMini("Tree load error");
       }
+    }
+
+    // ======= Pagination: "load more downline" (breadcrumb drill-down) =======
+    // A binary tree's node count doubles per level, so instead of raising the depth
+    // cap we let the user drill into any frontier node — that node becomes the new
+    // page root and the breadcrumb trail lets them navigate back up.
+    let ROOT_STACK = [];
+
+    function currentRootId() {
+      return ROOT_STACK.length ? ROOT_STACK[ROOT_STACK.length - 1].id : null;
+    }
+
+    function drillInto(node) {
+      if (!node || !node.id) return;
+      ROOT_STACK.push({ id: node.id, uid: node.uid || '', name: node.name || '' });
+      renderBreadcrumb();
+      loadTree(CURRENT_DEPTH, currentRootId());
+    }
+
+    function drillIntoEl(el) {
+      drillInto({ id: el.dataset.id, uid: el.dataset.uid, name: el.dataset.name });
+    }
+
+    // index === -1 resets all the way back to the logged-in user's own root.
+    function goToBreadcrumb(index) {
+      ROOT_STACK = index < 0 ? [] : ROOT_STACK.slice(0, index + 1);
+      renderBreadcrumb();
+      loadTree(CURRENT_DEPTH, currentRootId());
+    }
+
+    function renderBreadcrumb() {
+      const bar = document.getElementById('treeBreadcrumb');
+      if (!bar) return;
+      if (!ROOT_STACK.length) {
+        bar.style.display = 'none';
+        bar.innerHTML = '';
+        return;
+      }
+      bar.style.display = 'flex';
+      const crumbs = ['<a href="#" onclick="goToBreadcrumb(-1);return false;"><i class="ph ph-house"></i> Root</a>']
+        .concat(ROOT_STACK.map((c, i) =>
+          `<a href="#" onclick="goToBreadcrumb(${i});return false;">${escapeHtml(ucfirstWords(c.name) || c.uid)}</a>`));
+      bar.innerHTML = crumbs.join(' <i class="ph ph-caret-right"></i> ');
+    }
+
+    // Placeholder card rendered in place of a pruned child that still has real
+    // downline beyond the current depth window.
+    function moreNodeHtml(node, side) {
+      const label = side === 'right' ? 'Right' : 'Left';
+      return `<div class="node more-node"
+          data-id="${escapeHtml(node.id)}" data-uid="${escapeHtml(node.uid || '')}" data-name="${escapeHtml(node.name || '')}"
+          onclick="drillIntoEl(this)">
+        <i class="ph ph-arrow-circle-down"></i>
+        <span>View more ${label} downline</span>
+      </div>`;
     }
 
     // ======= Tree view modes (Binary / Genealogy / Generation / Level Wise / Direct) =======
@@ -1433,12 +1548,26 @@
       }).join('') + '</div>';
     }
 
+    // Placeholder list item for a pruned child that still has real downline beyond
+    // the current depth window (Genealogy Tree's analog of moreNodeHtml()).
+    function moreListItem(node, side) {
+      const label = side === 'right' ? 'Right' : 'Left';
+      return `<li><div class="mini-card more-mini"
+          data-id="${escapeHtml(node.id)}" data-uid="${escapeHtml(node.uid || '')}" data-name="${escapeHtml(node.name || '')}"
+          onclick="drillIntoEl(this)">
+        <i class="ph ph-arrow-circle-down"></i>
+        <div class="mc-meta"><b>View more ${label} downline</b></div>
+      </div></li>`;
+    }
+
     // Genealogy Tree — full downline as a nested, indented list.
     function buildGenealogy(node) {
       if (!node || Object.keys(node).length === 0) return '';
       const st = (node.status || '').toUpperCase();
       if (!SHOW_EMPTY && st === 'EMPTY') return '';
-      const childHtml = [node.left, node.right].filter(Boolean).map(buildGenealogy).filter(Boolean).join('');
+      let childHtml = [node.left, node.right].filter(Boolean).map(buildGenealogy).filter(Boolean).join('');
+      if (!node.left && node.left_has_more) childHtml += moreListItem(node, 'left');
+      if (!node.right && node.right_has_more) childHtml += moreListItem(node, 'right');
       return `<li>${miniCard(node)}${childHtml ? `<ul>${childHtml}</ul>` : ''}</li>`;
     }
     function renderGenealogy() {
@@ -1547,8 +1676,13 @@
       const me = renderNode(node);
       if (!me) return "";
 
-      const leftHtml = node.left ? buildTree(node.left, level + 1, max) : "";
-      const rightHtml = node.right ? buildTree(node.right, level + 1, max) : "";
+      let leftHtml = node.left ? buildTree(node.left, level + 1, max) : "";
+      let rightHtml = node.right ? buildTree(node.right, level + 1, max) : "";
+
+      // Frontier node: no child was fetched at this depth, but one exists further
+      // down — offer a "load more" card instead of just stopping.
+      if (!leftHtml && node.left_has_more) leftHtml = moreNodeHtml(node, 'left');
+      if (!rightHtml && node.right_has_more) rightHtml = moreNodeHtml(node, 'right');
 
       let children = "";
       if (leftHtml || rightHtml) {
@@ -1602,6 +1736,11 @@
     function zoomBy(delta) {
       scale = Math.min(1.6, Math.max(0.6, +(scale + delta).toFixed(2)));
       document.getElementById("treeInner").style.transform = `scale(${scale})`;
+    }
+
+    function refreshTree() {
+      toastMini("Refreshing tree…");
+      loadTree(CURRENT_DEPTH, currentRootId());
     }
 
     function toggleCompact() {
@@ -1764,7 +1903,7 @@
     });
 
     document.getElementById("depthSel").addEventListener("change", (e) => {
-      loadTree(parseInt(e.target.value, 10) || 10);
+      loadTree(parseInt(e.target.value, 10) || 10, currentRootId());
     });
 
     // Init — default to a 10-level downline.

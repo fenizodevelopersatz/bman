@@ -28,18 +28,21 @@ class BinaryModel extends CI_Model
 
     }
 
-    public function getDownlineMembers($user_id)
+    // $maxDepth caps how many levels below $user_id are walked (null = unbounded).
+    // Bounding this matters once trees get deep/wide: without it every call walks the
+    // ENTIRE downline no matter what depth the caller actually wants to display.
+    public function getDownlineMembers($user_id, $maxDepth = null)
     {
         $downline = [];
 
         $this->db->select('
-        users.id, 
-        users.username, 
-        users.email, 
+        users.id,
+        users.username,
+        users.email,
         users.register_date,
-        binary_placement.parent_id as parent_id, 
-        binary_placement.sponsor_id as sponsor_id, 
-        binary_placement.position as position, 
+        binary_placement.parent_id as parent_id,
+        binary_placement.sponsor_id as sponsor_id,
+        binary_placement.position as position,
         binary_placement.placement_type as placement_type
         ');
         $this->db->from('users');
@@ -57,19 +60,23 @@ class BinaryModel extends CI_Model
             'placement_type' => ucfirst($direct_user->placement_type)
         ];
 
-        $this->fetchDownline($user_id, $downline);
+        $this->fetchDownline($user_id, $downline, 1, $maxDepth);
         return $downline;
     }
 
-    private function fetchDownline($parent_id, &$downline)
+    private function fetchDownline($parent_id, &$downline, $level = 1, $maxDepth = null)
     {
+        if ($maxDepth !== null && $level > $maxDepth) {
+            return;
+        }
+
         $this->db->select('
-            users.id, 
-            users.username, 
-            users.email, 
-            binary_placement.parent_id, 
-            binary_placement.sponsor_id, 
-            binary_placement.position, 
+            users.id,
+            users.username,
+            users.email,
+            binary_placement.parent_id,
+            binary_placement.sponsor_id,
+            binary_placement.position,
             binary_placement.placement_type,
             users.register_date
         ');
@@ -91,8 +98,36 @@ class BinaryModel extends CI_Model
                 'exchange' => $this->getTotalExchangeWallet([$member->id]), // BMAN investment
             ];
 
-            $this->fetchDownline($member->id, $downline);
+            $this->fetchDownline($member->id, $downline, $level + 1, $maxDepth);
         }
+    }
+
+    // Walks parent_id up from $candidateId and returns true if $ancestorId is on that
+    // chain. Used to authorize "drill into this node" pagination requests cheaply
+    // (a handful of single-row lookups) without ever fetching the caller's whole downline.
+    public function isDescendantOf($candidateId, $ancestorId): bool
+    {
+        $candidateId = (int) $candidateId;
+        $ancestorId = (int) $ancestorId;
+        if ($candidateId <= 0 || $ancestorId <= 0) {
+            return false;
+        }
+        if ($candidateId === $ancestorId) {
+            return true;
+        }
+
+        $current = $candidateId;
+        for ($i = 0; $i < 100; $i++) {
+            $row = $this->db->select('parent_id')->from('binary_placement')->where('user_id', $current)->get()->row();
+            if (!$row || empty($row->parent_id)) {
+                return false;
+            }
+            if ((int) $row->parent_id === $ancestorId) {
+                return true;
+            }
+            $current = (int) $row->parent_id;
+        }
+        return false;
     }
 
 
