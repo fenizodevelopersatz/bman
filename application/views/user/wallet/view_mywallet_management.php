@@ -1704,9 +1704,9 @@ function wallet_title_fallback($type)
     </div>
 
     <!-- Right Panel -->
-    <aside class="right-panel">
-      <?php $this->load->view('user/layout/v2/user_inner_right_panle'); ?>
-    </aside>
+    <!-- <aside class="right-panel">
+      <?php //$this->load->view('user/layout/v2/user_inner_right_panle'); ?>
+    </aside> -->
   </div>
   <style>
     .table-wrap .tbl {

@@ -2556,7 +2556,7 @@ Binary Matching Bonus
 
 
 
-Here we need to checking the matching of binary tree level 
+Here we need to checking the matching of binary tree level
 
 
 
@@ -3272,3 +3272,6 @@ Regular generate the 3 records of 5, 15, 25 and also return the maturity details
 Combo is fixed + regular 3=> 4 records is the correct way i do not know but deep analysis and implement the cron also until to distribute the amount to earning wallet reached to manage the status & gas fee also
 
 ROI MODULE RECHECK AND FULL IMPLEMENT
+
+
+gas_tx_hash
