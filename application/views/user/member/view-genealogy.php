@@ -561,6 +561,24 @@
       box-shadow: 0 16px 40px rgba(0, 0, 0, 0.06);
     }
 
+    /* Left leg — blue accent */
+    .node-left {
+      border-left: 4px solid #4169e1;
+    }
+
+    .node-left:hover {
+      background: #f0f4ff;
+    }
+
+    /* Right leg — green accent */
+    .node-right {
+      border-right: 4px solid #26a65b;
+    }
+
+    .node-right:hover {
+      background: #f0fff4;
+    }
+
     .node-top {
       display: flex;
       align-items: center;
@@ -1601,7 +1619,7 @@
       return s;
     }
 
-    function renderNode(n) {
+    function renderNode(n, position = "") {
       if (!n || Object.keys(n).length === 0) return "";
 
       // ✅ Hide empty nodes completely
@@ -1619,7 +1637,7 @@
       const rightInvest = sumExchange(n.right);
 
       return `
-      <a class="node ${sc}"
+      <a class="node ${sc} node-${position.toLowerCase()}"
          data-id="${escapeHtml(n.id || 0)}"
          data-uid="${escapeHtml(uid)}"
          data-name="${escapeHtml(name)}"
@@ -1632,6 +1650,7 @@
          data-linv="${escapeHtml(leftInvest)}"
          data-rinv="${escapeHtml(rightInvest)}"
          data-avatar="${escapeHtml(avatar)}"
+         data-position="${escapeHtml(position)}"
          onclick="selectNode(this)">
         <span class="st"></span>
 
@@ -1670,14 +1689,14 @@
     }
 
     // ✅ Build UL/LI but only add children section if any child exists
-    function buildTree(node, level, max) {
+    function buildTree(node, level, max, position = "") {
       if (!node || level > max) return "";
 
-      const me = renderNode(node);
+      const me = renderNode(node, position);
       if (!me) return "";
 
-      let leftHtml = node.left ? buildTree(node.left, level + 1, max) : "";
-      let rightHtml = node.right ? buildTree(node.right, level + 1, max) : "";
+      let leftHtml = node.left ? buildTree(node.left, level + 1, max, "LEFT") : "";
+      let rightHtml = node.right ? buildTree(node.right, level + 1, max, "RIGHT") : "";
 
       // Frontier node: no child was fetched at this depth, but one exists further
       // down — offer a "load more" card instead of just stopping.
