@@ -24,15 +24,16 @@ class RoiMaturityPayment_cron extends CI_Controller
         $this->load->model('Walletledger_model', 'L');
     }
 
-    public function process()
+    public function process($onlyId = null)
     {
         $now = date('Y-m-d H:i:s');
         try {
-            $records = $this->db
+            $this->db
                 ->where('overall_status !=', 'completed')
                 ->where('fixed_maturity_date <=', $now)
-                ->where('fixed_maturity_date IS NOT NULL', null, false)
-                ->get('roi_staking_management')->result_array();
+                ->where('fixed_maturity_date IS NOT NULL', null, false);
+            if ($onlyId) $this->db->where('id', (int)$onlyId);
+            $records = $this->db->get('roi_staking_management')->result_array();
 
             $processed = 0; $skipped = 0; $failed = 0; $details = [];
             foreach ($records as $r) {

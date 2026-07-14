@@ -31,6 +31,15 @@ class Cronlab extends CI_Controller
                      ->set_output(json_encode($data));
     }
 
+    /** CI_Loader has no controller() method — require the file manually. */
+    private function _instantiate($class)
+    {
+        if (!class_exists($class, false)) {
+            require_once APPPATH . 'controllers/' . $class . '.php';
+        }
+        return new $class();
+    }
+
     public function index()
     {
         $this->load->model('Depositlistener_model', 'listener');
@@ -43,7 +52,8 @@ class Cronlab extends CI_Controller
             'cron_token' => $this->config->item('cron_token'),
             'jobs' => [
                 ['key' => 'stakingpurchase', 'label' => 'Staking Purchase', 'type' => 'swap', 'endpoint' => 'staking-purchase-cron', 'method' => 'GET', 'description' => 'Process multi-step USDT→BMAN swaps with gas fee detection, USDT payment, and BMAN distribution per coin_distribution_option (1-7).'],
-                ['key' => 'roi_unified', 'label' => 'ROI Distribution (Unified)', 'type' => 'roi', 'endpoint' => 'roi-distribution-unified', 'method' => 'GET', 'description' => 'Process ROI distribution for all plans (Fixed/Regular/Combo) based on maturity date and plan duration. Handles monthly payments (days 5,15,25 for Regular/Combo) and maturity payouts.'],
+                ['key' => 'roi_monthly', 'label' => 'ROI Monthly Distribution', 'type' => 'roi', 'endpoint' => 'roi-monthly-distribution-process', 'method' => 'GET', 'description' => 'Credits monthly ROI (principal × monthly%) to the Earning wallet for active Regular/Combo records whose next_payment_date has arrived. Idempotent via tx_hash. Catches up all due months in one run.'],
+                ['key' => 'roi_maturity', 'label' => 'ROI Maturity Payment', 'type' => 'roi', 'endpoint' => 'roi-maturity-payment-process', 'method' => 'GET', 'description' => 'On maturity: credits the fixed lump ROI (Fixed/Combo) to the Earning wallet and returns the PRINCIPAL to the Staking wallet. Waits for the monthly schedule to finish first on Regular/Combo.'],
             ],
         ];
         $this->load->view('admin/wallet/cron_lab', $data);
@@ -61,30 +71,30 @@ class Cronlab extends CI_Controller
                     $this->load->model('Bonusreduction_model', 'reduction');
                     $res = $this->reduction->run(['triggered_by' => 'cron']);
                     return $this->_json(['status' => !empty($res['status']) && $res['status'] === 'success' ? 'success' : 'success', 'message' => $res['message'] ?? 'done', 'data' => $res]);
-                case 'roi_unified':
-                    $this->load->controller('RoiUnifiedCron');
-                    $controller = new RoiUnifiedCron();
+                case 'roi_monthly':
+                    $controller = $this->_instantiate('RoiMonthlyDistribution_cron');
                     ob_start();
-                    $controller->run();
+                    $controller->process();
                     $output = ob_get_clean();
-                    try {
-                        $res = json_decode($output, true);
-                    } catch (Exception $e) {
-                        $res = ['status' => 'error', 'message' => 'Failed to parse response', 'raw' => $output];
-                    }
-                    return $this->_json(['status' => 'success', 'message' => 'Unified ROI cron executed', 'data' => $res]);
+                    $res = json_decode($output, true);
+                    if ($res === null) $res = ['status' => 'error', 'message' => 'Failed to parse response', 'raw' => $output];
+                    return $this->_json(['status' => 'success', 'message' => 'ROI monthly distribution executed', 'data' => $res]);
+                case 'roi_maturity':
+                    $controller = $this->_instantiate('RoiMaturityPayment_cron');
+                    ob_start();
+                    $controller->process();
+                    $output = ob_get_clean();
+                    $res = json_decode($output, true);
+                    if ($res === null) $res = ['status' => 'error', 'message' => 'Failed to parse response', 'raw' => $output];
+                    return $this->_json(['status' => 'success', 'message' => 'ROI maturity payment executed', 'data' => $res]);
                 case 'stakingpurchase':
                     $this->load->model('staking/StakingSwap_model', 'staking_swap');
-                    $this->load->controller('StakingPurchasecron');
-                    $controller = new StakingPurchasecron();
+                    $controller = $this->_instantiate('StakingPurchasecron');
                     ob_start();
                     $controller->run();
                     $output = ob_get_clean();
-                    try {
-                        $res = json_decode($output, true);
-                    } catch (Exception $e) {
-                        $res = ['status' => 'error', 'message' => 'Failed to parse response', 'raw' => $output];
-                    }
+                    $res = json_decode($output, true);
+                    if ($res === null) $res = ['status' => 'error', 'message' => 'Failed to parse response', 'raw' => $output];
                     return $this->_json(['status' => 'success', 'message' => 'staking purchase cron executed', 'data' => $res]);
                 case 'match':
                     $this->load->model('staking/Stakingmatching_model', 'MB');

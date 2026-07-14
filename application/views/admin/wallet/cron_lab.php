@@ -25,6 +25,7 @@
         <h1 class="page-heading text-gray-900 fw-bold fs-3 my-0"><?php echo $title; ?></h1>
         <div class="text-muted fs-7">Developer testing page for all scheduled crons and transaction audit.</div>
       </div>
+      <a href="<?php echo base_url('admin/staking/roi-history'); ?>" class="btn btn-sm btn-light-primary">ROI Distribution History →</a>
     </div>
   </div>
   <div class="app-content flex-column-fluid">

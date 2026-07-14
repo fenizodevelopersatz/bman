@@ -6,8 +6,8 @@
  */
 class RoiUnifiedCronV2 extends CI_Controller
 {
-    private $output = [];
-    private $start_time = 0;
+    protected $output = [];
+    protected $start_time = 0;
 
     public function __construct()
     {
@@ -106,6 +106,11 @@ class RoiUnifiedCronV2 extends CI_Controller
                 $principal = (float)$stake['stake_amount'];
                 $duration_years = (int)$stake['duration_years'];
                 $roi_data = json_decode($stake['roi'], true) ?? [];
+
+                if (empty($roi_data)) {
+                    $this->output['errors'][] = "Stake {$stake['id']}: Invalid ROI data";
+                    continue;
+                }
 
                 $monthly_rate = $roi_data['regular_'.$duration_years]['pct'] ?? 0;
                 if (!$monthly_rate) continue;
@@ -211,15 +216,23 @@ class RoiUnifiedCronV2 extends CI_Controller
                 $roi_data = json_decode($stake['roi'], true) ?? [];
                 $roi_plan = $stake['roi_plan'];
 
+                if (empty($roi_data)) {
+                    $this->output['errors'][] = "Stake {$stake['id']}: Invalid ROI data";
+                    continue;
+                }
+
                 // Calculate ROI based on plan type
                 if ($roi_plan === 'fixed') {
                     $fixed_rate = $roi_data['fixed_'.$duration_years]['pct'] ?? 0;
                     if ($fixed_rate <= 0) continue;
                     $roi_amount = $principal * ($fixed_rate / 100);
-                } else { // combo
+                } else { // combo - includes BOTH fixed and regular ROI
                     $fixed_rate = $roi_data['fixed_'.$duration_years]['pct'] ?? 0;
-                    if ($fixed_rate <= 0) continue;
-                    $roi_amount = $principal * ($fixed_rate / 100);
+                    $regular_rate = $roi_data['regular_'.$duration_years]['pct'] ?? 0;
+                    if ($fixed_rate <= 0 && $regular_rate <= 0) continue;
+                    $fixed_roi = $principal * ($fixed_rate / 100);
+                    $regular_roi = $principal * ($regular_rate / 100) * 12 * $duration_years;
+                    $roi_amount = $fixed_roi + $regular_roi;
                 }
 
                 // Check gas budget
@@ -323,7 +336,7 @@ class RoiUnifiedCronV2 extends CI_Controller
                     'amount'            => $item['roi_amount'],
                     'reference_id'      => $item['roi_audit_id'],
                     'reference_type'    => 'roi_retry',
-                    'note'              => "ROI Retry Attempt #{$item['retry_count'] + 1} - {$item['plan_type']}",
+                    'note'              => "ROI Retry Attempt #" . ($item['retry_count'] + 1) . " - {$item['plan_type']}",
                     'created_at'        => date('Y-m-d H:i:s')
                 ];
 

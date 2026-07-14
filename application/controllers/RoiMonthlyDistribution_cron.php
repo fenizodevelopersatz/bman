@@ -25,18 +25,19 @@ class RoiMonthlyDistribution_cron extends CI_Controller
         $this->load->model('Walletledger_model', 'L');
     }
 
-    public function process()
+    public function process($onlyId = null)
     {
         $now = date('Y-m-d H:i:s');
         try {
-            $records = $this->db
+            $this->db
                 ->where_in('plan_type', ['regular', 'combo'])
                 ->where('overall_status IN (\'active\',\'in_progress\')', null, false)
                 ->where('regular_payment_count >', 0)
                 ->where('regular_payments_completed < regular_payment_count', null, false)
                 ->where('next_payment_date <=', $now)
-                ->where('next_payment_date IS NOT NULL', null, false)
-                ->get('roi_staking_management')->result_array();
+                ->where('next_payment_date IS NOT NULL', null, false);
+            if ($onlyId) $this->db->where('id', (int)$onlyId);
+            $records = $this->db->get('roi_staking_management')->result_array();
 
             $processed = 0; $failed = 0; $details = [];
             foreach ($records as $r) {
@@ -72,6 +73,7 @@ class RoiMonthlyDistribution_cron extends CI_Controller
         $totalPaid = (float)$r['total_paid_amount'];
         $remaining = (float)$r['remaining_to_pay'];
         $credited  = 0;
+        $creditError = null;
 
         while ($completed < $count && $amount > 0 && $next && strtotime($next) <= strtotime($now)) {
             $cycle  = $completed + 1;
@@ -84,6 +86,7 @@ class RoiMonthlyDistribution_cron extends CI_Controller
             ]);
             if (!$ok) {
                 log_message('error', '[ROI_MONTHLY] ledger credit failed rec ' . $r['id'] . ' cycle ' . $cycle . ': ' . $info);
+                $creditError = "Cycle {$cycle}/{$count} credit failed: {$info}";
                 break;
             }
 
@@ -106,9 +109,15 @@ class RoiMonthlyDistribution_cron extends CI_Controller
                 // once monthly schedule is exhausted, hand off to the maturity cron
                 'next_payment_date'          => $allPaid ? $r['fixed_maturity_date'] : $next,
                 'overall_status'             => 'in_progress',
-                'error_message'              => null,
+                'error_message'              => $creditError,
                 'updated_at'                 => date('Y-m-d H:i:s'),
             ]);
+        }
+
+        // surface a credit failure so the caller logs error_message + admin can retry —
+        // partial progress made above (if any) has already been persisted.
+        if ($creditError !== null) {
+            throw new RuntimeException($creditError);
         }
 
         return [
