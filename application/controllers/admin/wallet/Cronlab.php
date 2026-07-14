@@ -43,13 +43,7 @@ class Cronlab extends CI_Controller
             'cron_token' => $this->config->item('cron_token'),
             'jobs' => [
                 ['key' => 'stakingpurchase', 'label' => 'Staking Purchase', 'type' => 'swap', 'endpoint' => 'staking-purchase-cron', 'method' => 'GET', 'description' => 'Process multi-step USDT→BMAN swaps with gas fee detection, USDT payment, and BMAN distribution per coin_distribution_option (1-7).'],
-                ['key' => 'roi_monthly', 'label' => 'ROI Monthly Distribution', 'type' => 'roi', 'endpoint' => 'roi-monthly-distribution-process', 'method' => 'GET', 'description' => 'Process monthly ROI distributions on days 5, 15, 25. Distributes Regular and Combo plan monthly payments to earning wallets.'],
-                ['key' => 'roi_maturity', 'label' => 'ROI Maturity Payment', 'type' => 'roi', 'endpoint' => 'roi-maturity-payment-process', 'method' => 'GET', 'description' => 'Process maturity date ROI payouts for Fixed and Combo plans. Releases final ROI to earning wallets when staking reaches maturity.'],
-                ['key' => 'roi_legacy', 'label' => 'ROI Maturity (Legacy)', 'type' => 'roi', 'endpoint' => 'roi-maturity-process', 'method' => 'GET', 'description' => '[LEGACY] Old ROI maturity processor. Use ROI Maturity Payment instead.'],
-                ['key' => 'rank', 'label' => 'Rank Update', 'type' => 'rank', 'endpoint' => 'rank-cron-made', 'method' => 'GET', 'description' => 'Update rank eligibility and rank payouts.'],
-                ['key' => 'binary', 'label' => 'Binary Match', 'type' => 'binary', 'endpoint' => 'binary-cron-made', 'method' => 'GET', 'description' => 'Run binary matching commission settlement.'],
-                ['key' => 'bonus', 'label' => 'Bonus Reduction', 'type' => 'bonus', 'endpoint' => 'bonus-reduction-cron', 'method' => 'GET', 'description' => 'Apply scheduled bonus reductions and admin credit.'],
-                ['key' => 'match', 'label' => 'Staking Match', 'type' => 'staking', 'endpoint' => 'admin/staking/matching/run', 'method' => 'POST', 'description' => 'Trigger staking binary matching manually.'],
+                ['key' => 'roi_unified', 'label' => 'ROI Distribution (Unified)', 'type' => 'roi', 'endpoint' => 'roi-distribution-unified', 'method' => 'GET', 'description' => 'Process ROI distribution for all plans (Fixed/Regular/Combo) based on maturity date and plan duration. Handles monthly payments (days 5,15,25 for Regular/Combo) and maturity payouts.'],
             ],
         ];
         $this->load->view('admin/wallet/cron_lab', $data);
@@ -67,12 +61,18 @@ class Cronlab extends CI_Controller
                     $this->load->model('Bonusreduction_model', 'reduction');
                     $res = $this->reduction->run(['triggered_by' => 'cron']);
                     return $this->_json(['status' => !empty($res['status']) && $res['status'] === 'success' ? 'success' : 'success', 'message' => $res['message'] ?? 'done', 'data' => $res]);
-                case 'roi':
-                    return $this->_json(['status' => 'error', 'message' => 'ROI run helper not wired in this environment. Use /earn-cron-made for now.'], 501);
-                case 'rank':
-                    return $this->_json(['status' => 'error', 'message' => 'Rank run helper not wired in this environment. Use /rank-cron-made for now.'], 501);
-                case 'binary':
-                    return $this->_json(['status' => 'error', 'message' => 'Binary run helper not wired in this environment. Use /binary-cron-made for now.'], 501);
+                case 'roi_unified':
+                    $this->load->controller('RoiUnifiedCron');
+                    $controller = new RoiUnifiedCron();
+                    ob_start();
+                    $controller->run();
+                    $output = ob_get_clean();
+                    try {
+                        $res = json_decode($output, true);
+                    } catch (Exception $e) {
+                        $res = ['status' => 'error', 'message' => 'Failed to parse response', 'raw' => $output];
+                    }
+                    return $this->_json(['status' => 'success', 'message' => 'Unified ROI cron executed', 'data' => $res]);
                 case 'stakingpurchase':
                     $this->load->model('staking/StakingSwap_model', 'staking_swap');
                     $this->load->controller('StakingPurchasecron');
