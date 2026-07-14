@@ -203,6 +203,45 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div>
 
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/dashboard">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Binary Matching</span>
+                </a>
+                <div class="menu-sub px-2 py-3">
+                  <div class="menu-item">
+                    <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/dashboard">
+                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                        class="menu-title">Dashboard</span>
+                    </a>
+                  </div>
+                  <div class="menu-item">
+                    <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/history">
+                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                        class="menu-title">Bonus History</span>
+                    </a>
+                  </div>
+                  <div class="menu-item">
+                    <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/ceiling-wallets">
+                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                        class="menu-title">Ceiling Wallets</span>
+                    </a>
+                  </div>
+                  <div class="menu-item">
+                    <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/payout-queue">
+                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                        class="menu-title">Payout Queue</span>
+                    </a>
+                  </div>
+                  <div class="menu-item">
+                    <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/cron-logs">
+                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                        class="menu-title">Cron Logs</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
 

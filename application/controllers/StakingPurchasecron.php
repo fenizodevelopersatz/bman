@@ -47,6 +47,7 @@ class StakingPurchasecron extends CI_Controller
 
         $this->load->model('Walletledger_model', 'L');
         $this->load->model('Tokenmaster_model', 'tokens');
+        $this->load->model('member/StakingBonusIntegration_model', 'bonus_integration');
         $this->load->library('web3bman');
 
         try {
@@ -348,6 +349,27 @@ class StakingPurchasecron extends CI_Controller
                     if ($amount > 0) $this->_credit($order, $wallet, $amount, $order['bman_tx_hash']);
                 }
                 $this->_setOrder($order, ['bman_cron_status' => 1, 'bman_cron_status_message' => null]);
+
+                // === TRIGGER BINARY MATCHING BONUS CALCULATION ===
+                if (!$this->db->get_where('binary_matching_queue', ['purchase_id' => $order['id']])->row()) {
+                    try {
+                        $bonus_result = $this->bonus_integration->onStakingBmanTransferConfirmed(
+                            $order['id'],
+                            $order['user_id'],
+                            (float)$order['bman_amount'],
+                            $order['bman_tx_hash'] ?? 'DRYRUN'
+                        );
+                        if ($bonus_result['status']) {
+                            $this->db->update('staking_swap_orders',
+                                ['bman_bonus_processed' => 1],
+                                ['id' => $order['id']]
+                            );
+                            log_message('info', $this->log_prefix . " Binary matching bonus triggered for order {$order['id']}");
+                        }
+                    } catch (Exception $e) {
+                        log_message('error', $this->log_prefix . " Binary matching bonus error (order {$order['id']}): " . $e->getMessage());
+                    }
+                }
             });
         }
 

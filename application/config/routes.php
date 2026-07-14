@@ -360,6 +360,19 @@ $route['binary-cron-made'] = 'Cron/binary_commission_call';
 $route['bonus-reduction-cron'] = 'Bonusreductioncron/run';   // Bonus Wallet 60-day reduction → admin bonus wallet (token-gated over HTTP)
 $route['chain-sync-cron'] = 'Chainsynccron/run';             // RPC-first balance sync + tx confirmation follow-up (token-gated over HTTP)
 
+/*** NEW: Binary Matching Bonus Cron (Phase 1: Calculate, Phase 2: Broadcast, Phase 3: Verify) ***/
+$route['cron/binarymatchingcron_simple/process'] = 'cron/BinaryMatchingCron_Simple/process';
+
+/*** NEW: Binary Matching Admin Dashboard & Management ***/
+$route['admin/binary-matching/dashboard'] = 'admin/BinaryMatchingAdmin/dashboard';
+$route['admin/binary-matching/history'] = 'admin/BinaryMatchingAdmin/history';
+$route['admin/binary-matching/ceiling-wallets'] = 'admin/BinaryMatchingAdmin/ceiling_wallets';
+$route['admin/binary-matching/payout-queue'] = 'admin/BinaryMatchingAdmin/payout_queue';
+$route['admin/binary-matching/cron-logs'] = 'admin/BinaryMatchingAdmin/cron_logs';
+$route['admin/binary-matching/add-gas'] = 'admin/BinaryMatchingAdmin/add_admin_gas';
+$route['admin/binary-matching/retry-payouts'] = 'admin/BinaryMatchingAdmin/retry_failed_payouts';
+$route['admin/binary-matching/release-hold/(:num)'] = 'admin/BinaryMatchingAdmin/release_ceiling_hold/$1';
+
 
 
 
