@@ -296,27 +296,6 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
             </div>
           </div>
 
-          <!-- ROI Breakdown Table -->
-          <div style="overflow:auto;margin-bottom:12px;border:1px solid rgba(15,23,42,.08);border-radius:10px;">
-            <table style="width:100%;border-collapse:collapse;font-size:11px;">
-              <thead>
-                <tr style="background:#f8fafc;border-bottom:1px solid rgba(15,23,42,.08);">
-                  <th style="text-align:left;padding:8px;font-weight:1000;color:#6b7280;">Period</th>
-                  <th style="text-align:right;padding:8px;font-weight:1000;color:#6b7280;">ROI Earned</th>
-                  <th style="text-align:right;padding:8px;font-weight:1000;color:#6b7280;">Cumulative</th>
-                  <th style="text-align:center;padding:8px;font-weight:1000;color:#6b7280;">Status</th>
-                </tr>
-              </thead>
-              <tbody id="stkm-roi-table">
-                <tr style="border-bottom:1px solid rgba(15,23,42,.06);">
-                  <td style="text-align:left;padding:8px;color:#334155;">Yearly</td>
-                  <td style="text-align:right;padding:8px;color:#334155;font-weight:900;" id="stkm-roi-yearly">?</td>
-                  <td style="text-align:right;padding:8px;color:#334155;font-weight:900;" id="stkm-roi-yearly-cum">?</td>
-                  <td style="text-align:center;padding:8px;"><span style="display:inline-block;background:rgba(99,102,241,.12);color:#4338ca;font-size:9px;padding:2px 6px;border-radius:6px;font-weight:900;">Active</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
         </div>
 
         <!-- Original Quote Section -->
@@ -395,7 +374,36 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     $('stkm-next').style.display = cur.step===4 ? 'none' : 'block';
     $('stkm-go').style.display = cur.step===4 ? 'block' : 'none';
   }
-  function renderRoi(){ const roiMap=cur.pkg?.roi||{}; if(!cur.pkg){ $('stkm-roi').textContent='?'; return; } if(cur.roi_plan==='combo'){ const f=roiMap['fixed_'+cur.years], r=roiMap['regular_'+cur.years]; $('stkm-roi').textContent=(f?f.pct+'% total':'?')+' + '+(r?r.pct+'%/mo':'?')+' (50/50)'; } else { const c=roiMap[cur.roi_plan+'_'+cur.years]; $('stkm-roi').textContent=c?(c.pct+'%'+(c.basis==='monthly'?' /mo':' total')):'?'; } }
+  function renderRoi(){
+    const roiMap=cur.pkg?.roi||{};
+    if(!cur.pkg){ $('stkm-roi').textContent='?'; return; }
+    const principal = +cur.pkg.stake||0;
+    const years = +cur.years||1;
+
+    if(cur.roi_plan==='combo'){
+      const f=roiMap['fixed_'+years], r=roiMap['regular_'+years];
+      const fixedROI = f ? principal * (f.pct / 100) : 0;
+      const regularROI = r ? principal * (r.pct / 100) * 12 * years : 0;
+      const totalROI = fixedROI + regularROI;
+      $('stkm-roi').textContent=(f?f.pct+'% fixed':'?')+' + '+(r?r.pct+'% /mo':'?')+' = '+Number(totalROI).toLocaleString()+' BMAN';
+    } else {
+      const c=roiMap[cur.roi_plan+'_'+years];
+      if(c){
+        let totalROI = 0;
+        if(c.basis === 'monthly'){
+          // Regular: monthly rate (2.3%) paid 3x per month, for 12 months per year
+          totalROI = principal * (c.pct / 100) * 12 * years;
+        } else {
+          // Fixed: total for the term
+          totalROI = principal * (c.pct / 100);
+        }
+        const displayRate = c.basis === 'monthly' ? c.pct+'% /mo' : c.pct+'% total';
+        $('stkm-roi').textContent = Number(totalROI).toLocaleString()+' BMAN ('+displayRate+')';
+      } else {
+        $('stkm-roi').textContent='?';
+      }
+    }
+  }
   function calcDist(amount){ const m=DISTS[cur.dist]||DISTS[7]; const exchange=amount*m.exchange/100, earning=amount*m.earning/100, staking=amount*m.staking/100, bonus=amount*m.bonus/100, instant=amount*0.25; return {m,exchange,earning,staking,bonus,instant,totalBonus:bonus+instant}; }
   function renderROIDetails(){
     if(!cur.pkg || !cur.roi_plan || !cur.years) return;
@@ -406,16 +414,35 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     const basis = roiData.basis || 'total';
     const years = +cur.years||1;
 
-    // Calculate total ROI based on basis (total vs monthly)
+    // Calculate total ROI based on plan type
+    // Fixed plan: rate is TOTAL % over entire term (e.g., 150% for 2 years)
+    // Regular plan: rate is % PER MONTH (e.g., 2.3% monthly)
+    // Combo plan: 50% Fixed + 50% Regular
     let totalROI, annualROI;
-    if(basis === 'monthly'){
-      // Monthly rate: multiply by 12 months per year
-      annualROI = principal * (ratePercent / 100) * 12;
-      totalROI = annualROI * years;
+
+    if(cur.roi_plan === 'combo'){
+      // Combo: Full Fixed + Full Regular (both combined)
+      const fixedData = roi['fixed_'+years] || {pct:0};
+      const regularData = roi['regular_'+years] || {pct:0};
+      const fixedRate = +fixedData.pct || 0;
+      const regularRate = +regularData.pct || 0;
+
+      // Fixed part: total % over term
+      const fixedROI = principal * (fixedRate / 100);
+      // Regular part: monthly rate (paid 3x on 5th, 15th, 25th) * 12 months * years
+      const regularROI = principal * (regularRate / 100) * 12 * years;
+
+      totalROI = fixedROI + regularROI;
+      annualROI = totalROI / years;
+    } else if(basis === 'monthly'){
+      // Regular plan: monthly rate (2.3%) paid 3x per month (5th, 15th, 25th)
+      // 2.3% is the total monthly rate, divided into 3 equal payments
+      totalROI = principal * (ratePercent / 100) * 12 * years;
+      annualROI = totalROI / years;
     } else {
-      // Total rate per year
-      annualROI = principal * (ratePercent / 100);
-      totalROI = annualROI * years;
+      // Fixed plan: ratePercent is already the total for the entire term
+      totalROI = principal * (ratePercent / 100);
+      annualROI = totalROI / years;
     }
     const totalAtMaturity = principal + totalROI;
 
@@ -426,8 +453,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     $('stkm-roi-duration').textContent = years + ' Year' + (years>1?'s':'');
     $('stkm-roi-bonus').textContent = Number(principal*0.25).toLocaleString();
     $('stkm-roi-total-value').textContent = Number(totalAtMaturity).toLocaleString() + ' BMAN';
-    $('stkm-roi-yearly').textContent = Number(annualROI).toLocaleString() + ' BMAN';
-    $('stkm-roi-yearly-cum').textContent = Number(totalROI).toLocaleString() + ' BMAN';
+
   }
   function renderLive(){
     if(!cur.pkg) return;

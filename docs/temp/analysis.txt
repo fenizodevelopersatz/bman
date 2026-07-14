@@ -3295,3 +3295,87 @@ Today Plan
 5. Withdraw request & processing and show their history
 6. User dashboard integration and chart
 7. Notification
+
+
+
+
+
+
+
+2 years on fixed
+
+Remove the word of ROI is liquad & At maturity over all 2 yearly once fixed plan is 150000 bman that it
+
+
+
+2years on regular plan return
+
+Regular plan is monthly 3 times to given 5th = 2.3/3%, 15th = 2.3/3, 25th =2.3/3 
+
+So take the 100000 * 2.3 = 2300 & 
+
+on the 15th regular plan of 100000*2.3 = 2300
+
+on the 25th regular plan of 100000*2.3=2300
+
+to give every month 3 times up to 6900 1st month
+
+ 6900 * 24 => 165600 for the regular plan
+
+
+2years on regular plan return Monthly = 2.3%
+2.3 / 3 => 0.767
+Per payment: 100,000 × 0.767% = 767 BMAN (2.3% ÷ 3)
+Per month (3×): 767 × 3 = 2,301 BMAN
+2 Years: 55,200 BMAN ✓
+
+
+
+3year plan:
+2.5/3 = > 0.833
+So take the 100000 * 0.833 = 833 & 
+on the 15th regular plan of 100000*0.833 = 833
+on the 25th regular plan of 100000*0.833=833
+to give every month 3 times up to 2490 1st month
+2499 * 36 => 89964 for the regular plan
+
+
+
+5year on combo plan returns
+
+Combo type is both combined because take 2 year after give 150000 + 1656000 => 315600 this is the ROI plan
+
+3/3 = > 1
+
+So take the 100000 * 1 = 1000 & 
+
+on the 15th regular plan of 100000*1 = 1000
+
+on the 25th regular plan of 100000*1=3000
+
+to give every month 3 times up to 3000 1st month
+
+3000 * 60 => 180000 for the regular plan
+
+
+
+
+
+ 
+ Round
+ 3year on combo plan returns
+
+2.5/3 = > 0.84
+
+So take the 100000 * 0.84 = 840 & 
+
+on the 15th regular plan of 100000*0.84 = 840
+
+on the 25th regular plan of 100000*0.84=840
+
+to give every month 3 times up to 2520 1st month
+
+2520 * 36 => 90720 for the regular plan
+
+
+100,000 * 150% => 150000 + 55,200 => 205,200
