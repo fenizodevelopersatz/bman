@@ -197,6 +197,20 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               </div>
 
               <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/roi-history">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">ROI Distribution History</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet/cron-lab">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Cron Lab</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/internal-transfers">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Internal Wallet Transfers</span>

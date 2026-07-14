@@ -2673,7 +2673,7 @@ C received on the Staking Wallet from B:   Binary matching ( 10% - > 2% staking 
 So manage with proper type and all transaction are on chain so before checking the admin hot wallet gas balance and then execute the cron and give admin to proper retry the transaction of each and every transfer
 
 
-
+D is purchase the 500000 staking but thier sponsor is low level staking purchase like 10000 only so the cieling wallet is held on only 10000 remaining go to first wallet or admin wallet
 ////////////////////////////
 
 
@@ -3205,6 +3205,10 @@ curl "http://192.168.29.18:9000/staking-purchase-cron?token=YOUR_SECRET_TOKEN"
 
 # 4. Or via CLI
 php index.php stakingpurchasecron run
+php index.php stakingpurchasecron run watch
+
+php index.php roimonthlydistribution_cron watch
+php index.php roimaturitypayment_cron watch
 
 
 

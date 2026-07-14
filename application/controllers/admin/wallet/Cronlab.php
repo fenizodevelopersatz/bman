@@ -31,13 +31,34 @@ class Cronlab extends CI_Controller
                      ->set_output(json_encode($data));
     }
 
-    /** CI_Loader has no controller() method — require the file manually. */
-    private function _instantiate($class)
+    /**
+     * Trigger another cron controller via an internal HTTP call to its own
+     * route, rather than instantiating a second CI_Controller in-process.
+     * CodeIgniter 3's CI_Controller::__construct() rebuilds every already-loaded
+     * "superobject" class from a global is_loaded() registry — once Session is
+     * loaded (every admin controller loads it), a second controller instance
+     * fails to re-resolve it ("Unable to locate the specified class:
+     * Session.php"). Hitting the existing route as a fresh top-level request
+     * avoids that entirely.
+     */
+    private function _runViaHttp($endpoint)
     {
-        if (!class_exists($class, false)) {
-            require_once APPPATH . 'controllers/' . $class . '.php';
-        }
-        return new $class();
+        $token = $this->config->item('cron_token');
+        $url = base_url($endpoint) . ($token ? '?' . http_build_query(['token' => $token]) : '');
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_HTTPHEADER     => ['X-Requested-With: XMLHttpRequest'],
+        ]);
+        $output = curl_exec($ch);
+        $err = curl_error($ch);
+        curl_close($ch);
+
+        if ($output === false) return ['status' => 'error', 'message' => "Internal request failed: {$err}"];
+        $decoded = json_decode($output, true);
+        return $decoded !== null ? $decoded : ['status' => 'error', 'message' => 'Failed to parse response', 'raw' => $output];
     }
 
     public function index()
@@ -72,29 +93,13 @@ class Cronlab extends CI_Controller
                     $res = $this->reduction->run(['triggered_by' => 'cron']);
                     return $this->_json(['status' => !empty($res['status']) && $res['status'] === 'success' ? 'success' : 'success', 'message' => $res['message'] ?? 'done', 'data' => $res]);
                 case 'roi_monthly':
-                    $controller = $this->_instantiate('RoiMonthlyDistribution_cron');
-                    ob_start();
-                    $controller->process();
-                    $output = ob_get_clean();
-                    $res = json_decode($output, true);
-                    if ($res === null) $res = ['status' => 'error', 'message' => 'Failed to parse response', 'raw' => $output];
+                    $res = $this->_runViaHttp('roi-monthly-distribution-process');
                     return $this->_json(['status' => 'success', 'message' => 'ROI monthly distribution executed', 'data' => $res]);
                 case 'roi_maturity':
-                    $controller = $this->_instantiate('RoiMaturityPayment_cron');
-                    ob_start();
-                    $controller->process();
-                    $output = ob_get_clean();
-                    $res = json_decode($output, true);
-                    if ($res === null) $res = ['status' => 'error', 'message' => 'Failed to parse response', 'raw' => $output];
+                    $res = $this->_runViaHttp('roi-maturity-payment-process');
                     return $this->_json(['status' => 'success', 'message' => 'ROI maturity payment executed', 'data' => $res]);
                 case 'stakingpurchase':
-                    $this->load->model('staking/StakingSwap_model', 'staking_swap');
-                    $controller = $this->_instantiate('StakingPurchasecron');
-                    ob_start();
-                    $controller->run();
-                    $output = ob_get_clean();
-                    $res = json_decode($output, true);
-                    if ($res === null) $res = ['status' => 'error', 'message' => 'Failed to parse response', 'raw' => $output];
+                    $res = $this->_runViaHttp('staking-purchase-cron');
                     return $this->_json(['status' => 'success', 'message' => 'staking purchase cron executed', 'data' => $res]);
                 case 'match':
                     $this->load->model('staking/Stakingmatching_model', 'MB');

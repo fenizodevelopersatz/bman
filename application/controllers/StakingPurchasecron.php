@@ -36,7 +36,20 @@ class StakingPurchasecron extends CI_Controller
     private $log_prefix = '[STAKING_PURCHASE_CRON]';
     private $_cfg_cache = null;
 
-    public function run()
+    /**
+     * $mode = 'watch' (CLI only): instead of exiting after one pass, keep polling
+     * and re-processing every few seconds until every pending order has settled
+     * all four legs (or a timeout is hit). Useful for interactive testing so one
+     * command carries an order through gas → usdt → bonus → bman without you
+     * manually re-invoking it each confirmation window.
+     *
+     * Deliberately NOT the default: the real crontab entry
+     * (`* * * * * php index.php stakingpurchasecron run`) and Cron Lab's "Run now"
+     * both rely on the existing single-pass behavior — looping inside an HTTP
+     * request would block a web worker, and looping inside every minute-cron
+     * invocation would stack up overlapping long-running processes.
+     */
+    public function run($mode = null)
     {
         if (!is_cli()) {
             $expected = $this->config->item('cron_token');
@@ -50,20 +63,68 @@ class StakingPurchasecron extends CI_Controller
         $this->load->model('member/StakingBonusIntegration_model', 'bonus_integration');
         $this->load->library('web3bman');
 
+        $watch = is_cli() && $mode === 'watch';
+
         try {
-            $result = [
-                'status'  => 'success',
-                'message' => 'Staking purchase cron completed',
-                'mode'    => $this->_isDryRun() ? 'DRY_RUN' : 'LIVE',
-                'details' => ['steps' => $this->_processAllPendingSteps()],
-                'ran_at'  => date('Y-m-d H:i:s'),
-            ];
+            if (!$watch) {
+                $result = [
+                    'status'  => 'success',
+                    'message' => 'Staking purchase cron completed',
+                    'mode'    => $this->_isDryRun() ? 'DRY_RUN' : 'LIVE',
+                    'details' => ['steps' => $this->_processAllPendingSteps()],
+                    'ran_at'  => date('Y-m-d H:i:s'),
+                ];
+            } else {
+                $result = $this->_runUntilSettled();
+            }
         } catch (Exception $e) {
             log_message('error', $this->log_prefix . ' ' . $e->getMessage());
             $result = ['status' => 'error', 'message' => $e->getMessage(), 'ran_at' => date('Y-m-d H:i:s')];
         }
 
         echo json_encode($result) . PHP_EOL;
+    }
+
+    /** Poll every 5s (up to 10 minutes) until no order still has a pending leg. */
+    private function _runUntilSettled($pollSeconds = 5, $maxSeconds = 600)
+    {
+        $start = time();
+        $pass = 0;
+        $lastSteps = [];
+
+        do {
+            $pass++;
+            $lastSteps = $this->_processAllPendingSteps();
+            $remaining = count($this->_getPendingOrders());
+
+            fwrite(STDOUT, sprintf(
+                "[pass %d, %ds elapsed] gas:%d/%d usdt:%d/%d bonus:%d/%d bman:%d/%d — %d order(s) still pending\n",
+                $pass, time() - $start,
+                $lastSteps['gas']['processed']   ?? 0, $lastSteps['gas']['waiting']   ?? 0,
+                $lastSteps['usdt']['processed']  ?? 0, $lastSteps['usdt']['waiting']  ?? 0,
+                $lastSteps['bonus']['processed'] ?? 0, $lastSteps['bonus']['waiting'] ?? 0,
+                $lastSteps['bman']['processed']  ?? 0, $lastSteps['bman']['waiting']  ?? 0,
+                $remaining
+            ));
+
+            if ($remaining === 0) {
+                return [
+                    'status' => 'success', 'message' => 'All pending orders settled',
+                    'mode' => $this->_isDryRun() ? 'DRY_RUN' : 'LIVE',
+                    'passes' => $pass, 'elapsed_seconds' => time() - $start,
+                    'details' => ['steps' => $lastSteps], 'ran_at' => date('Y-m-d H:i:s'),
+                ];
+            }
+
+            if (time() - $start + $pollSeconds < $maxSeconds) sleep($pollSeconds);
+        } while (time() - $start < $maxSeconds);
+
+        return [
+            'status' => 'timeout', 'message' => "Timed out after {$maxSeconds}s waiting for confirmations — run again to continue.",
+            'mode' => $this->_isDryRun() ? 'DRY_RUN' : 'LIVE',
+            'passes' => $pass, 'elapsed_seconds' => time() - $start,
+            'details' => ['steps' => $lastSteps], 'ran_at' => date('Y-m-d H:i:s'),
+        ];
     }
 
     /* ============================ config / chain ============================ */
@@ -190,15 +251,26 @@ class StakingPurchasecron extends CI_Controller
 
     private function _processAllPendingSteps()
     {
+        // Self-heal first: an order whose 4 legs all reached 1 but whose finalize
+        // step (_checkAndCompleteOrder) never ran — e.g. a crash between the last
+        // leg confirming and finalization — is invisible to _getPendingOrders()
+        // forever (it no longer has any leg at 0), so it would stay stuck at its
+        // last pending_* status with no user_stakes row even though the on-chain
+        // delivery already genuinely completed. Sweep for that class of order on
+        // every run so it can't get permanently orphaned. Pure bookkeeping, no
+        // broadcasting, so it runs regardless of swap_enabled/dry_run.
+        $healed = $this->_sweepStuckCompletions();
+
         // Broadcasting requires the swap to be enabled (unless simulating).
         if (!$this->_isEnabled() && !$this->_isDryRun()) {
-            return ['skipped' => 'swap_enabled = 0'];
+            return ['skipped' => 'swap_enabled = 0', 'healed_stuck_orders' => $healed];
         }
 
         $orders  = $this->_getPendingOrders();
         $head    = $this->_currentBlock();
         $summary = [
             'total_orders' => count($orders),
+            'healed_stuck_orders' => $healed,
             'gas'   => ['processed' => 0, 'waiting' => 0, 'failed' => 0],
             'usdt'  => ['processed' => 0, 'waiting' => 0, 'failed' => 0],
             'bonus' => ['processed' => 0, 'waiting' => 0, 'failed' => 0],
@@ -213,6 +285,31 @@ class StakingPurchasecron extends CI_Controller
             catch (Exception $e) { log_message('error', $this->log_prefix . ' order ' . $order['id'] . ': ' . $e->getMessage()); }
         }
         return $summary;
+    }
+
+    /** Finalize any order whose 4 legs are all done but status/user_stakes never caught up. */
+    private function _sweepStuckCompletions()
+    {
+        $orders = $this->db->select(
+                'id, ref, user_id, package_id, plan_id, plan_code, duration_years, ' .
+                'status, bman_amount, bonus_bman, bman_tx_hash, coin_distribution_option, ' .
+                'gas_cron_status, usdt_cron_status, bonus_cron_status, bman_cron_status'
+            )
+            ->where('gas_cron_status', 1)->where('usdt_cron_status', 1)
+            ->where('bonus_cron_status', 1)->where('bman_cron_status', 1)
+            ->where('status !=', 'swap_completed')
+            ->where('status !=', 'cancelled')
+            ->get('staking_swap_orders')->result_array();
+
+        foreach ($orders as $order) {
+            try {
+                $this->_checkAndCompleteOrder($order);
+                log_message('info', $this->log_prefix . " healed stuck order {$order['id']} (all legs done, finalize step had not run)");
+            } catch (Exception $e) {
+                log_message('error', $this->log_prefix . " sweep order {$order['id']}: " . $e->getMessage());
+            }
+        }
+        return count($orders);
     }
 
     private function _processOrder(&$order, $head, &$summary)
@@ -350,26 +447,11 @@ class StakingPurchasecron extends CI_Controller
                 }
                 $this->_setOrder($order, ['bman_cron_status' => 1, 'bman_cron_status_message' => null]);
 
-                // === TRIGGER BINARY MATCHING BONUS CALCULATION ===
-                if (!$this->db->get_where('binary_matching_queue', ['purchase_id' => $order['id']])->row()) {
-                    try {
-                        $bonus_result = $this->bonus_integration->onStakingBmanTransferConfirmed(
-                            $order['id'],
-                            $order['user_id'],
-                            (float)$order['bman_amount'],
-                            $order['bman_tx_hash'] ?? 'DRYRUN'
-                        );
-                        if ($bonus_result['status']) {
-                            $this->db->update('staking_swap_orders',
-                                ['bman_bonus_processed' => 1],
-                                ['id' => $order['id']]
-                            );
-                            log_message('info', $this->log_prefix . " Binary matching bonus triggered for order {$order['id']}");
-                        }
-                    } catch (Exception $e) {
-                        log_message('error', $this->log_prefix . " Binary matching bonus error (order {$order['id']}): " . $e->getMessage());
-                    }
-                }
+                // Trigger binary matching bonus calculation. No extra dupe-guard needed:
+                // _processOrder() only calls _stepBman() while bman_cron_status === 0,
+                // and that was just set to 1 above, so this callback can only run once
+                // per order regardless.
+                $this->_triggerBinaryMatchingBonus($order);
             });
         }
 
@@ -383,6 +465,44 @@ class StakingPurchasecron extends CI_Controller
             $r = $this->web3bman->sendToken($key, $order['user_address'], (string)$order['bman_amount'], $bmanContract);
             return $r['tx_hash'];
         }, 'bman_tx_hash');
+    }
+
+    /**
+     * Best-effort trigger — the BMAN principal has already been delivered and
+     * credited by this point, so a failure here must never take down the cron.
+     *
+     * BinaryMatchingBonus_model currently writes to a `binary_matching_queue.
+     * purchase_id` column that doesn't exist in this schema (confirmed: the real
+     * table only has run_ref/status/scope/attempts/...), so this call reliably
+     * fails. A plain try/catch does NOT protect against that — CodeIgniter's
+     * default db_debug behavior halts the whole script on a DB error instead of
+     * throwing a catchable Exception. Toggling db_debug off for just this call
+     * makes a failed query return false instead, so the try/catch below actually
+     * works. This does NOT fix the binary-matching-bonus feature itself — that
+     * needs its own dedicated pass (queue table schema vs. model expectations)
+     * if/when that feature is wanted.
+     */
+    private function _triggerBinaryMatchingBonus(&$order)
+    {
+        $prevDebug = $this->db->db_debug;
+        $this->db->db_debug = false;
+        try {
+            $bonus_result = $this->bonus_integration->onStakingBmanTransferConfirmed(
+                $order['id'],
+                $order['user_id'],
+                (float)$order['bman_amount'],
+                $order['bman_tx_hash'] ?? 'DRYRUN'
+            );
+            if (!empty($bonus_result['status'])) {
+                log_message('info', $this->log_prefix . " Binary matching bonus triggered for order {$order['id']}");
+            } else {
+                log_message('error', $this->log_prefix . " Binary matching bonus not triggered (order {$order['id']}): " . ($bonus_result['message'] ?? 'unknown'));
+            }
+        } catch (Throwable $e) {
+            log_message('error', $this->log_prefix . " Binary matching bonus error (order {$order['id']}): " . $e->getMessage());
+        } finally {
+            $this->db->db_debug = $prevDebug;
+        }
     }
 
     /* ----------------------------- primitives ----------------------------- */

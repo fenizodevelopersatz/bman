@@ -32,6 +32,29 @@
   <div class="app-content flex-column-fluid">
     <div class="app-container container-xxl">
 
+      <div class="roi-card mb-6">
+        <div class="card-header border-0 pt-6">
+          <div class="card-title"><div class="fw-bold fs-4">Manual Send — Particular User</div></div>
+        </div>
+        <div class="card-body pt-2">
+          <div class="tiny mb-3">Look up a user and send their ROI now. Safe to use any time — it only credits whatever is actually due today per that record's schedule; it never pays ahead of schedule.</div>
+          <div class="d-flex gap-2 mb-4" style="max-width:480px;">
+            <input id="user-q" type="text" class="form-control form-control-sm" placeholder="User ID, username, or email">
+            <button id="user-search" class="btn btn-sm btn-primary text-nowrap">Search</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table align-middle table-row-dashed fs-7 gy-3">
+              <thead>
+                <tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
+                  <th>ID</th><th>User</th><th>Plan</th><th>Status</th><th>Progress</th><th>Next Due</th><th>Remaining</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="user-records"><tr><td colspan="8" class="text-center text-muted py-6">Search for a user to see their ROI records.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div class="row g-4 mb-6">
         <?php $stats = [
           ['Total ROI Paid', number_format($summary['total_paid'],4), '#22c55e'],
@@ -50,6 +73,40 @@
           </div>
         </div>
         <?php endforeach; ?>
+      </div>
+
+      <div class="roi-card mb-6">
+        <div class="card-header border-0 pt-6">
+          <div class="card-title"><div class="fw-bold fs-4">All Staking &amp; ROI Records</div></div>
+          <div class="card-toolbar gap-2">
+            <select id="rec-status" class="form-select form-select-sm w-auto">
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+        </div>
+        <div class="card-body pt-2">
+          <div class="table-responsive">
+            <table class="table align-middle table-row-dashed fs-7 gy-3">
+              <thead>
+                <tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
+                  <th>ID</th><th>User</th><th>Plan</th><th>Principal</th><th>Total ROI</th><th>Paid</th><th>Remaining</th><th>Status</th><th>Next Due</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="rec-body"><tr><td colspan="10" class="text-center text-muted py-6">Loading...</td></tr></tbody>
+            </table>
+          </div>
+          <div class="d-flex align-items-center justify-content-between pt-4 border-top">
+            <div class="text-muted fs-8">Showing <span id="rec-showing">0</span> of <span id="rec-total">0</span> | Page <span id="rec-page">1</span></div>
+            <div class="gap-2 d-flex">
+              <button id="rec-prev" class="btn btn-sm btn-light">← Previous</button>
+              <button id="rec-next" class="btn btn-sm btn-light">Next →</button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="roi-card mb-6">
@@ -205,19 +262,65 @@
   document.getElementById('dist-prev').addEventListener('click', ()=>{ if (page > 1) { page--; loadDist(); } });
   document.getElementById('dist-next').addEventListener('click', ()=>{ page++; loadDist(); });
 
-  document.querySelectorAll('.retry-one').forEach(btn => btn.addEventListener('click', async () => {
+  // Delegated so it works for both server-rendered rows (Failed table) and
+  // dynamically-rendered rows (Manual Send user search results).
+  document.body.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('.retry-one');
+    if (!btn) return;
     const id = btn.dataset.id;
-    btn.disabled = true; btn.textContent = 'Retrying...';
+    const original = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Sending...';
     try {
       const res = await fetch(base + 'admin/staking/roi-history/retry/' + id, { method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'} });
       const j = await res.json();
-      alert(j.message || 'Retry executed');
+      alert(j.message || 'Send executed');
       window.location.reload();
     } catch (e) {
-      alert('Retry failed: ' + e.message);
-      btn.disabled = false; btn.textContent = 'Retry';
+      alert('Send failed: ' + e.message);
+      btn.disabled = false; btn.textContent = original;
     }
-  }));
+  });
+
+  function renderUserRecords(records) {
+    const body = document.getElementById('user-records');
+    if (!records.length) { body.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-6">No ROI records for this user.</td></tr>'; return; }
+    body.innerHTML = records.map(r => {
+      const progress = r.plan_type === 'fixed'
+        ? (r.fixed_status || 'pending')
+        : (r.regular_payments_completed + '/' + r.regular_payment_count);
+      const nextDue = r.next_payment_date || r.fixed_maturity_date || '—';
+      return '<tr>'+
+        '<td class="mono">#'+r.id+'</td>'+
+        '<td>User #'+r.user_id+'</td>'+
+        '<td><span class="badge badge-'+r.plan_type+'">'+r.plan_type.charAt(0).toUpperCase()+r.plan_type.slice(1)+'</span></td>'+
+        '<td>'+r.overall_status+(r.error_message ? ' <span class="text-danger">(error)</span>' : '')+'</td>'+
+        '<td>'+progress+'</td>'+
+        '<td class="tiny">'+nextDue+'</td>'+
+        '<td>'+Number(r.remaining_to_pay||0).toLocaleString(undefined,{maximumFractionDigits:4})+'</td>'+
+        '<td><button class="btn btn-sm btn-light-primary retry-one" data-id="'+r.id+'">Send Now</button></td>'+
+      '</tr>';
+    }).join('');
+  }
+
+  async function searchUser() {
+    const q = document.getElementById('user-q').value.trim();
+    if (!q) return;
+    const body = document.getElementById('user-records');
+    body.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-6">Searching...</td></tr>';
+    const fd = new FormData();
+    fd.append('q', q);
+    try {
+      const res = await fetch(base + 'admin/staking/roi-history/lookup-user', { method:'POST', body: fd, headers:{'X-Requested-With':'XMLHttpRequest'} });
+      const j = await res.json();
+      if (j.status !== 'success') { body.innerHTML = '<tr><td colspan="8" class="text-danger text-center py-6">'+(j.message||'Search failed')+'</td></tr>'; return; }
+      if (!j.users.length) { body.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-6">No matching user.</td></tr>'; return; }
+      renderUserRecords(j.records);
+    } catch (e) {
+      body.innerHTML = '<tr><td colspan="8" class="text-danger text-center py-6">'+e.message+'</td></tr>';
+    }
+  }
+  document.getElementById('user-search').addEventListener('click', searchUser);
+  document.getElementById('user-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') searchUser(); });
 
   document.getElementById('retry-all').addEventListener('click', async () => {
     const btn = document.getElementById('retry-all');
@@ -233,6 +336,51 @@
     }
   });
 
+  // Default listing — every staking + ROI record, no search required.
+  let recPage = 1;
+  async function loadRecords(){
+    const fd = new FormData();
+    fd.append('page', recPage);
+    const status = document.getElementById('rec-status').value;
+    if (status) fd.append('status', status);
+    const body = document.getElementById('rec-body');
+    body.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-6">Loading...</td></tr>';
+    try {
+      const res = await fetch(base + 'admin/staking/roi-history/records', { method:'POST', body: fd, headers:{'X-Requested-With':'XMLHttpRequest'} });
+      const j = await res.json();
+      if (j.status !== 'success') { body.innerHTML = '<tr><td colspan="10" class="text-danger text-center py-6">Failed to load.</td></tr>'; return; }
+      if (!j.rows.length) { body.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-6">No staking records yet.</td></tr>'; document.getElementById('rec-showing').textContent = '0'; document.getElementById('rec-total').textContent = j.total; return; }
+      body.innerHTML = j.rows.map(r => {
+        const progress = r.plan_type === 'fixed' ? (r.fixed_status || 'pending') : (r.regular_payments_completed + '/' + r.regular_payment_count);
+        const nextDue = r.next_payment_date || r.fixed_maturity_date || '—';
+        const who = r.username || r.email || ('User #' + r.user_id);
+        return '<tr>'+
+          '<td class="mono">#'+r.id+'</td>'+
+          '<td>'+who+'</td>'+
+          '<td><span class="badge badge-'+r.plan_type+'">'+r.plan_type.charAt(0).toUpperCase()+r.plan_type.slice(1)+'</span></td>'+
+          '<td>'+Number(r.principal_amount||0).toLocaleString(undefined,{maximumFractionDigits:4})+'</td>'+
+          '<td>'+Number(r.total_roi_amount||0).toLocaleString(undefined,{maximumFractionDigits:4})+'</td>'+
+          '<td>'+Number(r.total_paid_amount||0).toLocaleString(undefined,{maximumFractionDigits:4})+'</td>'+
+          '<td>'+Number(r.remaining_to_pay||0).toLocaleString(undefined,{maximumFractionDigits:4})+'</td>'+
+          '<td>'+r.overall_status+(r.error_message ? ' <span class="text-danger">(error)</span>' : '')+' — '+progress+'</td>'+
+          '<td class="tiny">'+nextDue+'</td>'+
+          '<td><button class="btn btn-sm btn-light-primary retry-one" data-id="'+r.id+'">Send Now</button></td>'+
+        '</tr>';
+      }).join('');
+      document.getElementById('rec-showing').textContent = j.rows.length;
+      document.getElementById('rec-total').textContent = j.total;
+      document.getElementById('rec-page').textContent = recPage;
+      document.getElementById('rec-prev').disabled = recPage <= 1;
+      document.getElementById('rec-next').disabled = (recPage * 25) >= j.total;
+    } catch (e) {
+      body.innerHTML = '<tr><td colspan="10" class="text-danger text-center py-6">'+e.message+'</td></tr>';
+    }
+  }
+  document.getElementById('rec-status').addEventListener('change', ()=>{ recPage = 1; loadRecords(); });
+  document.getElementById('rec-prev').addEventListener('click', ()=>{ if (recPage > 1) { recPage--; loadRecords(); } });
+  document.getElementById('rec-next').addEventListener('click', ()=>{ recPage++; loadRecords(); });
+
+  loadRecords();
   loadDist();
 })();
 </script>

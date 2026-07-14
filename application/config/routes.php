@@ -684,8 +684,10 @@ $route['admin/staking/ceiling-wallet/adjust']['post'] = 'admin/staking/Ceilingwa
 // ROI Distribution History (real data: roi_staking_management + onchain_transactions)
 $route['admin/staking/roi-history'] = 'admin/staking/Roihistory/index';
 $route['admin/staking/roi-history/list']['post'] = 'admin/staking/Roihistory/list';
+$route['admin/staking/roi-history/records']['post'] = 'admin/staking/Roihistory/records';
 $route['admin/staking/roi-history/retry/(:num)']['post'] = 'admin/staking/Roihistory/retry/$1';
 $route['admin/staking/roi-history/retry-all']['post'] = 'admin/staking/Roihistory/retry_all';
+$route['admin/staking/roi-history/lookup-user']['post'] = 'admin/staking/Roihistory/lookup_user';
 
 /**************** Finance — Custodial Wallet Monitor (on-chain vs DB) */
 $route['admin/wallet-monitor'] = 'admin/wallet/Walletmonitor';

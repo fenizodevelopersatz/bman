@@ -30,27 +30,49 @@ class Roihistory extends CI_Controller
                      ->set_output(json_encode($data));
     }
 
-    /** Run a cron controller's process() inside a buffer, always closing it.
-     *  CI_Loader has no controller() method — the file must be require'd manually. */
-    private function _runCron($class, $method, $arg = null)
+    /** route (public HTTP endpoint) for each cron — kept in sync with routes.php */
+    private $cronRoutes = [
+        'RoiMonthlyDistribution_cron' => 'roi-monthly-distribution-process',
+        'RoiMaturityPayment_cron'     => 'roi-maturity-payment-process',
+    ];
+
+    /**
+     * Trigger a cron via an internal HTTP call to its own route, rather than
+     * instantiating a second CI_Controller in-process. CodeIgniter 3's
+     * CI_Controller::__construct() rebuilds every already-loaded "superobject"
+     * class from a global is_loaded() registry — once the Session library is
+     * loaded (every admin controller loads it), a second controller instance
+     * fails to re-resolve it ("Unable to locate the specified class:
+     * Session.php"). Hitting the existing, already-working route as a fresh
+     * top-level request avoids that entirely.
+     */
+    private function _runCron($class, $onlyId = null)
     {
-        if (!class_exists($class, false)) {
-            $file = APPPATH . 'controllers/' . $class . '.php';
-            if (!is_file($file)) {
-                return ['status' => false, 'error' => "Controller file not found: {$class}"];
-            }
-            require_once $file;
+        if (!isset($this->cronRoutes[$class])) {
+            return ['status' => false, 'error' => "Unknown cron: {$class}"];
         }
 
-        ob_start();
-        try {
-            $instance = new $class();
-            $arg === null ? $instance->$method() : $instance->$method($arg);
-        } catch (Throwable $e) {
-            ob_end_clean();
-            return ['status' => false, 'error' => $e->getMessage()];
+        $params = [];
+        $token = $this->config->item('cron_token');
+        if ($token) $params['token'] = $token;
+        if ($onlyId) $params['record_id'] = (int)$onlyId;
+
+        $url = base_url($this->cronRoutes[$class]);
+        if ($params) $url .= '?' . http_build_query($params);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_HTTPHEADER     => ['X-Requested-With: XMLHttpRequest'],
+        ]);
+        $output = curl_exec($ch);
+        $err = curl_error($ch);
+        curl_close($ch);
+
+        if ($output === false) {
+            return ['status' => false, 'error' => "Internal request to {$class} failed: {$err}"];
         }
-        $output = ob_get_clean();
         $decoded = json_decode($output, true);
         return $decoded !== null ? $decoded : ['status' => false, 'error' => 'Non-JSON output', 'raw' => $output];
     }
@@ -153,7 +175,78 @@ class Roihistory extends CI_Controller
         return $this->_json(['status' => 'success', 'rows' => $rows, 'total' => $total, 'page' => $page, 'limit' => $limit]);
     }
 
-    /** Retry one failed roi_staking_management record (monthly + maturity, whichever applies). */
+    /** AJAX: paginated listing of every staking + ROI record (default view, no search needed). */
+    public function records()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $page  = max(1, (int)$this->input->post('page'));
+        $limit = 25;
+        $offset = ($page - 1) * $limit;
+        $status = $this->input->post('status', true); // active | in_progress | completed | failed
+
+        $applyFilters = function () use ($status) {
+            $this->db->from('roi_staking_management r')->join('users u', 'u.id = r.user_id', 'left');
+            if ($status === 'failed') {
+                $this->db->where('r.error_message IS NOT NULL', null, false);
+            } elseif ($status) {
+                $this->db->where('r.overall_status', $status);
+            }
+        };
+
+        $applyFilters();
+        $total = $this->db->count_all_results();
+
+        $applyFilters();
+        $rows = $this->db->select('r.id, r.user_id, r.ref, r.plan_type, r.overall_status,
+                r.principal_amount, r.total_roi_amount, r.total_paid_amount, r.remaining_to_pay,
+                r.regular_payments_completed, r.regular_payment_count,
+                r.fixed_status, r.fixed_payment_amount, r.fixed_maturity_date,
+                r.next_payment_date, r.error_message, r.created_at, u.username, u.email', false)
+            ->order_by('r.created_at', 'DESC')->limit($limit, $offset)->get()->result_array();
+
+        return $this->_json(['status' => 'success', 'rows' => $rows, 'total' => $total, 'page' => $page, 'limit' => $limit]);
+    }
+
+    /**
+     * Find a user's ROI records for the manual-send panel. Accepts a numeric
+     * user_id or a username/email search term. Shows every record (not just
+     * failed ones) so admin can manually trigger a send for support cases.
+     */
+    public function lookup_user()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $q = trim((string)$this->input->post('q', true));
+        if ($q === '') return $this->_json(['status' => 'error', 'message' => 'Enter a user ID, username, or email'], 422);
+
+        $this->db->select('id, username, email')->from('users');
+        if (ctype_digit($q)) {
+            $this->db->where('id', (int)$q);
+        } else {
+            $this->db->group_start()->like('username', $q)->or_like('email', $q)->group_end();
+        }
+        $users = $this->db->limit(10)->get()->result_array();
+        if (!$users) return $this->_json(['status' => 'success', 'users' => [], 'records' => []]);
+
+        $userIds = array_column($users, 'id');
+        $records = $this->db->select('r.id, r.user_id, r.ref, r.plan_type, r.overall_status,
+                r.principal_amount, r.total_roi_amount, r.total_paid_amount, r.remaining_to_pay,
+                r.regular_payments_completed, r.regular_payment_count,
+                r.fixed_status, r.fixed_payment_amount, r.fixed_maturity_date,
+                r.next_payment_date, r.error_message', false)
+            ->from('roi_staking_management r')
+            ->where_in('r.user_id', $userIds)
+            ->order_by('r.created_at', 'DESC')
+            ->get()->result_array();
+
+        return $this->_json(['status' => 'success', 'users' => $users, 'records' => $records]);
+    }
+
+    /**
+     * Manually trigger a send for one roi_staking_management record — used both
+     * for retrying a failed record and for support-driven "send this user's ROI
+     * now" requests. Schedule-respecting: the underlying crons only credit
+     * whatever is actually due today, so this can never pay ahead of schedule.
+     */
     public function retry($id)
     {
         if (!$this->input->is_ajax_request()) show_404();
@@ -162,11 +255,11 @@ class Roihistory extends CI_Controller
         if (!$rec) return $this->_json(['status' => 'error', 'message' => 'Record not found'], 404);
 
         $out = [
-            'monthly'  => $this->_runCron('RoiMonthlyDistribution_cron', 'process', $id),
-            'maturity' => $this->_runCron('RoiMaturityPayment_cron', 'process', $id),
+            'monthly'  => $this->_runCron('RoiMonthlyDistribution_cron', $id),
+            'maturity' => $this->_runCron('RoiMaturityPayment_cron', $id),
         ];
 
-        return $this->_json(['status' => 'success', 'message' => 'Retry executed for record #' . $id, 'data' => $out]);
+        return $this->_json(['status' => 'success', 'message' => 'Send executed for record #' . $id, 'data' => $out]);
     }
 
     /** Retry every failed record at once (full unscoped cron run — safe/idempotent). */
@@ -175,8 +268,8 @@ class Roihistory extends CI_Controller
         if (!$this->input->is_ajax_request()) show_404();
 
         $out = [
-            'monthly'  => $this->_runCron('RoiMonthlyDistribution_cron', 'process'),
-            'maturity' => $this->_runCron('RoiMaturityPayment_cron', 'process'),
+            'monthly'  => $this->_runCron('RoiMonthlyDistribution_cron'),
+            'maturity' => $this->_runCron('RoiMaturityPayment_cron'),
         ];
 
         return $this->_json(['status' => 'success', 'message' => 'Retry-all executed', 'data' => $out]);
