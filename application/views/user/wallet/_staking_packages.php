@@ -241,20 +241,8 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
       <div class="stkm-pane" data-step="3">
         <label>Coin Distribution</label>
         <div class="stkm-seg" id="stkm-distributions"></div>
-        <div class="stkm-table-wrap">
-          <table class="stkm-table" aria-label="Coin distribution preview">
-            <thead>
-              <tr>
-                <th>Option</th>
-                <th class="text-end">Exchange</th>
-                <th class="text-end">Earning</th>
-                <th class="text-end">Staking</th>
-                <th class="text-end">Bonus</th>
-                <th class="text-end">Total</th>
-              </tr>
-            </thead>
-            <tbody id="stkm-distribution-table"></tbody>
-          </table>
+        <div style="background:#f8fafc;border:1px solid rgba(15,23,42,.08);border-radius:14px;padding:14px 16px;margin:12px 0;margin-top:16px;">
+          <div style="font-size:13px;font-weight:800;color:#334155;line-height:1.6;" id="stkm-distribution-desc">Select an option above</div>
         </div>
         <div class="stkm-note">Distribution preview allocates 100% of the purchased BMAN across wallets. Instant bonus is shown separately and remains the only liquid bonus balance.</div>
       </div>
@@ -452,8 +440,23 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     if($('stkm-instant')) $('stkm-instant').textContent=Number(dist.instant).toLocaleString()+' BMAN';
     renderROIDetails();
   }
-  function renderDistTable(){ const body=$('stkm-distribution-table'); if(!body) return; body.innerHTML = Object.entries(DISTS).map(([k,v]) => { const total = (Number(v.exchange)||0) + (Number(v.earning)||0) + (Number(v.staking)||0) + (Number(v.bonus)||0); return '<tr class="'+(+k===+cur.dist ? 'is-active' : '')+'">' + '<td class="option-name">'+esc(v.name)+'</td>' + '<td class="text-end">'+Number(v.exchange).toFixed(0)+'%</td>' + '<td class="text-end">'+Number(v.earning).toFixed(0)+'%</td>' + '<td class="text-end">'+Number(v.staking).toFixed(0)+'%</td>' + '<td class="text-end">'+Number(v.bonus).toFixed(0)+'%</td>' + '<td class="text-end"><b>'+total.toFixed(0)+'%</b></td>' + '</tr>'; }).join(''); }
-  function renderDistButtons(){ $('stkm-distributions').innerHTML=''; Object.entries(DISTS).forEach(([k,v])=>{ const b=document.createElement('button'); b.type='button'; b.textContent=v.name; b.dataset.dist=k; b.onclick=()=>{ cur.dist=+k; document.querySelectorAll('#stkm-distributions button').forEach(x=>x.classList.toggle('active', +x.dataset.dist===+k)); renderDistTable(); renderLive(); renderStep(3); }; $('stkm-distributions').appendChild(b); }); document.querySelectorAll('#stkm-distributions button').forEach(b=>b.classList.toggle('active', +b.dataset.dist===cur.dist)); renderDistTable(); }
+  function getDistDescription(dist){
+    const parts = [];
+    if(dist.exchange > 0) parts.push(dist.exchange.toFixed(0) + '% Exchange');
+    if(dist.earning > 0) parts.push(dist.earning.toFixed(0) + '% Earning');
+    if(dist.staking > 0) parts.push(dist.staking.toFixed(0) + '% Staking');
+    if(dist.bonus > 0) parts.push(dist.bonus.toFixed(0) + '% Bonus');
+    return parts.length > 0 ? parts.join(' + ') : 'No allocation';
+  }
+  function renderDistDescription(){
+    const desc=$('stkm-distribution-desc');
+    if(!desc) return;
+    const selected = DISTS[cur.dist];
+    if(selected) {
+      desc.textContent = getDistDescription(selected);
+    }
+  }
+  function renderDistButtons(){ $('stkm-distributions').innerHTML=''; Object.entries(DISTS).forEach(([k,v])=>{ const b=document.createElement('button'); b.type='button'; b.textContent=v.name; b.dataset.dist=k; b.onclick=()=>{ cur.dist=+k; document.querySelectorAll('#stkm-distributions button').forEach(x=>x.classList.toggle('active', +x.dataset.dist===+k)); renderDistDescription(); renderLive(); renderStep(3); }; $('stkm-distributions').appendChild(b); }); document.querySelectorAll('#stkm-distributions button').forEach(b=>b.classList.toggle('active', +b.dataset.dist===cur.dist)); renderDistDescription(); }
   function stkPickTerm(y){
     cur.years=y;
     document.querySelectorAll('#stkm-terms button').forEach(b=>b.classList.toggle('active', +b.dataset.y===+y));
