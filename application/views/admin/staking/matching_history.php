@@ -23,6 +23,7 @@
                 </div>
                 <div class="d-flex align-items-center gap-2">
                   <button id="mh-run-now" class="btn btn-sm btn-primary">Run Matching Now</button>
+                  <button id="mh-refresh" class="btn btn-sm btn-light-primary">Refresh Wallets</button>
                 </div>
               </div>
             </div>
@@ -73,6 +74,28 @@
                   </div>
                 </div>
 
+                <div class="card mb-6">
+                  <div class="card-header pt-6 d-flex align-items-center justify-content-between">
+                    <h3 class="card-title fw-bold">Wallet Snapshot</h3>
+                    <span class="text-muted fs-8" id="mh-refresh-state">Live from current page data</span>
+                  </div>
+                  <div class="card-body pt-3 pb-9">
+                    <div class="row g-4" id="mh-wallet-strip">
+                      <?php if (!empty($payouts)): ?>
+                        <?php $first = $payouts[0]; ?>
+                        <div class="col-md-2"><div class="border rounded p-4 h-100 bg-light"><div class="text-gray-600 fw-semibold fs-8 text-uppercase">USDT Wallet</div><div class="fw-bold fs-4 mt-1"><?php echo number_format((float)($first['wallet_usdt'] ?? 0), 4); ?></div><div class="text-muted fs-8">Staking source</div></div></div>
+                        <div class="col-md-2"><div class="border rounded p-4 h-100 bg-light"><div class="text-gray-600 fw-semibold fs-8 text-uppercase">Exchange Wallet</div><div class="fw-bold fs-4 mt-1"><?php echo number_format((float)($first['wallet_exchange'] ?? 0), 4); ?></div><div class="text-muted fs-8">Internal BMAN</div></div></div>
+                        <div class="col-md-2"><div class="border rounded p-4 h-100 bg-light"><div class="text-gray-600 fw-semibold fs-8 text-uppercase">Earning Wallet</div><div class="fw-bold fs-4 mt-1"><?php echo number_format((float)($first['wallet_earning'] ?? 0), 4); ?></div><div class="text-muted fs-8">ROI credited here</div></div></div>
+                        <div class="col-md-2"><div class="border rounded p-4 h-100 bg-light"><div class="text-gray-600 fw-semibold fs-8 text-uppercase">Staking Wallet</div><div class="fw-bold fs-4 mt-1"><?php echo number_format((float)($first['wallet_staking'] ?? 0), 4); ?></div><div class="text-muted fs-8">Stake rewards</div></div></div>
+                        <div class="col-md-2"><div class="border rounded p-4 h-100 bg-light"><div class="text-gray-600 fw-semibold fs-8 text-uppercase">Bonus Wallet</div><div class="fw-bold fs-4 mt-1"><?php echo number_format((float)($first['wallet_bonus'] ?? 0), 4); ?></div><div class="text-muted fs-8">Matching / bonus</div></div></div>
+                        <div class="col-md-2"><div class="border rounded p-4 h-100 bg-light"><div class="text-gray-600 fw-semibold fs-8 text-uppercase">Sponsor / User</div><div class="fw-bold fs-4 mt-1"><?php echo html_escape($first['username'] ?? ('#'.$first['user_id'])); ?></div><div class="text-muted fs-8"><?php echo html_escape($first['referral_id'] ?? ''); ?></div></div></div>
+                      <?php else: ?>
+                        <div class="col-12"><div class="text-muted">No payouts yet.</div></div>
+                      <?php endif; ?>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Recent engine runs -->
                 <div class="card mb-6">
                   <div class="card-header pt-6"><h3 class="card-title fw-bold">Recent Engine Runs</h3></div>
@@ -118,13 +141,14 @@
                       <table class="table align-middle table-row-dashed fs-7 gy-4">
                         <thead><tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
                           <th>#</th><th>User</th><th>Ceiling (now)</th><th class="text-end">Matched Vol.</th><th class="text-end">%</th>
-                          <th class="text-end">Earning</th><th class="text-end">Staking</th>
+                          <th class="text-end">Earning</th><th class="text-end">Staking</th><th class="text-end">USDT</th>
+                          <th class="text-end">Exchange</th><th class="text-end">Earning W.</th><th class="text-end">Staking W.</th><th class="text-end">Bonus W.</th>
                           <th class="text-end">Left/Right Before</th><th>Run Ref</th>
                           <th>On-Chain Status</th><th>Tx Hash</th><th>When</th>
                         </tr></thead>
                         <tbody class="text-gray-700 fw-semibold">
                         <?php if (empty($payouts)): ?>
-                          <tr><td colspan="12" class="text-center text-muted py-6">No matching payouts yet.</td></tr>
+                          <tr><td colspan="17" class="text-center text-muted py-6">No matching payouts yet.</td></tr>
                         <?php else: foreach ($payouts as $p):
                           $pbadge = ['PENDING'=>'light','PROCESSING'=>'info','CONFIRMED'=>'success','FAILED'=>'danger','RETRY'=>'warning'];
                           $pStatus = $p['payout_status'] ?? null;
@@ -148,6 +172,11 @@
                             <td class="text-end text-muted"><?php echo number_format((float)$p['total_percent'], 2); ?>%</td>
                             <td class="text-end text-success"><?php echo number_format((float)$p['earning_amount'], 4); ?></td>
                             <td class="text-end text-info"><?php echo number_format((float)$p['staking_amount'], 4); ?></td>
+                            <td class="text-end"><?php echo number_format((float)($p['wallet_usdt'] ?? 0), 4); ?></td>
+                            <td class="text-end"><?php echo number_format((float)($p['wallet_exchange'] ?? 0), 4); ?></td>
+                            <td class="text-end"><?php echo number_format((float)($p['wallet_earning'] ?? 0), 4); ?></td>
+                            <td class="text-end"><?php echo number_format((float)($p['wallet_staking'] ?? 0), 4); ?></td>
+                            <td class="text-end"><?php echo number_format((float)($p['wallet_bonus'] ?? 0), 4); ?></td>
                             <td class="text-end fs-8 text-muted"><?php echo number_format((float)$p['left_before'], 2); ?> / <?php echo number_format((float)$p['right_before'], 2); ?></td>
                             <td class="fs-8 text-muted"><?php echo html_escape($p['run_ref'] ?? ''); ?></td>
                             <td>
@@ -182,11 +211,26 @@
 
   <script>
     var MH_RUN_NOW_URL = "<?php echo base_url('admin/staking/matching-history/run-now'); ?>";
+    var MH_SNAPSHOT_URL = "<?php echo base_url('admin/staking/matching-history/snapshot'); ?>";
   </script>
   <?php $this->load->view('admin/Layout/common_script'); ?>
   <script>
     (function () {
+      function fmt(n) { return (Number(n) || 0).toFixed(4); }
+      function updateWalletStrip(first) {
+        var strip = document.getElementById('mh-wallet-strip');
+        if (!strip || !first) return;
+        strip.innerHTML = [
+          '<div class="col-md-2"><div class="border rounded p-4 h-100 bg-light"><div class="text-gray-600 fw-semibold fs-8 text-uppercase">USDT Wallet</div><div class="fw-bold fs-4 mt-1">' + fmt(first.wallet_usdt) + '</div><div class="text-muted fs-8">Staking source</div></div></div>',
+          '<div class="col-md-2"><div class="border rounded p-4 h-100 bg-light"><div class="text-gray-600 fw-semibold fs-8 text-uppercase">Exchange Wallet</div><div class="fw-bold fs-4 mt-1">' + fmt(first.wallet_exchange) + '</div><div class="text-muted fs-8">Internal BMAN</div></div></div>',
+          '<div class="col-md-2"><div class="border rounded p-4 h-100 bg-light"><div class="text-gray-600 fw-semibold fs-8 text-uppercase">Earning Wallet</div><div class="fw-bold fs-4 mt-1">' + fmt(first.wallet_earning) + '</div><div class="text-muted fs-8">ROI credited here</div></div></div>',
+          '<div class="col-md-2"><div class="border rounded p-4 h-100 bg-light"><div class="text-gray-600 fw-semibold fs-8 text-uppercase">Staking Wallet</div><div class="fw-bold fs-4 mt-1">' + fmt(first.wallet_staking) + '</div><div class="text-muted fs-8">Stake rewards</div></div></div>',
+          '<div class="col-md-2"><div class="border rounded p-4 h-100 bg-light"><div class="text-gray-600 fw-semibold fs-8 text-uppercase">Bonus Wallet</div><div class="fw-bold fs-4 mt-1">' + fmt(first.wallet_bonus) + '</div><div class="text-muted fs-8">Matching / bonus</div></div></div>',
+          '<div class="col-md-2"><div class="border rounded p-4 h-100 bg-light"><div class="text-gray-600 fw-semibold fs-8 text-uppercase">Sponsor / User</div><div class="fw-bold fs-4 mt-1">' + (first.username || ('#' + first.user_id)) + '</div><div class="text-muted fs-8">' + (first.referral_id || '') + '</div></div></div>'
+        ].join('');
+      }
       var btn = document.getElementById('mh-run-now');
+      var refreshBtn = document.getElementById('mh-refresh');
       if (!btn) return;
       btn.addEventListener('click', function () {
         btn.disabled = true;
@@ -205,6 +249,28 @@
           btn.disabled = false; btn.textContent = 'Run Matching Now';
         });
       });
+
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', function () {
+          refreshBtn.disabled = true;
+          refreshBtn.textContent = 'Refreshing...';
+          fetch(MH_SNAPSHOT_URL, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+          }).then(function (r) { return r.json(); }).then(function (r) {
+            if (r.status !== 'success') throw new Error(r.message || 'Refresh failed');
+            var first = (r.payouts && r.payouts.length) ? r.payouts[0] : null;
+            if (first) updateWalletStrip(first);
+            var state = document.getElementById('mh-refresh-state');
+            if (state) state.textContent = 'Updated just now';
+          }).catch(function () {
+            if (window.Swal) Swal.fire('Error', 'Could not refresh wallet snapshot', 'error');
+          }).finally(function () {
+            refreshBtn.disabled = false;
+            refreshBtn.textContent = 'Refresh Wallets';
+          });
+        });
+      }
     })();
   </script>
 </body>

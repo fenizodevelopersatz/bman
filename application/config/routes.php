@@ -686,6 +686,7 @@ $route['admin/staking/ceiling-wallet/adjust']['post'] = 'admin/staking/Ceilingwa
 // Binary Matching History: staking_matching_payouts + binary_matching_queue audit trail
 $route['admin/staking/matching-history'] = 'admin/staking/Matchinghistory/index';
 $route['admin/staking/matching-history/run-now']['post'] = 'admin/staking/Matchinghistory/run_now';
+$route['admin/staking/matching-history/snapshot']['get'] = 'admin/staking/Matchinghistory/snapshot';
 // Binary Matching Payout Queue: on-chain transfer status + admin retry
 $route['admin/staking/payout-queue'] = 'admin/staking/Payoutqueue/index';
 $route['admin/staking/payout-queue/retry/(:num)']['post'] = 'admin/staking/Payoutqueue/retry/$1';

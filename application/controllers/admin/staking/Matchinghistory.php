@@ -50,7 +50,20 @@ class Matchinghistory extends CI_Controller
     public function index()
     {
         $this->_requireAdmin();
+        $data = $this->_pageData();
+        $this->load->view('admin/staking/matching_history', $data);
+    }
 
+    /** AJAX refresh payload for the matching history page. */
+    public function snapshot()
+    {
+        $this->_requireAdmin();
+        if (!$this->input->is_ajax_request()) show_404();
+        return $this->_json(['status' => 'success'] + $this->_pageData());
+    }
+
+    private function _pageData()
+    {
         $totals = $this->db->select(
             "COALESCE(SUM(matched_volume),0) AS matched_volume, " .
             "COALESCE(SUM(earning_amount),0) AS earning_paid, " .
@@ -61,16 +74,16 @@ class Matchinghistory extends CI_Controller
             ->where('tx_type', 'CEILING_HOLD')->where('reference_type', 'binary_matching')
             ->get('ceiling_wallet_ledger')->row_array();
 
-        $data['title']            = 'Binary Matching History';
-        $data['matched_volume']   = (float)($totals['matched_volume'] ?? 0);
-        $data['earning_paid']     = (float)($totals['earning_paid'] ?? 0);
-        $data['staking_paid']     = (float)($totals['staking_paid'] ?? 0);
-        $data['ceiling_diverted'] = (float)($ceiling['held'] ?? 0);
-        $data['runs']             = $this->MQ->recent(50);
-        $data['payouts']          = $this->_payoutHistory(300);
-        $data['explorer_url']     = $this->_explorer();
-
-        $this->load->view('admin/staking/matching_history', $data);
+        return [
+            'title'            => 'Binary Matching History',
+            'matched_volume'   => (float)($totals['matched_volume'] ?? 0),
+            'earning_paid'     => (float)($totals['earning_paid'] ?? 0),
+            'staking_paid'     => (float)($totals['staking_paid'] ?? 0),
+            'ceiling_diverted' => (float)($ceiling['held'] ?? 0),
+            'runs'             => $this->MQ->recent(50),
+            'payouts'          => $this->_payoutHistory(300),
+            'explorer_url'     => $this->_explorer(),
+        ];
     }
 
     /** staking_matching_payouts joined to users + its (possibly still-pending) on-chain payout row. */
@@ -98,6 +111,7 @@ class Matchinghistory extends CI_Controller
      */
     private function _withCeilingContext(array $rows)
     {
+        $this->load->model('Walletledger_model', 'WL');
         $cache = [];
         foreach ($rows as &$r) {
             $uid = (int)$r['user_id'];
@@ -105,6 +119,7 @@ class Matchinghistory extends CI_Controller
                 $ceiling = $this->MB->userCeiling($uid);
                 $paid = $this->MB->matchingPaidToDate($uid);
                 $held = (float)($this->CW->balance($uid)['held_balance'] ?? 0);
+                $wallet = $this->WL->balances($uid);
                 $ownStake = (float)($this->db->select_sum('stake_amount')->where('user_id', $uid)
                                               ->where('status', 'active')->get('user_stakes')->row()->stake_amount ?? 0);
                 $cache[$uid] = [
@@ -113,6 +128,11 @@ class Matchinghistory extends CI_Controller
                     'ceiling_held'      => round($held, 4),
                     'own_stake_amount'  => round($ownStake, 4),
                     'matching_eligible' => $ceiling > 0,
+                    'wallet_usdt'       => round((float)($wallet['usdt'] ?? 0), 4),
+                    'wallet_exchange'   => round((float)($wallet['exchange'] ?? 0), 4),
+                    'wallet_earning'    => round((float)($wallet['earning'] ?? 0), 4),
+                    'wallet_staking'    => round((float)($wallet['staking'] ?? 0), 4),
+                    'wallet_bonus'      => round((float)($wallet['bonus'] ?? 0), 4),
                 ];
             }
             $r += $cache[$uid];

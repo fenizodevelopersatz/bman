@@ -865,7 +865,7 @@
           <div class="ic" style="background:#ecfdf3;color:#0f9d58;"><i class="ph ph-wallet"></i></div>
           <div>
             <small>Available Balance</small>
-            <strong>
+            <strong id="kpi-available">
               <?= currency_format((float) ($payout->available_amount ?? 0), 2); ?></strong>
             <span>Withdraw anytime</span>
           </div>
@@ -875,7 +875,7 @@
           <div class="ic" style="background:#fff7ed;color:#c2410c;"><i class="ph ph-hourglass"></i></div>
           <div>
             <small>Pending for Payout</small>
-            <strong>
+            <strong id="kpi-pending">
               <?= currency_format((float) ($payout->pending_amount ?? 0), 2); ?></strong>
             <span>Next cycle: <?= htmlspecialchars($payout->next_date ?? '—'); ?></span>
           </div>
@@ -885,7 +885,7 @@
           <div class="ic" style="background:#eff6ff;color:#2563eb;"><i class="ph ph-hand-coins"></i></div>
           <div>
             <small>Total Paid Out</small>
-            <strong>
+            <strong id="kpi-paid">
               <?= currency_format((float) ($payout->paid_total ?? 0), 2); ?></strong>
             <span>Transferred to bank</span>
           </div>
@@ -897,6 +897,61 @@
             <small>Next Payout Time</small>
             <strong><?= htmlspecialchars($payout->next_date ?? '—'); ?></strong>
             <span>Auto processing</span>
+          </div>
+        </div>
+      </div>
+
+      <?php
+        $wallet_usdt = (float) ($wallet_usdt ?? 0);
+        $wallet_bman = $wallet_bman ?? ['exchange' => 0, 'earning' => 0, 'staking' => 0, 'bonus' => 0];
+      ?>
+      <style>
+        .allw-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:0 0 18px;}
+        .allw-strip .wtile{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid rgba(15,23,42,.08);
+          border-radius:16px;padding:14px 16px;box-shadow:0 6px 18px rgba(15,23,42,.04);}
+        .allw-strip .wtile.usdt{border:1.5px solid #26a17b55;background:linear-gradient(135deg,#26a17b0d,#fff);}
+        .allw-strip .wico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:20px;flex:0 0 auto;}
+        .allw-strip .wlbl{font-size:11.5px;font-weight:900;color:#6b7280;text-transform:uppercase;letter-spacing:.3px;
+          display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+        .allw-strip .wval{font-size:18px;font-weight:900;color:#0b1220;line-height:1.1;}
+        .allw-strip .wval small{font-size:11px;font-weight:900;color:#6b7280;}
+        .allw-strip .wtag{font-size:9px;font-weight:900;letter-spacing:.2px;padding:2px 7px;border-radius:99px;
+          background:#26a17b1a;color:#1b8f6b;text-transform:uppercase;}
+      </style>
+      <div class="allw-strip">
+        <div class="wtile usdt">
+          <div class="wico" style="background:#26a17b1a;color:#26a17b;"><i class="ph ph-currency-circle-dollar"></i></div>
+          <div>
+            <div class="wlbl">USDT Wallet <span class="wtag">Staking Source</span></div>
+            <div class="wval" id="wallet-usdt-val"><?= number_format($wallet_usdt, 2); ?> <small>USDT</small></div>
+          </div>
+        </div>
+        <div class="wtile">
+          <div class="wico" style="background:#6366f11a;color:#6366f1;"><i class="ph ph-swap"></i></div>
+          <div>
+            <div class="wlbl">Exchange Wallet</div>
+            <div class="wval" id="wallet-exchange-val"><?= number_format((float)($wallet_bman['exchange'] ?? 0), 4); ?> <small>BMAN</small></div>
+          </div>
+        </div>
+        <div class="wtile">
+          <div class="wico" style="background:#0ea5e91a;color:#0ea5e9;"><i class="ph ph-trend-up"></i></div>
+          <div>
+            <div class="wlbl">Earning Wallet</div>
+            <div class="wval" id="wallet-earning-val"><?= number_format((float)($wallet_bman['earning'] ?? 0), 4); ?> <small>BMAN</small></div>
+          </div>
+        </div>
+        <div class="wtile">
+          <div class="wico" style="background:#10b9811a;color:#10b981;"><i class="ph ph-lock-key"></i></div>
+          <div>
+            <div class="wlbl">Staking Wallet</div>
+            <div class="wval" id="wallet-staking-val"><?= number_format((float)($wallet_bman['staking'] ?? 0), 4); ?> <small>BMAN</small></div>
+          </div>
+        </div>
+        <div class="wtile">
+          <div class="wico" style="background:#f59e0b1a;color:#f59e0b;"><i class="ph ph-gift"></i></div>
+          <div>
+            <div class="wlbl">Bonus Wallet</div>
+            <div class="wval" id="wallet-bonus-val"><?= number_format((float)($wallet_bman['bonus'] ?? 0), 4); ?> <small>BMAN</small></div>
           </div>
         </div>
       </div>
@@ -1259,6 +1314,37 @@
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
+    function refreshWalletSnapshot() {
+      const btn = document.querySelector('.actions .btn-soft[onclick*="refreshWalletSnapshot"]');
+      const old = btn ? btn.innerHTML : '';
+      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="ph ph-spinner-gap"></i> Refreshing...'; }
+      fetch('<?= base_url('member/profile/wallet_check'); ?>', {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin'
+      }).then(r => r.json()).then(data => {
+        if (data.status !== 'success') throw new Error(data.message || 'Refresh failed');
+        if (data.data) {
+          const onchainUsdt = document.getElementById('onchain-usdt');
+          const dbUsdt = document.getElementById('db-usdt');
+          const diffUsdt = document.getElementById('usdt-diff');
+          const onchainBnb = document.getElementById('onchain-bnb');
+          const onchainBman = document.getElementById('onchain-bman');
+          if (onchainUsdt) onchainUsdt.textContent = data.data.onchain_usdt ?? '0';
+          if (dbUsdt) dbUsdt.textContent = data.data.db_usdt ?? '0';
+          if (diffUsdt) diffUsdt.textContent = data.data.difference ?? '0';
+          if (onchainBnb) onchainBnb.textContent = data.data.onchain_bnb ?? '0';
+          if (onchainBman) onchainBman.textContent = data.data.onchain_bman ?? '0';
+          const state = document.getElementById('wallet-sync-state');
+          if (state) state.textContent = 'Updated just now';
+        }
+        toastMini(data.message || 'Wallet refreshed');
+      }).catch(err => {
+        toastMini(err.message || 'Could not refresh wallet');
+      }).finally(() => {
+        if (btn) { btn.disabled = false; btn.innerHTML = old; }
+      });
+    }
+
     function viewPayout(id) {
       if (!id) { toastMini("No payout id"); return; }
       // Change route as per your project
@@ -1322,6 +1408,16 @@
           // ✅ Update KPI cards if you want (optional)
           // If you have elements to update, you can bind IDs and update here.
           // For now, we refresh the page OR rebuild table.
+          const kAvail = document.getElementById('kpi-available');
+          const kPend = document.getElementById('kpi-pending');
+          const kPaid = document.getElementById('kpi-paid');
+          const kNext = document.getElementById('kpi-next-date');
+          if (data.payout) {
+            if (kAvail) kAvail.textContent = sym + " " + Number(data.payout.available_amount || 0).toFixed(2);
+            if (kPend) kPend.textContent = sym + " " + Number(data.payout.pending_amount || 0).toFixed(2);
+            if (kPaid) kPaid.textContent = sym + " " + Number(data.payout.paid_total || 0).toFixed(2);
+            if (kNext) kNext.textContent = data.payout.next_date || "—";
+          }
           if (data.payouts && Array.isArray(data.payouts)) {
             rebuildPayoutTable(data.payouts);
           }

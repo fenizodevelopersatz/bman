@@ -823,6 +823,8 @@ class Genealogycontroller extends MY_Controller
         // ===== Wallets =====
         $available_amount = (float) site_wallet_balance($id);   // ✅ payout->available_amount        
         $token_balance = (float) site_token_balance($id);
+        $this->load->model('Walletledger_model', 'ledger');
+        $wallets = $this->ledger->balances($id);
 
         // ===== Bank status =====
         $user_bank = $this->db->get_where('user_bank', ['user_id' => $id])->row();
@@ -993,6 +995,13 @@ class Genealogycontroller extends MY_Controller
         // if you still need these old ones
         $this->data['wallet_balance'] = $available_amount;
         $this->data['token_wallet_balance'] = $token_balance;
+        $this->data['wallet_usdt'] = (float) ($wallets['usdt'] ?? 0);
+        $this->data['wallet_bman'] = [
+            'exchange' => (float) ($wallets['exchange'] ?? 0),
+            'earning'  => (float) ($wallets['earning'] ?? 0),
+            'staking'  => (float) ($wallets['staking'] ?? 0),
+            'bonus'    => (float) ($wallets['bonus'] ?? 0),
+        ];
 
         $this->load->view('user/member/withdraw', $this->data);
     }
