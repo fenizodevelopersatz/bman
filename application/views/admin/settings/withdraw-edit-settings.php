@@ -213,6 +213,41 @@
                                </div>
                                </div>
 
+                               <div class="separator my-8"></div>
+                               <h4 class="fw-bold mb-6">Wallet Maturity Rules</h4>
+                               <p class="text-muted mb-6">Days before ledger credits become withdrawable. Withdrawals validate against matured ledger balance only.</p>
+
+                               <div class="col-lg-6">
+                               <div class="row mb-6">
+                               <label class="col-lg-8 col-form-label fw-semibold fs-6">Maturity Enforcement</label>
+                               <div class="col-lg-4 fv-row">
+                               <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
+                               <input class="form-check-input h-30px w-50px" type="checkbox" value="1" name="maturity_enabled"
+                               <?php echo !empty($maturity_enabled) ? "checked" : ""; ?> id="maturity_enabled"/>
+                               </div>
+                               </div>
+                               </div>
+                               </div>
+
+                               <?php
+                               $maturity_fields = [
+                                   'exchange' => ['label' => 'Exchange Wallet', 'val' => $maturity_days_exchange ?? 0],
+                                   'earning'  => ['label' => 'Earning Wallet',  'val' => $maturity_days_earning ?? 30],
+                                   'staking'  => ['label' => 'Staking Wallet',  'val' => $maturity_days_staking ?? 0],
+                                   'bonus'    => ['label' => 'Bonus Wallet',    'val' => $maturity_days_bonus ?? 60],
+                               ];
+                               foreach ($maturity_fields as $key => $mf): ?>
+                               <div class="row mb-6">
+                               <label class="col-lg-4 col-form-label fw-semibold fs-6"><?= $mf['label']; ?> Lock Period (days)</label>
+                               <div class="col-lg-8 fv-row">
+                               <input type="number" min="0" name="maturity_days_<?= $key; ?>"
+                               class="form-control form-control-lg form-control-solid"
+                               value="<?= (int) $mf['val']; ?>">
+                               <small class="text-muted">0 = immediately withdrawable on credit</small>
+                               </div>
+                               </div>
+                               <?php endforeach; ?>
+
                                <div class="row mb-6">
                                <label class="col-lg-4 col-form-label fw-semibold fs-6">Withdraw Daily Limit <span class="text-danger"> * </span></label>
                                <div class="col-lg-8 fv-row">

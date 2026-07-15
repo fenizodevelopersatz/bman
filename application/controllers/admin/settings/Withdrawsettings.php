@@ -24,6 +24,7 @@ class  Withdrawsettings extends CI_Controller {
         }
 
         $this->load->model('settings/Payment_model');
+        $this->load->model('WalletMaturity_model', 'maturity');
     }
 
 
@@ -51,6 +52,12 @@ class  Withdrawsettings extends CI_Controller {
         $this->data['withdraw_allowed_earning'] = site_settings('withdraw_settings','withdraw_allowed_earning');
         $this->data['withdraw_allowed_staking'] = site_settings('withdraw_settings','withdraw_allowed_staking');
         $this->data['withdraw_allowed_bonus'] = site_settings('withdraw_settings','withdraw_allowed_bonus');
+
+        $this->data['maturity_enabled'] = site_settings('wallet_maturity_settings','maturity_enabled');
+        $this->data['maturity_days_exchange'] = site_settings('wallet_maturity_settings','maturity_days_exchange');
+        $this->data['maturity_days_earning'] = site_settings('wallet_maturity_settings','maturity_days_earning');
+        $this->data['maturity_days_staking'] = site_settings('wallet_maturity_settings','maturity_days_staking');
+        $this->data['maturity_days_bonus'] = site_settings('wallet_maturity_settings','maturity_days_bonus');
 
         $this->data['currency_info'] = currency_info();
         $this->data['token_info'] = token_info();
@@ -155,6 +162,14 @@ class  Withdrawsettings extends CI_Controller {
                 $update_withdraw = $this->witdraw_update('withdraw_allowed_earning',$withdraw_allowed_earning);
                 $update_withdraw = $this->witdraw_update('withdraw_allowed_staking',$withdraw_allowed_staking);
                 $update_withdraw = $this->witdraw_update('withdraw_allowed_bonus',$withdraw_allowed_bonus);
+
+                $this->maturity->update_rules([
+                    'maturity_enabled'       => $this->input->post('maturity_enabled'),
+                    'maturity_days_exchange' => $this->input->post('maturity_days_exchange'),
+                    'maturity_days_earning'  => $this->input->post('maturity_days_earning'),
+                    'maturity_days_staking'  => $this->input->post('maturity_days_staking'),
+                    'maturity_days_bonus'    => $this->input->post('maturity_days_bonus'),
+                ]);
 
                 echo json_encode(['status' => true, 'message' => "withdraw Settings update successfully"]);
                 exit;

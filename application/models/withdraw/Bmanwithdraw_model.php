@@ -3,6 +3,12 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Bmanwithdraw_model extends CI_Model
 {
+    public function __construct()
+    {
+        parent::__construct();
+        $this->load->model('WalletMaturity_model', 'maturity');
+    }
+
     public function settings()
     {
         return [
@@ -19,24 +25,47 @@ class Bmanwithdraw_model extends CI_Model
 
     public function wallet_snapshot($user_id)
     {
-        $user_id = (int) $user_id;
+        return $this->maturity_breakdown($user_id);
+    }
 
-        $row = $this->db->get_where('user_wallets', ['user_id' => $user_id])->row_array();
-        $row = is_array($row) ? $row : [];
+    /**
+     * Ledger-based balances per wallet (source of truth for withdrawal).
+     * Returns total, locked, matured, withdrawable for each BMAN wallet.
+     */
+    public function maturity_breakdown($user_id)
+    {
+        $breakdowns = $this->maturity->all_breakdowns($user_id);
+        $flat = [];
+        foreach ($breakdowns as $wallet => $b) {
+            $flat[$wallet] = $b['total'];
+            $flat[$wallet . '_locked'] = $b['locked'];
+            $flat[$wallet . '_matured'] = $b['matured'];
+            $flat[$wallet . '_withdrawable'] = $b['withdrawable'];
+        }
+        // Keep usdt for display (not a BMAN withdraw source)
+        $row = $this->db->get_where('user_wallets', ['user_id' => (int) $user_id])->row_array();
+        $flat['usdt'] = (float) ($row['usd_balance'] ?? 0);
+        return $flat;
+    }
 
-        return [
-            'usdt' => (float) ($row['usd_balance'] ?? 0),
-            'exchange' => (float) ($row['exchange_balance'] ?? 0),
-            'earning' => (float) ($row['earning_balance'] ?? 0),
-            'staking' => (float) ($row['staking_balance'] ?? 0),
-            'bonus' => (float) ($row['bonus_balance'] ?? 0),
-        ];
+    public function wallet_balance_detail($user_id, $source_wallet)
+    {
+        return $this->maturity->wallet_breakdown($user_id, $source_wallet);
+    }
+
+    public function upcoming_unlocks($user_id, $wallet = null, $limit = 30)
+    {
+        return $this->maturity->upcoming_unlocks($user_id, $wallet, $limit);
+    }
+
+    public function maturity_rules()
+    {
+        return $this->maturity->rules();
     }
 
     public function wallet_balance($user_id, $source_wallet)
     {
-        $snap = $this->wallet_snapshot($user_id);
-        return (float) ($snap[$source_wallet] ?? 0);
+        return $this->maturity->withdrawable($user_id, $source_wallet);
     }
 
     public function source_allowed($source_wallet)

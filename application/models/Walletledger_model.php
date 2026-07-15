@@ -114,7 +114,7 @@ class Walletledger_model extends CI_Model
         $upd['updated_at'] = date('Y-m-d H:i:s');
         $this->db->where('user_id', $user_id)->update('user_wallets', $upd);
 
-        $this->db->insert('wallet_ledger', [
+        $ledger_row = [
             'user_id'        => $user_id,
             'wallet_type'    => $wallet,
             'credit'         => $credit,
@@ -125,7 +125,17 @@ class Walletledger_model extends CI_Model
             'description'    => $desc,
             'tx_hash'        => $tx_hash,
             'created_by'     => $admin,
-        ]);
+        ];
+
+        // Every credit carries maturity metadata for withdrawal eligibility.
+        if (bccomp($credit, '0', 8) > 0 && $this->db->field_exists('maturity_date', 'wallet_ledger')) {
+            $this->load->model('WalletMaturity_model', 'maturity');
+            $mat = $this->maturity->resolve_credit_maturity($wallet, $opts);
+            $ledger_row['maturity_date'] = $mat['maturity_date'];
+            $ledger_row['is_matured']    = (int) $mat['is_matured'];
+        }
+
+        $this->db->insert('wallet_ledger', $ledger_row);
         $ledger_id = (int)$this->db->insert_id();
 
         if ($this->db->trans_status() === false) {
@@ -212,7 +222,8 @@ class Walletledger_model extends CI_Model
         $this->db->trans_begin();
         list($ok1, $r1) = $this->debit($user_id, $from, $amount, $reference_type, $opts);
         if (!$ok1) { $this->db->trans_rollback(); return [false, $r1]; }
-        list($ok2, $r2) = $this->credit($user_id, $to, $amount, $reference_type, $opts);
+        $credit_opts = array_merge($opts, ['is_matured' => 1, 'maturity_date' => date('Y-m-d H:i:s')]);
+        list($ok2, $r2) = $this->credit($user_id, $to, $amount, $reference_type, $credit_opts);
         if (!$ok2) { $this->db->trans_rollback(); return [false, $r2]; }
         $this->db->trans_commit();
         return [true, 'Transferred '.$amount.' from '.$from.' to '.$to.'.'];

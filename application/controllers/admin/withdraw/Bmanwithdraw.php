@@ -10,6 +10,7 @@ class Bmanwithdraw extends MY_Controller
         $this->load->helper(['url']);
         $this->load->model('Admin_model');
         $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
+        $this->load->model('Walletledger_model', 'ledger');
 
         if (!$this->session->userdata('admin_logged_in')) {
             redirect('admin/login');
@@ -51,36 +52,39 @@ class Bmanwithdraw extends MY_Controller
         $admin_id = (int) $this->session->userdata('admin_userid');
         $new_status = $row['status'];
 
+        if ($status === 'approved' && !empty($tx_hash)) {
+            list($ok, $ledgerRes) = $this->ledger->debit(
+                (int) $row['user_id'],
+                $row['source_wallet'],
+                (string) $row['request_amount'],
+                'withdrawal',
+                [
+                    'reference_id' => (string) $id,
+                    'description'  => 'Manual BMAN withdrawal',
+                    'tx_hash'      => $tx_hash,
+                    'created_by'   => $admin_id,
+                ]
+            );
+            if (!$ok) {
+                $this->session->set_flashdata('error', 'Ledger debit failed: ' . $ledgerRes);
+                redirect('admin/bman-withdrawals/view/' . $id);
+                return;
+            }
+        }
+
         $this->db->trans_start();
         if ($status === 'approved' && !empty($tx_hash)) {
             $new_status = 'completed';
-            $wallet_col = $row['source_wallet'] . '_balance';
-            if ($this->db->table_exists('user_wallets')) {
-                $wallet_row = $this->db->select($wallet_col)->get_where('user_wallets', ['user_id' => $row['user_id']])->row();
-                $current = (float) ($wallet_row->{$wallet_col} ?? 0);
-                $after = max(0, $current - (float) $row['request_amount']);
-                $this->db->where('user_id', $row['user_id'])->update('user_wallets', [$wallet_col => $after]);
-                if ($this->db->table_exists('wallet_ledger')) {
-                    $this->db->insert('wallet_ledger', [
-                        'user_id' => $row['user_id'],
-                        'wallet_type' => $row['source_wallet'],
-                        'credit' => 0,
-                        'debit' => $row['request_amount'],
-                        'balance_after' => $after,
-                        'reference_type' => 'withdrawal',
-                        'reference_id' => (string) $id,
-                        'description' => 'Manual BMAN withdrawal',
-                        'tx_hash' => $tx_hash,
-                        'created_by' => $admin_id,
-                        'created_at' => date('Y-m-d H:i:s'),
-                    ]);
-                }
-            }
             $this->db->where('id', $id)->update('bman_withdraw_requests', [
                 'status' => 'completed',
                 'tx_hash' => $tx_hash,
                 'admin_remark' => $admin_remark,
                 'completed_at' => date('Y-m-d H:i:s'),
+            ]);
+            $this->db->where('request_id', $id)->update('wallet_withdraw_holds', [
+                'status' => 'consumed',
+                'released_amount' => $row['request_amount'],
+                'released_at' => date('Y-m-d H:i:s'),
             ]);
             $this->db->insert('onchain_transactions', [
                 'tx_hash' => $tx_hash,

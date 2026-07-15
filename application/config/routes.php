@@ -114,6 +114,7 @@ $route['withdraw-settings'] = 'admin/settings/Withdrawsettings';
 $route['withdraw-settings-update'] = 'admin/settings/Withdrawsettings/update';
 $route['token-withdraw-settings'] = 'admin/settings/Withdrawsettings/token_settings';
 $route['update-token-withdraw-settings'] = 'admin/settings/Withdrawsettings/update_token_settings';
+$route['wallet-maturity-cron'] = 'WalletMaturity_cron/run';
 $route['user/bman-withdraw'] = 'user/Bmanwithdraw/index';
 $route['user/bman-withdraw/request'] = 'user/Bmanwithdraw/request';
 $route['user/bman-withdraw/history'] = 'user/Bmanwithdraw/history';
