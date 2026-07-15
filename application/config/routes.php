@@ -360,6 +360,7 @@ $route['rank-cron-made'] = 'Cron/update_all_users_rank';
 $route['binary-cron-made'] = 'Cron/binary_commission_call';
 $route['bonus-reduction-cron'] = 'Bonusreductioncron/run';   // Bonus Wallet 60-day reduction → admin bonus wallet (token-gated over HTTP)
 $route['chain-sync-cron'] = 'Chainsynccron/run';             // RPC-first balance sync + tx confirmation follow-up (token-gated over HTTP)
+$route['binary-matching-payout-cron'] = 'BinaryMatchingPayoutCron/run';  // run Stakingmatching_model + take level-wise payouts on-chain (treasury balance precheck, retry) — every 5 min, token-gated
 
 
 
@@ -682,6 +683,12 @@ $route['deliver-bman-cron'] = 'admin/staking/Swaporders/deliver_cron';
 $route['admin/staking/ceiling-wallet'] = 'admin/staking/Ceilingwallet/index';
 $route['admin/staking/ceiling-wallet/release']['post'] = 'admin/staking/Ceilingwallet/release';
 $route['admin/staking/ceiling-wallet/adjust']['post'] = 'admin/staking/Ceilingwallet/adjust';
+// Binary Matching History: staking_matching_payouts + binary_matching_queue audit trail
+$route['admin/staking/matching-history'] = 'admin/staking/Matchinghistory/index';
+$route['admin/staking/matching-history/run-now']['post'] = 'admin/staking/Matchinghistory/run_now';
+// Binary Matching Payout Queue: on-chain transfer status + admin retry
+$route['admin/staking/payout-queue'] = 'admin/staking/Payoutqueue/index';
+$route['admin/staking/payout-queue/retry/(:num)']['post'] = 'admin/staking/Payoutqueue/retry/$1';
 // ROI Distribution History (real data: roi_staking_management + onchain_transactions)
 $route['admin/staking/roi-history'] = 'admin/staking/Roihistory/index';
 $route['admin/staking/roi-history/list']['post'] = 'admin/staking/Roihistory/list';

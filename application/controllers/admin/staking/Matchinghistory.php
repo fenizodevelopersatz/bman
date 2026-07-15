@@ -1,0 +1,98 @@
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
+
+/**
+ * Admin ▸ Staking ▸ Binary Matching History.
+ * First admin-facing view of Stakingmatching_model's own audit trail
+ * (staking_matching_payouts) plus the binary_matching_queue run history —
+ * both already existed but were never exposed in any screen. Read-only
+ * except for "Run Matching Now", which drives the same Matchingqueue_model
+ * path the cron uses, so a manual run and a scheduled one share one history.
+ */
+class Matchinghistory extends CI_Controller
+{
+    public function __construct()
+    {
+        parent::__construct();
+        $this->load->helper(['url']);
+        $this->load->library('session');
+        $this->load->model('Admin_model');
+        $this->load->model('staking/Matchingqueue_model', 'MQ');
+    }
+
+    private function _requireAdmin()
+    {
+        if (!$this->session->userdata('admin_logged_in')) redirect('admin/login');
+        $user = $this->Admin_model->get_user($this->session->userdata('admin_userid'));
+        if ($user && $user->admin_roll == '1') {
+            $perm = json_decode($user->permission_pages, true);
+            if (empty($perm['staking_management']) && empty($perm['finance_management'])) {
+                $this->session->set_flashdata('error', 'Access Denied: You do not have permission.');
+                redirect('admin');
+            }
+        }
+    }
+
+    private function _json($d, $c = 200)
+    {
+        $this->output->set_status_header($c)->set_content_type('application/json')->set_output(json_encode($d));
+    }
+
+    /** Same convention as Onchaintx::_explorer() / Withdraw.php. */
+    private function _explorer()
+    {
+        $ts = $this->db->select('explorer_url')->get_where('token_settings', ['status' => 1])->row_array();
+        return rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
+    }
+
+    /** Binary Matching History dashboard: KPIs, engine run log, payout audit log. */
+    public function index()
+    {
+        $this->_requireAdmin();
+
+        $totals = $this->db->select(
+            "COALESCE(SUM(matched_volume),0) AS matched_volume, " .
+            "COALESCE(SUM(earning_amount),0) AS earning_paid, " .
+            "COALESCE(SUM(staking_amount),0) AS staking_paid", false
+        )->get('staking_matching_payouts')->row_array();
+
+        $ceiling = $this->db->select_sum('amount', 'held')
+            ->where('tx_type', 'CEILING_HOLD')->where('reference_type', 'binary_matching')
+            ->get('ceiling_wallet_ledger')->row_array();
+
+        $data['title']            = 'Binary Matching History';
+        $data['matched_volume']   = (float)($totals['matched_volume'] ?? 0);
+        $data['earning_paid']     = (float)($totals['earning_paid'] ?? 0);
+        $data['staking_paid']     = (float)($totals['staking_paid'] ?? 0);
+        $data['ceiling_diverted'] = (float)($ceiling['held'] ?? 0);
+        $data['runs']             = $this->MQ->recent(50);
+        $data['payouts']          = $this->_payoutHistory(300);
+        $data['explorer_url']     = $this->_explorer();
+
+        $this->load->view('admin/staking/matching_history', $data);
+    }
+
+    /** staking_matching_payouts joined to users + its (possibly still-pending) on-chain payout row. */
+    private function _payoutHistory($limit)
+    {
+        $this->db->select(
+                'smp.id, smp.user_id, smp.matched_volume, smp.total_percent, smp.earning_amount, ' .
+                'smp.staking_amount, smp.left_before, smp.right_before, smp.run_ref, smp.created_at, ' .
+                'u.username, u.referral_id, ' .
+                'q.status AS payout_status, q.tx_hash AS payout_tx_hash, q.amount AS payout_amount'
+            )
+            ->from('staking_matching_payouts smp')
+            ->join('users u', 'u.id = smp.user_id', 'left')
+            ->join('blockchain_payout_queue q', "q.reference_type = 'staking_matching_payout' AND q.reference_id = smp.id", 'left')
+            ->order_by('smp.id', 'DESC')->limit((int)$limit);
+        return $this->db->get()->result_array();
+    }
+
+    /** Admin-triggered engine run (AJAX) — the same path BinaryMatchingPayoutCron uses. */
+    public function run_now()
+    {
+        $this->_requireAdmin();
+        if (!$this->input->is_ajax_request()) show_404();
+        $result = $this->MQ->runClaimed(['enqueued_by' => (int)$this->session->userdata('admin_userid')]);
+        return $this->_json(['status' => 'success', 'result' => $result]);
+    }
+}
