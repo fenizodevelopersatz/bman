@@ -47,6 +47,10 @@ class  Withdrawsettings extends CI_Controller {
         $this->data['auto_withdraw'] = site_settings('withdraw_settings','auto_withdraw');
         $this->data['withdraw_notification_user'] = site_settings('withdraw_settings','withdraw_notification_user');
         $this->data['withdraw_notification_admin'] = site_settings('withdraw_settings','withdraw_notification_admin');
+        $this->data['withdraw_allowed_exchange'] = site_settings('withdraw_settings','withdraw_allowed_exchange');
+        $this->data['withdraw_allowed_earning'] = site_settings('withdraw_settings','withdraw_allowed_earning');
+        $this->data['withdraw_allowed_staking'] = site_settings('withdraw_settings','withdraw_allowed_staking');
+        $this->data['withdraw_allowed_bonus'] = site_settings('withdraw_settings','withdraw_allowed_bonus');
 
         $this->data['currency_info'] = currency_info();
         $this->data['token_info'] = token_info();
@@ -132,6 +136,10 @@ class  Withdrawsettings extends CI_Controller {
                 $auto_withdraw              = $this->input->post('auto_withdraw') ? 1 : 0;
                 $withdraw_notification_user  = $this->input->post('withdraw_notification_user') ? 1 : 0;
                 $withdraw_notification_admin = $this->input->post('withdraw_notification_admin') ? 1 : 0;
+                $withdraw_allowed_exchange   = $this->input->post('withdraw_allowed_exchange') ? 1 : 0;
+                $withdraw_allowed_earning    = $this->input->post('withdraw_allowed_earning') ? 1 : 0;
+                $withdraw_allowed_staking    = $this->input->post('withdraw_allowed_staking') ? 1 : 0;
+                $withdraw_allowed_bonus       = $this->input->post('withdraw_allowed_bonus') ? 1 : 0;
               
                 $update_withdraw = $this->witdraw_update('withdraw_status',$withdraw_status);
                 $update_withdraw = $this->witdraw_update('min_withdraw',$min_withdraw);
@@ -143,6 +151,10 @@ class  Withdrawsettings extends CI_Controller {
                 $update_withdraw = $this->witdraw_update('auto_withdraw',$auto_withdraw);
                 $update_withdraw = $this->witdraw_update('withdraw_notification_user',$withdraw_notification_user);
                 $update_withdraw = $this->witdraw_update('withdraw_notification_admin',$withdraw_notification_admin);
+                $update_withdraw = $this->witdraw_update('withdraw_allowed_exchange',$withdraw_allowed_exchange);
+                $update_withdraw = $this->witdraw_update('withdraw_allowed_earning',$withdraw_allowed_earning);
+                $update_withdraw = $this->witdraw_update('withdraw_allowed_staking',$withdraw_allowed_staking);
+                $update_withdraw = $this->witdraw_update('withdraw_allowed_bonus',$withdraw_allowed_bonus);
 
                 echo json_encode(['status' => true, 'message' => "withdraw Settings update successfully"]);
                 exit;

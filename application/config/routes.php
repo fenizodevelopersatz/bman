@@ -114,6 +114,12 @@ $route['withdraw-settings'] = 'admin/settings/Withdrawsettings';
 $route['withdraw-settings-update'] = 'admin/settings/Withdrawsettings/update';
 $route['token-withdraw-settings'] = 'admin/settings/Withdrawsettings/token_settings';
 $route['update-token-withdraw-settings'] = 'admin/settings/Withdrawsettings/update_token_settings';
+$route['user/bman-withdraw'] = 'user/Bmanwithdraw/index';
+$route['user/bman-withdraw/request'] = 'user/Bmanwithdraw/request';
+$route['user/bman-withdraw/history'] = 'user/Bmanwithdraw/history';
+$route['admin/bman-withdrawals'] = 'admin/withdraw/Bmanwithdraw/index';
+$route['admin/bman-withdrawals/view/(:num)'] = 'admin/withdraw/Bmanwithdraw/view/$1';
+$route['admin/bman-withdrawals/update/(:num)'] = 'admin/withdraw/Bmanwithdraw/update/$1';
 
 /****************** Transfer SETTINS ********/
 $route['transfer-settings'] = 'admin/settings/Transfersettings';

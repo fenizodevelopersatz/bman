@@ -190,6 +190,30 @@
                                </div>
 
                                <div class="row mb-6">
+                               <label class="col-lg-4 col-form-label fw-semibold fs-6">Allowed Wallet Sources</label>
+                               <div class="col-lg-8 fv-row">
+                               <div class="d-flex flex-wrap gap-4">
+                                   <label class="form-check form-check-custom form-check-solid">
+                                       <input class="form-check-input" type="checkbox" name="withdraw_allowed_exchange" value="1" <?php echo !empty($withdraw_allowed_exchange) ? 'checked' : ''; ?>>
+                                       <span class="form-check-label ms-2">Exchange</span>
+                                   </label>
+                                   <label class="form-check form-check-custom form-check-solid">
+                                       <input class="form-check-input" type="checkbox" name="withdraw_allowed_earning" value="1" <?php echo !empty($withdraw_allowed_earning) ? 'checked' : ''; ?>>
+                                       <span class="form-check-label ms-2">Earning</span>
+                                   </label>
+                                   <label class="form-check form-check-custom form-check-solid">
+                                       <input class="form-check-input" type="checkbox" name="withdraw_allowed_staking" value="1" <?php echo !empty($withdraw_allowed_staking) ? 'checked' : ''; ?>>
+                                       <span class="form-check-label ms-2">Staking</span>
+                                   </label>
+                                   <label class="form-check form-check-custom form-check-solid">
+                                       <input class="form-check-input" type="checkbox" name="withdraw_allowed_bonus" value="1" <?php echo !empty($withdraw_allowed_bonus) ? 'checked' : ''; ?>>
+                                       <span class="form-check-label ms-2">Bonus</span>
+                                   </label>
+                               </div>
+                               </div>
+                               </div>
+
+                               <div class="row mb-6">
                                <label class="col-lg-4 col-form-label fw-semibold fs-6">Withdraw Daily Limit <span class="text-danger"> * </span></label>
                                <div class="col-lg-8 fv-row">
                                <div class="input-group mb-5">
