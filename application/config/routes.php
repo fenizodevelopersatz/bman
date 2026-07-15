@@ -689,6 +689,11 @@ $route['admin/staking/matching-history/run-now']['post'] = 'admin/staking/Matchi
 // Binary Matching Payout Queue: on-chain transfer status + admin retry
 $route['admin/staking/payout-queue'] = 'admin/staking/Payoutqueue/index';
 $route['admin/staking/payout-queue/retry/(:num)']['post'] = 'admin/staking/Payoutqueue/retry/$1';
+// Genealogy Tree (admin, any member): shows the REAL binary_carry the matching engine reads + ceiling/eligibility
+$route['admin/staking/genealogy-tree'] = 'admin/staking/Genealogytree/index';
+$route['admin/staking/genealogy-tree/tree-json'] = 'admin/staking/Genealogytree/tree_json';
+$route['admin/staking/genealogy-tree/member-json/(:num)'] = 'admin/staking/Genealogytree/member_json/$1';
+$route['admin/staking/genealogy-tree/search-users'] = 'admin/staking/Genealogytree/search_users';
 // ROI Distribution History (real data: roi_staking_management + onchain_transactions)
 $route['admin/staking/roi-history'] = 'admin/staking/Roihistory/index';
 $route['admin/staking/roi-history/list']['post'] = 'admin/staking/Roihistory/list';

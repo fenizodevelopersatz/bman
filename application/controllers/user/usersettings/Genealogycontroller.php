@@ -19,6 +19,8 @@ class Genealogycontroller extends MY_Controller
         $this->load->model('member/Users_model');
         $this->load->model('member/Mlm_model');
         $this->load->model('member/BinaryModel');
+        $this->load->model('staking/Stakingmatching_model', 'MB');
+        $this->load->model('staking/Ceilingwallet_model', 'CW');
 
         $language = $this->session->userdata('site_lang') ?? 'english';
         $this->config->set_item('language', $language);
@@ -279,17 +281,48 @@ class Genealogycontroller extends MY_Controller
 
 
 
-    private function getNodeStats(int $id): array
+    /**
+     * Binary matching eligibility snapshot for one node — ceiling (own active
+     * stake tier), how much of it is already paid/held, and whether they
+     * currently qualify to RECEIVE matching income at all (must have staked
+     * themselves; see Stakingmatching_model::payMatching()'s eligibility gate).
+     */
+    private function getMatchingStats(int $id): array
     {
         if ($id <= 0) {
             return [
+                'ceiling_amount' => 0, 'ceiling_paid' => 0, 'ceiling_remaining' => 0,
+                'ceiling_wallet_held' => 0, 'own_stake_amount' => 0, 'matching_eligible' => false,
+            ];
+        }
+
+        $ceiling = $this->MB->userCeiling($id);
+        $paid = $this->MB->matchingPaidToDate($id);
+        $held = (float) ($this->CW->balance($id)['held_balance'] ?? 0);
+        $ownStake = (float) ($this->db->select_sum('stake_amount')->where('user_id', $id)
+                                       ->where('status', 'active')->get('user_stakes')->row()->stake_amount ?? 0);
+
+        return [
+            'ceiling_amount'      => round($ceiling, 4),
+            'ceiling_paid'        => round($paid, 4),
+            'ceiling_remaining'   => round(max(0.0, $ceiling - $paid), 4),
+            'ceiling_wallet_held' => round($held, 4),
+            'own_stake_amount'    => round($ownStake, 4),
+            'matching_eligible'   => $ceiling > 0,
+        ];
+    }
+
+    private function getNodeStats(int $id): array
+    {
+        if ($id <= 0) {
+            return array_merge([
                 'rank' => '—',
                 'left_bv' => 0,
                 'right_bv' => 0,
                 'left_cf' => 0,
                 'right_cf' => 0,
                 'pairs' => 0,
-            ];
+            ], $this->getMatchingStats(0));
         }
 
         // ---------------------------
@@ -367,19 +400,19 @@ class Genealogycontroller extends MY_Controller
             }
         }
 
-        return [
+        return array_merge([
             'rank' => $rankName,
             'left_bv' => $leftBV,
             'right_bv' => $rightBV,
             'left_cf' => $leftCF,
             'right_cf' => $rightCF,
             'pairs' => $pairs_lifetime,
-        ];
+        ], $this->getMatchingStats($id));
     }
 
     private function emptyNode(): array
     {
-        return [
+        return array_merge([
             'id' => 0,
             'uid' => '—',
             'name' => 'Empty Position',
@@ -394,7 +427,7 @@ class Genealogycontroller extends MY_Controller
             'pairs' => 0,
             'left' => null,
             'right' => null
-        ];
+        ], $this->getMatchingStats(0));
     }
 
     /**
@@ -423,6 +456,16 @@ class Genealogycontroller extends MY_Controller
         $node['left_cf'] = (float) $st['left_cf'];
         $node['right_cf'] = (float) $st['right_cf'];
         $node['pairs'] = (int) $st['pairs'];
+        // Binary matching eligibility (Stakingmatching_model's own ceiling +
+        // Ceilingwallet_model's held balance) — surfaced so admins/members can
+        // see who currently qualifies to receive matching income and how much
+        // headroom they have left, without leaving the tree view.
+        $node['ceiling_amount'] = (float) $st['ceiling_amount'];
+        $node['ceiling_paid'] = (float) $st['ceiling_paid'];
+        $node['ceiling_remaining'] = (float) $st['ceiling_remaining'];
+        $node['ceiling_wallet_held'] = (float) $st['ceiling_wallet_held'];
+        $node['own_stake_amount'] = (float) $st['own_stake_amount'];
+        $node['matching_eligible'] = (bool) $st['matching_eligible'];
 
         // cut children at max level -- flag (not fetch) one level further so the UI
         // can offer "load more downline" pagination on this node instead of pretending
@@ -514,6 +557,17 @@ class Genealogycontroller extends MY_Controller
         $id = (int) $id;
         if ($id <= 0) {
             echo json_encode(['status' => false, 'message' => 'Invalid member']);
+            exit;
+        }
+
+        // Same authorization tree_json() already enforces — a member may only
+        // look up themselves or someone in their own downline. This endpoint
+        // previously had no such check at all (any logged-in user could pull
+        // any other user's rank/BV/earnings by id); now that it also returns
+        // ceiling/staking figures, closing that gap matters even more.
+        $sessionId = (int) $this->session->userdata('user_userid');
+        if ($id !== $sessionId && !$this->BinaryModel->isDescendantOf($id, $sessionId)) {
+            echo json_encode(['status' => false, 'message' => 'Not authorized for this member']);
             exit;
         }
 
@@ -664,7 +718,9 @@ class Genealogycontroller extends MY_Controller
                 'earn_roi_token' => $roi_token_currency,
                 'earn_direct_site' => $direct_site_currency,
                 'earn_direct_token' => $direct_token_currency,
-            ]
+
+                // binary matching eligibility (ceiling + staking + Ceiling Wallet)
+            ] + $this->getMatchingStats($id)
         ], JSON_UNESCAPED_SLASHES);
 
         exit;

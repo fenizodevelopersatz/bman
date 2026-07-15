@@ -719,6 +719,19 @@
       color: var(--primary);
     }
 
+    .pill-eligible {
+      background: #ecfdf3;
+      border-color: #b7ecc8;
+      color: #15803d;
+    }
+    .pill-eligible i { color: #15803d; }
+    .pill-ineligible {
+      background: #fff8e6;
+      border-color: #ffe3a3;
+      color: #92610a;
+    }
+    .pill-ineligible i { color: #92610a; }
+
     /* Side: Member Details */
     .profile {
       display: flex;
@@ -1289,6 +1302,19 @@
               <small>Own Investment (Exchange Wallet)</small>
               <b id="sideInv"><?= number_format($tree['exchange'] ?? 0, 2); ?> BMAN</b>
             </div>
+            <div class="tile">
+              <small>Own Active Stake</small>
+              <b id="sideOwnStake">0 BMAN</b>
+            </div>
+            <div class="tile">
+              <small>Matching Ceiling</small>
+              <b id="sideCeiling">0 / 0 BMAN</b>
+            </div>
+            <div class="tile" style="grid-column:1 / -1;">
+              <small>Matching Eligibility</small>
+              <b><span id="sideEligiblePill" class="pill" style="display:inline-flex;margin-top:4px;"><i class="ph ph-warning-circle"></i>&nbsp;<span id="sideEligibleText">Needs Stake</span></span>
+                <span id="sideHeldPill" class="pill" style="display:none;margin-top:4px;margin-left:6px;"><i class="ph ph-lock"></i>&nbsp;Held <span id="sideHeldAmt">0</span> BMAN</span></b>
+            </div>
           </div>
 
           <div class="actions-col">
@@ -1651,6 +1677,11 @@
          data-rinv="${escapeHtml(rightInvest)}"
          data-avatar="${escapeHtml(avatar)}"
          data-position="${escapeHtml(position)}"
+         data-ceiling="${escapeHtml((n.ceiling_amount || 0))}"
+         data-ceiling-remaining="${escapeHtml((n.ceiling_remaining || 0))}"
+         data-ceiling-held="${escapeHtml((n.ceiling_wallet_held || 0))}"
+         data-own-stake="${escapeHtml((n.own_stake_amount || 0))}"
+         data-eligible="${n.matching_eligible ? "1" : "0"}"
          onclick="selectNode(this)">
         <span class="st"></span>
 
@@ -1678,11 +1709,21 @@
             <small>Own Investment</small>
             <b>${fmt(n.exchange || 0)} <span class="tagv">BMAN</span></b>
           </div>
+          <div class="kv" style="grid-column:1 / -1;" title="Own active staking (${fmt(n.own_stake_amount || 0)} BMAN) sets this member's matching ceiling. Already paid: ${fmt(n.ceiling_paid || 0)} BMAN.">
+            <small>Matching Ceiling (remaining / total)</small>
+            <b>${fmt(n.ceiling_remaining || 0)} <span class="tagv">/ ${fmt(n.ceiling_amount || 0)} BMAN</span></b>
+          </div>
         </div>
 
         <div class="node-btm">
           <div class="pill"><i class="ph ph-calendar"></i> ${escapeHtml(n.join_date || "—")}</div>
           <div class="pill"><i class="ph ph-activity"></i> ${escapeHtml((n.status || "ACTIVE"))}</div>
+          <div class="pill ${n.matching_eligible ? "pill-eligible" : "pill-ineligible"}"
+               title="${n.matching_eligible ? "Has an active stake — eligible to receive binary matching bonus." : "No active stake yet — matching bonus is on hold until this member stakes."}">
+            <i class="ph ${n.matching_eligible ? "ph-check-circle" : "ph-warning-circle"}"></i>
+            ${n.matching_eligible ? "Matching Eligible" : "Needs Stake"}
+          </div>
+          ${(n.ceiling_wallet_held || 0) > 0 ? `<div class="pill" title="Held in the backend Ceiling Wallet — excess bonus above this member's ceiling, admin-releasable."><i class="ph ph-lock"></i> Held ${fmt(n.ceiling_wallet_held)} BMAN</div>` : ""}
         </div>
       </a>
     `;
@@ -1852,6 +1893,7 @@
       document.getElementById("sideLBV").innerText = fmt(el.dataset.linv || 0) + " BMAN";
       document.getElementById("sideRBV").innerText = fmt(el.dataset.rinv || 0) + " BMAN";
       document.getElementById("sideInv").innerText = fmt(el.dataset.inv || 0) + " BMAN";
+      setEligibilityUI(el.dataset.ownStake, el.dataset.ceiling, el.dataset.ceilingRemaining, el.dataset.ceilingHeld, el.dataset.eligible === "1");
 
       // ✅ load full details if valid id
       if (selectedId > 0) {
@@ -1866,10 +1908,43 @@
             document.getElementById("sideJoin").innerText = d.join_date || "—";
             // Left/Right investment (BMAN) already set from the node dataset above;
             // member_json has no downline totals, so don't overwrite them here.
+            setEligibilityUI(d.own_stake_amount, d.ceiling_amount, d.ceiling_remaining, d.ceiling_wallet_held, !!d.matching_eligible);
+          } else if (json?.message) {
+            toastMini(json.message);
           }
         } catch (e) {
           console.error(e);
         }
+      }
+    }
+
+    // Ceiling / staking / matching-eligibility side-panel fields — shared by the
+    // instant dataset fill and the member_json refresh above (same values,
+    // just possibly a beat fresher from the server).
+    function setEligibilityUI(ownStake, ceiling, ceilingRemaining, ceilingHeld, eligible) {
+      document.getElementById("sideOwnStake").innerText = fmt(ownStake || 0) + " BMAN";
+      document.getElementById("sideCeiling").innerText = fmt(ceilingRemaining || 0) + " / " + fmt(ceiling || 0) + " BMAN";
+
+      const pill = document.getElementById("sideEligiblePill");
+      const text = document.getElementById("sideEligibleText");
+      const icon = pill.querySelector("i");
+      if (eligible) {
+        pill.classList.add("pill-eligible"); pill.classList.remove("pill-ineligible");
+        icon.className = "ph ph-check-circle";
+        text.innerText = "Matching Eligible";
+      } else {
+        pill.classList.add("pill-ineligible"); pill.classList.remove("pill-eligible");
+        icon.className = "ph ph-warning-circle";
+        text.innerText = "Needs Stake";
+      }
+
+      const heldPill = document.getElementById("sideHeldPill");
+      const heldAmt = parseFloat(ceilingHeld || 0);
+      if (heldAmt > 0) {
+        document.getElementById("sideHeldAmt").innerText = fmt(heldAmt);
+        heldPill.style.display = "inline-flex";
+      } else {
+        heldPill.style.display = "none";
       }
     }
 

@@ -33,13 +33,23 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * Run every 5 minutes (carry accumulates continuously regardless of cadence):
  *   CLI  : php index.php BinaryMatchingPayoutCron run
  *   HTTP : /binary-matching-payout-cron?token=YOUR_CRON_TOKEN
+ *
+ * $mode = 'watch' (CLI only): instead of one pass, keep polling every 5s (up to
+ * 10 minutes) until nothing is left in flight — useful for interactively
+ * carrying a real match through enqueue -> broadcast -> confirmations without
+ * re-invoking the cron by hand every few seconds. Deliberately NOT the default:
+ * the real crontab entry and Cron Lab's "Run now" both rely on the existing
+ * single-pass behavior, for the same reason StakingPurchasecron's watch mode
+ * isn't its default (looping inside a scheduled tick would stack up
+ * overlapping long-running processes).
+ *   CLI: php index.php BinaryMatchingPayoutCron run watch
  */
 class BinaryMatchingPayoutCron extends CI_Controller
 {
     private $log_prefix = '[BINARY_MATCHING_PAYOUT_CRON]';
     private $_cfg_cache = null;
 
-    public function run()
+    public function run($mode = null)
     {
         if (!is_cli()) {
             $expected = $this->config->item('cron_token');
@@ -54,24 +64,89 @@ class BinaryMatchingPayoutCron extends CI_Controller
         $this->load->model('Onchaintx_model', 'octx');
         $this->load->library('web3bman');
 
+        $watch = is_cli() && $mode === 'watch';
+
         try {
-            $engine  = $this->MQ->runClaimed();
-            $enqueue = $this->_enqueuePayouts();
-            $drain   = $this->_drainPending();
-            $confirm = $this->_confirmProcessing();
-            $result = [
-                'status'  => 'success',
-                'message' => 'Binary matching payout cron completed',
-                'mode'    => $this->_isDryRun() ? 'DRY_RUN' : 'LIVE',
-                'details' => ['engine' => $engine, 'enqueued' => $enqueue, 'drain' => $drain, 'confirm' => $confirm],
-                'ran_at'  => date('Y-m-d H:i:s'),
-            ];
+            $result = $watch ? $this->_runUntilSettled() : $this->_runOnce();
         } catch (Exception $e) {
             log_message('error', $this->log_prefix . ' ' . $e->getMessage());
             $result = ['status' => 'error', 'message' => $e->getMessage(), 'ran_at' => date('Y-m-d H:i:s')];
         }
 
         echo json_encode($result) . PHP_EOL;
+    }
+
+    /** One pass: run the engine, enqueue, drain, confirm. */
+    private function _runOnce()
+    {
+        $engine  = $this->MQ->runClaimed();
+        $enqueue = $this->_enqueuePayouts();
+        $drain   = $this->_drainPending();
+        $confirm = $this->_confirmProcessing();
+        return [
+            'status'  => 'success',
+            'message' => 'Binary matching payout cron completed',
+            'mode'    => $this->_isDryRun() ? 'DRY_RUN' : 'LIVE',
+            'details' => ['engine' => $engine, 'enqueued' => $enqueue, 'drain' => $drain, 'confirm' => $confirm],
+            'ran_at'  => date('Y-m-d H:i:s'),
+        ];
+    }
+
+    /** Poll every 5s (up to 10 minutes) until nothing is still in flight. */
+    private function _runUntilSettled($pollSeconds = 5, $maxSeconds = 600)
+    {
+        $start = time();
+        $pass = 0;
+        $lastDetails = [];
+
+        do {
+            $pass++;
+            $engine  = $this->MQ->runClaimed();
+            $enqueue = $this->_enqueuePayouts();
+            $drain   = $this->_drainPending();
+            $confirm = $this->_confirmProcessing();
+            $lastDetails = ['engine' => $engine, 'enqueued' => $enqueue, 'drain' => $drain, 'confirm' => $confirm];
+
+            $remaining = $this->_countInFlight();
+            fwrite(STDOUT, sprintf(
+                "[pass %d, %ds elapsed] engine:%s enqueued:%d drained:%d confirmed:%d failed:%d — %d payout(s) still in flight\n",
+                $pass, time() - $start, $engine['status'] ?? 'skipped',
+                $enqueue['enqueued'] ?? 0, $drain['sent'] ?? 0, $confirm['confirmed'] ?? 0, $confirm['failed'] ?? 0,
+                $remaining
+            ));
+
+            if ($remaining === 0) {
+                return [
+                    'status' => 'success', 'message' => 'All binary matching payouts settled',
+                    'mode' => $this->_isDryRun() ? 'DRY_RUN' : 'LIVE',
+                    'passes' => $pass, 'elapsed_seconds' => time() - $start,
+                    'details' => $lastDetails, 'ran_at' => date('Y-m-d H:i:s'),
+                ];
+            }
+
+            if (time() - $start + $pollSeconds < $maxSeconds) sleep($pollSeconds);
+        } while (time() - $start < $maxSeconds);
+
+        return [
+            'status' => 'timeout', 'message' => "Timed out after {$maxSeconds}s — run again (or keep watching) to continue.",
+            'mode' => $this->_isDryRun() ? 'DRY_RUN' : 'LIVE',
+            'passes' => $pass, 'elapsed_seconds' => time() - $start,
+            'details' => $lastDetails, 'ran_at' => date('Y-m-d H:i:s'),
+        ];
+    }
+
+    /** Everything that still needs a future tick: queued engine runs, unlinked payouts, in-flight broadcasts. */
+    private function _countInFlight()
+    {
+        $engineBusy = (int)$this->db->where_in('status', ['PENDING', 'PROCESSING'])->count_all_results('binary_matching_queue');
+        $unlinked = (int)($this->db->query(
+            "SELECT COUNT(*) n FROM staking_matching_payouts smp
+             WHERE (smp.earning_amount + smp.staking_amount) > 0
+               AND NOT EXISTS (SELECT 1 FROM blockchain_payout_queue q
+                               WHERE q.reference_type='staking_matching_payout' AND q.reference_id=smp.id)"
+        )->row_array()['n'] ?? 0);
+        $inFlight = (int)$this->db->where_in('status', ['PENDING', 'RETRY', 'PROCESSING'])->count_all_results('blockchain_payout_queue');
+        return $engineBusy + $unlinked + $inFlight;
     }
 
     /* ============================ config / chain ============================ */

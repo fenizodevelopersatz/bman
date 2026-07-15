@@ -22,7 +22,9 @@ require_once APPPATH . 'controllers/BinaryMatchingPayoutCron.php';
  */
 class Binarymatchingpayouttest extends BinaryMatchingPayoutCron
 {
-    public function run()
+    /** $mode is unused here (this test only ever runs phases b/c/d once) but
+     * must stay in the signature to match the parent after its watch-mode addition. */
+    public function run($mode = null)
     {
         if (!$this->input->is_cli_request()) show_404();
 

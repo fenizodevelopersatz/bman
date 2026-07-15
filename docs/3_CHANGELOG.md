@@ -5,6 +5,96 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-07-15 (later) — Recipient eligibility fix, verified level cascading, admin Genealogy Tree
+
+Three follow-ups after a support scenario raised a real question: does a
+recipient need their own stake to collect binary matching income?
+
+1. **Bug found + fixed:** `Stakingmatching_model::payMatching()` only ever
+   checked `users.status='1'` — never whether the recipient had staked
+   themselves. Since `userCeiling()` returns 0 for "never staked" and 0 was
+   treated as "no cap," a user with zero stakes but two funded legs would
+   have been paid in full, uncapped. Added `if ($this->userCeiling($uid) <=
+   0) continue;` right after the status check — skip without consuming
+   carry (same as the existing inactive-user skip), so staking later pays
+   retroactively for whatever accumulated. Verified against two real
+   accounts (Admin: no stake, correctly skipped; Siva: 4 active stakes,
+   correctly paid) — new test `stakingmatchingeligibilitytest`, 7/7.
+2. **Level cascading verified, not assumed:** built the exact tree from the
+   support scenario (A/B/C with B and A having no own stake, C and 4
+   grandchildren all staking 10,000) as a fully synthetic, self-cleaning
+   test. Confirmed empirically: C is paid at "level 1," B and A are both
+   skipped (no own stake) but their carry is preserved untouched — no carry
+   is lost, and no explicit "finish level 1 before checking level 2" step
+   is needed, since each ancestor's carry already accumulated independently
+   via `_walkUp()`'s single pass. Confirmed the retroactive-payment
+   behavior too: staking B afterward pays B from the exact preserved carry
+   on the very next run; same for A one level up. Test:
+   `levelcascadetest`, 17/17.
+3. **New admin screen:** `admin/staking/genealogy-tree` — an interactive
+   tree for any member (search by username/UID/id), showing the REAL
+   `binary_carry.left_carry`/`right_carry` the engine reads (not the
+   member-facing tree's disconnected `user_wallets.exchange_balance` subtree
+   sums), plus own stake, ceiling, Ceiling Wallet held balance, and an
+   Eligible/Needs-Stake badge per node. Found (but left untouched, per
+   instruction) that the existing "View Tree" admin link uses a third-party
+   widget with a pre-existing, unrelated data-shape bug (`mid`/`pid` key
+   mismatch) that likely renders as disconnected cards. Also added the same
+   ceiling/staking/eligibility display to the member-facing `user/genealogy`
+   tree, and closed a real, unrelated security gap while there:
+   `Genealogycontroller::member_json()` had no ownership check at all (any
+   logged-in member could pull any other member's rank/BV/earnings by id) —
+   now matches `tree_json()`'s existing `isDescendantOf` guard. New test
+   `genealogytreetest`, 12/12 (read-only against real users).
+
+See [17_BINARY_MATCHING_PAYOUT_CRON.md](17_BINARY_MATCHING_PAYOUT_CRON.md) §7-9
+for the full detail and the exact worked numbers.
+
+## 2026-07-15 — Binary Matching Bonus: scheduled + on-chain payout cron
+
+The matching **engine** (`Stakingmatching_model` — multi-level upline walk,
+`min(left,right)×10%` = 8% Earning + 2% Staking, per-recipient ceiling cap
+against their own `staking_packages.group_ceiling`) was already correct and
+untouched. What was missing: nothing scheduled it, and every payout was only
+ever an internal ledger credit — never a real blockchain transfer. Added
+`BinaryMatchingPayoutCron` (root, token-gated, `*/5 * * * *` recommended, plus
+a CLI `watch` mode) wrapping the engine in 4 phases: (a) queue-track one
+engine run via new `Matchingqueue_model` (MySQL `GET_LOCK`-guarded so
+concurrent ticks can't double-process the same carry), (b) idempotently
+enqueue one combined on-chain BMAN send per newly-paid user into
+`blockchain_payout_queue` (scans `staking_matching_payouts` for unlinked rows
+— crash-safe across a restart), (c) drain the queue with a treasury
+BNB(gas)+BMAN balance precheck, FIFO, stopping the batch (not skipping ahead)
+at the first row the treasury can't afford, (d) confirm broadcasts using the
+same algorithm `StakingPurchasecron` already uses. New admin screens
+**Binary Matching History** (`admin/staking/matching-history` — first-ever UI
+for `staking_matching_payouts` + `binary_matching_queue`, both existed before
+but had zero UI) and **Payout Queue** (`admin/staking/payout-queue` — retry
+button, never re-credits). Added a Cron Lab job button
+(`admin/wallet/cron-lab`) and 3 sidebar links (also gave **Ceiling Wallet**,
+Phase 1, its first-ever sidebar entry). No schema changes —
+`binary_matching_queue`/`blockchain_payout_queue` already existed, unused,
+since an earlier phase. New CLI smoke test `binarymatchingpayouttest` (14/14
+pass, synthetic user, forced dry-run). Left a separate, already-broken
+parallel "binary matching bonus" system untouched, per explicit instruction —
+see [17_BINARY_MATCHING_PAYOUT_CRON.md](17_BINARY_MATCHING_PAYOUT_CRON.md) §6
+for exactly which files.
+
+Ran a full evidence-based audit against live code + the real database
+afterward (not just a design review). Headline finding: **zero binary
+matching payout has ever occurred on this system** — `binary_volume_ledger`
+(the engine's required input) is empty for every real user in the live tree,
+even though real placement and one real stake exist, because whatever created
+those specific `user_stakes` rows didn't trigger `Staking_model`'s
+volume-emission hooks. Also found the admin genealogy tree screen
+(`BinaryModel::calculateLegInvestments()`) reads a completely different,
+disconnected data source than the matching engine — a number displaying
+there is not proof the engine has seen it. Also found `staking_packages`'
+smallest ceiling tier is `1→1` live, not `5,000→5,000` as originally specced
+(every other tier matches). Full 8-section report with code + live-query
+citations delivered as an Artifact in-session (not persisted to `docs/` —
+point-in-time DB snapshot, would go stale immediately).
+
 ## 2026-07-07 — Stakings page: show USDT wallet + clarify ROI destination / cron gap
 
 Added the **USDT Wallet** card to the Stakings wallet strip

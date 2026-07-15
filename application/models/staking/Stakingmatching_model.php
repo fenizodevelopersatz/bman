@@ -151,24 +151,31 @@ class Stakingmatching_model extends CI_Model
             $u = $this->db->select('status')->get_where('users', ['id' => $uid])->row_array();
             if (!$u || (string)$u['status'] !== '1') continue;
 
+            // Eligibility gate: a user must have purchased staking themselves
+            // (an active user_stakes row) to receive binary matching income —
+            // being an ancestor with two funded legs is not enough on its own.
+            // userCeiling() sums group_ceiling across the user's OWN active
+            // stakes, so 0 means "never staked" (not "unlimited"). Skip without
+            // consuming carry, exactly like the inactive-user skip above — once
+            // they do stake, the next run pays them for whatever accumulated
+            // while they were unstaked.
+            $ceiling = $this->userCeiling($uid);
+            if ($ceiling <= 0) continue;
+
             $earnAmt = round($match * $earningPct / 100, 4);
             $stkAmt  = round($match * $stakingPct / 100, 4);
             $bonus   = round($earnAmt + $stkAmt, 4);
 
             // ---- Ceiling cap ----------------------------------------------
             // Cap the user's binary income at their package earning ceiling
-            // (staking_packages.group_ceiling). Only applies when a positive
-            // ceiling is configured — otherwise pay full (existing behaviour,
-            // never broken). Excess is diverted to the system Ceiling Wallet.
-            $ceiling = $this->userCeiling($uid);
+            // (staking_packages.group_ceiling, already confirmed > 0 above).
+            // Excess is diverted to the system Ceiling Wallet.
+            $paid      = $this->matchingPaidToDate($uid);
+            $remaining = max(0.0, round($ceiling - $paid, 4));
             $eligibleRatio = 1.0; $excess = 0.0;
-            if ($ceiling > 0) {
-                $paid      = $this->matchingPaidToDate($uid);
-                $remaining = max(0.0, round($ceiling - $paid, 4));
-                if ($bonus > $remaining) {
-                    $excess        = round($bonus - $remaining, 4);
-                    $eligibleRatio = $bonus > 0 ? ($remaining / $bonus) : 0.0;
-                }
+            if ($bonus > $remaining) {
+                $excess        = round($bonus - $remaining, 4);
+                $eligibleRatio = $bonus > 0 ? ($remaining / $bonus) : 0.0;
             }
             // Proportionally split the payable part across earning (8) / staking (2).
             $payEarn = round($earnAmt * $eligibleRatio, 4);

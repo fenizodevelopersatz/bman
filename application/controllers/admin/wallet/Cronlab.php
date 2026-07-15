@@ -76,6 +76,7 @@ class Cronlab extends CI_Controller
                 ['key' => 'roi_distribution', 'label' => 'ROI Distribution (Monthly + Maturity)', 'type' => 'roi', 'endpoint' => 'roi-distribution-cron', 'method' => 'GET', 'description' => 'Runs both ROI legs in the correct order: Monthly first (so Maturity can complete regular/combo records in the same pass), then Maturity. Use this for the normal daily run.'],
                 ['key' => 'roi_monthly', 'label' => 'ROI Monthly Distribution (leg only)', 'type' => 'roi', 'endpoint' => 'roi-monthly-distribution-process', 'method' => 'GET', 'description' => 'Just the monthly leg — credits Regular/Combo records whose next_payment_date has arrived. Use this for targeted debugging; the combined button above already includes it.'],
                 ['key' => 'roi_maturity', 'label' => 'ROI Maturity Payment (leg only)', 'type' => 'roi', 'endpoint' => 'roi-maturity-payment-process', 'method' => 'GET', 'description' => 'Just the maturity leg — pays the fixed lump ROI and returns principal for Fixed/Combo records whose fixed_maturity_date has arrived. Use this for targeted debugging; the combined button above already includes it.'],
+                ['key' => 'binary_matching_payout', 'label' => 'Binary Matching Payout (Engine + On-Chain)', 'type' => 'binary', 'endpoint' => 'binary-matching-payout-cron', 'method' => 'GET', 'description' => 'Runs the binary matching engine (queue-tracked via binary_matching_queue), enqueues one on-chain BMAN payout per newly-matched user, drains the treasury-balance-checked broadcast queue, and confirms pending transfers. Idempotent — safe to click repeatedly. See Matching History / Payout Queue for the resulting audit trail.'],
             ],
         ];
         $this->load->view('admin/wallet/cron_lab', $data);
@@ -105,6 +106,9 @@ class Cronlab extends CI_Controller
                 case 'stakingpurchase':
                     $res = $this->_runViaHttp('staking-purchase-cron');
                     return $this->_json(['status' => 'success', 'message' => 'staking purchase cron executed', 'data' => $res]);
+                case 'binary_matching_payout':
+                    $res = $this->_runViaHttp('binary-matching-payout-cron');
+                    return $this->_json(['status' => 'success', 'message' => 'binary matching payout cron executed', 'data' => $res]);
                 case 'match':
                     $this->load->model('staking/Stakingmatching_model', 'MB');
                     $res = $this->MB->run();

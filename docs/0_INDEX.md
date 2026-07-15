@@ -31,6 +31,7 @@ trackable. Update the **Status** column as features land.
 | 14 | [14_ONCHAIN_SYNC_LIFECYCLE.md](14_ONCHAIN_SYNC_LIFECYCLE.md) | 🟢 **Implemented + tested (live)**: withdrawal/swap on-chain lifecycle, RPC verification + reorg handling, and a **cost-optimized balance sync** (free RPC primary, BscScan only on a balance change). `Chainsync_model` + `chain-sync-cron`. 10/10 integration tests pass |
 | 15 | [15_STAKINGS_PAGE_REDESIGN.md](15_STAKINGS_PAGE_REDESIGN.md) | 🟢 **Phases 1–5 done**: user "Package"→"Stakings" redesign — rename + removed KPI cards + redesigned package cards, server-side portfolio (search/sort/filter/paginate) + CSV/Excel, full-screen 7-tab investment modal (real data), and document generation (receipt/agreement/ROI schedule/summary, printable HTML+QR, owner/admin-only). 5 commits |
 | 16 | [16_WALLET_TRANSFER_ENGINE.md](16_WALLET_TRANSFER_ENGINE.md) | 🟢 **Implemented + tested**: ONE centralized Wallet Transfer validation+execution engine used by both User & Admin panels — exact member (downline / bonus→sponsor) + internal (exchange source-only) rules, double-entry, idempotent, audit. 18/18 rule + 3/3 exec tests |
+| 17 | [17_BINARY_MATCHING_PAYOUT_CRON.md](17_BINARY_MATCHING_PAYOUT_CRON.md) | 🟢 **Implemented + tested**: on-chain payout cron (treasury precheck, FIFO drain, retry, watch mode) + recipient-eligibility fix (must have an own active stake — 7/7 test) + verified multi-level cascading (17/17 test) + admin Genealogy Tree showing real binary_carry/ceiling for any member (12/12 test) + 2 payout admin screens + Cron Lab button. ⚠️ zero real payout has occurred yet — see doc for the `binary_volume_ledger` gap |
 
 ---
 
@@ -43,6 +44,7 @@ trackable. Update the **Status** column as features land.
 | Staking rank achievement (11 ranks + qualification matrix) — **admin side** | ✅ Done | Same module; evaluation cron pending |
 | Rank Power system (§11) + Group Incentive Ceiling (§12) — **admin side** | ✅ Done | Settings, 60-day cycles, ceiling editor; evaluation engine pending |
 | Bonus Coin (§7) + Binary Matching Bonus (§9) — **admin side** | ✅ Done | Bonus %, 60d/50% reduction, transfer rules, 10=8+2 matching split — §4–§12 admin setups complete |
+| Binary Matching Bonus **payout engine** — scheduled + on-chain | 🟢 Done | `BinaryMatchingPayoutCron` (5-min cadence, watch mode) wraps `Stakingmatching_model` with queue-tracking, treasury-balance-checked on-chain BMAN payout, and admin retry. Matching History + Payout Queue + Genealogy Tree (any member, shows real `binary_carry`) admin screens + Cron Lab button. Fixed a real gap: recipients now need an own active stake to be paid (were previously paid uncapped with none). Multi-level cascading verified (no explicit "level order" needed — each ancestor's carry accumulates independently). ⚠️ zero real payout yet — `binary_volume_ledger` empty for all real users pending a normal purchase or backfill. See [17_BINARY_MATCHING_PAYOUT_CRON.md](17_BINARY_MATCHING_PAYOUT_CRON.md) |
 | Coin Distribution Master (§3A) + purchase snapshot | ✅ Done | Master → Coin Distribution; 7 options, one-default rule, audit; Make-Investment credits 4 wallets + permanent history |
 | Single Withdraw Settings page (global + staking plan rules) | ✅ Done | `withdraw-settings` is the only withdraw page; Plans page links there (no duplicate fields) |
 | Token Settings Master (blockchain single source of truth) | ✅ Done | Master → Token Settings; network/tokens/rate/wallets/contracts, RPC test, IP-audited; active rate bridged to legacy `token_config` |
@@ -138,8 +140,10 @@ New tasks get added to the correct phase below.
       **Admin (Company) Wallet** with the reclaimed amount — full design in
       [10_BONUS_WALLET_REDUCTION_ADMIN_WALLET.md](10_BONUS_WALLET_REDUCTION_ADMIN_WALLET.md)
 - [ ] Bonus transfer flow — direct left/right only, email OTP + transfer password
-- [ ] Binary matching bonus payout — 10% split 8% Earning / 2% Staking
-      (reads `staking_bonus_settings`)
+- [x] Binary matching bonus payout — 10% split 8% Earning / 2% Staking
+      (reads `staking_bonus_settings`) — engine was already correct; added
+      `BinaryMatchingPayoutCron` (queue-tracked, on-chain, ceiling-restricted,
+      admin retry). See [17_BINARY_MATCHING_PAYOUT_CRON.md](17_BINARY_MATCHING_PAYOUT_CRON.md)
 - [ ] Rank achievement evaluation engine — scan binary tree, award permanent ranks
 - [ ] Rank power evaluation + cycle auto-roll cron — fill `user_rank_power`,
       qualify group incentive, auto-open next cycle

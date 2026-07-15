@@ -117,14 +117,14 @@
                     <div class="table-responsive">
                       <table class="table align-middle table-row-dashed fs-7 gy-4">
                         <thead><tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
-                          <th>#</th><th>User</th><th class="text-end">Matched Vol.</th><th class="text-end">%</th>
+                          <th>#</th><th>User</th><th>Ceiling (now)</th><th class="text-end">Matched Vol.</th><th class="text-end">%</th>
                           <th class="text-end">Earning</th><th class="text-end">Staking</th>
                           <th class="text-end">Left/Right Before</th><th>Run Ref</th>
                           <th>On-Chain Status</th><th>Tx Hash</th><th>When</th>
                         </tr></thead>
                         <tbody class="text-gray-700 fw-semibold">
                         <?php if (empty($payouts)): ?>
-                          <tr><td colspan="11" class="text-center text-muted py-6">No matching payouts yet.</td></tr>
+                          <tr><td colspan="12" class="text-center text-muted py-6">No matching payouts yet.</td></tr>
                         <?php else: foreach ($payouts as $p):
                           $pbadge = ['PENDING'=>'light','PROCESSING'=>'info','CONFIRMED'=>'success','FAILED'=>'danger','RETRY'=>'warning'];
                           $pStatus = $p['payout_status'] ?? null;
@@ -133,6 +133,17 @@
                             <td class="text-muted fs-8"><?php echo (int)$p['id']; ?></td>
                             <td><?php echo html_escape(($p['username'] ?? '') ?: ('#'.$p['user_id'])); ?>
                               <div class="text-muted fs-8"><?php echo html_escape($p['referral_id'] ?? ''); ?></div></td>
+                            <td class="fs-8">
+                              <?php if (!empty($p['matching_eligible'])): ?>
+                                <span class="badge badge-light-success">Eligible</span>
+                              <?php else: ?>
+                                <span class="badge badge-light-warning" title="No active stake — not currently eligible for matching bonus">Needs Stake</span>
+                              <?php endif; ?>
+                              <div class="text-muted mt-1"><?php echo number_format((float)($p['ceiling_remaining'] ?? 0), 2); ?> / <?php echo number_format((float)($p['ceiling_amount'] ?? 0), 2); ?> BMAN</div>
+                              <?php if ((float)($p['ceiling_held'] ?? 0) > 0): ?>
+                                <div class="text-warning">Held: <?php echo number_format((float)$p['ceiling_held'], 2); ?></div>
+                              <?php endif; ?>
+                            </td>
                             <td class="text-end"><?php echo number_format((float)$p['matched_volume'], 4); ?></td>
                             <td class="text-end text-muted"><?php echo number_format((float)$p['total_percent'], 2); ?>%</td>
                             <td class="text-end text-success"><?php echo number_format((float)$p['earning_amount'], 4); ?></td>

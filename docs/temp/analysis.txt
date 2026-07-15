@@ -1,4 +1,47 @@
 
+# 4. Or via CLI
+php index.php stakingpurchasecron run
+php index.php stakingpurchasecron run watch
+
+php index.php roimonthlydistribution_cron watch
+php index.php roimaturitypayment_cron watch
+
+
+php index.php roidistribution_cron run     # one pass, both legs in order
+php index.php roidistribution_cron watch   # loop until nothing due (or 5 min timeout)
+php index.php roidistribution_cron test    # read-only due-count check
+
+
+CLI (one pass) : php index.php BinaryMatchingPayoutCron run
+CLI (watch)    : php index.php BinaryMatchingPayoutCron run watch
+HTTP           : /binary-matching-payout-cron?token=YOUR_CRON_TOKEN
+Cron Lab       : admin/wallet/cron-lab → "Binary Matching Payout (Engine + On-Chain)"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 SET FOREIGN_KEY_CHECKS = 0;
 
@@ -2636,11 +2679,11 @@ Stake Ceiling
 
 
 
-                           A
+                            A
 
-           /                           \
+              /                           \
 
-        B(1 Bman)                      C(10000 Bman)
+            B                      C(10000 Bman)
 
         /       \                       /       \
 
@@ -2648,6 +2691,11 @@ Stake Ceiling
 
  D(10000 Bman)   E(10000 Bman)      D(10000 Bman)   E(10000 Bman)
 
+
+A is not eligible for binary matching because b is not purchase any staking
+B and c is eligble for first level of binary matching level 1 is 2 downine of purchased members,
+level 2 is 4 downline of any purchased stakings
+Before checking the already given the level 1 is completed skip then try to matching the level 2 of B and C because level 1 is credited thier matching bonus
 
 
 Most take the first user because all are same stakings of investment So take 10000 * 10% => 100 Bman to give
@@ -3215,6 +3263,11 @@ php index.php roidistribution_cron run     # one pass, both legs in order
 php index.php roidistribution_cron watch   # loop until nothing due (or 5 min timeout)
 php index.php roidistribution_cron test    # read-only due-count check
 
+
+CLI (one pass) : php index.php BinaryMatchingPayoutCron run
+CLI (watch)    : php index.php BinaryMatchingPayoutCron run watch
+HTTP           : /binary-matching-payout-cron?token=YOUR_CRON_TOKEN
+Cron Lab       : admin/wallet/cron-lab → "Binary Matching Payout (Engine + On-Chain)"
 
 
 Initial cron -> purchase (gas_tx_hash)gas_cron_fee_status -> send(usdt_tx_hash)usdt_cron_status -> (bonus_tx_hash) bonus_cron_status -> 

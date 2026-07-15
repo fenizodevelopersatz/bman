@@ -17,6 +17,8 @@ class Matchinghistory extends CI_Controller
         $this->load->library('session');
         $this->load->model('Admin_model');
         $this->load->model('staking/Matchingqueue_model', 'MQ');
+        $this->load->model('staking/Stakingmatching_model', 'MB');
+        $this->load->model('staking/Ceilingwallet_model', 'CW');
     }
 
     private function _requireAdmin()
@@ -84,7 +86,38 @@ class Matchinghistory extends CI_Controller
             ->join('users u', 'u.id = smp.user_id', 'left')
             ->join('blockchain_payout_queue q', "q.reference_type = 'staking_matching_payout' AND q.reference_id = smp.id", 'left')
             ->order_by('smp.id', 'DESC')->limit((int)$limit);
-        return $this->db->get()->result_array();
+        $rows = $this->db->get()->result_array();
+        return $this->_withCeilingContext($rows);
+    }
+
+    /**
+     * Enrich each payout row with the recipient's CURRENT ceiling/held/own-stake
+     * snapshot (not what it was at payout time — this is "where do they stand
+     * right now", for admin eligibility review). Memoized per user_id since the
+     * same recipient often appears across many rows.
+     */
+    private function _withCeilingContext(array $rows)
+    {
+        $cache = [];
+        foreach ($rows as &$r) {
+            $uid = (int)$r['user_id'];
+            if (!isset($cache[$uid])) {
+                $ceiling = $this->MB->userCeiling($uid);
+                $paid = $this->MB->matchingPaidToDate($uid);
+                $held = (float)($this->CW->balance($uid)['held_balance'] ?? 0);
+                $ownStake = (float)($this->db->select_sum('stake_amount')->where('user_id', $uid)
+                                              ->where('status', 'active')->get('user_stakes')->row()->stake_amount ?? 0);
+                $cache[$uid] = [
+                    'ceiling_amount'    => round($ceiling, 4),
+                    'ceiling_remaining' => round(max(0.0, $ceiling - $paid), 4),
+                    'ceiling_held'      => round($held, 4),
+                    'own_stake_amount'  => round($ownStake, 4),
+                    'matching_eligible' => $ceiling > 0,
+                ];
+            }
+            $r += $cache[$uid];
+        }
+        return $rows;
     }
 
     /** Admin-triggered engine run (AJAX) — the same path BinaryMatchingPayoutCron uses. */
