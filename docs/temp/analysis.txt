@@ -3211,6 +3211,11 @@ php index.php roimonthlydistribution_cron watch
 php index.php roimaturitypayment_cron watch
 
 
+php index.php roidistribution_cron run     # one pass, both legs in order
+php index.php roidistribution_cron watch   # loop until nothing due (or 5 min timeout)
+php index.php roidistribution_cron test    # read-only due-count check
+
+
 
 Initial cron -> purchase (gas_tx_hash)gas_cron_fee_status -> send(usdt_tx_hash)usdt_cron_status -> (bonus_tx_hash) bonus_cron_status -> 
 
@@ -3383,3 +3388,14 @@ to give every month 3 times up to 2520 1st month
 
 
 100,000 * 150% => 150000 + 55,200 => 205,200
+
+
+I have completed the ROI flow and distribution & display the admin history & retry individual
+https://darkseagreen-crocodile-999780.hostingersite.com/admin/staking/roi-history
+User Panel
+https://darkseagreen-crocodile-999780.hostingersite.com/
+siva@yopmail.com / Qwerty@123
+
+
+
+Currently checking on the binary matching bonus based on completed leg wise

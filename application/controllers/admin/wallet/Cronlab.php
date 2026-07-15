@@ -73,8 +73,9 @@ class Cronlab extends CI_Controller
             'cron_token' => $this->config->item('cron_token'),
             'jobs' => [
                 ['key' => 'stakingpurchase', 'label' => 'Staking Purchase', 'type' => 'swap', 'endpoint' => 'staking-purchase-cron', 'method' => 'GET', 'description' => 'Process multi-step USDT→BMAN swaps with gas fee detection, USDT payment, and BMAN distribution per coin_distribution_option (1-7).'],
-                ['key' => 'roi_monthly', 'label' => 'ROI Monthly Distribution', 'type' => 'roi', 'endpoint' => 'roi-monthly-distribution-process', 'method' => 'GET', 'description' => 'Credits monthly ROI (principal × monthly%) to the Earning wallet for active Regular/Combo records whose next_payment_date has arrived. Idempotent via tx_hash. Catches up all due months in one run.'],
-                ['key' => 'roi_maturity', 'label' => 'ROI Maturity Payment', 'type' => 'roi', 'endpoint' => 'roi-maturity-payment-process', 'method' => 'GET', 'description' => 'On maturity: credits the fixed lump ROI (Fixed/Combo) to the Earning wallet and returns the PRINCIPAL to the Staking wallet. Waits for the monthly schedule to finish first on Regular/Combo.'],
+                ['key' => 'roi_distribution', 'label' => 'ROI Distribution (Monthly + Maturity)', 'type' => 'roi', 'endpoint' => 'roi-distribution-cron', 'method' => 'GET', 'description' => 'Runs both ROI legs in the correct order: Monthly first (so Maturity can complete regular/combo records in the same pass), then Maturity. Use this for the normal daily run.'],
+                ['key' => 'roi_monthly', 'label' => 'ROI Monthly Distribution (leg only)', 'type' => 'roi', 'endpoint' => 'roi-monthly-distribution-process', 'method' => 'GET', 'description' => 'Just the monthly leg — credits Regular/Combo records whose next_payment_date has arrived. Use this for targeted debugging; the combined button above already includes it.'],
+                ['key' => 'roi_maturity', 'label' => 'ROI Maturity Payment (leg only)', 'type' => 'roi', 'endpoint' => 'roi-maturity-payment-process', 'method' => 'GET', 'description' => 'Just the maturity leg — pays the fixed lump ROI and returns principal for Fixed/Combo records whose fixed_maturity_date has arrived. Use this for targeted debugging; the combined button above already includes it.'],
             ],
         ];
         $this->load->view('admin/wallet/cron_lab', $data);
@@ -92,6 +93,9 @@ class Cronlab extends CI_Controller
                     $this->load->model('Bonusreduction_model', 'reduction');
                     $res = $this->reduction->run(['triggered_by' => 'cron']);
                     return $this->_json(['status' => !empty($res['status']) && $res['status'] === 'success' ? 'success' : 'success', 'message' => $res['message'] ?? 'done', 'data' => $res]);
+                case 'roi_distribution':
+                    $res = $this->_runViaHttp('roi-distribution-cron');
+                    return $this->_json(['status' => 'success', 'message' => 'ROI distribution (monthly + maturity) executed', 'data' => $res]);
                 case 'roi_monthly':
                     $res = $this->_runViaHttp('roi-monthly-distribution-process');
                     return $this->_json(['status' => 'success', 'message' => 'ROI monthly distribution executed', 'data' => $res]);
