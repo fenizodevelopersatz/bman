@@ -138,9 +138,22 @@ class Bmanwithdraw_model extends CI_Model
 
     public function admin_history($filters = [], $limit = 100, $offset = 0)
     {
-        $this->db->select('wr.*, u.username, u.email, u.referral_id');
+        $this->db->select('
+            wr.*,
+            u.username,
+            u.email,
+            u.referral_id,
+            u.status AS user_status,
+            ub.holder_name,
+            ub.bank_name,
+            ub.account_number,
+            ub.ifsc,
+            ub.upi_id,
+            ub.status AS bank_status
+        ');
         $this->db->from('bman_withdraw_requests wr');
         $this->db->join('users u', 'u.id = wr.user_id', 'left');
+        $this->db->join('user_bank ub', "ub.user_id = wr.user_id AND ub.status = 'approved'", 'left');
 
         if (!empty($filters['status'])) {
             $this->db->where('wr.status', $filters['status']);
@@ -155,6 +168,8 @@ class Bmanwithdraw_model extends CI_Model
                 ->or_like('u.username', $q)
                 ->or_like('u.email', $q)
                 ->or_like('u.referral_id', $q)
+                ->or_like('wr.withdraw_address', $q)
+                ->or_like('ub.holder_name', $q)
                 ->group_end();
         }
 
@@ -339,9 +354,22 @@ class Bmanwithdraw_model extends CI_Model
 
     public function get_request($id)
     {
-        return $this->db->select('wr.*, u.username, u.email, u.referral_id')
+        return $this->db->select('
+            wr.*,
+            u.username,
+            u.email,
+            u.referral_id,
+            u.status AS user_status,
+            ub.holder_name,
+            ub.bank_name,
+            ub.account_number,
+            ub.ifsc,
+            ub.upi_id,
+            ub.status AS bank_status
+        ')
             ->from('bman_withdraw_requests wr')
             ->join('users u', 'u.id = wr.user_id', 'left')
+            ->join('user_bank ub', "ub.user_id = wr.user_id AND ub.status = 'approved'", 'left')
             ->where('wr.id', (int) $id)
             ->get()
             ->row_array();

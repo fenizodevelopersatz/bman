@@ -23,6 +23,7 @@
                 <div class="col-md-6">
                     <p><strong>Request No:</strong> <?= htmlspecialchars($row['request_no']); ?></p>
                     <p><strong>User:</strong> <?= htmlspecialchars(($row['username'] ?? '-') . ' / ' . ($row['referral_id'] ?? '-')); ?></p>
+                    <p><strong>Email:</strong> <?= htmlspecialchars($row['email'] ?? '-'); ?></p>
                     <p><strong>Source Wallet:</strong> <span class="badge bg-info"><?= htmlspecialchars($row['source_wallet']); ?></span></p>
                     <p><strong>Status:</strong> <span class="badge bg-<?= $row['status'] === 'completed' ? 'success' : ($row['status'] === 'rejected' ? 'danger' : 'warning'); ?>"><?= htmlspecialchars($row['status']); ?></span></p>
                 </div>
@@ -30,19 +31,70 @@
                     <p><strong>Amount:</strong> <?= number_format((float)$row['request_amount'], 4); ?> BMAN</p>
                     <p><strong>Fee:</strong> <?= number_format((float)$row['fee_amount'], 4); ?> BMAN</p>
                     <p><strong>Net Amount:</strong> <?= number_format((float)$row['net_amount'], 4); ?> BMAN</p>
+                    <p><strong>USDT Amount:</strong> <?= number_format((float)$row['usdt_amount'], 2); ?> USDT</p>
                     <p><strong>USDT Rate:</strong> <?= number_format((float)($row['bman_usdt_rate'] ?? 0), 8); ?></p>
                 </div>
             </div>
-            <hr>
+        </div>
+    </div>
+
+    <!-- Bank & KYC Details -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">Bank & KYC Details</h5>
+        </div>
+        <div class="card-body">
+            <?php if (!empty($row['holder_name'])): ?>
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Account Holder:</strong> <?= htmlspecialchars($row['holder_name'] ?? '-'); ?></p>
+                    <p><strong>Bank Name:</strong> <?= htmlspecialchars($row['bank_name'] ?? '-'); ?></p>
+                    <p><strong>Account Number:</strong> <code><?= htmlspecialchars($row['account_number'] ?? '-'); ?></code></p>
+                    <p><strong>IFSC Code:</strong> <code><?= htmlspecialchars($row['ifsc'] ?? '-'); ?></code></p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>UPI ID:</strong> <code><?= htmlspecialchars($row['upi_id'] ?? '-'); ?></code></p>
+                    <p><strong>Bank KYC Status:</strong>
+                        <span class="badge bg-<?= ($row['bank_status'] ?? '') === 'approved' ? 'success' : 'warning'; ?>">
+                            <?= htmlspecialchars($row['bank_status'] ?? 'not_verified'); ?>
+                        </span>
+                    </p>
+                    <p><strong>User Status:</strong>
+                        <span class="badge bg-<?= in_array($row['user_status'], ['active', '1', 'approved']) ? 'success' : 'warning'; ?>">
+                            <?= htmlspecialchars($row['user_status'] ?? 'inactive'); ?>
+                        </span>
+                    </p>
+                </div>
+            </div>
+            <?php else: ?>
+            <div class="alert alert-warning">No approved bank details found for this user. User must add and verify bank information before payout.</div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Withdrawal Details -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">Withdrawal Address & Timestamps</h5>
+        </div>
+        <div class="card-body">
             <p><strong>Withdraw Address:</strong> <code><?= htmlspecialchars($row['withdraw_address']); ?></code></p>
             <p><strong>Tx Hash:</strong> <?= empty($row['tx_hash']) ? '<em>Not yet confirmed</em>' : '<code>' . htmlspecialchars($row['tx_hash']) . '</code>'; ?></p>
-            <p><strong>Created:</strong> <?= htmlspecialchars($row['created_at'] ?? '-'); ?></p>
-            <?php if (!empty($row['approved_at'])): ?>
-                <p><strong>Approved At:</strong> <?= htmlspecialchars($row['approved_at']); ?> by Admin #<?= $row['approved_by']; ?></p>
-            <?php endif; ?>
-            <?php if (!empty($row['completed_at'])): ?>
-                <p><strong>Completed At:</strong> <?= htmlspecialchars($row['completed_at']); ?></p>
-            <?php endif; ?>
+            <hr>
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Created:</strong> <?= htmlspecialchars($row['created_at'] ?? '-'); ?></p>
+                    <?php if (!empty($row['approved_at'])): ?>
+                        <p><strong>Approved At:</strong> <?= htmlspecialchars($row['approved_at']); ?></p>
+                        <small class="text-muted">by Admin #<?= $row['approved_by']; ?></small>
+                    <?php endif; ?>
+                </div>
+                <div class="col-md-6">
+                    <?php if (!empty($row['completed_at'])): ?>
+                        <p><strong>Completed At:</strong> <?= htmlspecialchars($row['completed_at']); ?></p>
+                    <?php endif; ?>
+                </div>
+            </div>
             <?php if (!empty($row['remark'])): ?>
                 <p><strong>User Remark:</strong> <em><?= htmlspecialchars($row['remark']); ?></em></p>
             <?php endif; ?>
