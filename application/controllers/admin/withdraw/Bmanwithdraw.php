@@ -37,6 +37,10 @@ class Bmanwithdraw extends MY_Controller
         $this->data['card_tilte'] = 'Review Withdrawal';
         $this->data['row'] = $this->bmanwithdraw->get_request((int) $id);
         if (empty($this->data['row'])) show_404();
+
+        // Load allocations for mixed requests
+        $this->data['allocations'] = $this->bmanwithdraw->get_allocations((int) $id);
+
         $this->load->view('admin/withdraw/bman_view', $this->data);
     }
 
