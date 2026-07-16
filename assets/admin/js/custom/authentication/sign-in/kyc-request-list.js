@@ -95,6 +95,11 @@
             </div>`;
   }
 
+  function plain(value) {
+    const s = String(value || '').trim();
+    return s ? escapeHtml(s) : '-';
+  }
+
   function docBlock(label, url) {
     if (!url) return '';
     const safe = url.replace(/"/g, '&quot;');
@@ -137,9 +142,25 @@
        </div>`;
 
     // NEW: simplified manual-KYC review — Document Type/Number + the three images.
+    const personal =
+      row('Full Name', plain(k.full_name)) +
+      row('Date of Birth', plain(k.dob)) +
+      row('Gender', plain(k.gender)) +
+      row('Country of Residence', plain(k.country_iso2)) +
+      row('Nationality', plain(k.nationality_iso2)) +
+      row('Address Line 1', plain(k.addr_line1)) +
+      row('Address Line 2', plain(k.addr_line2)) +
+      row('City', plain(k.addr_city)) +
+      row('Region / State', plain(k.addr_region)) +
+      row('Postal Code', plain(k.addr_postal));
+
     const identity =
-      row('Document Type', escapeHtml(docLabel(k.doc_type))) +
-      row('Document Number', escapeHtml(k.doc_number));
+      row('Document Type', plain(docLabel(k.doc_type))) +
+      row('Document Number', plain(k.doc_number)) +
+      row('Issuing Country', plain(k.doc_issue_country)) +
+      row('Issued', plain(k.doc_issue_date)) +
+      row('Expiry', plain(k.doc_expiry_date)) +
+      row('Consent', String(k.consent) === '1' ? 'Accepted' : 'Not accepted');
 
     const docs =
       `<div class="row">
@@ -180,7 +201,8 @@
       head +
       `<div class="row">
          <div class="col-lg-6">
-           <div class="card card-bordered mb-5"><div class="card-header"><div class="card-title">Identity</div></div><div class="card-body">${identity}</div></div>
+           <div class="card card-bordered mb-5"><div class="card-header"><div class="card-title">Personal Details</div></div><div class="card-body">${personal}</div></div>
+           <div class="card card-bordered mb-5"><div class="card-header"><div class="card-title">Document Details</div></div><div class="card-body">${identity}</div></div>
            <div class="card card-bordered mb-5"><div class="card-header"><div class="card-title">Documents</div></div><div class="card-body">${docs}</div></div>
          </div>
          <div class="col-lg-6">

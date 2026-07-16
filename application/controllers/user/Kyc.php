@@ -111,8 +111,8 @@ class Kyc extends MY_Controller
             $addError('doc_type', 'Please select a document type.');
         }
 
-        $this->_validateUpload('doc_front', 'Front document is required.', ['jpg','jpeg','png','pdf'], 8, $errors);
-        $this->_validateUpload('doc_back', 'Back document is required.', ['jpg','jpeg','png','pdf'], 8, $errors);
+        $this->_validateUpload('doc_front', 'Front image is required.', ['jpg','jpeg','png','webp','gif'], 8, $errors);
+        $this->_validateUpload('doc_back', 'Back image is required.', ['jpg','jpeg','png','webp','gif'], 8, $errors);
         $this->_validateUpload('selfie', 'Selfie image is required.', ['jpg','jpeg','png','webp'], 8, $errors);
 
         if (!empty($errors)) {
@@ -130,7 +130,7 @@ class Kyc extends MY_Controller
 
         $cfg = [
             'upload_path' => $upload_path,
-            'allowed_types' => 'jpg|jpeg|png|pdf|webp',
+            'allowed_types' => 'jpg|jpeg|png|webp|gif',
             'max_size' => 8192,
             'encrypt_name' => true,
             'remove_spaces' => true,
@@ -283,7 +283,7 @@ class Kyc extends MY_Controller
             $errors[$field] = $message;
             return false;
         }
-        if ($mime && $field !== 'selfie' && !in_array($mime, ['image/jpeg', 'image/png', 'application/pdf'], true)) {
+        if ($mime && $field !== 'selfie' && !in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], true)) {
             $errors[$field] = $message;
             return false;
         }

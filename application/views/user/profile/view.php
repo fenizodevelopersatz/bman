@@ -1264,9 +1264,7 @@ function renderExistingPreview($url, $title)
 
               <div class="minirow">
                 <span class="badge <?= badgeClassPro($kyc->status); ?>"><i class="ph ph-identification-card"></i> KYC:
-                  <?= htmlspecialchars($kyc->status); ?></span>
-                <span class="badge <?= badgeClassPro($bank->status); ?>"><i class="ph ph-bank"></i> Bank:
-                  <?= htmlspecialchars($bank->status); ?></span>
+                  <?= htmlspecialchars($kyc->status); ?></span>                
               </div>
             </div>
           </div>
@@ -1428,6 +1426,7 @@ function renderExistingPreview($url, $title)
                     Current status:
                     <span style="margin-left:4px;"><?php echo $label; ?></span>
                   </div>
+
                 </div>
 
 
@@ -1628,10 +1627,11 @@ function renderExistingPreview($url, $title)
                               <a class="js-view" target="_blank" href="#">View</a>
                             </div>
                           </div>
+                          <?php renderExistingPreview($kyc->doc_front_url ?? '', 'ID Front'); ?>
                         </div>
 
                         <div class="fg col-6 col-md-6">
-                          <div class="f-label">ID Back (Image/PDF)</div>
+                          <div class="f-label">ID Back (Image)</div>
 
                           <div class="js-kyc file-drop" data-input="doc_back">
                             <div class="ic"><i class="ph ph-upload-simple"></i></div>
@@ -1643,7 +1643,7 @@ function renderExistingPreview($url, $title)
                                     href="<?php echo html_escape($kyc->doc_back_url); ?>">View uploaded</a></div>
                               <?php endif; ?>
                             </div>
-                            <input type="file" name="doc_back" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf" hidden <?php echo !empty($read_only) ? 'disabled' : ''; ?> />
+                            <input type="file" name="doc_back" accept=".jpg,.jpeg,.png,.webp,.gif" hidden <?php echo !empty($read_only) ? 'disabled' : ''; ?> />
                             <a href="javascript:void(0)" class="js-remove d-none">Remove</a>
                           </div>
 
@@ -1655,6 +1655,7 @@ function renderExistingPreview($url, $title)
                               <a class="js-view" target="_blank" href="#">View</a>
                             </div>
                           </div>
+                          <?php renderExistingPreview($kyc->doc_back_url ?? '', 'ID Back'); ?>
                         </div>
 
                         <div class="fg col-6 col-md-6">
@@ -1682,6 +1683,7 @@ function renderExistingPreview($url, $title)
                               <a class="js-view" target="_blank" href="#">View</a>
                             </div>
                           </div>
+                          <?php renderExistingPreview($kyc->selfie_url ?? '', 'Selfie'); ?>
                         </div>
 
                         <?php /* Proof of Address option removed — only Front, Back & Selfie are required. */ ?>
@@ -1698,15 +1700,38 @@ function renderExistingPreview($url, $title)
                         <?php endif; ?>
                       </div>
 
-                      <div class="actions">
-                        <button type="button" class="btn-lite" onclick="history.back()">Cancel</button>
+                      <?php
+                        $kycStatus = strtolower(trim((string) ($kyc->status ?? 'none')));
+                        $reviewNote = trim((string) ($kyc->review_notes ?? ''));
+                      ?>
+                      <?php if ($reviewNote !== '' && in_array($kycStatus, ['rejected', 'resubmit', 'under_review', 'resubmitted'], true)): ?>
+                        <div class="danger" style="margin-top:12px;">
+                          <h4><i class="ph ph-note-pencil"></i> Admin Note</h4>
+                          <p><?php echo html_escape($reviewNote); ?></p>
+                        </div>
+                      <?php endif; ?>
 
-                        <?php if (!empty($read_only)): ?>
-                          <button type="button" class="btn-primary2" disabled>
-                            <?php echo strtoupper($kyc->status ?? 'PENDING'); ?>
-                          </button>
-                        <?php else: ?>
-                          <button type="submit" id="kyc_submit_btn" class="btn-primary2">Submit KYC</button>
+                      <div class="actions">
+                        <?php
+                          $currentKycStatus = strtolower(trim((string) ($kyc->status ?? 'none')));
+                          $canSubmitKyc = in_array($currentKycStatus, ['none', 'pending', 'rejected', 'resubmit', 'resubmitted'], true);
+                          $submitLabel = 'Submit KYC';
+                          if ($currentKycStatus === 'none') {
+                            $submitLabel = 'Submit';
+                          } elseif (in_array($currentKycStatus, ['rejected', 'resubmit', 'resubmitted'], true)) {
+                            $submitLabel = 'Resubmit KYC';
+                          }
+                        ?>
+                        <?php if ($currentKycStatus !== 'approved'): ?>
+                          <button type="button" class="btn-lite" onclick="history.back()">Cancel</button>
+
+                          <?php if ($canSubmitKyc): ?>
+                            <button type="submit" id="kyc_submit_btn" class="btn-primary2"><?php echo $submitLabel; ?></button>
+                          <?php else: ?>
+                            <button type="button" class="btn-primary2" disabled>
+                              <?php echo strtoupper($kyc->status ?? 'PENDING'); ?>
+                            </button>
+                          <?php endif; ?>
                         <?php endif; ?>
                       </div>
                     </form>
@@ -2674,6 +2699,30 @@ async function freezeWithdraw() {
         ['keyup', 'change', 'blur'].forEach(ev => field.addEventListener(ev, () => clearFieldError(field)));
       }
 
+      function fieldByErrorKey(key) {
+        const map = {
+          full_name: el.fullName,
+          dob: el.dob,
+          gender: el.gender,
+          country_iso2: el.country,
+          nationality_iso2: el.nationality,
+          addr_line1: el.address,
+          addr_region: el.region,
+          addr_city: el.city,
+          addr_postal: el.pincode,
+          doc_type: el.docType,
+          doc_number: el.docNumber,
+          doc_issue_country: el.docIssueCountry,
+          doc_issue_date: el.docIssueDate,
+          doc_expiry_date: el.docExpiryDate,
+          consent: el.consent,
+          doc_front: el.docFront,
+          doc_back: el.docBack,
+          selfie: el.selfie,
+        };
+        return map[key] || null;
+      }
+
       [
         el.fullName, el.dob, el.gender, el.country, el.nationality, el.address, el.region,
         el.city, el.pincode, el.consent, el.docType, el.docNumber, el.docIssueCountry,
@@ -2697,12 +2746,13 @@ async function freezeWithdraw() {
         function show(file) {
           if (!pv || !img || !n || !s || !view) return;
           pv.classList.remove('d-none'); if (rm) rm.classList.remove('d-none');
+          const objUrl = URL.createObjectURL(file);
           if (file.type === 'application/pdf') {
             img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="54" height="54"><rect width="54" height="54" rx="8" fill="#F1F3F5"/><text x="50%" y="55%" text-anchor="middle" font-size="14" fill="#6c757d" font-family="Arial">PDF</text></svg>');
           } else {
-            img.src = URL.createObjectURL(file);
+            img.src = objUrl;
           }
-          n.textContent = file.name; s.textContent = fmtBytes(file.size); view.href = URL.createObjectURL(file);
+          n.textContent = file.name; s.textContent = fmtBytes(file.size); view.href = objUrl;
         }
         function clear() { input.value = ''; if (pv) pv.classList.add('d-none'); if (rm) rm.classList.add('d-none'); }
         const clearError = () => clearFieldError(input);
@@ -2838,6 +2888,25 @@ async function freezeWithdraw() {
           if (!res.ok) {
             // keep csrf updated if backend sends it even on error
             if (data.csrf?.hash) csrfHash = data.csrf.hash;
+
+            if (data.errors && typeof data.errors === 'object') {
+              const serverMsgs = [];
+              Object.entries(data.errors).forEach(([key, msg]) => {
+                const field = fieldByErrorKey(key);
+                if (field) {
+                  showFieldError(field, msg);
+                  serverMsgs.push(msg);
+                }
+              });
+              showErrorSummary(serverMsgs);
+              const first = form.querySelector('.is-invalid');
+              if (first) {
+                first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                first.focus({ preventScroll: true });
+              }
+              return;
+            }
+
             return Swal.fire('Error', data.message || `Request failed (${res.status})`, 'error');
           }
 
