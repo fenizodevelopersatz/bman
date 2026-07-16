@@ -1041,10 +1041,12 @@
               <input class="inp" id="q" placeholder="Search: payout id, period, note..." />
               <select class="sel" id="status">
                 <option value="">All Status</option>
-                <option value="PAID">Paid</option>
-                <option value="PROCESSING">Processing</option>
                 <option value="PENDING">Pending</option>
+                <option value="APPROVED">Approved</option>
+                <option value="PROCESSING">Processing</option>
+                <option value="COMPLETED">Completed</option>
                 <option value="REJECTED">Rejected</option>
+                <option value="FAILED">Failed</option>
               </select>
               <select class="sel" id="type">
                 <option value="">All Types</option>
@@ -1073,7 +1075,7 @@
                       <?php
                       $st = strtoupper($p->status ?? 'PENDING');
 
-                      $badge = $st === 'APPROVED' ? 'b-ok' : (($st === 'PROCESSING' || $st === 'PENDING') ? 'b-warn' : 'b-bad');
+                      $badge = $st === 'COMPLETED' ? 'b-ok' : (in_array($st, ['PENDING', 'APPROVED', 'PROCESSING'], true) ? 'b-warn' : 'b-bad');
                       $tp = strtoupper($p->type ?? 'WEEKLY');
                       ?>
                       <tr class="tr"
@@ -1413,7 +1415,7 @@
 
         tbody.innerHTML = payouts.map(p => {
           const st = (p.status || "PENDING").toUpperCase();
-          const badge = st === 'PAID' ? 'b-ok' : ((st === 'PROCESSING' || st === 'PENDING') ? 'b-warn' : 'b-bad');
+          const badge = st === 'COMPLETED' ? 'b-ok' : (['PENDING', 'APPROVED', 'PROCESSING'].includes(st) ? 'b-warn' : 'b-bad');
           const tp = (p.type || "MANUAL").toUpperCase();
           const q = ((p.payout_id || "") + " " + (p.period || "") + " " + (p.note || "")).toLowerCase()
             .replace(/"/g, '&quot;');

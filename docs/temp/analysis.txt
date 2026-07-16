@@ -3496,3 +3496,30 @@ User side to display the history all
 
 
     nandhakumarkm007@gmail.com 
+
+
+    **Estimated USDT Payout**  the actual floating values when i am enter the bman amount
+http://192.168.29.18:9000/user/withdraw then restricted only below processing fee
+
+payout calculate options
+
+
+
+Finance Management
+    -Deposit
+        - Wallet Management
+                - Internal transfer
+                - External deposit
+
+
+    -Withdraw Request
+
+    -ROI history
+
+    - Gas Fee
+
+    -50% Bonus Reduce
+
+    -Binary Matching & distribution
+           -Geneology
+           -Distribution History

@@ -187,7 +187,8 @@
                                                             class="text-start text-gray-500 fw-bold fs-7 text-uppercase gs-0">
                                                             <th>S/No</th>
                                                             <th>User Info</th>
-                                                            <th>Bank Details</th>
+                                                            <th>Available Balance</th>
+                                                            <th>Wallet Details</th>
                                                             <th>Amount</th>
                                                             <th>Status</th>
                                                             <th>Aproved At</th>

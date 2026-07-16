@@ -842,98 +842,13 @@ class Genealogycontroller extends MY_Controller
             $active_ok = in_array(strtolower((string) $user->status), ['active', '1', 'approved'], true);
         }
 
-        // ===== Pending + Paid totals =====
-        // We try common tables first. If your project uses different names, tell me your table name.
-        $pending_amount = 0.0;
-        $paid_total = 0.0;
-        $payouts = [];
-
-        // helper: check which table exists
-        $has_withdrawals = $this->db->table_exists('withdrawals');
-        $has_payouts_table = $this->db->table_exists('payouts');
-
-        if ($has_withdrawals) {
-            // Typical schema: withdrawals(user_id, amount, fee, status, created_at, payout_id/txn_id, remark, method, period, type)
-            $pending_row = $this->db->select('IFNULL(SUM(amount),0) AS s', false)
-                ->from('withdrawals')
-                ->where('user_id', $id)
-                ->where_in('status', ['pending', 'processing', 'approved_pending', 'under_review'])
-                ->get()->row();
-            $pending_amount = (float) ($pending_row->s ?? 0);
-
-            $paid_row = $this->db->select('IFNULL(SUM(amount),0) AS s', false)
-                ->from('withdrawals')
-                ->where('user_id', $id)
-                ->where_in('status', ['paid', 'success', 'completed', 'approved'])
-                ->get()->row();
-            $paid_total = (float) ($paid_row->s ?? 0);
-
-            // history list
-            $rows = $this->db->from('withdrawals')
-                ->where('user_id', $id)
-                ->order_by('id', 'DESC')
-                ->limit(200)
-                ->get()->result();
-
-            // foreach ($rows as $r) {
-            //     $payouts[] = (object) [
-            //         'payout_id' => $r->payout_id ?? ($r->txn_id ?? ('WD-' . $r->id)),
-            //         'period' => $r->period ?? ('—'),
-            //         'type' => strtoupper($r->type ?? 'MANUAL'),
-            //         'amount' => (float) ($r->amount ?? 0),
-            //         'fee' => (float) ($r->fee ?? 0),
-            //         'status' => strtoupper($r->status ?? 'PENDING'),
-            //         'date' => !empty($r->created_at) ? date('Y-m-d', strtotime($r->created_at)) : ($r->date ?? date('Y-m-d')),
-            //         'note' => $r->remark ?? ($r->note ?? ($r->method ?? '')),
-            //     ];
-            // }
-
-            foreach ($rows as $r) {
-                $payouts[] = (object) [
-                    'id' => $r->id,
-                    'payout_id' => $r->payout_id ?? ('WD-' . $r->id),
-                    'txn_id' => $r->admin_txn_id,
-                    'user_id' => $r->user_id,
-
-                    'amount' => (float) ($r->amount ?? 0),
-                    'fee' => (float) ($r->fee ?? 0),
-                    'net_amount' => (float) ($r->net_amount ?? ($r->amount - $r->fee)),
-
-                    'status' => strtoupper($r->status ?? 'PENDING'),
-                    'method' => $r->method ?? 'BANK',
-                    'type' => strtoupper($r->type ?? 'MANUAL'),
-                    'period' => $r->period ?? '—',
-
-                    'remark' => $r->remark,
-                    'note' => $r->note,
-
-                    'admin_review' => $r->admin_review,
-                    'approved_at' => $r->approved_at,
-
-                    'admin_proof_img' => $r->admin_proof_img
-                        ? base_url('uploads/withdraw_proof/' . $r->admin_proof_img)
-                        : null,
-
-                    'created_at' => $r->created_at
-                        ? date('d M Y H:i', strtotime($r->created_at))
-                        : '—',
-                ];
-            }
-
-
-        } else {
-            // Fallback: if your project stores withdrawals in history table as type='withdraw' or similar
-            if ($this->db->table_exists('history')) {
-                $pending_amount = 0.0; // no reliable status mapping in history without your schema
-                $paid_row = $this->db->select('IFNULL(SUM(amount),0) AS s', false)
-                    ->from('history')
-                    ->where('user_id', $id)
-                    ->where_in('type', ['withdraw', 'withdrawal'])
-                    ->where('status', '1')
-                    ->get()->row();
-                $paid_total = (float) ($paid_row->s ?? 0);
-            }
-        }
+        // ===== Pending + Paid totals + history =====
+        // Source of truth: bman_withdraw_requests — the table the withdraw form
+        // on this page actually submits to (via user/bman-withdraw/request).
+        $totals = $this->bmanwithdraw->user_totals($id);
+        $pending_amount = $totals['pending'];
+        $paid_total = $totals['paid'];
+        $payouts = $this->bmanwithdraw->user_payout_history($id, 200);
 
         // ===== Eligibility rules (you can tighten these) =====
         $eligible = true;

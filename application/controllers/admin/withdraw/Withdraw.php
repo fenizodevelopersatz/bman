@@ -91,27 +91,17 @@ class Withdraw extends MY_Controller
 
         $data = [];
 
-        // Total records
-        $total_records = $this->db->count_all('withdrawals');
+        $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
 
-        // Main query
-        $this->db->select('
-        wr.*,
-        u.referral_id,
-        u.email,
-        ub.holder_name,
-        ub.bank_name,
-        ub.account_number,
-        ub.ifsc,
-        ub.upi_id
-    ');
-        $this->db->from('withdrawals wr');
+        // Total records
+        $total_records = $this->db->count_all('bman_withdraw_requests');
+
+        // Filtered query (built first so the same WHERE clauses drive both the
+        // filtered count and the paginated data — the old code always reported
+        // recordsFiltered = recordsTotal, which broke DataTables pagination
+        // whenever a filter was applied)
+        $this->db->from('bman_withdraw_requests wr');
         $this->db->join('users u', 'wr.user_id = u.id', 'left');
-        $this->db->join(
-            'user_bank ub',
-            "ub.user_id = wr.user_id AND ub.status = 'approved'",
-            'left'
-        );
 
         if ($from_date)
             $this->db->where('DATE(wr.created_at) >=', $from_date);
@@ -122,49 +112,73 @@ class Withdraw extends MY_Controller
         if ($sponsor_id)
             $this->db->where('u.id', $sponsor_id);
 
-        $this->db->order_by('wr.created_at', 'DESC');
+        $filtered_records = $this->db->count_all_results('', false);
+
+        $this->db->select('wr.*, u.referral_id, u.email');
+        $this->db->order_by('wr.id', 'DESC');
 
         if ($length != -1)
             $this->db->limit($length, $start);
 
         $requests = $this->db->get()->result_array();
 
+        // Batch-fetch wallet allocations for the returned requests (avoids N+1)
+        $ids = array_column($requests, 'id');
+        $allocations_by_request = [];
+        if ($ids) {
+            $alloc_rows = $this->db->select('request_id, wallet, amount')
+                ->from('bman_withdraw_allocations')
+                ->where_in('request_id', $ids)
+                ->get()->result_array();
+            foreach ($alloc_rows as $a) {
+                $allocations_by_request[$a['request_id']][] = $a;
+            }
+        }
+
         $i = $start;
 
         foreach ($requests as $req) {
             $i++;
 
-            // Build bank details from user_bank
-            if (!empty($req['account_number'])) {
-                $bank_details = '<strong>Holder:</strong> ' . $req['holder_name'] . '<br>';
-                $bank_details .= '<strong>Bank:</strong> ' . $req['bank_name'] . '<br>';
-                $bank_details .= '<strong>Acc No:</strong> ' . $req['account_number'] . '<br>';
-                $bank_details .= '<strong>IFSC:</strong> ' . $req['ifsc'];
-
-                if (!empty($req['upi_id'])) {
-                    $bank_details .= '<br><strong>UPI:</strong> ' . $req['upi_id'];
+            // Wallet details: destination address + which wallet(s) it was locked from
+            $wallet_details = '<strong>To:</strong> ' . htmlspecialchars($req['withdraw_address']) . '<br>';
+            $allocations = $allocations_by_request[$req['id']] ?? [];
+            if ($allocations) {
+                $parts = [];
+                foreach ($allocations as $a) {
+                    $parts[] = ucfirst($a['wallet']) . ' ' . number_format((float) $a['amount'], 4);
                 }
+                $wallet_details .= '<strong>From:</strong> ' . implode(', ', $parts);
             } else {
-                $bank_details = '<span class="text-danger">No Approved Bank</span>';
+                $wallet_details .= '<strong>From:</strong> ' . ucfirst($req['source_wallet']);
             }
 
-            // Status badge
+            // Status badge (pending/approved/processing/completed/rejected/failed)
             switch ($req['status']) {
                 case 'pending':
                     $status_badge = '<span class="badge bg-warning">Pending</span>';
                     break;
                 case 'approved':
-                    $status_badge = '<span class="badge bg-success">Approved</span>';
+                    $status_badge = '<span class="badge bg-info">Approved</span>';
+                    break;
+                case 'processing':
+                    $status_badge = '<span class="badge bg-primary">Processing</span>';
+                    break;
+                case 'completed':
+                    $status_badge = '<span class="badge bg-success">Completed</span>';
                     break;
                 case 'rejected':
                     $status_badge = '<span class="badge bg-danger">Rejected</span>';
+                    break;
+                case 'failed':
+                    $status_badge = '<span class="badge bg-danger">Failed</span>';
                     break;
                 default:
                     $status_badge = '<span class="badge bg-secondary">Unknown</span>';
             }
 
             // Action
-            $view_url = base_url('view-withdraw/' . $req['id']);
+            $view_url = base_url('admin/bman-withdrawals/view/' . $req['id']);
             $action = '<a class="btn btn-success btn-sm" href="' . $view_url . '">
                      <i class="fa fa-eye"></i> View
                    </a>';
@@ -172,8 +186,9 @@ class Withdraw extends MY_Controller
             $data[] = [
                 'RecordID' => $i,
                 'UserInfo' => '<strong>' . ($req['referral_id'] ?? '-') . '</strong><br>' . ($req['email'] ?? '-'),
-                'Bank Details' => $bank_details,
-                'Amount' => '₹' . number_format($req['amount'], 2) .
+                'Balance' => number_format($this->bmanwithdraw->available_balance($req['user_id']), 4) . ' BMAN',
+                'Wallet Details' => $wallet_details,
+                'Amount' => number_format((float) $req['request_amount'], 4) . ' BMAN' .
                     '<br><small>' . date('d-m-Y H:i', strtotime($req['created_at'])) . '</small>',
                 'Status' => $status_badge,
                 'Approved At' => $req['approved_at'] ? date('d-m-Y H:i', strtotime($req['approved_at'])) : '-',
@@ -184,7 +199,7 @@ class Withdraw extends MY_Controller
         echo json_encode([
             'draw' => intval($draw),
             'recordsTotal' => $total_records,
-            'recordsFiltered' => $total_records,
+            'recordsFiltered' => $filtered_records,
             'data' => $data
         ]);
     }

@@ -29,23 +29,20 @@ class Bmanwithdraw_model extends CI_Model
     }
 
     /**
-     * Total withdrawable balance based on matured ledger credits only.
-     * This is the source of truth for the available balance shown on the page.
+     * Total withdrawable balance across all BMAN wallets: matured ledger credits
+     * minus active withdrawal locks/debits (bman_wallet_ledger). This is the
+     * source of truth for the available balance shown on the page — reuses
+     * WalletMaturity_model so it stays consistent with the per-wallet
+     * withdrawable figures used to allocate mixed withdrawal requests.
      */
     public function available_balance($user_id)
     {
-        $user_id = (int) $user_id;
-        $this->db->select('COALESCE(SUM(COALESCE(credit,0) - COALESCE(debit,0)), 0) AS total', false)
-            ->from('wallet_ledger')
-            ->where('user_id', $user_id)
-            ->group_start()
-                ->where('credit >', 0)
-                ->or_where('debit >', 0)
-            ->group_end()
-            ->where('is_matured', 1);
-
-        $row = $this->db->get()->row_array();
-        return (float) ($row['total'] ?? 0);
+        $breakdowns = $this->maturity->all_breakdowns((int) $user_id);
+        $total = 0.0;
+        foreach ($breakdowns as $b) {
+            $total += (float) ($b['withdrawable'] ?? 0);
+        }
+        return $total;
     }
 
     /**
@@ -111,6 +108,94 @@ class Bmanwithdraw_model extends CI_Model
             ->limit((int) $limit)
             ->get()
             ->result_array();
+    }
+
+    public function user_totals($user_id)
+    {
+        $user_id = (int) $user_id;
+
+        $pending_row = $this->db->select('IFNULL(SUM(request_amount),0) AS s', false)
+            ->from('bman_withdraw_requests')
+            ->where('user_id', $user_id)
+            ->where_in('status', ['pending', 'approved', 'processing'])
+            ->get()->row();
+
+        $paid_row = $this->db->select('IFNULL(SUM(request_amount),0) AS s', false)
+            ->from('bman_withdraw_requests')
+            ->where('user_id', $user_id)
+            ->where('status', 'completed')
+            ->get()->row();
+
+        return [
+            'pending' => (float) ($pending_row->s ?? 0),
+            'paid' => (float) ($paid_row->s ?? 0),
+        ];
+    }
+
+    /**
+     * User history shaped for the Payouts page table + detail modal
+     * (payout_id/amount/fee/date/... field names the view already expects).
+     * 'mixed' requests show their per-wallet split (from bman_withdraw_allocations)
+     * in the period column instead of a single wallet name.
+     */
+    public function user_payout_history($user_id, $limit = 200)
+    {
+        $rows = $this->user_history($user_id, $limit);
+        $symbol = currency_info()->currency_symbol ?? '';
+
+        $ids = array_column($rows, 'id');
+        $allocations_by_request = [];
+        if ($ids) {
+            $alloc_rows = $this->db->select('request_id, wallet, amount')
+                ->from('bman_withdraw_allocations')
+                ->where_in('request_id', $ids)
+                ->get()->result_array();
+            foreach ($alloc_rows as $a) {
+                $allocations_by_request[$a['request_id']][] = $a;
+            }
+        }
+
+        $out = [];
+        foreach ($rows as $r) {
+            $allocations = $allocations_by_request[$r['id']] ?? [];
+            if ($allocations) {
+                $parts = [];
+                foreach ($allocations as $a) {
+                    $parts[] = ucfirst($a['wallet']) . ' ' . number_format((float) $a['amount'], 2);
+                }
+                $period = implode(' + ', $parts);
+            } else {
+                $period = ucfirst($r['source_wallet']) . ' Wallet';
+            }
+
+            $out[] = (object) [
+                'payout_id' => $r['request_no'],
+                'txn_id' => $r['tx_hash'] ?? null,
+                'user_id' => $r['user_id'],
+
+                'amount' => (float) $r['request_amount'],
+                'fee' => (float) $r['fee_amount'],
+                'net_amount' => (float) $r['net_amount'],
+                'usdt_amount' => (float) ($r['usdt_amount'] ?? 0),
+
+                'status' => strtoupper($r['status']),
+                'method' => 'BMAN',
+                'type' => 'MANUAL',
+                'period' => $period,
+
+                'remark' => $r['remark'],
+                'note' => $r['remark'] ?: ($r['admin_remark'] ?? ''),
+
+                'admin_review' => $r['admin_remark'] ?? null,
+                'approved_at' => $r['approved_at'] ?? null,
+                'admin_proof_img' => null,
+
+                'date' => !empty($r['created_at']) ? date('Y-m-d', strtotime($r['created_at'])) : '—',
+                'created_at' => !empty($r['created_at']) ? date('d M Y H:i', strtotime($r['created_at'])) : '—',
+                'currency_symbol' => $symbol,
+            ];
+        }
+        return $out;
     }
 
     /**

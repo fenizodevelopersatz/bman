@@ -10,7 +10,7 @@ $(document).ready(function () {
                 searchDelay: 500,
                 processing: true,
                 serverSide: true,
-                order: [[5, 'desc']],
+                order: [[6, 'desc']],
                 stateSave: true,
                 ajax: {
                     url: base_url + "withdraw-request-list",
@@ -24,7 +24,8 @@ $(document).ready(function () {
                 columns: [
                     { data: 'RecordID' },
                     { data: 'UserInfo' },
-                    { data: 'Bank Details' },
+                    { data: 'Balance' },
+                    { data: 'Wallet Details' },
                     { data: 'Amount' },
                     { data: 'Status' },
                     { data: 'Approved At' },

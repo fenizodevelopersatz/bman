@@ -283,15 +283,38 @@ class WalletMaturity_model extends CI_Model
         return (string) ($row['locked'] ?? '0');
     }
 
+    /**
+     * Sum of BMAN currently unavailable due to withdrawal activity: active locks
+     * (pending/approved/processing requests) plus active debits (completed
+     * requests — permanent removal). Reads bman_wallet_ledger, the table the
+     * BMAN withdrawal locking system actually writes to; wallet_withdraw_holds
+     * is the pre-ledger legacy hold table, kept here only in case old rows remain.
+     */
     private function _active_holds($user_id, $wallet)
     {
-        if (!$this->db->table_exists('wallet_withdraw_holds')) return 0.0;
-        $row = $this->db->select('COALESCE(SUM(hold_amount - released_amount),0) AS held', false)
-                        ->from('wallet_withdraw_holds')
-                        ->where('user_id', (int) $user_id)
-                        ->where('wallet_type', $wallet)
-                        ->where('status', 'held')
-                        ->get()->row_array();
-        return (float) ($row['held'] ?? 0);
+        $held = 0.0;
+
+        if ($this->db->table_exists('wallet_withdraw_holds')) {
+            $row = $this->db->select('COALESCE(SUM(hold_amount - released_amount),0) AS held', false)
+                            ->from('wallet_withdraw_holds')
+                            ->where('user_id', (int) $user_id)
+                            ->where('wallet_type', $wallet)
+                            ->where('status', 'held')
+                            ->get()->row_array();
+            $held += (float) ($row['held'] ?? 0);
+        }
+
+        if ($this->db->table_exists('bman_wallet_ledger')) {
+            $row = $this->db->select('COALESCE(SUM(amount),0) AS held', false)
+                            ->from('bman_wallet_ledger')
+                            ->where('user_id', (int) $user_id)
+                            ->where('wallet', $wallet)
+                            ->where_in('entry_type', ['lock', 'debit'])
+                            ->where('status', 'active')
+                            ->get()->row_array();
+            $held += (float) ($row['held'] ?? 0);
+        }
+
+        return $held;
     }
 }

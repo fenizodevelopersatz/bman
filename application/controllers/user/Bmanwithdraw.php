@@ -25,7 +25,7 @@ class Bmanwithdraw extends CI_Controller
         $this->data['breakdowns'] = $this->bmanwithdraw->maturity_breakdown($user_id);
         $this->data['upcoming'] = $this->bmanwithdraw->upcoming_unlocks($user_id);
         $this->data['maturity_rules'] = $this->bmanwithdraw->maturity_rules();
-        $this->data['open_request'] = $this->bmanwithdraw->open_request($user_id, 'bman');
+        $this->data['open_request'] = $this->bmanwithdraw->open_request($user_id, 'mixed');
         $this->data['history'] = $this->bmanwithdraw->user_history($user_id, 100);
         $this->load->view('user/withdraw/bman_withdraw', $this->data);
     }
@@ -144,14 +144,14 @@ class Bmanwithdraw extends CI_Controller
         // Fetch allocations for display
         $allocations = $this->bmanwithdraw->get_allocations($request['id']);
 
-        $history = $this->bmanwithdraw->user_history($user_id, 100);
+        $history = $this->bmanwithdraw->user_payout_history($user_id, 100);
         return $this->_json([
             'status' => true,
             'message' => 'Withdrawal request submitted and sent for admin review',
             'request' => $request,
             'allocations' => $allocations,
             'history' => $history,
-            'available_balance' => $available - $amount,
+            'available_balance' => $this->bmanwithdraw->available_balance($user_id),
             'gross_usdt' => $gross_usdt,
             'net_usdt' => $net_usdt,
             'processing_fee_usdt' => $fee,
