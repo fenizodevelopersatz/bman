@@ -61,119 +61,139 @@ class Kyc extends MY_Controller
             ], 403);
         }
 
-        // ------- Validate required fields -------
-        // NEW: simplified manual-KYC form — only Document Type + Document Number are text fields;
-        // the three images are validated further below. Only the 3 allowed document types are accepted.
-        $this->load->library('form_validation');
-        $this->form_validation->set_rules('doc_type', 'Document Type', 'required|in_list[passport,national_id,driver_license]');
-        $this->form_validation->set_rules('doc_number', 'Document Number', 'required|max_length[80]');
+        $errors = [];
+        $p = $this->input->post(NULL, true) ?: [];
+        $addError = function ($key, $msg) use (&$errors) {
+            if (!isset($errors[$key])) $errors[$key] = $msg;
+        };
+        $trim = function ($key) use ($p) {
+            return trim((string) ($p[$key] ?? ''));
+        };
 
-        if (!$this->form_validation->run()) {
-            return $this->_json(['status' => 'error', 'message' => strip_tags(validation_errors())], 422);
+        $full_name = $trim('full_name');
+        $dob = $trim('dob');
+        $gender = $trim('gender');
+        $country = $trim('country_iso2');
+        $nationality = $trim('nationality_iso2');
+        $addr1 = $trim('addr_line1');
+        $addr2 = $trim('addr_line2');
+        $city = $trim('addr_city');
+        $region = $trim('addr_region');
+        $postal = $trim('addr_postal');
+        $doc_type = $trim('doc_type');
+        $doc_number = $trim('doc_number');
+        $issue_country = $trim('doc_issue_country');
+        $issue_date = $trim('doc_issue_date');
+        $expiry_date = $trim('doc_expiry_date');
+        $consent = (string) ($p['consent'] ?? '');
+
+        if ($full_name === '') $addError('full_name', 'Full name is required.');
+        elseif (mb_strlen($full_name) < 3 || mb_strlen($full_name) > 100) $addError('full_name', 'Full name must be between 3 and 100 characters.');
+        if ($dob === '') $addError('dob', 'Date of birth is required.');
+        elseif ($this->_ageYears($dob) < 18) $addError('dob', 'You must be at least 18 years old.');
+        if ($gender === '' || $gender === 'unspecified') $addError('gender', 'Gender is required.');
+        if ($country === '') $addError('country_iso2', 'Country of residence is required.');
+        if ($nationality === '') $addError('nationality_iso2', 'Nationality is required.');
+        if ($addr1 === '') $addError('addr_line1', 'Address is required.');
+        if ($city === '') $addError('addr_city', 'City is required.');
+        if ($region === '') $addError('addr_region', 'Region / State is required.');
+        if ($postal === '') $addError('addr_postal', 'Postal code is required.');
+        if ($doc_type === '') $addError('doc_type', 'Please select a document type.');
+        if ($doc_number === '') $addError('doc_number', 'Document number is required.');
+        elseif (mb_strlen($doc_number) < 5) $addError('doc_number', 'Document number must be at least 5 characters.');
+        if ($issue_country === '') $addError('doc_issue_country', 'Issuing country is required.');
+        if ($issue_date === '') $addError('doc_issue_date', 'Issue date is required.');
+        if ($expiry_date === '') $addError('doc_expiry_date', 'Expiry date is required.');
+        elseif ($issue_date !== '' && strtotime($expiry_date) <= strtotime($issue_date)) $addError('doc_expiry_date', 'Expiry date must be after issue date.');
+        if ($consent !== '1') $addError('consent', 'You must accept verification consent.');
+
+        if (!in_array($doc_type, ['passport', 'national_id', 'driver_license'], true)) {
+            $addError('doc_type', 'Please select a document type.');
         }
 
-        // ------- Upload files -------
-        $upload_path = FCPATH . 'uploads/kyc/' . $uid . '/';
-        if (!is_dir($upload_path))
-            @mkdir($upload_path, 0775, true);
+        $this->_validateUpload('doc_front', 'Front document is required.', ['jpg','jpeg','png','pdf'], 8, $errors);
+        $this->_validateUpload('doc_back', 'Back document is required.', ['jpg','jpeg','png','pdf'], 8, $errors);
+        $this->_validateUpload('selfie', 'Selfie image is required.', ['jpg','jpeg','png','webp'], 8, $errors);
 
-        $this->load->library('upload');
-        // NEW: restrict to the spec's allowed image formats (JPG, JPEG, PNG, TIFF, GIF) and a 4MB/image cap.
+        if (!empty($errors)) {
+            return $this->_json([
+                'status' => 'error',
+                'message' => 'Please correct the highlighted fields.',
+                'errors' => $errors,
+            ], 422);
+        }
+
+        $upload_path = FCPATH . 'uploads/kyc/' . $uid . '/';
+        if (!is_dir($upload_path)) {
+            @mkdir($upload_path, 0775, true);
+        }
+
         $cfg = [
             'upload_path' => $upload_path,
-            'allowed_types' => 'jpg|jpeg|png|tif|tiff|gif',
-            'max_size' => 4096, // 4MB per image
+            'allowed_types' => 'jpg|jpeg|png|pdf|webp',
+            'max_size' => 8192,
             'encrypt_name' => true,
             'remove_spaces' => true,
             'file_ext_tolower' => true,
             'detect_mime' => true,
         ];
 
-        $doUpload = function ($field) use ($cfg) {
-            if (empty($_FILES[$field]['name']))
-                return [true, null]; // not uploaded            
-            $this->upload->initialize($cfg, TRUE);
-
-            if (ENABLE_SITE_UPLOAD_FUNCTION !== true) {
-                $this->_dbg('kyc_upload_images1', 'Uploads disabled');
-                return false;
+        $uploadOne = function ($field) use ($cfg, $uid) {
+            if (empty($_FILES[$field]['name'])) {
+                return [true, null];
             }
-
+            $this->upload->initialize($cfg, true);
+            if (ENABLE_SITE_UPLOAD_FUNCTION !== true) {
+                return [false, 'Uploads are disabled.'];
+            }
             if (!$this->upload->do_upload($field)) {
                 return [false, strip_tags($this->upload->display_errors('', ''))];
             }
             $data = $this->upload->data();
-            $uid = (int) $this->session->userdata('user_userid');
-            return [true, base_url('uploads/kyc/' . $uid . '/' . $data['file_name'])];
+            return [true, base_url('uploads/kyc/' . (int) $uid . '/' . $data['file_name'])];
         };
 
-        list($ok, $url_front) = $doUpload('doc_front');
-        if (!$ok)
-            return $this->_json(['status' => 'error', 'message' => $url_front], 422);
-        list($ok, $url_back) = $doUpload('doc_back');
-        if (!$ok)
-            return $this->_json(['status' => 'error', 'message' => $url_back], 422);
-        list($ok, $url_self) = $doUpload('selfie');
-        if (!$ok)
-            return $this->_json(['status' => 'error', 'message' => $url_self], 422);
-        list($ok, $url_proof) = $doUpload('proof_address');
-        if (!$ok)
-            return $this->_json(['status' => 'error', 'message' => $url_proof], 422);
+        list($ok, $url_front) = $uploadOne('doc_front');
+        if (!$ok) return $this->_json(['status' => 'error', 'message' => $url_front, 'errors' => ['doc_front' => $url_front]], 422);
+        list($ok, $url_back) = $uploadOne('doc_back');
+        if (!$ok) return $this->_json(['status' => 'error', 'message' => $url_back, 'errors' => ['doc_back' => $url_back]], 422);
+        list($ok, $url_selfie) = $uploadOne('selfie');
+        if (!$ok) return $this->_json(['status' => 'error', 'message' => $url_selfie, 'errors' => ['selfie' => $url_selfie]], 422);
 
-        if (!$url_front)
-            $url_front = $existing['doc_front_url'] ?? null;
-        if (!$url_back)
-            $url_back = $existing['doc_back_url'] ?? null;
-        if (!$url_self)
-            $url_self = $existing['selfie_url'] ?? null;
-        if (!$url_proof)
-            $url_proof = $existing['proof_address_url'] ?? null;
+        $url_front = $url_front ?: ($existing['doc_front_url'] ?? null);
+        $url_back = $url_back ?: ($existing['doc_back_url'] ?? null);
+        $url_selfie = $url_selfie ?: ($existing['selfie_url'] ?? null);
 
-        $p = $this->input->post(NULL, true);
-        $docType = $p['doc_type'];
-
-        // ------- Server-side required files: Front, Back and Selfie are ALL mandatory -------
-        // NEW: back image is now required for every document type, per the manual-KYC spec.
-        if (empty($url_front) || empty($url_back) || empty($url_self)) {
-            return $this->_json(['status' => 'error', 'message' => 'Please upload the Front image, Back image and a Selfie with ID.'], 422);
+        if (empty($url_front) || empty($url_back) || empty($url_selfie)) {
+            return $this->_json([
+                'status' => 'error',
+                'message' => 'Please upload the Front image, Back image and a Selfie with ID.',
+            ], 422);
         }
 
-        // NEW: the simplified form no longer collects profile/address fields, but the kyc_applications
-        // table keeps them NOT NULL for backward compatibility. Preserve any existing values (so resubmits
-        // don't lose data), otherwise fall back to the user's profile / safe defaults.
-        $profile = $this->db->get_where('users', ['id' => $uid])->row_array() ?: [];
-        $keep = function ($col, $default) use ($existing) {
-            return !empty($existing[$col]) ? $existing[$col] : $default; // don't overwrite on resubmit
-        };
-        $dobVal = $keep('dob', (!empty($profile['dob']) && strtotime($profile['dob'])) ? date('Y-m-d', strtotime($profile['dob'])) : '1970-01-01');
-
-        // ------- Payload -------
         $payload = [
-            // Legacy profile columns kept for backward compatibility (auto-filled, not shown on the form).
-            'country_iso2'      => $keep('country_iso2', 'IN'),
-            'full_name'         => $keep('full_name', ($profile['name'] ?? $profile['username'] ?? 'N/A')),
-            'dob'               => $dobVal,
-            'gender'            => $keep('gender', 'unspecified'),
-            'nationality_iso2'  => $keep('nationality_iso2', 'IN'),
-            'addr_line1'        => $keep('addr_line1', ($profile['address'] ?? 'N/A')),
-            'addr_line2'        => $existing['addr_line2'] ?? null,
-            'addr_city'         => $keep('addr_city', 'N/A'),
-            'addr_region'       => $existing['addr_region'] ?? null,
-            'addr_postal'       => $keep('addr_postal', 'N/A'),
-            'doc_issue_country' => $keep('doc_issue_country', 'IN'),
-
-            // Fields captured by the simplified manual-KYC form.
-            'doc_type'          => $docType,
-            'doc_number'        => $p['doc_number'],
+            'country_iso2'      => $country,
+            'full_name'         => $full_name,
+            'dob'               => $dob,
+            'gender'            => $gender,
+            'nationality_iso2'  => $nationality,
+            'addr_line1'        => $addr1,
+            'addr_line2'        => $addr2 ?: null,
+            'addr_city'         => $city,
+            'addr_region'       => $region,
+            'addr_postal'       => $postal,
+            'doc_issue_country' => $issue_country,
+            'doc_issue_date'    => $issue_date,
+            'doc_expiry_date'   => $expiry_date,
+            'doc_type'          => $doc_type,
+            'doc_number'        => $doc_number,
             'doc_front_url'     => $url_front,
             'doc_back_url'      => $url_back,
-            'selfie_url'        => $url_self,
-            'proof_address_url' => $url_proof,
-
-            'consent'        => 1,          // NEW: submitting the form implies consent
-            'status'         => 'pending',
-            'review_notes'   => null,        // NEW: clear previous rejection metadata on (re)submit
-            'rejection_code' => null,
+            'selfie_url'        => $url_selfie,
+            'consent'           => 1,
+            'status'            => 'pending',
+            'review_notes'      => null,
+            'rejection_code'    => null,
         ];
 
         $kyc_id = $this->kyc->createOrUpdate($uid, $payload);
@@ -187,7 +207,7 @@ class Kyc extends MY_Controller
 
         return $this->_json([
             'status' => 'success',
-            'message' => 'KYC submitted successfully. We will review your documents.',
+            'message' => 'KYC submitted successfully. Verification is under review.',
             'kyc_id' => $kyc_id,
             'csrf' => [
                 'name' => $this->security->get_csrf_token_name(),
@@ -244,6 +264,43 @@ class Kyc extends MY_Controller
             'AE' => 'United Arab Emirates',
             // …
         ];
+    }
+
+    private function _validateUpload($field, $message, array $exts, $maxMb, array &$errors)
+    {
+        if (empty($_FILES[$field]['name'])) {
+            $errors[$field] = $message;
+            return false;
+        }
+        $name = strtolower((string) $_FILES[$field]['name']);
+        $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+        $mime = strtolower((string) ($_FILES[$field]['type'] ?? ''));
+        if (!in_array($ext, $exts, true)) {
+            $errors[$field] = $message;
+            return false;
+        }
+        if ($mime && $field === 'selfie' && !in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+            $errors[$field] = $message;
+            return false;
+        }
+        if ($mime && $field !== 'selfie' && !in_array($mime, ['image/jpeg', 'image/png', 'application/pdf'], true)) {
+            $errors[$field] = $message;
+            return false;
+        }
+        if (((int) ($_FILES[$field]['size'] ?? 0)) > ($maxMb * 1024 * 1024)) {
+            $errors[$field] = $message;
+            return false;
+        }
+        return true;
+    }
+
+    private function _ageYears($dob)
+    {
+        $ts = strtotime($dob);
+        if (!$ts) return 0;
+        $dobDt = new DateTime(date('Y-m-d', $ts));
+        $now = new DateTime(date('Y-m-d'));
+        return (int) $dobDt->diff($now)->y;
     }
 
     private function _json($payload = [], $code = 200)

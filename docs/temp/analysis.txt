@@ -3459,3 +3459,37 @@ Admin can see the eligible of binary matching bonus with tree & display the ciel
 In-progress:
     -User side integrated the maturity locking system to all bman
     and display the payout page balances to based on the admin withdraw settings
+
+
+Today Plan:
+=============
+Need to complete the Withdraw request & show thier history 
+User side to display the history all
+
+
+16-07-2026 Pending Works
+========================
+1. Rank System integration
+2. Need to display the history on admin side and user panel.
+3. User dashboard integration and chart & admin dashboard calculate with chart details
+4. Notification
+5. The Admin should be able to transfer Spot Rewards Bonus or Earning Coins to 100 or more user IDs by uploading an Excel file.
+
+    Excel Format:
+
+    - User ID
+    - username 
+    - mail id 
+    - Coin Type
+    - Amount
+6.How to Activate Special offer Plan 50,000 & 1,00, 000 Different monthly ROI interest & yearly increase maturaity Percentage ,ROI structure
+
+7. User side chart trend
+    Already day wise, monthly, yearly available 
+    Drop down list
+    Left blue colour right green colour trend
+    *How many active user
+    *How many bonus used
+    *How many user staking done
+    *How many Earning coin, line matching bouns received earning coin
+    *How many coin withdrawal

@@ -1440,6 +1440,10 @@ function renderExistingPreview($url, $title)
                     </div>
 
                     <form id="kyc_form" action="#" method="post" enctype="multipart/form-data">
+                      <div id="kyc_error_summary" class="alert alert-danger d-none" role="alert" style="margin-bottom:16px;">
+                        <b>Please correct the following errors:</b>
+                        <ul class="mb-0 mt-2" id="kyc_error_list"></ul>
+                      </div>
                       <!-- keep old uploaded URLs (for JS checks + resubmit UX) -->
                       <input type="hidden" name="prev_doc_front_url"
                         value="<?php echo html_escape($kyc->doc_front_url ?? ''); ?>">
@@ -2549,8 +2553,19 @@ async function freezeWithdraw() {
       const el = {
         fullName: form.querySelector('input[name="full_name"]'),
         dob: form.querySelector('input[name="dob"]'),
+        gender: form.querySelector('select[name="gender"]'),
+        country: form.querySelector('select[name="country_iso2"]'),
+        nationality: form.querySelector('select[name="nationality_iso2"]'),
+        address: form.querySelector('input[name="addr_line1"]'),
+        region: form.querySelector('input[name="addr_region"]'),
+        city: form.querySelector('input[name="addr_city"]'),
+        pincode: form.querySelector('input[name="addr_postal"]'),
         consent: form.querySelector('input[name="consent"]'),
         docType: form.querySelector('select[name="doc_type"]'),
+        docNumber: form.querySelector('input[name="doc_number"]'),
+        docIssueCountry: form.querySelector('select[name="doc_issue_country"]'),
+        docIssueDate: form.querySelector('input[name="doc_issue_date"]'),
+        docExpiryDate: form.querySelector('input[name="doc_expiry_date"]'),
         docFront: form.querySelector('input[name="doc_front"]'),
         docBack: form.querySelector('input[name="doc_back"]'),
         selfie: form.querySelector('input[name="selfie"]'),
@@ -2562,12 +2577,108 @@ async function freezeWithdraw() {
 
       function fmtBytes(x) { if (!x) return ''; const u = ['B', 'KB', 'MB', 'GB']; let i = 0; while (x >= 1024 && i < u.length - 1) { x /= 1024; i++ } return x.toFixed(i ? 1 : 0) + ' ' + u[i]; }
       function busy(b) { if (b) { submitBtn.setAttribute('data-kt-indicator', 'on'); submitBtn.disabled = true; } else { submitBtn.removeAttribute('data-kt-indicator'); submitBtn.disabled = false; } }
+      function clearFieldError(field) {
+        if (!field) return;
+        field.classList.remove('is-invalid');
+        field.removeAttribute('aria-invalid');
+        const wrap = field.closest('.fg, .field, .consent, .file-drop, .form-group') || field.parentElement;
+        const err = wrap?.querySelector('.field-error');
+        if (err) err.remove();
+      }
+      function showFieldError(field, message) {
+        if (!field) return;
+        const wrap = field.closest('.fg, .field, .consent, .file-drop, .form-group') || field.parentElement;
+        clearFieldError(field);
+        field.classList.add('is-invalid');
+        field.setAttribute('aria-invalid', 'true');
+        const err = document.createElement('div');
+        err.className = 'field-error';
+        err.className = 'invalid-feedback field-error';
+        err.textContent = message;
+        if (wrap) {
+          field.insertAdjacentElement('afterend', err);
+        } else {
+          field.parentElement?.appendChild(err);
+        }
+      }
+      function focusField(field) {
+        if (!field) return;
+        field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        field.focus({ preventScroll: true });
+      }
+      function showErrorSummary(messages) {
+        const box = document.getElementById('kyc_error_summary');
+        const list = document.getElementById('kyc_error_list');
+        if (!box || !list) return;
+        box.classList.add('d-none');
+        list.innerHTML = '';
+      }
+      function escapeHtml(str) {
+        return String(str ?? '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;');
+      }
+      function parseUiDate(value) {
+        const raw = String(value || '').trim();
+        if (!raw) return null;
+        const iso = new Date(raw);
+        if (!Number.isNaN(iso.getTime())) return iso;
+        const m = raw.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+        if (!m) return null;
+        const dt = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+        return Number.isNaN(dt.getTime()) ? null : dt;
+      }
+      function isValidDate(value) {
+        return !!parseUiDate(value);
+      }
+      function isAdult(dob) {
+        const d = parseUiDate(dob);
+        if (!d) return false;
+        const now = new Date();
+        let age = now.getFullYear() - d.getFullYear();
+        const m = now.getMonth() - d.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+        return age >= 18;
+      }
+      function fileIsValid(file, allowedExts, maxMb) {
+        if (!file) return false;
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        const mime = (file.type || '').toLowerCase();
+        const extOk = allowedExts.includes(ext);
+        const mimeOk = mime ? (
+          allowedExts.includes('jpg') && mime.startsWith('image/jpeg') ||
+          allowedExts.includes('jpeg') && mime.startsWith('image/jpeg') ||
+          allowedExts.includes('png') && mime.startsWith('image/png') ||
+          allowedExts.includes('webp') && mime.startsWith('image/webp') ||
+          allowedExts.includes('pdf') && mime === 'application/pdf' ||
+          allowedExts.includes('gif') && mime.startsWith('image/gif')
+        ) : true;
+        return extOk && mimeOk && file.size <= (maxMb * 1024 * 1024);
+      }
+      function setFileError(field, message) {
+        showFieldError(field, message);
+        const tile = field?.closest('.js-kyc');
+        if (tile) tile.classList.add('is-invalid');
+      }
       function validFile(file, imageOnly = false) {
         if (!file) return true;
         if (imageOnly && !file.type.startsWith('image/')) return false;
         if (!(ACCEPT_TYPES.includes(file.type) || file.type.startsWith('image/'))) return false;
         return file.size <= MAX_MB * 1024 * 1024;
       }
+      function attachClear(field) {
+        if (!field) return;
+        ['keyup', 'change', 'blur'].forEach(ev => field.addEventListener(ev, () => clearFieldError(field)));
+      }
+
+      [
+        el.fullName, el.dob, el.gender, el.country, el.nationality, el.address, el.region,
+        el.city, el.pincode, el.consent, el.docType, el.docNumber, el.docIssueCountry,
+        el.docIssueDate, el.docExpiryDate
+      ].forEach(attachClear);
 
       // --- enhance tiles (expects .js-kyc tiles + preview blocks) ---
       document.querySelectorAll('.js-kyc').forEach(tile => {
@@ -2594,6 +2705,7 @@ async function freezeWithdraw() {
           n.textContent = file.name; s.textContent = fmtBytes(file.size); view.href = URL.createObjectURL(file);
         }
         function clear() { input.value = ''; if (pv) pv.classList.add('d-none'); if (rm) rm.classList.add('d-none'); }
+        const clearError = () => clearFieldError(input);
 
         tile.addEventListener('click', e => { if (!e.target.closest('.js-remove')) input.click(); });
         if (rm) rm.addEventListener('click', e => { e.preventDefault(); clear(); });
@@ -2611,40 +2723,100 @@ async function freezeWithdraw() {
           // selfie should be image only
           const imageOnly = (name === 'selfie');
           if (!validFile(f, imageOnly)) { clear(); return Swal.fire('Invalid file', 'Allowed: images/PDF up to 8MB (Selfie must be image).', 'warning'); }
+          clearError();
           show(f);
         });
+        ['keyup', 'blur', 'change'].forEach(ev => input.addEventListener(ev, clearError));
       });
+
+      function validateKycForm() {
+        const errors = [];
+        const fields = [
+          [el.fullName, 'Full name is required.', v => v.length >= 3 && v.length <= 100],
+          [el.dob, 'Date of birth is required.', v => !!v],
+        [el.gender, 'Gender is required.', v => v && v !== 'unspecified'],
+          [el.country, 'Country of residence is required.', v => !!v],
+          [el.nationality, 'Nationality is required.', v => !!v],
+          [el.address, 'Address is required.', v => !!v],
+          [el.region, 'Region / State is required.', v => !!v],
+          [el.city, 'City is required.', v => !!v],
+          [el.pincode, 'Postal code is required.', v => !!v],
+          [el.docType, 'Please select a document type.', v => !!v],
+          [el.docNumber, 'Document number is required.', v => String(v).trim().length >= 5],
+          [el.docIssueCountry, 'Issuing country is required.', v => !!v],
+          [el.docIssueDate, 'Issue date is required.', v => !!v],
+          [el.docExpiryDate, 'Expiry date is required.', v => !!v],
+        ];
+
+        const valueOf = (field) => {
+          if (!field) return '';
+          if (field.type === 'checkbox') return field.checked ? '1' : '';
+          return String(field.value || '').trim();
+        };
+
+        for (const [field, msg, rule] of fields) {
+          if (!field) continue;
+          const val = valueOf(field);
+          if (!val || (rule && !rule(val))) {
+            errors.push(msg);
+            showFieldError(field, msg);
+          }
+        }
+
+        if (el.dob && valueOf(el.dob) && !isAdult(valueOf(el.dob))) {
+          errors.push('You must be at least 18 years old.');
+          showFieldError(el.dob, 'You must be at least 18 years old.');
+        }
+
+        const docFront = el.docFront?.files?.[0];
+        const docBack = el.docBack?.files?.[0];
+        const selfie = el.selfie?.files?.[0];
+        const hasFront = !!docFront || !!(el.prevFront?.value || '').trim();
+        const hasBack = !!docBack || !!(el.prevBack?.value || '').trim();
+        const hasSelf = !!selfie || !!(el.prevSelf?.value || '').trim();
+
+        if (!hasFront) {
+          errors.push('Front document is required.');
+          showFieldError(el.docFront, 'Front document is required.');
+        } else if (docFront && !fileIsValid(docFront, ['jpg', 'jpeg', 'png', 'pdf'], 8)) {
+          errors.push('Front document must be JPG, JPEG, PNG or PDF up to 8 MB.');
+          showFieldError(el.docFront, 'Allowed: JPG, JPEG, PNG, PDF up to 8 MB.');
+        }
+
+        if (!hasBack) {
+          errors.push('Back document is required.');
+          showFieldError(el.docBack, 'Back document is required.');
+        } else if (docBack && !fileIsValid(docBack, ['jpg', 'jpeg', 'png', 'pdf'], 8)) {
+          errors.push('Back document must be JPG, JPEG, PNG or PDF up to 8 MB.');
+          showFieldError(el.docBack, 'Allowed: JPG, JPEG, PNG, PDF up to 8 MB.');
+        }
+
+        if (!hasSelf) {
+          errors.push('Selfie image is required.');
+          showFieldError(el.selfie, 'Selfie image is required.');
+        } else if (selfie && !fileIsValid(selfie, ['jpg', 'jpeg', 'png', 'webp'], 8)) {
+          errors.push('Selfie must be JPG, JPEG, PNG or WEBP up to 8 MB.');
+          showFieldError(el.selfie, 'Allowed: JPG, JPEG, PNG, WEBP up to 8 MB.');
+        }
+
+        const consentOk = !!(el.consent && el.consent.checked);
+        if (!consentOk) {
+          errors.push('You must accept verification consent.');
+          showFieldError(el.consent || form.querySelector('input[name="consent"]'), 'You must accept verification consent.');
+        }
+
+        showErrorSummary(errors);
+        const first = form.querySelector('.is-invalid');
+        if (first) {
+          first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          first.focus({ preventScroll: true });
+        }
+        return errors.length === 0;
+      }
 
       async function doSubmit(e) {
         if (e) e.preventDefault();
-        if (!el.fullName?.value.trim() || !el.dob?.value || !el.consent?.checked) {
-          return Swal.fire('Missing data', 'Please fill mandatory fields and check consent.', 'warning');
-        }
-
-        const docType = el.docType?.value || 'passport';
-        const fFront = el.docFront?.files?.[0];
-        const fBack = el.docBack?.files?.[0];
-        const fSelfie = el.selfie?.files?.[0];
-
-        const hasPrevFront = !!(el.prevFront?.value || '').trim();
-        const hasPrevBack = !!(el.prevBack?.value || '').trim();
-        const hasPrevSelfie = !!(el.prevSelf?.value || '').trim();
-
-        if (!fFront && !hasPrevFront) return Swal.fire('Document required', 'Upload ID Front.', 'warning');
-        if (!fSelfie && !hasPrevSelfie) return Swal.fire('Selfie required', 'Upload a selfie.', 'warning');
-
-        if ((docType === 'national_id' || docType === 'driver_license') && !fBack && !hasPrevBack) {
-          return Swal.fire('Back side required', 'Upload ID Back for this document type.', 'warning');
-        }
-
-        const checks = [
-          [fFront, false],
-          [fBack, false],
-          [fSelfie, true]
-        ];
-        for (const [f, imgOnly] of checks) {
-          if (f && !validFile(f, imgOnly)) return Swal.fire('Invalid file', 'Allowed: images/PDF up to 8MB.', 'warning');
-        }
+        if (!validateKycForm()) return;
 
         busy(true);
         try {
@@ -2754,6 +2926,11 @@ async function freezeWithdraw() {
     .kyc-preview .kyc-thumb[src=""],
     .kyc-preview .kyc-thumb:not([src]) {
       display: none !important;
+    }
+    .field-error {
+      font-size: 0.875rem;
+      color: #dc3545;
+      margin-top: 0.25rem;
     }
   </style>
 </body>
