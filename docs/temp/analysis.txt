@@ -3452,3 +3452,10 @@ siva@yopmail.com / Qwerty@123
 
 
 Currently checking on the binary matching bonus based on completed leg wise
+
+
+Completed
+Admin can see the eligible of binary matching bonus with tree & display the cieling amount also.
+In-progress:
+    -User side integrated the maturity locking system to all bman
+    and display the payout page balances to based on the admin withdraw settings

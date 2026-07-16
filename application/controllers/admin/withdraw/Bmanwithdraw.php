@@ -52,7 +52,19 @@ class Bmanwithdraw extends MY_Controller
         $admin_id = (int) $this->session->userdata('admin_userid');
         $new_status = $row['status'];
 
-        if ($status === 'approved' && !empty($tx_hash)) {
+        if (!in_array($status, ['pending', 'processing', 'completed', 'rejected'], true)) {
+            $this->session->set_flashdata('error', 'Invalid status selected');
+            redirect('admin/bman-withdrawals/view/' . $id);
+            return;
+        }
+
+        if ($status === 'completed' && empty($tx_hash)) {
+            $this->session->set_flashdata('error', 'Transaction hash is required to complete the withdrawal');
+            redirect('admin/bman-withdrawals/view/' . $id);
+            return;
+        }
+
+        if ($status === 'completed' && !empty($tx_hash)) {
             list($ok, $ledgerRes) = $this->ledger->debit(
                 (int) $row['user_id'],
                 $row['source_wallet'],
@@ -73,7 +85,7 @@ class Bmanwithdraw extends MY_Controller
         }
 
         $this->db->trans_start();
-        if ($status === 'approved' && !empty($tx_hash)) {
+        if ($status === 'completed' && !empty($tx_hash)) {
             $new_status = 'completed';
             $this->db->where('id', $id)->update('bman_withdraw_requests', [
                 'status' => 'completed',
@@ -102,6 +114,13 @@ class Bmanwithdraw extends MY_Controller
                 'reference_id' => (string) $id,
                 'linked_withdrawal_id' => $id,
                 'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        } elseif ($status === 'processing') {
+            $new_status = 'processing';
+            $this->db->where('id', $id)->update('bman_withdraw_requests', [
+                'status' => 'processing',
+                'admin_remark' => $admin_remark,
+                'processing_at' => date('Y-m-d H:i:s'),
             ]);
         } elseif ($status === 'rejected') {
             $new_status = 'rejected';

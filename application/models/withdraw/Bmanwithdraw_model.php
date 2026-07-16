@@ -29,6 +29,26 @@ class Bmanwithdraw_model extends CI_Model
     }
 
     /**
+     * Total withdrawable balance based on matured ledger credits only.
+     * This is the source of truth for the available balance shown on the page.
+     */
+    public function available_balance($user_id)
+    {
+        $user_id = (int) $user_id;
+        $this->db->select('COALESCE(SUM(COALESCE(credit,0) - COALESCE(debit,0)), 0) AS total', false)
+            ->from('wallet_ledger')
+            ->where('user_id', $user_id)
+            ->group_start()
+                ->where('credit >', 0)
+                ->or_where('debit >', 0)
+            ->group_end()
+            ->where('is_matured', 1);
+
+        $row = $this->db->get()->row_array();
+        return (float) ($row['total'] ?? 0);
+    }
+
+    /**
      * Ledger-based balances per wallet (source of truth for withdrawal).
      * Returns total, locked, matured, withdrawable for each BMAN wallet.
      */
@@ -156,6 +176,7 @@ class Bmanwithdraw_model extends CI_Model
             'fee_amount' => (float) $data['fee_amount'],
             'net_amount' => (float) $data['net_amount'],
             'withdraw_address' => trim((string) $data['withdraw_address']),
+            'platform_address' => trim((string) ($data['platform_address'] ?? '')),
             'remark' => trim((string) ($data['remark'] ?? '')),
             'status' => 'pending',
             'created_at' => $now,

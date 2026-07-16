@@ -36,20 +36,14 @@ class Bmanwithdraw extends CI_Controller
         $user_id = (int) $this->session->userdata('user_userid');
         if (!$user_id) return $this->_json(['status' => false, 'message' => 'Login required']);
 
-        $source_wallet = strtolower(trim((string) $this->input->post('source_wallet', true)));
-        $amount = (float) $this->input->post('amount', true);
-        $withdraw_address = trim((string) $this->input->post('withdraw_address', true));
+        $source_wallet = 'bman';
+        $amount = (float) $this->input->post('withdraw_bman', true);
+        $withdraw_address = trim((string) $this->input->post('wallet_address', true));
+        $platform_address = trim((string) $this->input->post('platform_address', true));
         $remark = trim((string) $this->input->post('remark', true));
         $settings = $this->bmanwithdraw->settings();
-        $detail = $this->bmanwithdraw->wallet_balance_detail($user_id, $source_wallet);
+        $available = (float) $this->bmanwithdraw->available_balance($user_id);
 
-        $map = ['exchange', 'earning', 'staking', 'bonus'];
-        if (!in_array($source_wallet, $map, true)) {
-            return $this->_json(['status' => false, 'message' => 'Invalid source wallet']);
-        }
-        if (!$this->bmanwithdraw->source_allowed($source_wallet)) {
-            return $this->_json(['status' => false, 'message' => 'This wallet is disabled for withdrawal by admin']);
-        }
         if ((int) ($settings['withdraw_status'] ?? 0) !== 1) {
             return $this->_json(['status' => false, 'message' => 'Withdrawals are currently disabled']);
         }
@@ -62,19 +56,24 @@ class Bmanwithdraw extends CI_Controller
         if ($settings['max_withdraw'] > 0 && $amount > $settings['max_withdraw']) {
             return $this->_json(['status' => false, 'message' => 'Maximum withdraw is ' . $settings['max_withdraw']]);
         }
-        if (empty($withdraw_address)) {
-            return $this->_json(['status' => false, 'message' => 'Withdrawal address is required']);
+        if (strlen($withdraw_address) < 20 || strlen($withdraw_address) > 120) {
+            return $this->_json(['status' => false, 'message' => 'Wallet address required']);
         }
-        if ($detail['withdrawable'] < $amount) {
-            $msg = 'Insufficient withdrawable balance. Matured: '
-                . number_format($detail['matured'], 4)
-                . ', Locked: ' . number_format($detail['locked'], 4)
-                . ', Active holds: ' . number_format($detail['holds'], 4);
-            return $this->_json(['status' => false, 'message' => $msg]);
+        if (!empty($platform_address) && strcasecmp($platform_address, $withdraw_address) === 0) {
+            return $this->_json(['status' => false, 'message' => 'Withdraw address must be different from your platform address']);
+        }
+        if ($available < $amount) {
+            return $this->_json(['status' => false, 'message' => 'Insufficient matured balance']);
         }
 
-        $fee = (float) $settings['withdraw_fee'];
-        $net = max(0, $amount - $fee);
+        $fee = (float) (site_settings('withdraw_settings', 'withdraw_fee_usdt') ?: $settings['withdraw_fee']);
+        $bman_rate = (float) (token_info()->currency_value ?? 0);
+        $bman_price = $bman_rate > 0 ? (1 / $bman_rate) : 0;
+        $gross_usdt = $amount * $bman_price;
+        $net = max(0, $gross_usdt - $fee);
+        if ($gross_usdt <= $fee) {
+            return $this->_json(['status' => false, 'message' => 'Withdrawal amount too small. Net payout becomes zero.']);
+        }
 
         $this->db->trans_start();
         $request = $this->bmanwithdraw->create_request([
@@ -84,6 +83,7 @@ class Bmanwithdraw extends CI_Controller
             'fee_amount' => $fee,
             'net_amount' => $net,
             'withdraw_address' => $withdraw_address,
+            'platform_address' => $platform_address,
             'remark' => $remark,
         ]);
         if (!$request) {
@@ -105,7 +105,16 @@ class Bmanwithdraw extends CI_Controller
         $this->db->trans_complete();
 
         $history = $this->bmanwithdraw->user_history($user_id, 100);
-        return $this->_json(['status' => true, 'message' => 'Withdrawal request submitted', 'request' => $request, 'history' => $history]);
+        return $this->_json([
+            'status' => true,
+            'message' => 'Withdrawal request submitted and sent for admin review',
+            'request' => $request,
+            'history' => $history,
+            'available_balance' => $available - $amount,
+            'gross_usdt' => $gross_usdt,
+            'net_usdt' => $net,
+            'processing_fee_usdt' => $fee,
+        ]);
     }
 
     public function history()

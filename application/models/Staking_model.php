@@ -677,14 +677,19 @@ class Staking_model extends CI_Model
 
         // 6c. credit LOCKED BMAN into the Staking wallet
         list($okS) = $this->L->credit($userId, 'staking', $bman, 'stake_purchase', [
-            'reference_id' => $ref, 'description' => 'Locked '.number_format($bman).' BMAN — stake #'.$stakeId,
+            'reference_id' => $ref,
+            'description'  => 'Locked '.number_format($bman).' BMAN — stake #'.$stakeId,
+            'maturity_date' => $maturity,
+            'is_matured'    => 0,
         ]);
         if (!$okS) { $this->db->trans_rollback(); return [false, 'Could not credit the Staking wallet.']; }
 
         // 6d. 25% Bonus Coin → Bonus wallet
         if ($bonusBman > 0) {
             list($okB) = $this->L->credit($userId, 'bonus', $bonusBman, 'bonus', [
-                'reference_id' => $ref, 'description' => number_format($bonusPct,0).'% staking bonus — stake #'.$stakeId,
+                'reference_id' => $ref,
+                'description'  => number_format($bonusPct,0).'% staking bonus — stake #'.$stakeId,
+                'skip_maturity'=> true,
             ]);
             if (!$okB) { $this->db->trans_rollback(); return [false, 'Could not credit the Bonus wallet.']; }
         }

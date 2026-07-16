@@ -814,29 +814,32 @@ class Genealogycontroller extends MY_Controller
         $withdraw_status = (int) site_settings('withdraw_settings', 'withdraw_status'); // 1 enabled, 0 disabled
         $min_withdraw = (float) str_replace(',', '', site_settings('withdraw_settings', 'min_withdraw'));
         $max_withdraw = (float) str_replace(',', '', site_settings('withdraw_settings', 'max_withdraw'));
-        $withdraw_fee = (float) str_replace(',', '', site_settings('withdraw_settings', 'withdraw_fee'));
+        $withdraw_fee = (float) str_replace(',', '', site_settings('withdraw_settings', 'withdraw_fee_usdt') ?: site_settings('withdraw_settings', 'withdraw_fee'));
         $withdraw_daily_limit = (float) str_replace(',', '', site_settings('withdraw_settings', 'withdraw_daily_limit'));
         $withdraw_monthly_limit = (float) str_replace(',', '', site_settings('withdraw_settings', 'withdraw_monthly_limit'));
         $withdraw_amount_type = (int) site_settings('withdraw_settings', 'withdraw_amount_type'); // 1=USD etc
         $auto_withdraw = (int) site_settings('withdraw_settings', 'auto_withdraw');
 
         // ===== Wallets =====
-        $available_amount = (float) site_wallet_balance($id);   // ✅ payout->available_amount        
+        $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
+        $available_amount = (float) $this->bmanwithdraw->available_balance($id);
         $token_balance = (float) site_token_balance($id);
         $this->load->model('Walletledger_model', 'ledger');
         $wallets = $this->ledger->balances($id);
-
-        // ===== Bank status =====
-        $user_bank = $this->db->get_where('user_bank', ['user_id' => $id])->row();
-        $bank_ok = false;
-        if ($user_bank && !empty($user_bank->status)) {
-            $bank_ok = (strtolower($user_bank->status) === 'approved');
+        $platform_wallet = $this->db->select('wallet_address')->where('user_id', $id)->get('user_wallet')->row();
+        if (empty($platform_wallet)) {
+            $platform_wallet = $this->db->select('address as wallet_address')->where('user_id', $id)->get('custodial_wallets')->row();
         }
+        $platform_address = $platform_wallet->wallet_address ?? '';
 
         // ===== KYC status (your code uses string 'approved' in UI) =====
         $kyc_ok = false;
         if (!empty($user->kyc_status)) {
             $kyc_ok = (strtolower((string) $user->kyc_status) === 'approved' || (string) $user->kyc_status === '1');
+        }
+        $active_ok = true;
+        if (isset($user->status)) {
+            $active_ok = in_array(strtolower((string) $user->status), ['active', '1', 'approved'], true);
         }
 
         // ===== Pending + Paid totals =====
@@ -939,34 +942,31 @@ class Genealogycontroller extends MY_Controller
             $eligible = false;
         if (!$kyc_ok)
             $eligible = false;
-        if (!$bank_ok)
-            $eligible = false;
         if ($available_amount < $min_withdraw)
+            $eligible = false;
+        if (!$active_ok)
             $eligible = false;
 
         // ===== Next payout time label (simple) =====
         // If you have a cron schedule table, we can compute exactly. For now show "Tonight 10:00 PM".
         $next_date_label = NEXT_PAYOUT_TIME;
 
-        // ===== Withdraw methods (UI expects array of objects) =====
-        $withdraw_methods = [
-            (object) [
-                'key' => 'BANK',
-                'name' => 'Bank Transfer',
-                'desc' => 'Direct to your linked bank account',
-            ]
-        ];
-
         // ===== Build $payout object for the UI =====
+        $bman_rate = (float) (token_info()->currency_value ?? 0); // BMAN per 1 USDT
+        $bman_price = $bman_rate > 0 ? (1 / $bman_rate) : 0; // USDT per 1 BMAN
+        $processing_fee_usdt = (float) str_replace(',', '', site_settings('withdraw_settings', 'withdraw_fee_usdt') ?: site_settings('withdraw_settings', 'withdraw_fee'));
+        $min_bman_required = ($bman_price > 0) ? ($processing_fee_usdt / $bman_price) : 0;
+
         $payout = (object) [
             'next_date' => $next_date_label,
             'min_withdraw' => $min_withdraw,
-            'processing_fee' => $withdraw_fee,
+            'processing_fee' => $processing_fee_usdt,
             'eligibility' => $eligible,
             'kyc' => $kyc_ok,
-            'bank' => $bank_ok,
             'pending_amount' => $pending_amount,
             'available_amount' => $available_amount,
+            'bman_price' => $bman_price,
+            'min_bman_required' => $min_bman_required,
             'paid_total' => $paid_total,
             'max_withdraw' => $max_withdraw,
             'daily_limit' => $withdraw_daily_limit,
@@ -985,11 +985,9 @@ class Genealogycontroller extends MY_Controller
         $this->data['token_info'] = token_info();
 
         $this->data['user'] = $user;
-        $this->data['user_bank'] = $user_bank;
 
         // ✅ UI variables your new page needs
         $this->data['payout'] = $payout;
-        $this->data['withdraw_methods'] = $withdraw_methods;
         $this->data['payouts'] = $payouts;
 
         // if you still need these old ones
@@ -1002,6 +1000,11 @@ class Genealogycontroller extends MY_Controller
             'staking'  => (float) ($wallets['staking'] ?? 0),
             'bonus'    => (float) ($wallets['bonus'] ?? 0),
         ];
+        $this->data['platform_address'] = $platform_address;
+        $this->data['bman_price'] = $bman_price;
+        $this->data['bman_rate'] = $bman_rate;
+        $this->data['processing_fee_usdt'] = $processing_fee_usdt;
+        $this->data['min_bman_required'] = $min_bman_required;
 
         $this->load->view('user/member/withdraw', $this->data);
     }

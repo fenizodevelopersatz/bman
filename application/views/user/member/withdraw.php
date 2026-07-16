@@ -866,7 +866,7 @@
           <div>
             <small>Available Balance</small>
             <strong id="kpi-available">
-              <?= currency_format((float) ($payout->available_amount ?? 0), 2); ?></strong>
+              <?= currency_format((float) ($payout->available_amount ?? $wallet_balance ?? 0), 2); ?></strong>
             <span>Withdraw anytime</span>
           </div>
         </div>
@@ -969,90 +969,31 @@
             <div class="reqs" style="margin-bottom:12px;">
               <span class="req <?= !empty($payout->eligibility) ? 'ok' : 'bad'; ?>"><i class="ph ph-seal-check"></i>
                 <?= !empty($payout->eligibility) ? 'Eligible' : 'Not Eligible'; ?></span>
-              <span class="req <?= ($user && $user->kyc_status === 'approved') ? 'ok' : 'warn'; ?>"><i
+              <span class="req <?= !empty($payout->kyc) ? 'ok' : 'warn'; ?>"><i
                   class="ph ph-identification-card"></i>
-                <?= !empty($user) && $user->kyc_status === 'approved' ? 'KYC Verified' : 'KYC Pending'; ?></span>
-              <?php
-              if (empty($user_bank)) {
-                $bankText = 'Bank Not Added';
-                $bankClass = 'badge badge-warning';
-              } else {
-                switch ($user_bank->status) {
-                  case 'approved':
-                    $bankText = 'Approved';
-                    $bankClass = 'badge badge-success ok';
-                    break;
-
-                  case 'pending':
-                    $bankText = 'Pending';
-                    $bankClass = 'badge badge-primary warn';
-                    break;
-
-                  case 'rejected':
-                    $bankText = 'Rejected';
-                    $bankClass = 'badge badge-danger ';
-                    break;
-
-                  default:
-                    $bankText = 'Unknown';
-                    $bankClass = 'badge badge-secondary';
-                }
-              }
-              ?>
-              <span class="req <?= $bankClass; ?>">
-                <i class="ph ph-bank"></i>
-                <?= $bankText; ?>
-              </span>
-
-              <span class="req"><i class="ph ph-receipt"></i> Min:
+                <?= !empty($payout->kyc) ? 'KYC Verified' : 'KYC Pending'; ?></span>
+              <span class="req"><i class="ph ph-receipt"></i> Minimum Withdrawal:
                 <?= currency_format((float) ($payout->min_withdraw ?? 0), 2); ?></span>
+              <span class="req"><i class="ph ph-coins"></i> Min BMAN:
+                <?= number_format((float) ($min_bman_required ?? 0), 4); ?></span>
             </div>
 
-            <!-- Methods -->
-            <div class="method-cards" style="margin-bottom:12px;">
-              <?php
-              $m0 = !empty($withdraw_methods) ? ($withdraw_methods[0]->key ?? 'BANK') : 'BANK';
-              $idx = 0;
-              if (!empty($withdraw_methods))
-                foreach ($withdraw_methods as $m):
-                  ?>
-                  <div class="mcard <?= $idx === 0 ? 'active' : '' ?>"
-                    onclick="selectMethod('<?= htmlspecialchars($m->key); ?>', this)">
-                    <div class="ic"><i class="ph <?= ($m->key === 'UPI') ? 'ph-lightning' : 'ph-bank' ?>"></i></div>
-                    <div>
-                      <b><?= htmlspecialchars($m->name); ?></b>
-                      <small><?= htmlspecialchars($m->desc ?? ''); ?></small>
-                    </div>
-                  </div>
-                  <?php $idx++; endforeach; ?>
-              <?php if (empty($withdraw_methods)): ?>
-                <div class="mcard active" onclick="selectMethod('BANK', this)">
-                  <div class="ic"><i class="ph ph-bank"></i></div>
-                  <div>
-                    <b>Bank Transfer</b>
-                    <small>Direct to your linked bank account</small>
-                  </div>
-                </div>
-              <?php endif; ?>
-            </div>
-
-
-            <form id="withdrawForm" class="form" method="post" action="<?= base_url('user/payouts/request'); ?>">
-              <input type="hidden" name="method" id="method" value="<?= htmlspecialchars($m0); ?>" />
+            <form id="withdrawForm" class="form" method="post" action="<?= base_url('user/bman-withdraw/request'); ?>">
+              <input type="hidden" name="platform_address" id="platform_address" value="<?= htmlspecialchars($platform_address ?? ''); ?>" />
 
               <div class="row2">
                 <div class="field">
-                  <label>Withdraw Amount *</label>
-                  <input class="inp" type="number" step="0.01" min="0" name="amount" placeholder="Enter amount"
+                  <label>BMAN Amount *</label>
+                  <input class="inp" type="number" step="0.0001" min="0" id="bman_amount" name="withdraw_bman" placeholder="Enter BMAN amount"
                     required>
                   <div class="hint">Available:
-                    <?= currency_format((float) ($payout->available_amount ?? 0), 2); ?>
+                    <?= number_format((float) ($payout->available_amount ?? $wallet_balance ?? 0), 4); ?> BMAN
                   </div>
                 </div>
                 <div class="field">
-                  <label>Remark (optional)</label>
-                  <input class="inp" type="text" name="remark" placeholder="e.g., Weekly withdrawal">
-                  <div class="hint">Shown in your payout history.</div>
+                  <label>Destination Wallet Address *</label>
+                  <input class="inp" type="text" name="wallet_address" placeholder="Enter USDT Wallet Address" minlength="20" maxlength="120" required>
+                  <div class="hint">Required. Must be different from your platform custodial address.</div>
                 </div>
               </div>
 
@@ -1060,22 +1001,28 @@
                 <div class="field">
                   <label>Processing Fee</label>
                   <input class="inp" type="text"
-                    value="<?= currency_info()->currency_symbol; ?> <?= number_format((float) ($payout->processing_fee ?? 0), 2); ?>"
+                    value="<?= number_format((float) ($payout->processing_fee ?? 0), 4); ?> USDT"
                     readonly>
                 </div>
                 <div class="field">
-                  <label>Estimated Payout</label>
-                  <input class="inp" type="text" id="estimated" value="" readonly>
+                  <label>Estimated USDT Payout</label>
+                  <input class="inp" type="text" id="estimated_usdt" value="" readonly>
                 </div>
               </div>
 
+              <div class="field">
+                <label>Remark (optional)</label>
+                <input class="inp" type="text" name="remark" placeholder="e.g., Manual review withdrawal">
+                <div class="hint">Shown in your payout history.</div>
+              </div>
+
               <button class="btn-full primary" type="submit" <?= empty($payout->eligibility) ? 'disabled style="opacity:.55;cursor:not-allowed;"' : '' ?>>
-                Submit Withdraw <i class="ph ph-arrow-circle-right"></i>
+                Submit Withdrawal <i class="ph ph-arrow-circle-right"></i>
               </button>
 
               <?php if (empty($payout->eligibility)): ?>
                 <div class="hint" style="margin-top:10px;">
-                  You are not eligible right now. Complete KYC / link bank / meet minimum balance to withdraw.
+                  Not Eligible
                 </div>
               <?php endif; ?>
             </form>
@@ -1201,16 +1148,12 @@
             </div>
 
             <div class="hint" style="margin-top:10px;">
-              Tip: Keep your KYC + bank details updated to avoid payout delays.
+              Tip: Keep your KYC + wallet address updated to avoid payout delays.
             </div>
 
             <div class="cta">
               <button class="btn-full dark" type="button" onclick="location.href='<?= base_url('user/kyc'); ?>'">
                 Update KYC <i class="ph ph-identification-card"></i>
-              </button>
-              <button class="btn-full primary" type="button"
-                onclick="location.href='<?= base_url('user/profile#bank'); ?>'">
-                Update Bank <i class="ph ph-bank"></i>
               </button>
               <button class="btn-full" type="button" onclick="location.href='<?= base_url('user/support'); ?>'">
                 Support Ticket <i class="ph ph-headset"></i>
@@ -1259,27 +1202,45 @@
 
   <script src="<?php echo base_url(); ?>/assets/user_v2/js/script.js?ver=2.9"></script>
   <script>
-    // ===== Withdraw method select =====
-    function selectMethod(key, el) {
-      document.getElementById('method').value = key;
-      document.querySelectorAll('.mcard').forEach(x => x.classList.remove('active'));
-      el.classList.add('active');
-    }
-
-    // ===== Estimated payout (amount - fee) preview =====
+    // ===== BMAN -> USDT estimate =====
     const fee = <?= json_encode((float) ($payout->processing_fee ?? 0)); ?>;
+    const bmanPrice = <?= json_encode((float) ($bman_price ?? 0)); ?>;
     const sym = <?= json_encode(currency_info()->currency_symbol); ?>;
-    const amountInput = document.querySelector('input[name="amount"]');
-    const est = document.getElementById('estimated');
+    const amountInput = document.getElementById('bman_amount');
+    const addressInput = document.querySelector('input[name="wallet_address"]');
+    const estimatedEl = document.getElementById('estimated_usdt');
+    const submitBtn = document.querySelector('#withdrawForm button[type="submit"]');
     if (amountInput) {
       const calc = () => {
         const v = parseFloat(amountInput.value || "0") || 0;
-        const out = Math.max(0, v - fee);
-        est.value = sym + " " + out.toFixed(2);
+        const gross = Math.max(0, v * bmanPrice);
+        const net = Math.max(0, gross - fee);
+        if (estimatedEl) estimatedEl.value = net.toFixed(4) + " USDT";
+        refreshEligibility(gross, net);
       };
       amountInput.addEventListener('input', calc);
+      amountInput.addEventListener('change', calc);
+      amountInput.addEventListener('blur', calc);
       calc();
     }
+
+    function refreshEligibility(grossOverride, netOverride) {
+      if (!submitBtn) return;
+      const available = <?= json_encode((float) ($payout->available_amount ?? $wallet_balance ?? 0)); ?>;
+      const minWithdraw = <?= json_encode((float) ($payout->min_withdraw ?? 0)); ?>;
+      const hasAddress = !!(addressInput && addressInput.value.trim().length >= 20);
+      const kycOk = <?= json_encode(!empty($payout->kyc)); ?>;
+      const activeOk = <?= json_encode(!empty($user) && (empty($user->status) || in_array(strtolower((string) $user->status), ['active', '1', 'approved'], true))); ?>;
+      const amount = parseFloat(amountInput ? amountInput.value || 0 : 0) || 0;
+      const gross = typeof grossOverride === 'number' ? grossOverride : Math.max(0, amount * bmanPrice);
+      const net = typeof netOverride === 'number' ? netOverride : Math.max(0, gross - fee);
+      const eligible = kycOk && activeOk && hasAddress && amount > 0 && amount <= available && gross > fee && net > 0 && available >= minWithdraw;
+      submitBtn.disabled = !eligible;
+      submitBtn.style.opacity = eligible ? "" : ".55";
+      submitBtn.style.cursor = eligible ? "pointer" : "not-allowed";
+    }
+    if (addressInput) addressInput.addEventListener('input', refreshEligibility);
+    refreshEligibility();
 
     // ===== History filters =====
     const q = document.getElementById('q');
@@ -1380,7 +1341,6 @@
         if (btn) { btn.disabled = true; btn.style.opacity = ".7"; btn.innerHTML = "Submitting..."; }
 
         const fd = new FormData(form);
-        console.log(fd);
         try {
           const res = await fetch(form.action, {
             method: 'POST',
@@ -1391,7 +1351,7 @@
           const data = await res.json().catch(() => null);
           if (!data) throw new Error("Invalid server response");
 
-          if (!data.success) {
+          if (!data.status) {
             toastMini(data.message || "Failed");
             return;
           }
@@ -1399,7 +1359,7 @@
           toastMini(data.message || "Withdraw request submitted");
 
           // ✅ Clear inputs
-          const amountInput = form.querySelector('input[name="amount"]');
+          const amountInput = form.querySelector('input[name="withdraw_bman"]');
           const remarkInput = form.querySelector('input[name="remark"]');
           if (amountInput) amountInput.value = "";
           if (remarkInput) remarkInput.value = "";
@@ -1409,17 +1369,11 @@
           // If you have elements to update, you can bind IDs and update here.
           // For now, we refresh the page OR rebuild table.
           const kAvail = document.getElementById('kpi-available');
-          const kPend = document.getElementById('kpi-pending');
-          const kPaid = document.getElementById('kpi-paid');
-          const kNext = document.getElementById('kpi-next-date');
-          if (data.payout) {
-            if (kAvail) kAvail.textContent = sym + " " + Number(data.payout.available_amount || 0).toFixed(2);
-            if (kPend) kPend.textContent = sym + " " + Number(data.payout.pending_amount || 0).toFixed(2);
-            if (kPaid) kPaid.textContent = sym + " " + Number(data.payout.paid_total || 0).toFixed(2);
-            if (kNext) kNext.textContent = data.payout.next_date || "—";
+          if (typeof data.available_balance !== "undefined" && kAvail) {
+            kAvail.textContent = Number(data.available_balance || 0).toFixed(4) + " BMAN";
           }
-          if (data.payouts && Array.isArray(data.payouts)) {
-            rebuildPayoutTable(data.payouts);
+          if (data.history && Array.isArray(data.history)) {
+            rebuildPayoutTable(data.history);
           }
 
         } catch (err) {
@@ -1583,3 +1537,4 @@
 </body>
 
 </html>
+
