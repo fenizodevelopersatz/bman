@@ -847,7 +847,6 @@
       <div class="titlebar">
         <div>
           <h2><i class="ph ph-bank"></i> Payouts</h2>
-          <div class="sub">Request withdrawals, track payout cycles, and view transfer history.</div>
         </div>
         <div class="actions">
           <button class="btn-soft" type="button" onclick="location.href='<?= base_url('user/profit'); ?>'"><i
@@ -864,7 +863,7 @@
         <div class="kpi">
           <div class="ic" style="background:#ecfdf3;color:#0f9d58;"><i class="ph ph-wallet"></i></div>
           <div>
-            <small>Available Balance</small>
+            <small>Available BMAN Balance</small>
             <strong id="kpi-available">
               <?= currency_format((float) ($payout->available_amount ?? $wallet_balance ?? 0), 2); ?></strong>
             <span>Withdraw anytime</span>
@@ -989,6 +988,7 @@
                   <div class="hint">Available:
                     <?= number_format((float) ($payout->available_amount ?? $wallet_balance ?? 0), 4); ?> BMAN
                   </div>
+                  <div class="hint" id="withdraw_amount_hint" style="color:#c2410c;"></div>
                 </div>
                 <div class="field">
                   <label>Destination Wallet Address *</label>
@@ -1007,6 +1007,8 @@
                 <div class="field">
                   <label>Estimated USDT Payout</label>
                   <input class="inp" type="text" id="estimated_usdt" value="" readonly>
+                  <div class="hint">Net payout after processing fee.</div>
+                  <div class="hint" id="fee_warning" style="color:#c2410c;"></div>
                 </div>
               </div>
 
@@ -1209,13 +1211,30 @@
     const amountInput = document.getElementById('bman_amount');
     const addressInput = document.querySelector('input[name="wallet_address"]');
     const estimatedEl = document.getElementById('estimated_usdt');
+    const amountHintEl = document.getElementById('withdraw_amount_hint');
+    const feeWarningEl = document.getElementById('fee_warning');
     const submitBtn = document.querySelector('#withdrawForm button[type="submit"]');
     if (amountInput) {
       const calc = () => {
-        const v = parseFloat(amountInput.value || "0") || 0;
+        const raw = (amountInput.value || "").trim();
+        const v = raw === "" ? 0 : Number(raw);
         const gross = Math.max(0, v * bmanPrice);
         const net = Math.max(0, gross - fee);
-        if (estimatedEl) estimatedEl.value = net.toFixed(4) + " USDT";
+        if (estimatedEl) estimatedEl.value = net.toFixed(8) + " USDT";
+        if (amountHintEl) {
+          if (v > 0 && gross <= fee) {
+            amountHintEl.textContent = `Enter more than ${fee.toFixed(4)} USDT worth of BMAN so the fee can be covered.`;
+          } else if (v > 0) {
+            amountHintEl.textContent = `Estimated payout: ${net.toFixed(8)} USDT after fee.`;
+          } else {
+            amountHintEl.textContent = "";
+          }
+        }
+        if (feeWarningEl) {
+          feeWarningEl.textContent = (v > 0 && gross <= fee)
+            ? `Below fee threshold: the converted amount must be greater than ${fee.toFixed(4)} USDT.`
+            : '';
+        }
         refreshEligibility(gross, net);
       };
       amountInput.addEventListener('input', calc);
@@ -1231,10 +1250,11 @@
       const hasAddress = !!(addressInput && addressInput.value.trim().length >= 20);
       const kycOk = <?= json_encode(!empty($payout->kyc)); ?>;
       const activeOk = <?= json_encode(!empty($user) && (empty($user->status) || in_array(strtolower((string) $user->status), ['active', '1', 'approved'], true))); ?>;
-      const amount = parseFloat(amountInput ? amountInput.value || 0 : 0) || 0;
+      const amountRaw = amountInput ? (amountInput.value || '').trim() : '';
+      const amount = amountRaw === '' ? 0 : Number(amountRaw);
       const gross = typeof grossOverride === 'number' ? grossOverride : Math.max(0, amount * bmanPrice);
       const net = typeof netOverride === 'number' ? netOverride : Math.max(0, gross - fee);
-      const eligible = kycOk && activeOk && hasAddress && amount > 0 && amount <= available && gross > fee && net > 0 && available >= minWithdraw;
+      const eligible = kycOk && activeOk && hasAddress && amount > 0 && amount <= available && gross > fee && net > 0 && gross >= minWithdraw;
       submitBtn.disabled = !eligible;
       submitBtn.style.opacity = eligible ? "" : ".55";
       submitBtn.style.cursor = eligible ? "pointer" : "not-allowed";
@@ -1537,4 +1557,3 @@
 </body>
 
 </html>
-
