@@ -168,12 +168,81 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div> -->
 
+              <!-- ============ Organized primary items ============ -->
+
+              <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
+                class="menu-item">
+                <span class="menu-link">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Deposit</span><span class="menu-arrow"></span>
+                </span>
+                <div class="menu-sub px-2 py-3">
+                  <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
+                    class="menu-item">
+                    <span class="menu-link">
+                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                        class="menu-title">Wallet Management</span><span class="menu-arrow"></span>
+                    </span>
+                    <div class="menu-sub px-2 py-3">
+                      <div class="menu-item">
+                        <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/internal-transfers">
+                          <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                            class="menu-title">Internal Transfer</span>
+                        </a>
+                      </div>
+                      <div class="menu-item">
+                        <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet/onchain-transactions">
+                          <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                            class="menu-title">External Deposit</span>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>withdraw-requests">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Withdraw Requests</span>
+                    class="menu-title">Withdraw Request</span>
                 </a>
               </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/roi-history">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">ROI History</span>
+                </a>
+              </div>
+
+              <!-- Gas Fee: no admin page built yet — nothing to link to -->
+              <!-- 50% Bonus Reduce: only a token-gated cron endpoint exists (bonus-reduction-cron), no admin page yet -->
+
+              <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
+                class="menu-item">
+                <span class="menu-link">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Binary Matching & Distribution</span><span class="menu-arrow"></span>
+                </span>
+                <div class="menu-sub px-2 py-3">
+                  <div class="menu-item">
+                    <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/genealogy-tree">
+                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                        class="menu-title">Genealogy</span>
+                    </a>
+                  </div>
+                  <div class="menu-item">
+                    <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/matching-history">
+                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                        class="menu-title">Distribution History</span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <hr class="my-3 mx-2 opacity-25">
+
+              <!-- ============ Remaining items (not part of the organized structure above) ============ -->
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet-monitor">
@@ -190,70 +259,10 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               </div>
 
               <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet/onchain-transactions">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">On-Chain Transactions</span>
-                </a>
-              </div>
-
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/roi-history">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">ROI Distribution History</span>
-                </a>
-              </div>
-
-              <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet/cron-lab">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Cron Lab</span>
                 </a>
-              </div>
-
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/internal-transfers">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Internal Wallet Transfers</span>
-                </a>
-              </div>
-
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/dashboard">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Binary Matching</span>
-                </a>
-                <div class="menu-sub px-2 py-3">
-                  <div class="menu-item">
-                    <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/dashboard">
-                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                        class="menu-title">Dashboard</span>
-                    </a>
-                  </div>
-                  <div class="menu-item">
-                    <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/history">
-                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                        class="menu-title">Bonus History</span>
-                    </a>
-                  </div>
-                  <div class="menu-item">
-                    <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/ceiling-wallets">
-                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                        class="menu-title">Ceiling Wallets</span>
-                    </a>
-                  </div>
-                  <div class="menu-item">
-                    <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/payout-queue">
-                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                        class="menu-title">Payout Queue</span>
-                    </a>
-                  </div>
-                  <div class="menu-item">
-                    <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/cron-logs">
-                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                        class="menu-title">Cron Logs</span>
-                    </a>
-                  </div>
-                </div>
               </div>
 
               <div class="menu-item">
@@ -264,23 +273,9 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               </div>
 
               <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/matching-history">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Binary Matching History</span>
-                </a>
-              </div>
-
-              <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/payout-queue">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Binary Matching Payout Queue</span>
-                </a>
-              </div>
-
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/genealogy-tree">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Genealogy Tree (any member)</span>
                 </a>
               </div>
 
