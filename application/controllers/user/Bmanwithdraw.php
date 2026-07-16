@@ -38,11 +38,12 @@ class Bmanwithdraw extends CI_Controller
         if (!$user_id) return $this->_json(['status' => false, 'message' => 'Login required']);
 
         $source_wallet = 'mixed';
-        $amount = (float) $this->input->post('withdraw_bman', true);
+        $amount_raw = trim((string) $this->input->post('withdraw_bman', true));
+        $amount = is_numeric($amount_raw) ? Money::floor8($amount_raw) : '0';
         $withdraw_address = trim((string) $this->input->post('wallet_address', true));
         $remark = trim((string) $this->input->post('remark', true));
         $settings = $this->bmanwithdraw->settings();
-        $available = (float) $this->bmanwithdraw->available_balance($user_id);
+        $available = $this->bmanwithdraw->available_balance($user_id);
         $open_request = $this->bmanwithdraw->open_request($user_id, $source_wallet);
 
         // Validation: withdrawals enabled
@@ -60,30 +61,31 @@ class Bmanwithdraw extends CI_Controller
         }
 
         // Validation: amount > 0
-        if ($amount <= 0) {
+        if (Money::cmp($amount, '0') <= 0) {
             return $this->_json(['status' => false, 'message' => 'Enter a valid amount']);
         }
 
         // Validation: meets minimum USDT requirement
-        $bman_rate = (float) (token_info()->currency_value ?? 0);
-        $bman_price = $bman_rate > 0 ? (1 / $bman_rate) : 0;
-        $gross_usdt = $amount * $bman_price;
-        $fee = (float) (site_settings('withdraw_settings', 'withdraw_fee_usdt') ?: $settings['withdraw_fee']);
-        $net_usdt = max(0, $gross_usdt - $fee);
-        $min_withdraw = (float) ($settings['min_withdraw'] ?? 0);
+        $bman_rate = (string) (token_info()->currency_value ?? '0');
+        $bman_price = Money::cmp($bman_rate, '0') > 0 ? Money::div('1', $bman_rate) : '0';
+        $gross_usdt = Money::mul($amount, $bman_price);
+        $fee = (string) (site_settings('withdraw_settings', 'withdraw_fee_usdt') ?: $settings['withdraw_fee']);
+        // USDT payout always rounds DOWN — never let rounding hand out dust the platform doesn't have.
+        $net_usdt = Money::floorZero(Money::floor6(Money::sub($gross_usdt, $fee)));
+        $min_withdraw = (string) ($settings['min_withdraw'] ?? '0');
 
-        if ($gross_usdt < $min_withdraw) {
+        if (Money::cmp($gross_usdt, $min_withdraw) < 0) {
             return $this->_json(['status' => false, 'message' => "Minimum withdrawal is {$min_withdraw} USDT (≈ {$amount} BMAN @ {$bman_price} rate)"]);
         }
 
         // Validation: meets maximum
-        $max_withdraw = (float) ($settings['max_withdraw'] ?? 0);
-        if ($max_withdraw > 0 && $amount > $max_withdraw) {
+        $max_withdraw = (string) ($settings['max_withdraw'] ?? '0');
+        if (Money::cmp($max_withdraw, '0') > 0 && Money::cmp($amount, $max_withdraw) > 0) {
             return $this->_json(['status' => false, 'message' => "Maximum withdrawal is {$max_withdraw} BMAN"]);
         }
 
         // Validation: net payout > 0
-        if ($gross_usdt <= $fee) {
+        if (Money::cmp($gross_usdt, $fee) <= 0) {
             return $this->_json(['status' => false, 'message' => 'Withdrawal amount too small. Net payout becomes zero.']);
         }
 
@@ -99,7 +101,7 @@ class Bmanwithdraw extends CI_Controller
         }
 
         // Validation: sufficient matured balance
-        if ($available < $amount) {
+        if (Money::cmp($available, $amount) < 0) {
             return $this->_json(['status' => false, 'message' => 'Insufficient matured balance']);
         }
 

@@ -821,11 +821,15 @@ class Genealogycontroller extends MY_Controller
         $auto_withdraw = (int) site_settings('withdraw_settings', 'auto_withdraw');
 
         // ===== Wallets =====
+        // maturity_breakdown() is the hold-aware source: each wallet's
+        // "_withdrawable" figure already has active bman_wallet_ledger locks
+        // and completed-withdrawal debits subtracted, so the 4 wallet cards
+        // and the cumulative Available BMAN Balance always agree.
         $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
-        $available_amount = (float) $this->bmanwithdraw->available_balance($id);
+        $available_amount_raw = $this->bmanwithdraw->available_balance($id);
+        $available_amount = (float) $available_amount_raw;
         $token_balance = (float) site_token_balance($id);
-        $this->load->model('Walletledger_model', 'ledger');
-        $wallets = $this->ledger->balances($id);
+        $wallet_breakdown = $this->bmanwithdraw->maturity_breakdown($id);
         $platform_wallet = $this->db->select('wallet_address')->where('user_id', $id)->get('user_wallet')->row();
         if (empty($platform_wallet)) {
             $platform_wallet = $this->db->select('address as wallet_address')->where('user_id', $id)->get('custodial_wallets')->row();
@@ -857,7 +861,7 @@ class Genealogycontroller extends MY_Controller
             $eligible = false;
         if (!$kyc_ok)
             $eligible = false;
-        if ($available_amount < $min_withdraw)
+        if (Money::cmp($available_amount_raw, (string) $min_withdraw) < 0)
             $eligible = false;
         if (!$active_ok)
             $eligible = false;
@@ -908,12 +912,12 @@ class Genealogycontroller extends MY_Controller
         // if you still need these old ones
         $this->data['wallet_balance'] = $available_amount;
         $this->data['token_wallet_balance'] = $token_balance;
-        $this->data['wallet_usdt'] = (float) ($wallets['usdt'] ?? 0);
+        $this->data['wallet_usdt'] = (float) ($wallet_breakdown['usdt'] ?? 0);
         $this->data['wallet_bman'] = [
-            'exchange' => (float) ($wallets['exchange'] ?? 0),
-            'earning'  => (float) ($wallets['earning'] ?? 0),
-            'staking'  => (float) ($wallets['staking'] ?? 0),
-            'bonus'    => (float) ($wallets['bonus'] ?? 0),
+            'exchange' => (float) ($wallet_breakdown['exchange_withdrawable'] ?? 0),
+            'earning'  => (float) ($wallet_breakdown['earning_withdrawable'] ?? 0),
+            'staking'  => (float) ($wallet_breakdown['staking_withdrawable'] ?? 0),
+            'bonus'    => (float) ($wallet_breakdown['bonus_withdrawable'] ?? 0),
         ];
         $this->data['platform_address'] = $platform_address;
         $this->data['bman_price'] = $bman_price;

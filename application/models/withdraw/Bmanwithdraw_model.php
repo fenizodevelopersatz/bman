@@ -34,13 +34,17 @@ class Bmanwithdraw_model extends CI_Model
      * source of truth for the available balance shown on the page — reuses
      * WalletMaturity_model so it stays consistent with the per-wallet
      * withdrawable figures used to allocate mixed withdrawal requests.
+     *
+     * Returns a numeric string (BCMath scale 8). Summing 4 wallets' floats with
+     * PHP's `+` is exactly the kind of drift that makes wallets not add up to
+     * the cumulative total — cast to float only where you display it.
      */
     public function available_balance($user_id)
     {
         $breakdowns = $this->maturity->all_breakdowns((int) $user_id);
-        $total = 0.0;
+        $total = '0';
         foreach ($breakdowns as $b) {
-            $total += (float) ($b['withdrawable'] ?? 0);
+            $total = Money::add($total, $b['withdrawable'] ?? '0');
         }
         return $total;
     }
@@ -295,15 +299,21 @@ class Bmanwithdraw_model extends CI_Model
     {
         $user_id = (int) $data['user_id'];
         $source_wallet = $data['source_wallet'];
-        $request_amount = (float) $data['request_amount'];
-        $fee_amount = (float) ($data['fee_amount'] ?? 0);
-        $net_amount = (float) ($data['net_amount'] ?? $request_amount - $fee_amount);
+        $request_amount = Money::floor8($data['request_amount']);
+        $fee_amount = Money::floor8($data['fee_amount'] ?? '0');
+        $net_amount = isset($data['net_amount'])
+            ? Money::floor8($data['net_amount'])
+            : Money::floorZero(Money::sub($request_amount, $fee_amount));
         $withdraw_address = trim((string) $data['withdraw_address']);
-        $bman_usdt_rate = (float) ($data['bman_usdt_rate'] ?? (1 / (token_info()->currency_value ?? 1)));
-        $usdt_amount = $net_amount * $bman_usdt_rate;
+        $bman_usdt_rate = isset($data['bman_usdt_rate'])
+            ? Money::floor8($data['bman_usdt_rate'])
+            : Money::div('1', (string) (token_info()->currency_value ?: '1'));
+        // USDT payout always rounds DOWN to 6dp — never let a user extract dust
+        // the platform never had by rounding the amount they receive upward.
+        $usdt_amount = Money::floor6(Money::mul($net_amount, $bman_usdt_rate));
 
         // Validate amount > 0
-        if ($request_amount <= 0) {
+        if (Money::cmp($request_amount, '0') <= 0) {
             return ['error' => 'Amount must be greater than 0'];
         }
 
@@ -318,14 +328,16 @@ class Bmanwithdraw_model extends CI_Model
             return ['error' => 'Withdraw address cannot be your platform custodial address'];
         }
 
-        // Check available balance (matured, unlocked)
+        // Check available balance (matured, unlocked) — read fresh here, inside
+        // whatever transaction the caller has open, never a value carried
+        // from earlier in the request.
         if ($source_wallet === 'mixed') {
             $available = $this->available_balance($user_id);
         } else {
             $available = $this->wallet_balance($user_id, $source_wallet);
         }
 
-        if ($available < $request_amount) {
+        if (Money::cmp($available, $request_amount) < 0) {
             return ['error' => 'Insufficient matured balance'];
         }
 
@@ -390,21 +402,27 @@ class Bmanwithdraw_model extends CI_Model
     /**
      * Allocate lock amount across wallets by priority for 'mixed' requests.
      * Priority: bonus → earning → exchange → staking
+     *
+     * Dust-safe: every slice is truncated to 8dp and subtracted via BCMath, so
+     * the slices sum to $total_amount to the last satoshi. isZero($remaining)
+     * is the safety net — if it's ever false, ROLLBACK rather than leave a
+     * lock that doesn't add up (the caller runs this inside a transaction).
      */
     private function _lock_allocate($user_id, $request_id, $total_amount)
     {
         $priority = ['bonus', 'earning', 'exchange', 'staking'];
-        $remaining = $total_amount;
+        $remaining = Money::floor8($total_amount);
         $now = date('Y-m-d H:i:s');
 
         foreach ($priority as $wallet) {
-            if ($remaining <= 0) break;
+            if (Money::isZero($remaining)) break;
 
             // Get withdrawable balance for this wallet (matured, unlocked)
             $available = $this->wallet_balance($user_id, $wallet);
-            $to_lock = min($available, $remaining);
+            $to_lock = Money::cmp($available, $remaining) < 0 ? $available : $remaining;
+            $to_lock = Money::floor8($to_lock);
 
-            if ($to_lock > 0) {
+            if (Money::cmp($to_lock, '0') > 0) {
                 // Create lock ledger entry
                 $this->db->insert('bman_wallet_ledger', [
                     'user_id' => $user_id,
@@ -426,11 +444,11 @@ class Bmanwithdraw_model extends CI_Model
                     'created_at' => $now,
                 ]);
 
-                $remaining -= $to_lock;
+                $remaining = Money::floorZero(Money::sub($remaining, $to_lock));
             }
         }
 
-        if ($remaining > 0) {
+        if (!Money::isZero($remaining)) {
             return ['error' => 'Could not allocate full amount across wallets'];
         }
 
@@ -439,22 +457,9 @@ class Bmanwithdraw_model extends CI_Model
 
     public function get_request($id)
     {
-        return $this->db->select('
-            wr.*,
-            u.username,
-            u.email,
-            u.referral_id,
-            u.status AS user_status,
-            ub.holder_name,
-            ub.bank_name,
-            ub.account_number,
-            ub.ifsc,
-            ub.upi_id,
-            ub.status AS bank_status
-        ')
+        return $this->db->select('wr.*, u.username, u.email, u.referral_id, u.status AS user_status')
             ->from('bman_withdraw_requests wr')
             ->join('users u', 'u.id = wr.user_id', 'left')
-            ->join('user_bank ub', "ub.user_id = wr.user_id AND ub.status = 'approved'", 'left')
             ->where('wr.id', (int) $id)
             ->get()
             ->row_array();

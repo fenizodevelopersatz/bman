@@ -74,25 +74,26 @@ class WalletMaturity_model extends CI_Model
     /**
      * Per-wallet breakdown: total, locked, matured, withdrawable.
      * withdrawable = matured_balance - active holds (pending withdrawal requests).
+     * All values are numeric strings (BCMath scale 8) — cast to float only at
+     * the final display boundary (number_format et al. accept strings fine).
+     * Never sum/compare these across wallets with PHP + or < — use Money::.
      */
     public function wallet_breakdown($user_id, $wallet)
     {
         $user_id = (int) $user_id;
         $total = $this->_summary_balance($user_id, $wallet);
         $locked = $this->_locked_from_ledger($user_id, $wallet);
-        $matured = bcsub((string) $total, (string) $locked, 8);
-        if (bccomp($matured, '0', 8) < 0) $matured = '0';
+        $matured = Money::floorZero(Money::sub($total, $locked));
         $holds = $this->_active_holds($user_id, $wallet);
-        $withdrawable = bcsub($matured, (string) $holds, 8);
-        if (bccomp($withdrawable, '0', 8) < 0) $withdrawable = '0';
+        $withdrawable = Money::floorZero(Money::sub($matured, $holds));
 
         return [
             'wallet'         => $wallet,
-            'total'          => (float) $total,
-            'locked'         => (float) $locked,
-            'matured'        => (float) $matured,
-            'holds'          => (float) $holds,
-            'withdrawable'   => (float) $withdrawable,
+            'total'          => $total,
+            'locked'         => $locked,
+            'matured'        => $matured,
+            'holds'          => $holds,
+            'withdrawable'   => $withdrawable,
             'maturity_days'  => $this->maturity_days($wallet),
         ];
     }
@@ -110,7 +111,7 @@ class WalletMaturity_model extends CI_Model
     public function withdrawable($user_id, $wallet)
     {
         $b = $this->wallet_breakdown($user_id, $wallet);
-        return (float) $b['withdrawable'];
+        return $b['withdrawable'];
     }
 
     /**
@@ -292,7 +293,7 @@ class WalletMaturity_model extends CI_Model
      */
     private function _active_holds($user_id, $wallet)
     {
-        $held = 0.0;
+        $held = '0';
 
         if ($this->db->table_exists('wallet_withdraw_holds')) {
             $row = $this->db->select('COALESCE(SUM(hold_amount - released_amount),0) AS held', false)
@@ -301,7 +302,7 @@ class WalletMaturity_model extends CI_Model
                             ->where('wallet_type', $wallet)
                             ->where('status', 'held')
                             ->get()->row_array();
-            $held += (float) ($row['held'] ?? 0);
+            $held = Money::add($held, $row['held'] ?? '0');
         }
 
         if ($this->db->table_exists('bman_wallet_ledger')) {
@@ -312,7 +313,7 @@ class WalletMaturity_model extends CI_Model
                             ->where_in('entry_type', ['lock', 'debit'])
                             ->where('status', 'active')
                             ->get()->row_array();
-            $held += (float) ($row['held'] ?? 0);
+            $held = Money::add($held, $row['held'] ?? '0');
         }
 
         return $held;

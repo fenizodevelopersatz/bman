@@ -692,7 +692,7 @@
       }
 
       /* Add small labels before fields using nth-child */
-      .table tbody tr.tr td:nth-child(2)::before {
+      .table tbody tr.tr td:nth-child(3)::before {
         content: "Type";
         display: block;
         font-size: 10px;
@@ -701,7 +701,7 @@
         margin-bottom: 4px;
       }
 
-      .table tbody tr.tr td:nth-child(3)::before {
+      .table tbody tr.tr td:nth-child(4)::before {
         content: "Date / Status";
         display: block;
         font-size: 10px;
@@ -710,7 +710,7 @@
         margin-bottom: 4px;
       }
 
-      .table tbody tr.tr td:nth-child(4)::before {
+      .table tbody tr.tr td:nth-child(5)::before {
         content: "Amount";
         display: block;
         font-size: 10px;
@@ -720,7 +720,7 @@
       }
 
       /* Action button align left */
-      .table tbody tr.tr td:nth-child(5) {
+      .table tbody tr.tr td:nth-child(6) {
         text-align: left !important;
       }
     }
@@ -1062,6 +1062,7 @@
               <table class="table table resp-card" id="pTable">
                 <thead>
                   <tr>
+                    <th style="width:50px;">S.No</th>
                     <th style="width:32%;">Payout</th>
                     <th>Type</th>
                     <th>Date</th>
@@ -1071,16 +1072,18 @@
                 </thead>
                 <tbody>
                   <?php if (!empty($payouts)):
-                    foreach ($payouts as $p): ?>
+                    $sno = 0;
+                    foreach ($payouts as $p): $sno++; ?>
                       <?php
                       $st = strtoupper($p->status ?? 'PENDING');
 
-                      $badge = $st === 'COMPLETED' ? 'b-ok' : (in_array($st, ['PENDING', 'APPROVED', 'PROCESSING'], true) ? 'b-warn' : 'b-bad');
+                      $badge = in_array($st, ['COMPLETED', 'APPROVED'], true) ? 'b-ok' : (in_array($st, ['PENDING', 'PROCESSING'], true) ? 'b-warn' : 'b-bad');
                       $tp = strtoupper($p->type ?? 'WEEKLY');
                       ?>
                       <tr class="tr"
                         data-q="<?= htmlspecialchars(strtolower(($p->payout_id ?? '') . ' ' . ($p->period ?? '') . ' ' . ($p->note ?? ''))); ?>"
                         data-status="<?= htmlspecialchars($st); ?>" data-type="<?= htmlspecialchars($tp); ?>">
+                        <td><?= $sno; ?></td>
                         <td class="td-title">
                           <b><?= htmlspecialchars($p->payout_id ?? '—'); ?></b>
                           <small><?= htmlspecialchars($p->period ?? '—'); ?> •
@@ -1106,13 +1109,22 @@
                       </tr>
                     <?php endforeach; else: ?>
                     <tr>
-                      <td colspan="5">
+                      <td colspan="6">
                         <div class="empty">No payout history found.</div>
                       </td>
                     </tr>
                   <?php endif; ?>
                 </tbody>
               </table>
+            </div>
+
+            <div id="pPager" style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;flex-wrap:wrap;">
+              <div class="hint" id="pPagerInfo">Showing 0 of 0</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <button class="btn-soft" type="button" id="pPrevBtn" onclick="pGoPage(pCurrentPage - 1)"><i class="ph ph-caret-left"></i> Prev</button>
+                <span class="hint" id="pPageIndicator">Page 1 of 1</span>
+                <button class="btn-soft" type="button" id="pNextBtn" onclick="pGoPage(pCurrentPage + 1)">Next <i class="ph ph-caret-right"></i></button>
+              </div>
             </div>
           </div>
         </div>
@@ -1262,23 +1274,73 @@
     if (addressInput) addressInput.addEventListener('input', refreshEligibility);
     refreshEligibility();
 
-    // ===== History filters =====
+    // ===== History filters + pagination =====
     const q = document.getElementById('q');
     const st = document.getElementById('status');
     const tp = document.getElementById('type');
     const rows = () => Array.from(document.querySelectorAll('#pTable tbody .tr'));
 
-    function applyFilters() {
+    const PAGE_SIZE = 3;
+    let pCurrentPage = 1;
+
+    function matchesFilter(r) {
       const s = (q.value || "").trim().toLowerCase();
       const ss = (st.value || "").trim();
       const tt = (tp.value || "").trim();
-      rows().forEach(r => {
-        const okQ = !s || (r.dataset.q || "").includes(s);
-        const okS = !ss || r.dataset.status === ss;
-        const okT = !tt || r.dataset.type === tt;
-        r.style.display = (okQ && okS && okT) ? "" : "none";
-      });
+      const okQ = !s || (r.dataset.q || "").includes(s);
+      const okS = !ss || r.dataset.status === ss;
+      const okT = !tt || r.dataset.type === tt;
+      return okQ && okS && okT;
     }
+
+    // Filters always jump back to page 1 — a stale page number from a wider
+    // result set would otherwise show "page 3 of 1" after narrowing a filter.
+    function applyFilters() {
+      pCurrentPage = 1;
+      renderPage();
+    }
+
+    function renderPage() {
+      const all = rows();
+      const matched = all.filter(matchesFilter);
+      const totalPages = Math.max(1, Math.ceil(matched.length / PAGE_SIZE));
+      if (pCurrentPage > totalPages) pCurrentPage = totalPages;
+      if (pCurrentPage < 1) pCurrentPage = 1;
+
+      const startIdx = (pCurrentPage - 1) * PAGE_SIZE;
+      const endIdx = startIdx + PAGE_SIZE;
+      const pageSet = new Set(matched.slice(startIdx, endIdx));
+
+      all.forEach(r => { r.style.display = pageSet.has(r) ? "" : "none"; });
+
+      const info = document.getElementById('pPagerInfo');
+      if (info) {
+        info.textContent = matched.length
+          ? `Showing ${startIdx + 1}–${Math.min(endIdx, matched.length)} of ${matched.length}`
+          : 'No records';
+      }
+      const indicator = document.getElementById('pPageIndicator');
+      if (indicator) indicator.textContent = `Page ${pCurrentPage} of ${totalPages}`;
+
+      const prevBtn = document.getElementById('pPrevBtn');
+      const nextBtn = document.getElementById('pNextBtn');
+      if (prevBtn) {
+        prevBtn.disabled = pCurrentPage <= 1;
+        prevBtn.style.opacity = prevBtn.disabled ? '.5' : '';
+        prevBtn.style.cursor = prevBtn.disabled ? 'not-allowed' : '';
+      }
+      if (nextBtn) {
+        nextBtn.disabled = pCurrentPage >= totalPages;
+        nextBtn.style.opacity = nextBtn.disabled ? '.5' : '';
+        nextBtn.style.cursor = nextBtn.disabled ? 'not-allowed' : '';
+      }
+    }
+
+    function pGoPage(n) {
+      pCurrentPage = n;
+      renderPage();
+    }
+
     if (q) { q.addEventListener('input', applyFilters); }
     if (st) { st.addEventListener('change', applyFilters); }
     if (tp) { tp.addEventListener('change', applyFilters); }
@@ -1289,6 +1351,8 @@
       if (tp) tp.value = "";
       applyFilters();
     }
+
+    renderPage();
 
     function scrollToWithdraw() {
       const el = document.getElementById('withdrawBox');
@@ -1381,7 +1445,13 @@
           // ✅ Clear inputs
           const amountInput = form.querySelector('input[name="withdraw_bman"]');
           const remarkInput = form.querySelector('input[name="remark"]');
-          if (amountInput) amountInput.value = "";
+          if (amountInput) {
+            amountInput.value = "";
+            // Setting .value doesn't fire 'input', so the Estimated USDT Payout
+            // calc() (bound in the script above) never re-runs on its own —
+            // dispatch it manually so the stale pre-submit estimate clears too.
+            amountInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }
           if (remarkInput) remarkInput.value = "";
           if (typeof applyFilters === "function") applyFilters(); // keep your filters safe
 
@@ -1409,13 +1479,13 @@
         if (!tbody) return;
 
         if (!payouts.length) {
-          tbody.innerHTML = `<tr><td colspan="5"><div class="empty">No payout history found.</div></td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="6"><div class="empty">No payout history found.</div></td></tr>`;
           return;
         }
 
-        tbody.innerHTML = payouts.map(p => {
+        tbody.innerHTML = payouts.map((p, idx) => {
           const st = (p.status || "PENDING").toUpperCase();
-          const badge = st === 'COMPLETED' ? 'b-ok' : (['PENDING', 'APPROVED', 'PROCESSING'].includes(st) ? 'b-warn' : 'b-bad');
+          const badge = ['COMPLETED', 'APPROVED'].includes(st) ? 'b-ok' : (['PENDING', 'PROCESSING'].includes(st) ? 'b-warn' : 'b-bad');
           const tp = (p.type || "MANUAL").toUpperCase();
           const q = ((p.payout_id || "") + " " + (p.period || "") + " " + (p.note || "")).toLowerCase()
             .replace(/"/g, '&quot;');
@@ -1425,6 +1495,7 @@
             data-q="${q}"
             data-status="${escapeHtml(st)}"
             data-type="${escapeHtml(tp)}">
+            <td>${idx + 1}</td>
             <td class="td-title">
               <b>${escapeHtml(p.payout_id || "—")}</b>
               <small>${escapeHtml(p.period || "—")} • ${escapeHtml(p.note || "")}</small>
