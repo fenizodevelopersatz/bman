@@ -1222,10 +1222,8 @@
         const net = Math.max(0, gross - fee);
         if (estimatedEl) estimatedEl.value = net.toFixed(8) + " USDT";
         if (amountHintEl) {
-          if (v > 0 && gross <= fee) {
-            amountHintEl.textContent = `Enter more than ${fee.toFixed(4)} USDT worth of BMAN so the fee can be covered.`;
-          } else if (v > 0) {
-            amountHintEl.textContent = `Estimated payout: ${net.toFixed(8)} USDT after fee.`;
+          if (v > 0 && gross <= fee) {            
+          } else if (v > 0) {            
           } else {
             amountHintEl.textContent = "";
           }

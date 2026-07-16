@@ -50,99 +50,72 @@ class Bmanwithdraw extends MY_Controller
         $tx_hash = trim((string) $this->input->post('tx_hash', true));
         $admin_remark = trim((string) $this->input->post('admin_remark', true));
         $admin_id = (int) $this->session->userdata('admin_userid');
-        $new_status = $row['status'];
 
-        if (!in_array($status, ['pending', 'processing', 'completed', 'rejected'], true)) {
+        // Validate legal status transitions
+        if (!in_array($status, ['approved', 'processing', 'completed', 'rejected', 'failed'], true)) {
             $this->session->set_flashdata('error', 'Invalid status selected');
             redirect('admin/bman-withdrawals/view/' . $id);
             return;
         }
 
-        if ($status === 'completed' && empty($tx_hash)) {
-            $this->session->set_flashdata('error', 'Transaction hash is required to complete the withdrawal');
+        $this->db->trans_start();
+
+        $result = null;
+        if ($status === 'approved') {
+            $result = $this->bmanwithdraw->approve($id, $admin_id, $admin_remark);
+        } elseif ($status === 'processing') {
+            $result = $this->bmanwithdraw->mark_processing($id, $admin_id, $admin_remark);
+        } elseif ($status === 'completed') {
+            if (empty($tx_hash)) {
+                $this->db->trans_rollback();
+                $this->session->set_flashdata('error', 'Transaction hash is required to complete the withdrawal');
+                redirect('admin/bman-withdrawals/view/' . $id);
+                return;
+            }
+            $result = $this->bmanwithdraw->complete($id, $admin_id, $tx_hash, $admin_remark);
+
+            // Record on-chain transaction if completion succeeded
+            if (empty($result['error'])) {
+                $this->db->insert('onchain_transactions', [
+                    'tx_hash' => $tx_hash,
+                    'network' => 'bsc',
+                    'chain_id' => 56,
+                    'wallet_type' => $row['source_wallet'],
+                    'tx_type' => 'withdrawal',
+                    'status' => 'confirmed',
+                    'to_address' => $row['withdraw_address'],
+                    'user_id' => $row['user_id'],
+                    'admin_id' => $admin_id,
+                    'token_symbol' => 'BMAN',
+                    'amount' => $row['net_amount'],
+                    'reference_type' => 'bman_withdrawal',
+                    'reference_id' => (string) $id,
+                    'linked_withdrawal_id' => $id,
+                    'created_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+        } elseif ($status === 'rejected') {
+            $result = $this->bmanwithdraw->reject($id, $admin_id, $admin_remark);
+        } elseif ($status === 'failed') {
+            $result = $this->bmanwithdraw->mark_failed($id, $admin_id, $admin_remark);
+        }
+
+        if (!empty($result['error'])) {
+            $this->db->trans_rollback();
+            $this->session->set_flashdata('error', $result['error']);
             redirect('admin/bman-withdrawals/view/' . $id);
             return;
         }
 
-        if ($status === 'completed' && !empty($tx_hash)) {
-            list($ok, $ledgerRes) = $this->ledger->debit(
-                (int) $row['user_id'],
-                $row['source_wallet'],
-                (string) $row['request_amount'],
-                'withdrawal',
-                [
-                    'reference_id' => (string) $id,
-                    'description'  => 'Manual BMAN withdrawal',
-                    'tx_hash'      => $tx_hash,
-                    'created_by'   => $admin_id,
-                ]
-            );
-            if (!$ok) {
-                $this->session->set_flashdata('error', 'Ledger debit failed: ' . $ledgerRes);
-                redirect('admin/bman-withdrawals/view/' . $id);
-                return;
-            }
-        }
-
-        $this->db->trans_start();
-        if ($status === 'completed' && !empty($tx_hash)) {
-            $new_status = 'completed';
-            $this->db->where('id', $id)->update('bman_withdraw_requests', [
-                'status' => 'completed',
-                'tx_hash' => $tx_hash,
-                'admin_remark' => $admin_remark,
-                'completed_at' => date('Y-m-d H:i:s'),
-            ]);
-            $this->db->where('request_id', $id)->update('wallet_withdraw_holds', [
-                'status' => 'consumed',
-                'released_amount' => $row['request_amount'],
-                'released_at' => date('Y-m-d H:i:s'),
-            ]);
-            $this->db->insert('onchain_transactions', [
-                'tx_hash' => $tx_hash,
-                'network' => 'bsc',
-                'chain_id' => 56,
-                'wallet_type' => $row['source_wallet'],
-                'tx_type' => 'withdrawal',
-                'status' => 'confirmed',
-                'to_address' => $row['withdraw_address'],
-                'user_id' => $row['user_id'],
-                'admin_id' => $admin_id,
-                'token_symbol' => 'BMAN',
-                'amount' => $row['net_amount'],
-                'reference_type' => 'bman_withdrawal',
-                'reference_id' => (string) $id,
-                'linked_withdrawal_id' => $id,
-                'created_at' => date('Y-m-d H:i:s'),
-            ]);
-        } elseif ($status === 'processing') {
-            $new_status = 'processing';
-            $this->db->where('id', $id)->update('bman_withdraw_requests', [
-                'status' => 'processing',
-                'admin_remark' => $admin_remark,
-                'processing_at' => date('Y-m-d H:i:s'),
-            ]);
-        } elseif ($status === 'rejected') {
-            $new_status = 'rejected';
-            $this->db->where('id', $id)->update('bman_withdraw_requests', [
-                'status' => 'rejected',
-                'admin_remark' => $admin_remark,
-            ]);
-            $this->db->where('request_id', $id)->update('wallet_withdraw_holds', [
-                'status' => 'released',
-                'released_amount' => $row['request_amount'],
-                'released_at' => date('Y-m-d H:i:s'),
-            ]);
-        } else {
-            $this->db->where('id', $id)->update('bman_withdraw_requests', [
-                'status' => $status ?: $row['status'],
-                'admin_remark' => $admin_remark,
-            ]);
-            $new_status = $status ?: $row['status'];
-        }
-        $this->bmanwithdraw->log_action($id, $admin_id, 'admin_update', $row['status'], $new_status, $admin_remark);
         $this->db->trans_complete();
 
+        if (!$this->db->trans_status()) {
+            $this->session->set_flashdata('error', 'Database error while updating request');
+            redirect('admin/bman-withdrawals/view/' . $id);
+            return;
+        }
+
+        $this->session->set_flashdata('success', "Withdrawal request updated to '{$status}'");
         redirect('admin/bman-withdrawals/view/' . $id);
     }
 }

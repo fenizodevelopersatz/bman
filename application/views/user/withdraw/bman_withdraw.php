@@ -4,6 +4,18 @@
         <div class="card-body">
             <h4 class="mb-3">Manual BMAN Withdrawal</h4>
             <p class="text-muted small mb-4">Withdrawals are validated against <strong>matured ledger balance</strong> only. Locked funds unlock per wallet maturity rules below.</p>
+            <?php if (!empty($open_request)): ?>
+                <div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+                    <div>
+                        <strong>Withdraw request locked.</strong>
+                        <div class="small mb-0">
+                            You already have request <strong><?= htmlspecialchars($open_request['request_no'] ?? ''); ?></strong>
+                            in <strong><?= htmlspecialchars($open_request['status'] ?? 'pending'); ?></strong> status.
+                        </div>
+                    </div>
+                    <span class="badge bg-dark">Submit again after approval or rejection</span>
+                </div>
+            <?php endif; ?>
 
             <?php
             $wallet_labels = ['exchange' => 'Exchange', 'earning' => 'Earning', 'staking' => 'Staking', 'bonus' => 'Bonus'];
@@ -47,7 +59,9 @@
                     <div class="col-md-4"><label class="form-label">Withdraw Address</label><input class="form-control" name="withdraw_address"></div>
                     <div class="col-12"><label class="form-label">Remark</label><textarea class="form-control" name="remark" rows="3"></textarea></div>
                 </div>
-                <button class="btn btn-primary mt-3" type="submit">Submit Withdrawal</button>
+                <button class="btn btn-primary mt-3" type="submit" <?= !empty($open_request) ? 'disabled' : ''; ?>>
+                    <?= !empty($open_request) ? 'Request Locked' : 'Submit Withdrawal'; ?>
+                </button>
             </form>
         </div>
     </div>
@@ -104,17 +118,32 @@
 (function () {
     const sel = document.getElementById('source_wallet');
     const hint = document.getElementById('avail_hint');
+    const locked = <?= json_encode(!empty($open_request)); ?>;
     function refreshHint() {
         const opt = sel.options[sel.selectedIndex];
         const avail = parseFloat(opt.dataset.withdrawable || 0);
-        hint.textContent = 'Withdrawable (matured minus holds): ' + avail.toFixed(4);
+        hint.textContent = locked
+            ? 'This withdrawal flow is locked until your current request is resolved.'
+            : 'Withdrawable (matured minus holds): ' + avail.toFixed(4);
         document.getElementById('withdraw_amount').max = avail;
+        if (locked) {
+            document.getElementById('withdraw_amount').disabled = true;
+            document.getElementById('source_wallet').disabled = true;
+            const addr = document.querySelector('input[name="withdraw_address"]');
+            const remark = document.querySelector('textarea[name="remark"]');
+            if (addr) addr.disabled = true;
+            if (remark) remark.disabled = true;
+        }
     }
     sel.addEventListener('change', refreshHint);
     refreshHint();
 })();
 document.getElementById('bmanWithdrawForm').addEventListener('submit', async function (e) {
     e.preventDefault();
+    if (<?= json_encode(!empty($open_request)); ?>) {
+        alert('You already have a withdrawal request in progress.');
+        return;
+    }
     const formData = new FormData(this);
     const res = await fetch('<?= base_url('user/bman-withdraw/request'); ?>', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' }});
     const data = await res.json();
