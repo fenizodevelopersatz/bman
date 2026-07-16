@@ -45,14 +45,17 @@ class Lendingcontroller extends CI_Controller
 
         // Custodial wallet balances (single source of truth). Staking purchases
         // use the USDT Wallet ONLY; the four BMAN wallets are shown for context.
-        $this->load->model('Walletledger_model', 'ledger');
-        $bal = $this->ledger->balances($userid);   // usdt/exchange/earning/staking/bonus
-        $this->data['wallet_usdt']     = (float) $bal['usdt'];
+        // Hold-aware: matches the Payouts page (active BMAN withdrawal locks/debits
+        // subtracted), so funds tied up in a pending withdrawal aren't shown as
+        // spendable here either.
+        $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
+        $bal = $this->bmanwithdraw->maturity_breakdown($userid);
+        $this->data['wallet_usdt']     = (float) ($bal['usdt'] ?? 0);
         $this->data['wallet_bman']     = [
-            'exchange' => (float) $bal['exchange'],
-            'staking'  => (float) $bal['staking'],
-            'bonus'    => (float) $bal['bonus'],
-            'earning'  => (float) $bal['earning'],
+            'exchange' => (float) ($bal['exchange_withdrawable'] ?? 0),
+            'staking'  => (float) ($bal['staking_withdrawable'] ?? 0),
+            'bonus'    => (float) ($bal['bonus_withdrawable'] ?? 0),
+            'earning'  => (float) ($bal['earning_withdrawable'] ?? 0),
         ];
         // ≈ BMAN the USDT balance could buy, at the admin exchange rate.
         $this->load->model('Tokenmaster_model', 'tokens');
@@ -109,24 +112,27 @@ class Lendingcontroller extends CI_Controller
         if (!$pkg) { echo json_encode(['status'=>false,'message'=>'Package not available.']); return; }
 
         $this->load->model('Tokenmaster_model', 'tokens');
-        $this->load->model('Walletledger_model', 'ledger');
+        $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
         $bman = (float) $pkg['stake_amount'];
         $usdt = $this->tokens->convertBmanToUsdt($bman);
         if ($usdt === null) { echo json_encode(['status'=>false,'message'=>'Exchange rate not configured.']); return; }
 
-        $bal = $this->ledger->balances($userId);   // usdt + 4 BMAN wallets
+        // Hold-aware: BMAN tied up in a pending withdrawal lock must not also be
+        // quoted as spendable for a new stake purchase — same balance a user
+        // could actually afford.
+        $bal = $this->bmanwithdraw->maturity_breakdown($userId);
         echo json_encode([
             'status'      => true,
             'bman'        => $bman,
             'usdt'        => round($usdt, 8),
             'bonus'       => round($bman * (float)$pkg['bonus_percent'] / 100, 4),
             'bonus_pct'   => (float)$pkg['bonus_percent'],
-            'usdt_balance'=> (float) $bal['usdt'],
+            'usdt_balance'=> (float) ($bal['usdt'] ?? 0),
             'bman_wallets'=> [
-                'exchange' => (float) $bal['exchange'],
-                'staking'  => (float) $bal['staking'],
-                'bonus'    => (float) $bal['bonus'],
-                'earning'  => (float) $bal['earning'],
+                'exchange' => (float) ($bal['exchange_withdrawable'] ?? 0),
+                'staking'  => (float) ($bal['staking_withdrawable'] ?? 0),
+                'bonus'    => (float) ($bal['bonus_withdrawable'] ?? 0),
+                'earning'  => (float) ($bal['earning_withdrawable'] ?? 0),
             ],
             'name'        => $pkg['name'],
         ]);

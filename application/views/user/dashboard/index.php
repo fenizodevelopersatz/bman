@@ -387,7 +387,6 @@
                 <strong><span id="left_leg_bv">0.00</span></strong>
               </div>
 
-              <small>Carry Forward: <span id="left_carry_forward_bv">320</span> BV</small>
             </div>
 
             <!-- Right -->
@@ -400,37 +399,9 @@
               <div class="mini-value">
                 <strong><span id="right_leg_bv">0.00</span></strong>
               </div>
-
-              <small>Carry Forward: <span id="right_carry_forward_bv">0</span> BV</small>
+              
             </div>
 
-            <!-- Pairs -->
-            <div class="mini">
-              <div class="mini-top">
-                <span>Pairs Completed</span>
-                <b>Today</b>
-              </div>
-
-              <div class="mini-value">
-                <strong><span id="pairs_today">0</span> Pairs</strong>
-              </div>
-
-              <small>Pairing Bonus Running</small>
-            </div>
-
-            <!-- Need BV -->
-            <div class="mini">
-              <div class="mini-top">
-                <span>Next Pair Target</span>
-                <b>Need</b>
-              </div>
-
-              <div class="mini-value">
-                <strong>+<span id="need_bv">0</span> BV</strong>
-              </div>
-
-              <small>To match weak leg</small>
-            </div>
           </div>
 
           <div class="progress-wrap">

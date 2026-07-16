@@ -667,14 +667,17 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
 
         // ✅ Custodial wallet balances (USDT + BMAN wallets) — same source of truth
         // as the Stakings page, shown as a wallet strip above the summary cards.
-        $this->load->model('Walletledger_model', 'ledger');
-        $bal = $this->ledger->balances($user_id); // usdt/exchange/earning/staking/bonus
-        $this->data['wallet_usdt'] = (float) $bal['usdt'];
+        // Hold-aware: matches the Payouts page (active BMAN withdrawal locks/debits
+        // subtracted), so a wallet with funds tied up in a pending withdrawal shows
+        // the same reduced figure everywhere instead of a stale gross balance.
+        $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
+        $bal = $this->bmanwithdraw->maturity_breakdown($user_id);
+        $this->data['wallet_usdt'] = (float) ($bal['usdt'] ?? 0);
         $this->data['wallet_bman'] = [
-            'exchange' => (float) $bal['exchange'],
-            'earning'  => (float) $bal['earning'],
-            'staking'  => (float) $bal['staking'],
-            'bonus'    => (float) $bal['bonus'],
+            'exchange' => (float) ($bal['exchange_withdrawable'] ?? 0),
+            'earning'  => (float) ($bal['earning_withdrawable'] ?? 0),
+            'staking'  => (float) ($bal['staking_withdrawable'] ?? 0),
+            'bonus'    => (float) ($bal['bonus_withdrawable'] ?? 0),
         ];
 
         // On-chain custodial deposit wallet

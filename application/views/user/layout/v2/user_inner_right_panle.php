@@ -183,8 +183,7 @@ $rank = $this->rankservice->get_rank_status($uid);
     <!-- Requirement chips -->
     <div class="req-chips">
         <span class="req ok"><i class="ph ph-check-circle"></i> Active</span>
-        <span class="req ok"><i class="ph ph-check-circle"></i> KYC</span>
-        <span class="req warn"><i class="ph ph-warning-circle"></i> Need Pairs</span>
+        <span class="req ok"><i class="ph ph-check-circle"></i> KYC</span>        
     </div>
 
     <!-- Stats tiles -->
@@ -227,15 +226,7 @@ $rank = $this->rankservice->get_rank_status($uid);
     <div class="panel-title" style="margin-bottom:8px;">
         <h3 style="font-size:14px;">Action Center</h3>
         <span class="chip">Important</span>
-    </div>
-
-    <div class="a">
-        <div class="ic"><i class="ph ph-warning-circle"></i></div>
-        <div>
-            <b>Weak Leg Needs +330 BV</b>
-            <small>Add BV on right leg to increase pairs & earnings.</small>
-        </div>
-    </div>
+    </div>    
 
     <div class="a">
         <div class="ic"><i class="ph ph-identification-card"></i></div>
@@ -244,15 +235,7 @@ $rank = $this->rankservice->get_rank_status($uid);
             <small>Your account is eligible for withdrawals.</small>
         </div>
     </div>
-
-    <div class="a">
-        <div class="ic"><i class="ph ph-bag"></i></div>
-        <div>
-            <b>Earn More BV via Shopping</b>
-            <small>Buy recommended products to stay active.</small>
-        </div>
-    </div>
-
+    
     <button class="btn-full" onclick="window.location.href='<?php echo base_url('user/main'); ?>'">Go to
         Tasks</button>
 </div>

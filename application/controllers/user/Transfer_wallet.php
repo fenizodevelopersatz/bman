@@ -20,6 +20,7 @@ class Transfer_wallet extends MY_Controller
         $this->load->model('member/Users_model');
         $this->load->model('Walletledger_model', 'L');
         $this->load->model('wallet/Wallettransfer_model', 'WT');
+        $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
     }
 
     private function _json($d, $c = 200)
@@ -32,10 +33,12 @@ class Transfer_wallet extends MY_Controller
     public function index()
     {
         $uid = $this->_uid();
-        $all = $this->L->balances($uid);
+        // Hold-aware: matches the Payouts page — BMAN tied up in a pending
+        // withdrawal lock isn't shown as available to transfer either.
+        $all = $this->bmanwithdraw->maturity_breakdown($uid);
         $data['internal_balances'] = [
-            'exchange' => (float)$all['exchange'], 'earning' => (float)$all['earning'],
-            'staking'  => (float)$all['staking'],  'bonus'   => (float)$all['bonus'],
+            'exchange' => (float)($all['exchange_withdrawable'] ?? 0), 'earning' => (float)($all['earning_withdrawable'] ?? 0),
+            'staking'  => (float)($all['staking_withdrawable'] ?? 0),  'bonus'   => (float)($all['bonus_withdrawable'] ?? 0),
         ];
         $user = $this->Users_model->get_user($uid);
         $data['has_transfer_password'] = !empty($user['transfer_password']);
@@ -95,8 +98,13 @@ class Transfer_wallet extends MY_Controller
         ]);
         if (empty($out['ok'])) return $this->_json(['status'=>'error','code'=>$out['code'] ?? '','message'=>$out['message']], 422);
 
-        $bal = $this->L->balances($uid);
-        unset($bal['usdt']);
+        $all = $this->bmanwithdraw->maturity_breakdown($uid);
+        $bal = [
+            'exchange' => (float)($all['exchange_withdrawable'] ?? 0),
+            'earning'  => (float)($all['earning_withdrawable'] ?? 0),
+            'staking'  => (float)($all['staking_withdrawable'] ?? 0),
+            'bonus'    => (float)($all['bonus_withdrawable'] ?? 0),
+        ];
         return $this->_json(['status'=>'success','message'=>'Sent successfully. Ref: '.$out['ref'],
             'reference'=>$out['ref'], 'balances'=>$bal]);
     }
