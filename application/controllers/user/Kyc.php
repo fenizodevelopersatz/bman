@@ -111,9 +111,9 @@ class Kyc extends MY_Controller
             $addError('doc_type', 'Please select a document type.');
         }
 
-        $this->_validateUpload('doc_front', 'Front image is required.', ['jpg','jpeg','png','webp','gif'], 8, $errors);
-        $this->_validateUpload('doc_back', 'Back image is required.', ['jpg','jpeg','png','webp','gif'], 8, $errors);
-        $this->_validateUpload('selfie', 'Selfie image is required.', ['jpg','jpeg','png','webp'], 8, $errors);
+        $this->_validateUploadOrKeep('doc_front', $existing['doc_front_url'] ?? '', 'Front image is required.', ['jpg','jpeg','png','webp','gif'], 8, $errors);
+        $this->_validateUploadOrKeep('doc_back', $existing['doc_back_url'] ?? '', 'Back image is required.', ['jpg','jpeg','png','webp','gif'], 8, $errors);
+        $this->_validateUploadOrKeep('selfie', $existing['selfie_url'] ?? '', 'Selfie image is required.', ['jpg','jpeg','png','webp'], 8, $errors);
 
         if (!empty($errors)) {
             return $this->_json([
@@ -266,8 +266,11 @@ class Kyc extends MY_Controller
         ];
     }
 
-    private function _validateUpload($field, $message, array $exts, $maxMb, array &$errors)
+    private function _validateUploadOrKeep($field, $existingUrl, $message, array $exts, $maxMb, array &$errors)
     {
+        if (!empty($existingUrl) && empty($_FILES[$field]['name'])) {
+            return true;
+        }
         if (empty($_FILES[$field]['name'])) {
             $errors[$field] = $message;
             return false;

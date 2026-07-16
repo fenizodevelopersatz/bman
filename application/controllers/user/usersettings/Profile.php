@@ -59,7 +59,7 @@ class Profile extends MY_Controller
 
         $current = $this->kyc->getByUser($uid);
         $status = $current['status'] ?? 'none';
-        $readOnly = in_array($status, ['pending', 'approved'], true);
+        $readOnly = in_array($status, ['under_review', 'approved'], true);
 
         $userid = $this->session->userdata('user_userid');
         // $data['kyc'] = $kyc;

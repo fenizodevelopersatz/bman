@@ -48,9 +48,9 @@ class Kyc_model extends CI_Model
         }
     }
 
-    // Users may only upload/edit when NOT_SUBMITTED or RESUBMIT_REQUIRED.
+    // Users may upload/edit while the application is new, pending review, or resubmission is required.
     public function canUserEdit($state){
-        return in_array($state, [self::S_NOT_SUBMITTED, self::S_RESUBMIT_REQUIRED], true);
+        return in_array($state, [self::S_NOT_SUBMITTED, self::S_PENDING, self::S_RESUBMIT_REQUIRED], true);
     }
 
     public function reasonRequired($action){
