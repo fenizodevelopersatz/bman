@@ -73,6 +73,16 @@ class User extends CI_Controller
 			$this->data['last_order'] = $last_order;
 			$this->data['chart_data'] = $order_data;
 			$this->data['userinfo'] = $userinfo;
+
+			// The five wallets, straight from Walletledger_model — the single
+			// source of truth for balances (it owns user_wallets + wallet_ledger
+			// and keeps them in step inside one locked transaction). Rendered
+			// server-side rather than fetched: five numbers do not need a round
+			// trip, and the old KPI cards had NO javascript filling them at all,
+			// which is why they always showed 0.00.
+			$this->load->model('Walletledger_model', 'wl');
+			$this->data['wallets'] = $this->wl->balances($userid);
+
 			$this->load->view('user/dashboard/index', $this->data);
 
 		} else {
@@ -1118,10 +1128,21 @@ class User extends CI_Controller
 
 
 
-	// GET: /dashboard/recentOrdersAjax?limit=4
+	/**
+	 * GET user/recentOrdersAjax?limit=4 — the member's recent STAKING PURCHASES.
+	 *
+	 * Was listing e-commerce `orders` (shop products, shipment status, BV per
+	 * product). This platform's "orders" are staking purchases, so it now reads
+	 * staking_swap_orders and reports the plan, term, BMAN bought and the swap
+	 * state.
+	 *
+	 * Session key: user_userid — the same key index() and every other member
+	 * endpoint uses. The old code read 'user_get_id', which is set at login but
+	 * is a second, parallel key; standardising avoids one going stale.
+	 */
 	public function recentOrdersAjax()
 	{
-		$user_id = (int) ($this->session->userdata('user_get_id') ?? 0);
+		$user_id = (int) ($this->session->userdata('user_userid') ?? 0);
 		if ($user_id <= 0) {
 			return $this->_json([
 				'status' => false,
@@ -1135,66 +1156,68 @@ class User extends CI_Controller
 		if ($limit > 20)
 			$limit = 20;
 
-		// Latest shipment status per order (if multiple shipment rows exist)
-		$latestShipmentSub = "
-      SELECT s1.*
-      FROM order_shipments s1
-      INNER JOIN (
-        SELECT order_id, MAX(updated_at) AS mx
-        FROM order_shipments
-        GROUP BY order_id
-      ) s2 ON s2.order_id = s1.order_id AND s2.mx = s1.updated_at
-    ";
-
-		/*
-		  BV Earned calculation:
-		  - If you have a real BV column, replace `p.commission` with that column.
-		  - Here we assume product.commission is BV per item.
-		*/
 		$sql = "
       SELECT
         o.id,
-        o.order_code,
-        o.total_amount,
+        o.ref,
+        o.usdt_amount,
+        o.bman_amount,
+        o.bonus_bman,
+        o.plan_code,
+        o.duration_years,
+        o.status,
+        o.cron_status,
         o.created_at,
-        o.payment_status,
-        COALESCE(ls.status, 'processing') AS shipment_status,
-        COALESCE(SUM(oi.quantity * COALESCE(p.commission, 0)), 0) AS bv_earned
-      FROM orders o
-      LEFT JOIN ($latestShipmentSub) ls ON ls.order_id = o.id
-      LEFT JOIN order_items oi ON oi.order_id = o.id
-      LEFT JOIN products p ON p.id = oi.product_id
+        pk.name AS package_name
+      FROM staking_swap_orders o
+      LEFT JOIN staking_packages pk ON pk.id = o.package_id
       WHERE o.user_id = ?
-      GROUP BY o.id
       ORDER BY o.id DESC
       LIMIT ?
     ";
-
 		$rows = $this->db->query($sql, [$user_id, $limit])->result_array();
 
 		$orders = [];
 		foreach ($rows as $r) {
-			$status = $r['shipment_status'] ?: 'processing';
-
-			// You can map to your UI labels here:
-			// packed/placed => PROCESSING, etc. OR keep raw.
 			$orders[] = [
-				'order_id' => (int) $r['id'],
-				'order_code' => (string) $r['order_code'],
-				'total_amount' => number_format((float) $r['total_amount'], 2),
-				'bv_earned' => (int) round((float) $r['bv_earned']),
-				'order_status' => (string) $status,
-				'order_date' => date('d M Y', strtotime($r['created_at'])),
+				'order_id'     => (int) $r['id'],
+				'order_code'   => (string) $r['ref'],
+				'package'      => (string) ($r['package_name'] ?: 'Staking package'),
+				'plan'         => $r['plan_code'] ? ucfirst($r['plan_code']) : '—',
+				'term'         => $r['duration_years'] ? ((int) $r['duration_years'] . 'y') : '—',
+				'bman_amount'  => number_format((float) $r['bman_amount'], 2),
+				'bonus_bman'   => number_format((float) $r['bonus_bman'], 2),
+				'usdt_amount'  => number_format((float) $r['usdt_amount'], 2),
+				'order_status' => $this->_stakeStatus($r['status'], $r['cron_status']),
+				'raw_status'   => (string) $r['status'],
+				'order_date'   => date('d M Y', strtotime($r['created_at'])),
 			];
 		}
 
-		$symbol = currency_info()->currency_symbol ?? '₹';
-
 		return $this->_json([
-			'status' => true,
-			'currency_symbol' => $symbol,
-			'orders' => $orders
+			'status'          => true,
+			'currency_symbol' => 'BMAN',
+			'orders'          => $orders
 		]);
+	}
+
+	/**
+	 * Collapse the swap state machine into something a member can read.
+	 *
+	 * The engine's success state is 'swap_completed' — NOT 'completed', despite
+	 * what db/staking_swap.sql documents. A purchase is only truly done when the
+	 * delivery cron has run too, hence the cron_status check.
+	 */
+	private function _stakeStatus($status, $cronStatus)
+	{
+		$s = strtolower((string) $status);
+
+		if (in_array($s, ['swap_completed', 'completed'], true)) {
+			return strtolower((string) $cronStatus) === 'completed' ? 'completed' : 'processing';
+		}
+		if (strpos($s, 'failed') === 0)                 return 'failed';
+		if (in_array($s, ['cancelled', 'canceled'], true)) return 'cancelled';
+		return 'pending';   // created / pending_gas_fee / pending_usdt / pending_bman / active
 	}
 
 
@@ -1269,6 +1292,42 @@ class User extends CI_Controller
 		if ($t === 'profit' || $t === 'roi')
 			return 'ROI / Profit';
 		return 'Commission';
+	}
+
+	/**
+	 * GET user/activityTrendAjax?range=daily|monthly|yearly
+	 *
+	 * Live data for the dashboard "User Activity & Coin Trend" chart. Replaces
+	 * assets/user_v2/data/dashboard_chart.json, which was static dummy data.
+	 *
+	 * Answers for the SESSION user only — the range is the sole input, and the
+	 * user id is never taken from the request, so one member cannot pull another
+	 * member's team figures.
+	 *
+	 * One range per call (the client caches each range it has already fetched),
+	 * so the first paint costs one query set instead of three.
+	 */
+	public function activityTrendAjax()
+	{
+		$userId = (int) $this->session->userdata('user_userid');
+		if (!$userId) {
+			return $this->_json(['ok' => false, 'message' => 'Not logged in']);
+		}
+
+		$range = (string) $this->input->get('range', true);
+		if (!in_array($range, ['daily', 'monthly', 'yearly'], true)) {
+			$range = 'monthly';
+		}
+
+		try {
+			$this->load->model('user/Dashboardchart_model', 'dashchart');
+			$data = $this->dashchart->trend($userId, $range);
+			return $this->_json(['ok' => true] + $data);
+		} catch (Throwable $e) {
+			// The chart must never take the dashboard down with it.
+			log_message('error', 'activityTrendAjax: ' . $e->getMessage());
+			return $this->_json(['ok' => false, 'message' => 'Could not load chart data.']);
+		}
 	}
 
 	private function _json($data)
