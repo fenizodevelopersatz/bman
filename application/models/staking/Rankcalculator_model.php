@@ -9,8 +9,9 @@
  *   calculateGroupVolume($user_id [, $from, $to])
  *       → ['left_volume','right_volume','total_volume']
  *       Completed staking BMAN from the ENTIRE downline. Own staking excluded.
- *       Source: staking_swap_orders WHERE status='completed'
+ *       Source: staking_swap_orders WHERE status IN ('swap_completed','completed')
  *                                     AND cron_status='completed'
+ *       (the engine writes 'swap_completed' — see $done_status)
  *       Amount: bman_amount. Everything else (cancelled/failed/pending/
  *       rejected/expired/refunded) is excluded by the status pair above.
  *       Passing $from/$to windows the volume — that is how Rank Power (§11)
@@ -33,6 +34,24 @@
  */
 class Rankcalculator_model extends CI_Model
 {
+    /**
+     * Swap-order statuses that mean "the stake actually completed".
+     *
+     * CRITICAL — the engine writes 'swap_completed', NOT 'completed'.
+     * Swapengine_model / StakingSwap_model only ever set: active,
+     * failed_credit, pending_gas_fee, pending_usdt, pending_bman,
+     * swap_completed. The live table contains only 'swap_completed' and
+     * 'cancelled'. The comment at db/staking_swap.sql:47 promising
+     * "created → usdt_sent → bman_sent → completed" is stale, and the original
+     * spec inherited it — so filtering on status='completed' matched ZERO rows
+     * and every member's group volume computed as 0, meaning the achievement
+     * cron could never promote anyone.
+     *
+     * Both spellings are accepted so this survives the engine ever being
+     * aligned to the documented state machine.
+     */
+    public static $done_status = ['swap_completed', 'completed'];
+
     /** @var array<int,array{left:int|null,right:int|null}> parent_id => leg roots */
     private $legs = null;
     /** @var array<int,int[]> parent_id => [child_id, …] */
@@ -86,7 +105,7 @@ class Rankcalculator_model extends CI_Model
 
         $this->db->select('user_id, SUM(bman_amount) AS vol')
                  ->from('staking_swap_orders')
-                 ->where('status', 'completed')
+                 ->where_in('status', self::$done_status)
                  ->where('cron_status', 'completed');
         // Window on updated_at — the moment the order reached completed.
         if ($from) $this->db->where('updated_at >=', $from);
