@@ -983,11 +983,12 @@ function profile_completion_percent($user_id)
 }
 
 /**
- * KYC verification progress, not the 5-factor profile-completeness score
+ * KYC verification status, not the 5-factor profile-completeness score
  * above (name/address/photo/KYC/bank each worth 20%) — this is KYC alone,
- * for the dashboard's "Profile & Stats" ring, which is meant to show how
- * far along KYC verification is, not general profile fill-out.
- * users.kyc_status: none · pending · under_review · resubmitted · approved · rejected
+ * for the dashboard's "Profile & Stats" ring. Binary by design: 100% once
+ * kyc_status = 'approved', 0% for every other state (none/pending/
+ * under_review/resubmitted/rejected) — KYC is either done or it isn't,
+ * there's no partial credit for withdraw eligibility.
  */
 function kyc_completion_percent($user_id)
 {
@@ -995,15 +996,7 @@ function kyc_completion_percent($user_id)
     $user = $CI->db->select('kyc_status')->get_where('users', ['id' => (int) $user_id])->row();
     if (!$user) return 0;
 
-    switch (strtolower((string) $user->kyc_status)) {
-        case 'approved':                    return 100;
-        case 'under_review':                return 70;
-        case 'pending':
-        case 'resubmitted':                 return 40;
-        case 'rejected':
-        case 'none':
-        default:                            return 0;
-    }
+    return strtolower((string) $user->kyc_status) === 'approved' ? 100 : 0;
 }
 
 function user_profile_image($uid)
