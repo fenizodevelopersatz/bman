@@ -302,11 +302,29 @@
         .fin-filter button.active{ background:var(--mp-primary,#6D4AFF); color:#fff; }
         .fin-chart-body{ position:relative; height:300px; }
       </style>
+      <style>
+        /* Stat tiles above the trend chart. One per series, colour-matched to
+           the dataset so the legend and the tiles read as one thing. */
+        .fin-tiles{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin:14px 0 18px; }
+        .fin-tile{ border:1px solid var(--bs-border-color,#eef0f4); border-radius:14px; padding:12px 14px;
+          background:var(--bs-body-bg,#fff); min-width:0; }
+        .fin-tile .k{ display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:600;
+          color:var(--bs-secondary-color,#8a8f99); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .fin-tile .k i{ width:9px; height:9px; border-radius:50%; flex:0 0 9px; display:inline-block; }
+        .fin-tile .v{ font-size:20px; font-weight:800; margin-top:5px; letter-spacing:-.4px;
+          font-variant-numeric:tabular-nums; }
+        .fin-tile .v small{ font-size:11px; font-weight:600; color:var(--bs-secondary-color,#8a8f99); margin-left:3px; }
+        .fin-tile.is-loading .v{ color:transparent; background:linear-gradient(90deg,#eee 25%,#f6f6f6 50%,#eee 75%);
+          background-size:200% 100%; animation:finsh 1.3s infinite; border-radius:6px; }
+        @keyframes finsh{ 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        @media (max-width:1100px){ .fin-tiles{ grid-template-columns:repeat(3,1fr); } }
+        @media (max-width:620px){ .fin-tiles{ grid-template-columns:repeat(2,1fr); } }
+      </style>
       <div class="fin-chart-card">
         <div class="fin-chart-head">
           <div>
-            <h3>Finance Overview</h3>
-            <small id="finRangeLabel">Income vs Outcome &amp; Profit</small>
+            <h3>User Activity &amp; Coin Trend</h3>
+            <small id="finRangeLabel">Loading live data…</small>
           </div>
           <div class="fin-filter" id="finFilter">
             <button type="button" data-range="daily">Days</button>
@@ -314,6 +332,20 @@
             <button type="button" data-range="yearly">Yearly</button>
           </div>
         </div>
+
+        <div class="fin-tiles" id="finTiles">
+          <div class="fin-tile is-loading"><div class="k"><i style="background:#9aa3b2"></i>Active Users</div>
+            <div class="v" id="finTileActive">0</div></div>
+          <div class="fin-tile is-loading"><div class="k"><i style="background:#f59e0b"></i>Bonus Used</div>
+            <div class="v" id="finTileBonus">0<small>BMAN</small></div></div>
+          <div class="fin-tile is-loading"><div class="k"><i style="background:#8b5cf6"></i>Staking Done</div>
+            <div class="v" id="finTileStaking">0</div></div>
+          <div class="fin-tile is-loading"><div class="k"><i style="background:#2563eb"></i>Earning Coin</div>
+            <div class="v" id="finTileEarning">0<small>BMAN</small></div></div>
+          <div class="fin-tile is-loading"><div class="k"><i style="background:#22c55e"></i>Coin Withdrawal</div>
+            <div class="v" id="finTileWithdraw">0<small>BMAN</small></div></div>
+        </div>
+
         <div class="fin-chart-body"><canvas id="financeChart"></canvas></div>
       </div>
 
@@ -893,60 +925,135 @@
     }
   </script>
 
-  <!-- Finance Overview chart (Chart.js combo: income/outcome bars + profit line) -->
+  <!-- User Activity & Coin Trend — LIVE from user/activityTrendAjax.
+       Was reading assets/user_v2/data/dashboard_chart.json, which described
+       itself as "Dummy dashboard finance data". Chart.js 4.4.1 and the
+       day/month/year filter are unchanged; only the data source and the series. -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>
   (function () {
     var canvas = document.getElementById('financeChart');
     if (!canvas || typeof Chart === 'undefined') return;
 
-    var DATA = null, chart = null, range = 'monthly';
-    var css = getComputedStyle(document.documentElement);
-    var primary = (css.getPropertyValue('--mp-primary') || '#6D4AFF').trim();
-    var danger  = (css.getPropertyValue('--mp-danger')  || '#F64E60').trim();
-    var accent  = (css.getPropertyValue('--mp-secondary') || '#FFC94A').trim();
+    var ENDPOINT = '<?php echo base_url('user/activityTrendAjax'); ?>';
+    var chart = null, range = 'monthly';
+    // Each range is fetched once and kept — flipping Days/Months/Yearly after
+    // the first visit is instant and costs no further requests.
+    var CACHE = {}, inflight = {};
 
-    function fmt(v){ return (v >= 1000 ? (v/1000).toFixed(v >= 1000000 ? 1 : 0) + (v >= 1000000 ? 'M' : 'K') : v); }
+    // Money in = blue, money out = green (per spec). The three count/《used》
+    // series ride the right-hand axis so they aren't flattened by the coin
+    // amounts, which are orders of magnitude larger.
+    var C = {
+      earning:  '#2563eb',  // blue  — earning coin in
+      withdraw: '#22c55e',  // green — coin withdrawn out
+      bonus:    '#f59e0b',
+      staking:  '#8b5cf6',
+      active:   '#9aa3b2'
+    };
 
-    function render(){
-      if (!DATA) return;
-      var d = DATA[range]; if (!d) return;
+    function fmt(v){
+      v = Number(v) || 0;
+      if (v >= 1000000) return (v/1000000).toFixed(1) + 'M';
+      if (v >= 1000)    return (v/1000).toFixed(v >= 10000 ? 0 : 1) + 'K';
+      return v;
+    }
+    function num(v){ return Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+
+    function setTiles(s, loading){
+      document.querySelectorAll('.fin-tile').forEach(function(t){
+        t.classList.toggle('is-loading', !!loading);
+      });
+      if (!s) return;
+      document.getElementById('finTileActive').textContent   = num(s.active_users);
+      document.getElementById('finTileStaking').textContent  = num(s.staking_done);
+      document.getElementById('finTileBonus').innerHTML      = num(s.bonus_used)      + '<small>BMAN</small>';
+      document.getElementById('finTileEarning').innerHTML    = num(s.earning_coin)    + '<small>BMAN</small>';
+      document.getElementById('finTileWithdraw').innerHTML   = num(s.coin_withdrawal) + '<small>BMAN</small>';
+    }
+
+    function render(d){
       var labels = d.points.map(function(p){ return p.date; });
-      var income = d.points.map(function(p){ return p.income; });
-      var outcome = d.points.map(function(p){ return p.outcome; });
-      var profit = d.points.map(function(p){ return p.profit; });
-      document.getElementById('finRangeLabel').textContent = d.label + ' · Income vs Outcome & Profit (USDT)';
+      var pick = function(k){ return d.points.map(function(p){ return p[k]; }); };
+
+      document.getElementById('finRangeLabel').textContent =
+        d.label + ' · ' + (d.scope === 'team' ? 'your team' : 'platform') + ' · live';
+      setTiles(d.summary, false);
 
       var cfg = {
         data: { labels: labels, datasets: [
-          { type:'bar', label:'Income',  data:income,  backgroundColor:primary, borderRadius:6, maxBarThickness:26, order:2 },
-          { type:'bar', label:'Outcome', data:outcome, backgroundColor:danger,  borderRadius:6, maxBarThickness:26, order:2 },
-          { type:'line', label:'Profit', data:profit, borderColor:accent, backgroundColor:accent, borderWidth:3,
-            tension:.35, pointRadius:3, pointBackgroundColor:accent, fill:false, order:1 }
+          { type:'bar', label:'Earning Coin', data:pick('earning_coin'), backgroundColor:C.earning,
+            borderRadius:6, maxBarThickness:22, order:3, yAxisID:'y' },
+          { type:'bar', label:'Coin Withdrawal', data:pick('coin_withdrawal'), backgroundColor:C.withdraw,
+            borderRadius:6, maxBarThickness:22, order:3, yAxisID:'y' },
+          { type:'line', label:'Bonus Used', data:pick('bonus_used'), borderColor:C.bonus,
+            backgroundColor:C.bonus, borderWidth:2.5, tension:.35, pointRadius:2.5, fill:false, order:2, yAxisID:'y' },
+          { type:'line', label:'Staking Done', data:pick('staking_done'), borderColor:C.staking,
+            backgroundColor:C.staking, borderWidth:2.5, tension:.35, pointRadius:2.5, fill:false, order:1, yAxisID:'y1' },
+          { type:'line', label:'Active Users', data:pick('active_users'), borderColor:C.active,
+            backgroundColor:C.active, borderWidth:2, borderDash:[5,4], tension:.35, pointRadius:2,
+            fill:false, order:1, yAxisID:'y1' }
         ]},
         options: {
           responsive:true, maintainAspectRatio:false, interaction:{ mode:'index', intersect:false },
-          plugins:{ legend:{ position:'top', labels:{ usePointStyle:true, boxWidth:8, padding:16 } },
-            tooltip:{ callbacks:{ label:function(c){ return c.dataset.label + ': ' + Number(c.raw).toLocaleString() + ' USDT'; } } } },
-          scales:{ x:{ grid:{ display:false } },
-            y:{ beginAtZero:true, ticks:{ callback:function(v){ return fmt(v); } }, grid:{ color:'rgba(140,140,160,.12)' } } }
+          plugins:{
+            legend:{ position:'top', labels:{ usePointStyle:true, boxWidth:8, padding:14 } },
+            tooltip:{ callbacks:{ label:function(c){
+              var coin = (c.dataset.yAxisID === 'y');
+              return c.dataset.label + ': ' + num(c.raw) + (coin ? ' BMAN' : '');
+            } } }
+          },
+          scales:{
+            x:{ grid:{ display:false } },
+            y:{  position:'left',  beginAtZero:true, title:{ display:true, text:'BMAN' },
+                 ticks:{ callback:function(v){ return fmt(v); } }, grid:{ color:'rgba(140,140,160,.12)' } },
+            y1:{ position:'right', beginAtZero:true, title:{ display:true, text:'Users / Stakes' },
+                 ticks:{ precision:0 }, grid:{ drawOnChartArea:false } }
+          }
         }
       };
       if (chart) { chart.data = cfg.data; chart.options = cfg.options; chart.update(); }
       else { chart = new Chart(canvas.getContext('2d'), cfg); }
     }
 
+    function fail(msg){
+      document.querySelector('.fin-chart-body').innerHTML =
+        '<div style="padding:40px;text-align:center;color:#8a8f99">' + msg + '</div>';
+      setTiles(null, false);
+    }
+
+    function load(r){
+      if (CACHE[r]) { render(CACHE[r]); return; }
+      if (inflight[r]) return;              // don't stack requests on fast clicks
+      inflight[r] = true;
+      setTiles(null, true);
+      document.getElementById('finRangeLabel').textContent = 'Loading live data…';
+
+      fetch(ENDPOINT + '?range=' + encodeURIComponent(r), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin'
+      })
+        .then(function(res){ return res.json(); })
+        .then(function(j){
+          inflight[r] = false;
+          if (!j || !j.ok) { fail((j && j.message) || 'Chart data could not be loaded.'); return; }
+          CACHE[r] = j;
+          if (range === r) render(j);       // ignore a stale response for an old range
+        })
+        .catch(function(){
+          inflight[r] = false;
+          fail('Chart data could not be loaded.');
+        });
+    }
+
     document.getElementById('finFilter').addEventListener('click', function(e){
       var b = e.target.closest('button[data-range]'); if (!b) return;
       this.querySelectorAll('button').forEach(function(x){ x.classList.remove('active'); });
-      b.classList.add('active'); range = b.dataset.range; render();
+      b.classList.add('active');
+      range = b.dataset.range;
+      load(range);
     });
 
-    fetch('<?php echo base_url('assets/user_v2/data/dashboard_chart.json'); ?>?v=' + Date.now())
-      .then(function(r){ return r.json(); })
-      .then(function(json){ DATA = json; render(); })
-      .catch(function(){ document.querySelector('.fin-chart-body').innerHTML =
-        '<div style="padding:40px;text-align:center;color:#8a8f99">Chart data could not be loaded.</div>'; });
+    load(range);
   })();
   </script>
 </body>
