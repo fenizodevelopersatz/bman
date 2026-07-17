@@ -13,7 +13,10 @@
  * rather than breaking every page in the member area.
  */
 $uid = $this->session->userdata('user_userid') ?? '';
-$profile_percent = profile_completion_percent($uid);
+// The top ring is KYC verification progress, not the broader 5-factor
+// profile-completeness score (name/address/photo/KYC/bank) — KYC is what
+// gates withdraw eligibility, so that's what this widget should reflect.
+$profile_percent = kyc_completion_percent($uid);
 
 /**
  * NOTE — use get_instance(), not $this, to load and reach the model here.
@@ -63,7 +66,7 @@ $rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian not
         </span>
     </div>
     <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--text-secondary, #8E8E93);margin:0 0 10px;text-transform:uppercase;letter-spacing:.4px;">
-        Profile Completion
+        KYC Verification
     </div>
 
     <div class="hello">
