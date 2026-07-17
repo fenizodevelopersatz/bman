@@ -1,4 +1,42 @@
 
+* * * * * cd /var/www/html/project && php index.php stakingpurchasecron run
+*/5 * * * * cd /var/www/html/project && php index.php roidistribution_cron run
+0 0 * * * cd /var/www/html/project && php index.php roimonthlydistribution_cron run
+0 0 * * * cd /var/www/html/project && php index.php roimaturitypayment_cron run
+0 0 * * * cd /var/www/html/project && php index.php walletmaturitycron run
+*/5 * * * * cd /var/www/html/project && php index.php BinaryMatchingPayoutCron run
+0 * * * * cd /var/www/html/project && php index.php rankachievementcron run
+0 2 * * * cd /var/www/html/project && php index.php rankpowercron run
+
+
+# Every 10 minutes - Process staking purchases
+*/10 * * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php stakingpurchasecron run >> cronlogs/staking.log 2>&1
+
+# Every 3 hours - ROI distribution
+0 */3 * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php roidistribution_cron run >> cronlogs/roi.log 2>&1
+
+# Daily at 12:00 AM - Monthly ROI distribution
+0 0 * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php roimonthlydistribution_cron run >> cronlogs/roi_monthly.log 2>&1
+
+# Daily at 1:00 AM - ROI maturity payment
+0 1 * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php roimaturitypayment_cron run >> cronlogs/roi_maturity_payout.log 2>&1
+
+# Daily at 2:00 AM - Wallet maturity
+0 2 * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php walletmaturitycron run >> cronlogs/wallet_maturity.log 2>&1
+
+# Twice a day (6:00 AM and 6:00 PM) - Binary matching payout
+0 6,18 * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php BinaryMatchingPayoutCron run >> cronlogs/binary_matching_payout.log 2>&1
+
+# Daily at 3:00 AM - Rank achievement
+0 3 * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php rankachievementcron run >> cronlogs/rankachievement.log 2>&1
+
+# Daily at 4:00 AM - Rank power
+0 4 * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php rankpowercron run >> cronlogs/rankpowercron.log 2>&1
+
+
+
+
+
 # 4. Or via CLI
 php index.php stakingpurchasecron run
 php index.php stakingpurchasecron run watch

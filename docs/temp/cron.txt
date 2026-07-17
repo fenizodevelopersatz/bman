@@ -1,5 +1,35 @@
-# 4. Schedule cron
-# 0 8 * * * /usr/bin/php /path/to/index.php roimaturitycron run
 
-# 5. Test
-php index.php roimaturitycron run
+* * * * * cd /var/www/html/project && php index.php stakingpurchasecron run
+*/5 * * * * cd /var/www/html/project && php index.php roidistribution_cron run
+0 0 * * * cd /var/www/html/project && php index.php roimonthlydistribution_cron run
+0 0 * * * cd /var/www/html/project && php index.php roimaturitypayment_cron run
+0 0 * * * cd /var/www/html/project && php index.php walletmaturitycron run
+*/5 * * * * cd /var/www/html/project && php index.php BinaryMatchingPayoutCron run
+0 * * * * cd /var/www/html/project && php index.php rankachievementcron run
+0 2 * * * cd /var/www/html/project && php index.php rankpowercron run
+
+
+
+# Every minute - Process staking purchases
+* * * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php stakingpurchasecron run >> cronlogs/staking.log 2>&1
+
+# Every 5 minutes - ROI distribution
+*/5 * * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php roidistribution_cron run >> cronlogs/roi.log 2>&1
+
+# Daily at 12:00 AM - Monthly ROI distribution
+0 0 * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php roimonthlydistribution_cron run >> cronlogs/roi_monthly.log 2>&1
+
+# Daily at 12:00 AM - ROI maturity payment
+0 0 * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php roimaturitypayment_cron run >> cronlogs/roi_maturity_payout.log 2>&1
+
+# Daily at 12:00 AM - Wallet maturity
+0 0 * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php walletmaturitycron run >> cronlogs/wallet_maturity.log 2>&1
+
+# Every 5 minutes - Binary matching payout
+*/5 * * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php BinaryMatchingPayoutCron run >> cronlogs/binary_matching_payout.log 2>&1
+
+# Every hour - Rank achievement
+0 * * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php rankachievementcron run >> cronlogs/rankachievement.log 2>&1
+
+# Daily at 2:00 AM - Rank power
+0 2 * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php rankpowercron run >> cronlogs/rankpowercron.log 2>&1
