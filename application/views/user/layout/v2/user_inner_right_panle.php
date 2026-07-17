@@ -62,6 +62,9 @@ $rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian not
             <?= $profile_percent ?>%
         </span>
     </div>
+    <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--text-secondary, #8E8E93);margin:0 0 10px;text-transform:uppercase;letter-spacing:.4px;">
+        Profile Completion
+    </div>
 
     <div class="hello">
         <!-- <h3>Good Morning Lucas</h3> -->
@@ -179,8 +182,8 @@ $rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian not
     </style>
 
     <div class="rank-card">
-        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-            <?= rank_badge_html($rk['badge_image'], $rk['badge_color'], 34); ?>
+        <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+            <?= rank_badge_html($rk['badge_image'], $rk['badge_color'], 64); ?>
             <div style="min-width:0;">
                 <p class="label" style="margin:0;">Current Rank</p>
                 <span class="rank-badge"><?= htmlspecialchars($rk['name']); ?></span>
