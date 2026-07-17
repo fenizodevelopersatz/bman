@@ -69,7 +69,9 @@
                                                     <tr class="text-start text-gray-500 fw-bold fs-7 text-uppercase gs-0">
                                                         <th class="w-50px">Tier</th>
                                                         <th>Rank</th>
+                                                        <th class="text-end">Volume Required</th>
                                                         <th class="text-end">Group Incentive</th>
+                                                        <th class="text-end">Reward</th>
                                                         <th>Qualification (Plan-1 / Plan-2 / Plan-3)</th>
                                                         <th class="text-center">Benefits</th>
                                                         <th class="text-center">Active</th>
@@ -81,10 +83,25 @@
                                                     <tr data-id="<?php echo (int)$r['id']; ?>">
                                                         <td><?php echo (int)$r['tier_level']; ?></td>
                                                         <td>
-                                                            <span class="stk-badge-dot me-2" style="background: <?php echo html_escape($r['badge_color'] ?: '#ccc'); ?>"></span>
+                                                            <?php if (!empty($r['badge_image'])): ?>
+                                                                <img src="<?php echo base_url($r['badge_image']); ?>"
+                                                                     style="height:22px;width:22px;object-fit:contain;vertical-align:middle" class="me-2" alt="">
+                                                            <?php else: ?>
+                                                                <span class="stk-badge-dot me-2" style="background: <?php echo html_escape($r['badge_color'] ?: '#ccc'); ?>"></span>
+                                                            <?php endif; ?>
                                                             <span class="fw-bold"><?php echo html_escape($r['name']); ?></span>
                                                         </td>
+                                                        <td class="text-end"><?php echo number_format((float)$r['required_group_volume']); ?></td>
                                                         <td class="text-end"><?php echo number_format((float)$r['group_incentive']); ?></td>
+                                                        <td class="text-end fs-8">
+                                                            <?php
+                                                            $rw = [];
+                                                            if ((float)$r['reward_bman'] > 0) $rw[] = number_format((float)$r['reward_bman'], 2) . ' BMAN';
+                                                            if ((float)$r['reward_usdt'] > 0) $rw[] = number_format((float)$r['reward_usdt'], 2) . ' USDT';
+                                                            if (!empty($r['reward_description'])) $rw[] = html_escape($r['reward_description']);
+                                                            echo $rw ? implode('<br>', $rw) : '<span class="text-muted">—</span>';
+                                                            ?>
+                                                        </td>
                                                         <td>
                                                             <?php
                                                             $byPlan = [];
@@ -146,14 +163,68 @@
                                             <div class="modal-body">
                                                 <form id="stk-rank-form">
                                                     <input type="hidden" name="id" value="0" />
+
+                                                    <div class="mb-5">
+                                                        <label class="form-label required">Group volume required (BMAN)</label>
+                                                        <input type="number" name="required_group_volume" step="0.0001" min="0"
+                                                            class="form-control form-control-solid" required />
+                                                        <div class="form-text">
+                                                            Downline staking volume a member must have to <b>reach</b> this rank.
+                                                            Own staking never counts. This is <b>not</b> the incentive amount.
+                                                        </div>
+                                                    </div>
+
                                                     <div class="mb-5">
                                                         <label class="form-label required">Group incentive (BMAN)</label>
                                                         <input type="number" name="group_incentive" step="0.0001" min="0"
                                                             class="form-control form-control-solid" required />
+                                                        <div class="form-text">
+                                                            Amount <b>paid</b> at this rank. Qualification for it is driven by
+                                                            <b>Rank Power</b> (current cycle), not by the permanent rank.
+                                                        </div>
                                                     </div>
+
+                                                    <div class="row g-4 mb-5">
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">One-time reward (BMAN)</label>
+                                                            <input type="number" name="reward_bman" step="0.0001" min="0"
+                                                                class="form-control form-control-solid" />
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">One-time reward (USDT)</label>
+                                                            <input type="number" name="reward_usdt" step="0.0001" min="0"
+                                                                class="form-control form-control-solid" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="form-text mb-5 mt-n3">
+                                                        Credited once, ever, the first time the member reaches this rank.
+                                                        Requires the <b>Rank Reward</b> benefit below. Leave at 0 for none.
+                                                    </div>
+
                                                     <div class="mb-5">
-                                                        <label class="form-label">Badge colour</label>
-                                                        <input type="color" name="badge_color" class="form-control form-control-solid form-control-color" value="#cccccc" />
+                                                        <label class="form-label">Non-cash reward</label>
+                                                        <input type="text" name="reward_description" maxlength="255"
+                                                            class="form-control form-control-solid" placeholder="e.g. Dubai trip, laptop" />
+                                                        <div class="form-text">
+                                                            Recorded as a pending reward for an admin to fulfil by hand. No money moves.
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="row g-4 mb-5">
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Badge colour</label>
+                                                            <input type="color" name="badge_color" class="form-control form-control-solid form-control-color" value="#cccccc" />
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <label class="form-label">Badge image</label>
+                                                            <div class="d-flex align-items-center gap-2">
+                                                                <img id="stk-badge-preview" src="" alt=""
+                                                                     style="height:32px;width:32px;object-fit:contain;display:none" />
+                                                                <input type="file" id="stk-badge-file" accept="image/*"
+                                                                       class="form-control form-control-solid form-control-sm" />
+                                                            </div>
+                                                            <div class="form-text">PNG/SVG, max 1&nbsp;MB. Uploads on pick.</div>
+                                                        </div>
                                                     </div>
                                                     <label class="form-label">Benefits</label>
                                                     <div class="d-flex flex-wrap gap-6 mb-6">
@@ -238,6 +309,11 @@
                 'tier' => (int)$r['tier_level'],
                 'name' => $r['name'],
                 'group_incentive' => (float)$r['group_incentive'],
+                'required_group_volume' => (float)$r['required_group_volume'],
+                'reward_bman' => (float)$r['reward_bman'],
+                'reward_usdt' => (float)$r['reward_usdt'],
+                'reward_description' => $r['reward_description'] ?: '',
+                'badge_image' => $r['badge_image'] ? base_url($r['badge_image']) : '',
                 'badge_color' => $r['badge_color'] ?: '#cccccc',
                 'benefit_badge' => (int)$r['benefit_badge'],
                 'benefit_certificate' => (int)$r['benefit_certificate'],
@@ -288,7 +364,15 @@
                 const r = rankById(tr.dataset.id);
                 rankForm.elements.id.value = r.id;
                 rankForm.elements.group_incentive.value = r.group_incentive;
+                rankForm.elements.required_group_volume.value = r.required_group_volume;
+                rankForm.elements.reward_bman.value = r.reward_bman;
+                rankForm.elements.reward_usdt.value = r.reward_usdt;
+                rankForm.elements.reward_description.value = r.reward_description;
                 rankForm.elements.badge_color.value = r.badge_color;
+                const prev = document.getElementById('stk-badge-preview');
+                prev.src = r.badge_image || '';
+                prev.style.display = r.badge_image ? '' : 'none';
+                document.getElementById('stk-badge-file').value = '';
                 rankForm.elements.benefit_badge.checked = !!r.benefit_badge;
                 rankForm.elements.benefit_certificate.checked = !!r.benefit_certificate;
                 rankForm.elements.benefit_reward.checked = !!r.benefit_reward;
@@ -315,14 +399,39 @@
         rankForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const fd = new FormData();
-            fd.append('group_incentive', rankForm.elements.group_incentive.value);
-            fd.append('badge_color', rankForm.elements.badge_color.value);
+            ['group_incentive','required_group_volume','reward_bman','reward_usdt',
+             'reward_description','badge_color'].forEach(k => {
+                fd.append(k, rankForm.elements[k].value);
+            });
             ['benefit_badge','benefit_certificate','benefit_reward','benefit_recognition'].forEach(k => {
                 fd.append(k, rankForm.elements[k].checked ? 1 : 0);
             });
             const r = await post('admin/staking/ranks/save/' + rankForm.elements.id.value, fd);
             toast(r.msg, r.ok);
             if (r.ok) { bootstrap.Modal.getOrCreateInstance(rankModalEl).hide(); setTimeout(() => location.reload(), 600); }
+        });
+
+        /* Badge upload: fires on pick, independent of the Save button so the
+           preview reflects what is actually stored. */
+        document.getElementById('stk-badge-file').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const id = rankForm.elements.id.value;
+            if (!id || id === '0') { toast('Open a rank first.', false); return; }
+            const fd = new FormData();
+            fd.append('badge', file);
+            const res = await fetch(base + 'admin/staking/ranks/badge/' + id, {
+                method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            let j = {};
+            try { j = await res.json(); } catch (err) { j = { status: 'error', message: 'Upload failed.' }; }
+            const ok = res.ok && j.status === 'success';
+            toast(j.message || '', ok);
+            if (ok) {
+                const prev = document.getElementById('stk-badge-preview');
+                prev.src = j.path; prev.style.display = '';
+                const r = rankById(id); if (r) r.badge_image = j.path;
+            }
         });
 
         /* ---------------- requirements editor ---------------- */

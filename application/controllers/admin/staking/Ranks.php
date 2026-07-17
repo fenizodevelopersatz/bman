@@ -47,19 +47,52 @@ class Ranks extends CI_Controller
         $this->load->view('admin/staking/ranks', $data);
     }
 
-    /* --------------- AJAX: save incentive / benefits of a rank ---------- */
+    /* ------- AJAX: save incentive / volume / rewards / benefits ---------- */
     public function save($id)
     {
         if (!$this->input->is_ajax_request()) show_404();
         list($ok, $msg) = $this->staking->saveRank((int)$id, [
-            'group_incentive'     => $this->input->post('group_incentive', true),
-            'badge_color'         => $this->input->post('badge_color', true),
-            'benefit_badge'       => (int)$this->input->post('benefit_badge'),
-            'benefit_certificate' => (int)$this->input->post('benefit_certificate'),
-            'benefit_reward'      => (int)$this->input->post('benefit_reward'),
-            'benefit_recognition' => (int)$this->input->post('benefit_recognition'),
-        ]);
+            'group_incentive'       => $this->input->post('group_incentive', true),
+            'required_group_volume' => $this->input->post('required_group_volume', true),
+            'reward_bman'           => $this->input->post('reward_bman', true),
+            'reward_usdt'           => $this->input->post('reward_usdt', true),
+            'reward_description'    => $this->input->post('reward_description', true),
+            'badge_color'           => $this->input->post('badge_color', true),
+            'benefit_badge'         => (int)$this->input->post('benefit_badge'),
+            'benefit_certificate'   => (int)$this->input->post('benefit_certificate'),
+            'benefit_reward'        => (int)$this->input->post('benefit_reward'),
+            'benefit_recognition'   => (int)$this->input->post('benefit_recognition'),
+        ], (int)$this->session->userdata('admin_userid'));
         return $this->_json(['status' => $ok ? 'success' : 'error', 'message' => $msg], $ok ? 200 : 422);
+    }
+
+    /* ------------------- AJAX: upload a rank badge ---------------------- */
+    public function badge($id)
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        if (!$this->staking->rank((int)$id)) {
+            return $this->_json(['status' => 'error', 'message' => 'Rank not found.'], 404);
+        }
+
+        $dir = FCPATH . 'uploads/rank_badges/';
+        if (!is_dir($dir)) @mkdir($dir, 0755, true);
+
+        $this->load->library('upload', [
+            'upload_path'   => $dir,
+            'allowed_types' => 'png|jpg|jpeg|webp|svg',
+            'max_size'      => 1024,          // KB
+            'encrypt_name'  => true,
+        ]);
+        if (!$this->upload->do_upload('badge')) {
+            return $this->_json(['status' => 'error',
+                                 'message' => strip_tags($this->upload->display_errors('', ''))], 422);
+        }
+        $path = 'uploads/rank_badges/' . $this->upload->data('file_name');
+        list($ok, $msg) = $this->staking->saveRank((int)$id, ['badge_image' => $path],
+                                                   (int)$this->session->userdata('admin_userid'));
+        return $this->_json(['status' => $ok ? 'success' : 'error',
+                            'message' => $ok ? 'Badge uploaded.' : $msg,
+                            'path' => base_url($path)], $ok ? 200 : 422);
     }
 
     /* ------------------------- AJAX: enable/disable --------------------- */

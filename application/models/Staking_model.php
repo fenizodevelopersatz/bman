@@ -327,8 +327,18 @@ class Staking_model extends CI_Model
         return $this->db->get_where('staking_ranks', ['id' => (int)$id])->row_array();
     }
 
-    /** Update a rank's incentive/benefit fields (names & tiers are fixed by the proposal). */
-    public function saveRank($id, $data)
+    /**
+     * Update a rank's incentive / volume / reward / benefit fields.
+     * Names & tiers are fixed by the proposal and are not editable.
+     *
+     * required_group_volume is the downline BMAN needed to HOLD the rank;
+     * group_incentive is the amount PAID at that rank. They are different
+     * numbers that happen to share a seed value — do not conflate them.
+     *
+     * Every change is audited (staking_rank_audit) because rank config drives
+     * money.
+     */
+    public function saveRank($id, $data, $admin_id = null)
     {
         $rank = $this->rank($id);
         if (!$rank) return [false, 'Rank not found.'];
@@ -338,14 +348,74 @@ class Staking_model extends CI_Model
             if ((float)$data['group_incentive'] < 0) return [false, 'Group incentive cannot be negative.'];
             $row['group_incentive'] = (float)$data['group_incentive'];
         }
+        if (array_key_exists('required_group_volume', $data)) {
+            if ((float)$data['required_group_volume'] < 0) {
+                return [false, 'Required group volume cannot be negative.'];
+            }
+            $row['required_group_volume'] = (float)$data['required_group_volume'];
+        }
+        if (array_key_exists('reward_bman', $data)) {
+            if ((float)$data['reward_bman'] < 0) return [false, 'BMAN reward cannot be negative.'];
+            $row['reward_bman'] = (float)$data['reward_bman'];
+        }
+        if (array_key_exists('reward_usdt', $data)) {
+            if ((float)$data['reward_usdt'] < 0) return [false, 'USDT reward cannot be negative.'];
+            $row['reward_usdt'] = (float)$data['reward_usdt'];
+        }
+        if (array_key_exists('reward_description', $data)) {
+            $row['reward_description'] = trim((string)$data['reward_description']) ?: null;
+        }
+        if (array_key_exists('badge_image', $data)) {
+            $row['badge_image'] = trim((string)$data['badge_image']) ?: null;
+        }
         if (array_key_exists('badge_color', $data)) {
             $row['badge_color'] = trim((string)$data['badge_color']) ?: null;
         }
         foreach (['benefit_badge','benefit_certificate','benefit_reward','benefit_recognition'] as $k) {
             if (array_key_exists($k, $data)) $row[$k] = (int)!!$data[$k];
         }
-        if ($row) $this->db->where('id', (int)$id)->update('staking_ranks', $row);
+        if (!$row) return [true, 'Nothing to change.'];
+
+        $this->db->where('id', (int)$id)->update('staking_ranks', $row);
+
+        $this->_auditRankChange($rank, $row, $admin_id);
         return [true, 'Rank updated.'];
+    }
+
+    /** Fields compared as numbers; everything else compares as a string. */
+    private $rank_numeric_fields = [
+        'group_incentive', 'required_group_volume', 'reward_bman', 'reward_usdt',
+        'benefit_badge', 'benefit_certificate', 'benefit_reward', 'benefit_recognition',
+    ];
+
+    /**
+     * Record what actually changed, field by field, for the audit page.
+     *
+     * Numeric fields compare as floats so 500 vs "500.00000000" is not logged as
+     * a change. Text fields (reward_description, badge_color, badge_image) MUST
+     * compare as strings — casting them to float makes every distinct string
+     * equal 0, which silently swallowed the change.
+     */
+    private function _auditRankChange($rank, $row, $admin_id)
+    {
+        $this->load->model('staking/Rankaudit_model', 'rankaudit');
+        foreach ($row as $field => $new) {
+            $old = isset($rank[$field]) ? $rank[$field] : null;
+
+            if (in_array($field, $this->rank_numeric_fields, true)) {
+                if ((string)(float)$old === (string)(float)$new) continue;
+            } else {
+                if ((string)$old === (string)$new) continue;
+            }
+
+            $this->rankaudit->log('rank_config_changed', [
+                'rank_id'    => (int)$rank['id'],
+                'old_value'  => $old === null ? '(none)' : (string)$old,
+                'new_value'  => $new === null ? '(none)' : (string)$new,
+                'changed_by' => $admin_id,
+                'note'       => $rank['name'] . ' · ' . $field,
+            ]);
+        }
     }
 
     public function toggleRank($id, $active)

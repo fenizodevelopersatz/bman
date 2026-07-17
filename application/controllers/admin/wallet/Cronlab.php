@@ -78,6 +78,8 @@ class Cronlab extends CI_Controller
                 ['key' => 'roi_maturity', 'label' => 'ROI Maturity Payment (leg only)', 'type' => 'roi', 'endpoint' => 'roi-maturity-payment-process', 'method' => 'GET', 'description' => 'Just the maturity leg — pays the fixed lump ROI and returns principal for Fixed/Combo records whose fixed_maturity_date has arrived. Use this for targeted debugging; the combined button above already includes it.'],
                 ['key' => 'wallet_maturity', 'label' => 'Wallet Maturity Unlock', 'type' => 'wallet', 'endpoint' => 'wallet-maturity-cron', 'method' => 'GET', 'description' => 'Daily flip of is_matured on wallet_ledger credits whose maturity_date has passed. Required for withdrawal eligibility calculations.'],
                 ['key' => 'binary_matching_payout', 'label' => 'Binary Matching Payout (Engine + On-Chain)', 'type' => 'binary', 'endpoint' => 'binary-matching-payout-cron', 'method' => 'GET', 'description' => 'Runs the binary matching engine (queue-tracked via binary_matching_queue), enqueues one on-chain BMAN payout per newly-matched user, drains the treasury-balance-checked broadcast queue, and confirms pending transfers. Idempotent — safe to click repeatedly. See Matching History / Payout Queue for the resulting audit trail.'],
+                ['key' => 'rank_achievement', 'label' => 'Rank Achievement (Permanent Ranks)', 'type' => 'rank', 'endpoint' => 'rank-achievement-cron', 'method' => 'GET', 'description' => 'Evaluates every active member against the 11-rank qualification matrix (§10) and promotes those who qualify, then issues the rank reward via the wallet ledger and mints the certificate. Members are processed deepest-first so a whole chain of promotions settles in one pass. Ranks are PERMANENT — this job can only ever promote, never demote. Idempotent: unique indexes on rank_rewards / rank_certificates make double-payment impossible, and a previously failed payout is retried. Run hourly. See Rank Management ▸ Rank History for the audit trail.'],
+                ['key' => 'rank_power', 'label' => 'Rank Power (60-day Cycle + Group Incentive)', 'type' => 'rank', 'endpoint' => 'rank-power-cron', 'method' => 'GET', 'description' => 'Rolls the 60-day Rank Power cycle when it expires (closing the old one and opening the next the very next day) and recalculates every member\'s power rank from CURRENT-CYCLE staking volume only. Power drives Group Incentive qualification and is separate from the permanent achievement rank — this job never touches user_ranks. Run daily. See Rank Management ▸ Rank Power.'],
             ],
         ];
         $this->load->view('admin/wallet/cron_lab', $data);
@@ -117,6 +119,17 @@ class Cronlab extends CI_Controller
                     $this->load->model('staking/Stakingmatching_model', 'MB');
                     $res = $this->MB->run();
                     return $this->_json(['status' => 'success', 'message' => 'staking match run completed', 'data' => $res]);
+                // Rank jobs run in-process (not over HTTP) so a long sweep is not
+                // bound by the curl timeout; the model is the same code path the
+                // token-gated cron endpoints use.
+                case 'rank_achievement':
+                    $this->load->model('staking/Rankcron_model', 'rankcron');
+                    $res = $this->rankcron->runAchievement(true);
+                    return $this->_json(['status' => $res['status'], 'message' => $res['message'], 'data' => $res]);
+                case 'rank_power':
+                    $this->load->model('staking/Rankcron_model', 'rankcron');
+                    $res = $this->rankcron->runPower(true);
+                    return $this->_json(['status' => $res['status'], 'message' => $res['message'], 'data' => $res]);
                 default:
                     return $this->_json(['status' => 'error', 'message' => 'Unknown job'], 422);
             }

@@ -368,6 +368,8 @@ $route['binary-cron-made'] = 'Cron/binary_commission_call';
 $route['bonus-reduction-cron'] = 'Bonusreductioncron/run';   // Bonus Wallet 60-day reduction → admin bonus wallet (token-gated over HTTP)
 $route['chain-sync-cron'] = 'Chainsynccron/run';             // RPC-first balance sync + tx confirmation follow-up (token-gated over HTTP)
 $route['binary-matching-payout-cron'] = 'BinaryMatchingPayoutCron/run';  // run Stakingmatching_model + take level-wise payouts on-chain (treasury balance precheck, retry) — every 5 min, token-gated
+$route['rank-achievement-cron'] = 'RankAchievementCron/run';   // §10 permanent rank evaluation + reward/certificate issuance (hourly, 500/batch, token-gated)
+$route['rank-power-cron'] = 'RankPowerCron/run';               // §11 60-day cycle roll + current-cycle power rank calc (daily, token-gated)
 
 
 
@@ -666,6 +668,33 @@ $route['admin/staking/ranks'] = 'admin/staking/Ranks';
 $route['admin/staking/ranks/save/(:num)']['post'] = 'admin/staking/Ranks/save/$1';
 $route['admin/staking/ranks/toggle/(:num)']['post'] = 'admin/staking/Ranks/toggle/$1';
 $route['admin/staking/ranks/requirements/(:num)']['post'] = 'admin/staking/Ranks/requirements/$1';
+$route['admin/staking/ranks/badge/(:num)']['post'] = 'admin/staking/Ranks/badge/$1';
+// Rank Management — history / rewards / certificates / power / reports / audit
+$route['admin/staking/rank-history'] = 'admin/staking/Rankmanagement/history';
+$route['admin/staking/rank-rewards'] = 'admin/staking/Rankmanagement/rewards';
+$route['admin/staking/rank-rewards/retry']['post'] = 'admin/staking/Rankmanagement/retry_rewards';
+$route['admin/staking/rank-rewards/fulfil/(:num)']['post'] = 'admin/staking/Rankmanagement/fulfil/$1';
+$route['admin/staking/rank-certificates'] = 'admin/staking/Rankmanagement/certificates';
+$route['admin/staking/rank-certificate/(:any)'] = 'admin/staking/Rankmanagement/certificate/$1';
+$route['admin/staking/rank-power-users'] = 'admin/staking/Rankmanagement/power';
+$route['admin/staking/rank-audit'] = 'admin/staking/Rankmanagement/audit';
+$route['admin/staking/rank-reports'] = 'admin/staking/Rankmanagement/reports';
+$route['admin/staking/rank-reports/export/(:any)/(:any)'] = 'admin/staking/Rankmanagement/export/$1/$2';
+$route['admin/staking/rank-member/(:num)'] = 'admin/staking/Rankmanagement/member/$1';
+$route['admin/staking/rank-recalculate/(:num)']['post'] = 'admin/staking/Rankmanagement/recalculate/$1';
+$route['admin/staking/rank-run-cron']['post'] = 'admin/staking/Rankmanagement/run_cron';
+$route['admin/staking/rank-release-lock/(:any)']['post'] = 'admin/staking/Rankmanagement/release_lock/$1';
+// Member-facing Rank API (session-auth; read-only; answers for the logged-in member)
+$route['api/rank'] = 'api/Rankapi/index';
+$route['api/rank/progress'] = 'api/Rankapi/progress';
+$route['api/rank/history'] = 'api/Rankapi/history';
+$route['api/rank/rewards'] = 'api/Rankapi/rewards';
+$route['api/rank/certificates'] = 'api/Rankapi/certificates';
+$route['api/rank/ladder'] = 'api/Rankapi/ladder';
+$route['api/rank/leaderboard'] = 'api/Rankapi/leaderboard';
+$route['api/rank/badge/(:num)'] = 'api/Rankapi/badge/$1';
+$route['api/rank/notifications'] = 'api/Rankapi/notifications';
+$route['api/rank/notifications/read']['post'] = 'api/Rankapi/read';
 // Rank Power (§11: 60-day reset cycles, incentive qualification) + Group
 // Incentive Ceiling editor (§12)
 $route['admin/staking/rank-power'] = 'admin/staking/Rankpower';

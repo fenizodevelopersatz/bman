@@ -3523,3 +3523,13 @@ Finance Management
     -Binary Matching & distribution
            -Geneology
            -Distribution History
+
+
+
+Withdrawable functionality is completed 
+    -User request
+    -Reduce Wallet balance
+    -History
+
+Admin side
+    -History of Request
