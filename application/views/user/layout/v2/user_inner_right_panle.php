@@ -1,8 +1,39 @@
 <?php
+/**
+ * Shared right-hand "Profile & Stats" panel (rendered on ~14 member pages).
+ *
+ * The rank card reads the BMAN Rank Achievement System (§10) + Rank Power (§11)
+ * via Memberrank_model::sidebar() — NOT the old pairing engine. There are no
+ * pairs, PV, weak-leg BV or carry forward here any more.
+ *
+ * sidebar() is deliberately the cheap path: it reads the STORED group volume
+ * (refreshed each hourly cron pass) instead of walking the genealogy tree, so
+ * putting this panel on every page costs a handful of indexed lookups. It also
+ * fails soft — if the rank tables are absent it returns an unranked state
+ * rather than breaking every page in the member area.
+ */
 $uid = $this->session->userdata('user_userid') ?? '';
 $profile_percent = profile_completion_percent($uid);
-$this->load->library('rankservice');
-$rank = $this->rankservice->get_rank_status($uid);
+
+/**
+ * NOTE — use get_instance(), not $this, to load and reach the model here.
+ * Inside a CI3 view `$this` is the CI_Loader, which has NO __get(): it only
+ * takes a one-time snapshot of the controller's properties *before* including
+ * the view. A model loaded from inside the view is attached to the controller,
+ * so `$this->rp_rank` would be null even though the load succeeded. get_instance()
+ * addresses the controller directly and is correct in any view context.
+ */
+$CI =& get_instance();
+$CI->load->model('user/Memberrank_model', 'rp_rank');
+$rk = $CI->rp_rank->sidebar($uid);
+
+$rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian notation)
+    $v = (float) $v;
+    if ($v >= 10000000) return rtrim(rtrim(number_format($v / 10000000, 2), '0'), '.') . ' Cr';
+    if ($v >= 100000)   return rtrim(rtrim(number_format($v / 100000, 2), '0'), '.') . ' L';
+    if ($v >= 1000)     return rtrim(rtrim(number_format($v / 1000, 2), '0'), '.') . ' K';
+    return number_format($v, 0);
+};
 ?>
 <script>
     window.APP_CONFIG = window.APP_CONFIG || {};
@@ -54,7 +85,7 @@ $rank = $this->rankservice->get_rank_status($uid);
             })();
         </script>
 
-        <p>Track your growth, complete pairs, and withdraw earnings easily.</p>
+        <p>Track your rank, grow your team volume, and withdraw earnings easily.</p>
 
         <div class="pill">
             <b>Next Payout</b>
@@ -148,14 +179,43 @@ $rank = $this->rankservice->get_rank_status($uid);
             text-anchor: middle;
         }
     </style>
+    <style>
+        /* Rank card — achievement rank (permanent) + rank power (60-day cycle) */
+        .rp-badge-img { width:34px; height:34px; border-radius:9px; object-fit:contain; flex:0 0 34px; }
+        .rp-badge-dot { width:34px; height:34px; border-radius:50%; flex:0 0 34px; display:inline-block; }
+        .rank-perm {
+            display:inline-flex; align-items:center; gap:5px; font-size:9.5px; font-weight:700;
+            color:#15803d; background:#dcfce7; padding:3px 7px; border-radius:999px; margin-top:5px;
+        }
+        .rank-vol { display:flex; justify-content:space-between; font-size:10.5px; color:#8E8E93; margin:12px 0 5px; }
+        .rank-vol b { color:var(--text-main, #1A1A1A); font-variant-numeric:tabular-nums; }
+        .rank-bar { height:7px; border-radius:999px; background:#e9e7ff; overflow:hidden; }
+        .rank-bar>div { height:100%; background:var(--primary, #6E56CF); border-radius:999px; transition:width .8s ease; }
+        .rank-bar.done>div { background:var(--good, #22c55e); }
+        .rank-tiles-v2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:12px 0 4px; }
+        .rtile { background:#f7f7fb; border-radius:12px; padding:9px 10px; }
+        .rtile small { font-size:9px; text-transform:uppercase; letter-spacing:.5px; color:#8E8E93; font-weight:700; display:block; }
+        .rtile .v { font-size:13px; font-weight:800; color:var(--text-main, #1A1A1A); margin-top:3px; line-height:1.2; }
+        .rtile .v.none { color:#8E8E93; font-size:11.5px; font-weight:700; }
+        .rtile .m { font-size:8.5px; font-weight:700; padding:2px 5px; border-radius:999px; background:#efedfb; color:var(--primary, #6E56CF); display:inline-block; margin-top:4px; }
+        .rtile .m.ok { background:#dcfce7; color:#15803d; }
+        .rtile .m.mut { background:#eee; color:#8E8E93; }
+    </style>
+
     <div class="rank-card">
-        <div>
-            <p class="label">Current Rank</p>
-            <span class="rank-badge"><?= $rank['current_rank'] ?></span>
-            <!-- <p class="next-rank">Next: <b><?= $rank['next_rank'] ?></b></p>
-            <p class="desc">
-                Complete required volume to unlock <b><?= $rank['next_rank'] ?></b>
-            </p> -->
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+            <?php if (!empty($rk['badge_image'])): ?>
+                <img class="rp-badge-img" src="<?= base_url($rk['badge_image']); ?>" alt="" loading="lazy">
+            <?php else: ?>
+                <span class="rp-badge-dot" style="background:<?= htmlspecialchars($rk['badge_color']); ?>"></span>
+            <?php endif; ?>
+            <div style="min-width:0;">
+                <p class="label" style="margin:0;">Current Rank</p>
+                <span class="rank-badge"><?= htmlspecialchars($rk['name']); ?></span>
+                <?php if ($rk['has_rank']): ?>
+                    <span class="rank-perm"><i class="ph-fill ph-lock-key-open"></i> Permanent</span>
+                <?php endif; ?>
+            </div>
         </div>
 
         <div class="progress-circle">
@@ -163,62 +223,62 @@ $rank = $this->rankservice->get_rank_status($uid);
                 <path class="bg" d="M18 2.0845
                      a 15.9155 15.9155 0 0 1 0 31.831
                      a 15.9155 15.9155 0 0 1 0 -31.831" />
-                <path class="progress" stroke-dasharray="<?= $rank['progress'] ?>, 100" d="M18 2.0845
+                <path class="progress" stroke-dasharray="<?= (int) $rk['progress']; ?>, 100" d="M18 2.0845
                      a 15.9155 15.9155 0 0 1 0 31.831
                      a 15.9155 15.9155 0 0 1 0 -31.831" />
-                <text x="18" y="20.35" class="percentage">
-                    <?= $rank['progress'] ?>%
-                </text>
+                <text x="18" y="20.35" class="percentage"><?= (int) $rk['progress']; ?>%</text>
             </svg>
         </div>
     </div>
 
-    <!-- Description -->
-    <p class="rank-desc">
-        Complete required pairs + maintain active team volume to unlock <b>
-            <?= $rank['next_rank'] ?>
-        </b> benefits.
-    </p>
+    <?php if (!$rk['available']): ?>
+        <p class="rank-desc">Rank data is not available yet.</p>
+    <?php elseif ($rk['next_rank']): ?>
+        <p class="rank-desc" style="margin-bottom:0;">
+            Grow your <b>team volume</b> to unlock <b><?= htmlspecialchars($rk['next_rank']); ?></b>.
+            <?= $rk['has_rank'] ? 'Your ' . htmlspecialchars($rk['name']) . ' rank is permanent.' : ''; ?>
+        </p>
 
-    <!-- Requirement chips -->
-    <div class="req-chips">
-        <span class="req ok"><i class="ph ph-check-circle"></i> Active</span>
-        <span class="req ok"><i class="ph ph-check-circle"></i> KYC</span>        
-    </div>
+        <!-- Team volume toward the next rank -->
+        <div class="rank-vol">
+            <span>Team volume</span>
+            <span><b><?= $rk_fmt($rk['group_volume']); ?></b> / <?= $rk_fmt($rk['required_volume']); ?></span>
+        </div>
+        <div class="rank-bar <?= $rk['progress'] >= 100 ? 'done' : ''; ?>">
+            <div style="width:<?= (int) min(100, $rk['progress']); ?>%"></div>
+        </div>
+    <?php else: ?>
+        <p class="rank-desc" style="margin-bottom:0;">
+            <i class="ph-fill ph-crown" style="color:var(--primary)"></i>
+            You hold <b>CHALLENGER</b> — the highest rank. It is permanent.
+        </p>
+    <?php endif; ?>
 
-    <!-- Stats tiles -->
-    <div class="rank-tiles">
-        <div class="tile">
-            <small>Pairs Needed</small>
-            <div class="tile-row">
-                <strong>12</strong>
-                <span class="mini-badge">Weekly</span>
+    <!-- Rank Power + Group Incentive -->
+    <div class="rank-tiles-v2">
+        <div class="rtile">
+            <small>Rank Power</small>
+            <div class="v <?= $rk['power_rank'] ? '' : 'none'; ?>">
+                <?= $rk['power_rank'] ? htmlspecialchars($rk['power_rank']) : 'None yet'; ?>
             </div>
-            <div class="spark">
-                <span style="height:40%"></span>
-                <span style="height:70%"></span>
-                <span style="height:55%"></span>
-                <span style="height:85%"></span>
-            </div>
+            <span class="m <?= $rk['days_left'] !== null ? '' : 'mut'; ?>">
+                <?= $rk['days_left'] !== null ? (int) $rk['days_left'] . 'd left' : 'No cycle'; ?>
+            </span>
         </div>
 
-        <div class="tile">
-            <small>Directs Needed</small>
-            <div class="tile-row">
-                <strong>3</strong>
-                <span class="mini-badge ghost">Sponsor</span>
+        <div class="rtile">
+            <small>Group Incentive</small>
+            <div class="v <?= $rk['power_qualified'] ? '' : 'none'; ?>">
+                <?= $rk['power_qualified'] ? $rk_fmt($rk['incentive']) : 'Not yet'; ?>
             </div>
-            <div class="spark">
-                <span style="height:25%"></span>
-                <span style="height:50%"></span>
-                <span style="height:35%"></span>
-                <span style="height:60%"></span>
-            </div>
+            <span class="m <?= $rk['power_qualified'] ? 'ok' : 'mut'; ?>">
+                <?= $rk['power_qualified'] ? 'Eligible' : 'Build volume'; ?>
+            </span>
         </div>
     </div>
 
-    <button class="rank-btn-pro" onclick="window.location.href='<?php echo base_url('user/genealogy'); ?>'">View Rank
-        Details <i class="ph ph-arrow-right"></i></button>
+    <button class="rank-btn-pro" onclick="window.location.href='<?php echo base_url('user/rank-reward'); ?>'">
+        View Rank Details <i class="ph ph-arrow-right"></i></button>
 </div>
 
 

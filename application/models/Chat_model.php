@@ -271,6 +271,80 @@ class Chat_model extends CI_Model
     }
 
 
+    /* =====================================================================
+     * ACCESS CONTROL + CACHING
+     * ---------------------------------------------------------------------
+     * getPathChatUserIds() is EXPENSIVE: it walks the upline one query per
+     * level and BFSes the entire downline one query per node. The chat page
+     * polls every 2 seconds, so calling it raw on each poll issued hundreds of
+     * queries per user per poll.
+     *
+     * Two layers of cache:
+     *   - per-request static, so one request never computes it twice;
+     *   - session cache with a short TTL, so a 2s poll re-uses the last result.
+     * Genealogy placement changes rarely, and the TTL bounds how stale the
+     * allowlist can be. New team members become chattable within TTL seconds.
+     * ===================================================================== */
+
+    /** @var array<int,int[]> per-request memo */
+    private $path_ids_memo = [];
+
+    const PATH_CACHE_TTL = 60;   // seconds
+
+    /**
+     * Cached upline ∪ downline ids for $userId.
+     * Pass $force = true after a placement change to bypass the cache.
+     */
+    public function getPathChatUserIdsCached($userId, $force = false)
+    {
+        $userId = (int) $userId;
+        if ($userId <= 0)
+            return [];
+
+        if (!$force && isset($this->path_ids_memo[$userId])) {
+            return $this->path_ids_memo[$userId];
+        }
+
+        if (!$force && isset($this->session)) {
+            $c = $this->session->userdata('chat_path_ids');
+            if (is_array($c) && isset($c['uid'], $c['at'], $c['ids'])
+                && (int) $c['uid'] === $userId
+                && (time() - (int) $c['at']) < self::PATH_CACHE_TTL
+            ) {
+                return $this->path_ids_memo[$userId] = $c['ids'];
+            }
+        }
+
+        $ids = array_values(array_unique(array_map('intval', $this->getPathChatUserIds($userId))));
+        $this->path_ids_memo[$userId] = $ids;
+
+        if (isset($this->session)) {
+            $this->session->set_userdata('chat_path_ids', [
+                'uid' => $userId, 'at' => time(), 'ids' => $ids,
+            ]);
+        }
+        return $ids;
+    }
+
+    /**
+     * May $userId direct-message $peerId?
+     *
+     * Personal chat is limited to the member's own genealogy path (upline ∪
+     * downline) — the same set the Team room uses. Without this check any
+     * logged-in member could POST an arbitrary peer_id and DM a total stranger,
+     * and could read that thread back via chat/fetch. Both the send and fetch
+     * paths call this.
+     */
+    public function canChatWith($userId, $peerId)
+    {
+        $userId = (int) $userId;
+        $peerId = (int) $peerId;
+        if ($peerId <= 0 || $userId <= 0 || $peerId === $userId)
+            return false;
+
+        return in_array($peerId, $this->getPathChatUserIdsCached($userId), true);
+    }
+
     // -------------------------------------------
 // ✅ Recent personal chats list (like WhatsApp)
 // -------------------------------------------
