@@ -29,7 +29,7 @@ $sidebar_site_name = site_settings('meta-settings', 'site-name') ?: 'NEXMAN';
 <aside class="sidebar" style="overflow:auto">
     <div class="logo">
         <?php if ($sidebar_logo_src): ?>
-            <img src="<?= $sidebar_logo_src; ?>" alt="<?= htmlspecialchars($sidebar_site_name); ?>" style="height:46px;width:auto;max-width:190px;object-fit:contain;">
+            <img src="<?= $sidebar_logo_src; ?>" alt="<?= htmlspecialchars($sidebar_site_name); ?>" style="width:100%;max-width:180px;height:auto;max-height:110px;object-fit:contain;">
         <?php else: ?>
             <i class="ph-fill ph-sparkle"></i> <?= htmlspecialchars($sidebar_site_name); ?>
         <?php endif; ?>
