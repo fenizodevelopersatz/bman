@@ -373,43 +373,75 @@
         <div class="fin-chart-body"><canvas id="financeChart"></canvas></div>
       </div>
 
-      <!-- Wallet & Commission KPIs -->
-      <div class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-icon" style="background:#ecfdf3;color:var(--good);"><i class="ph ph-wallet"></i></div>
-          <div class="kpi-meta">
-            <small>Available Balance</small>
-            <strong> <b id="user_usd_balance">0.00</b></strong>
-            <span>Withdraw anytime</span>
-          </div>
-        </div>
+      <?php
+      /**
+       * The five wallets. Replaces the old Available Balance / Pending
+       * Commission / Total Earned / Total Withdrawn cards, which had NO
+       * javascript behind them and so permanently displayed 0.00.
+       *
+       * Balances come from Walletledger_model::balances() — the single source
+       * of truth (it owns user_wallets + wallet_ledger and keeps them in step
+       * inside one locked transaction). Rendered server-side: five numbers do
+       * not need a round trip.
+       */
+      $wallets = $wallets ?? ['usdt'=>'0','exchange'=>'0','earning'=>'0','staking'=>'0','bonus'=>'0'];
+      // `dp` matches the COLUMN's precision, so the card never implies accuracy
+      // the database cannot hold: user_wallets.usd_balance is decimal(12,2),
+      // while the four BMAN wallets are decimal(30,8).
+      $w_cards = [
+        ['key'=>'usdt',     'label'=>'USDT Wallet',     'unit'=>'USDT', 'dp'=>2, 'note'=>'Deposits &amp; withdrawals',
+         'icon'=>'ph-currency-dollar',   'bg'=>'#ecfdf3', 'fg'=>'#059669'],
+        ['key'=>'exchange', 'label'=>'Exchange Wallet', 'unit'=>'BMAN', 'dp'=>4, 'note'=>'Buy &amp; swap BMAN',
+         'icon'=>'ph-arrows-left-right', 'bg'=>'#eff6ff', 'fg'=>'#2563eb'],
+        ['key'=>'earning',  'label'=>'Earning Wallet',  'unit'=>'BMAN', 'dp'=>4, 'note'=>'Commission &amp; ROI',
+         'icon'=>'ph-trend-up',          'bg'=>'#f5f3ff', 'fg'=>'#7c3aed'],
+        ['key'=>'staking',  'label'=>'Staking Wallet',  'unit'=>'BMAN', 'dp'=>4, 'note'=>'Locked in stakes',
+         'icon'=>'ph-lock-key',          'bg'=>'#fff7ed', 'fg'=>'#d97706'],
+        ['key'=>'bonus',    'label'=>'Bonus Wallet',    'unit'=>'BMAN', 'dp'=>4, 'note'=>'25% staking bonus',
+         'icon'=>'ph-gift',              'bg'=>'#fdf2f8', 'fg'=>'#db2777'],
+      ];
+      ?>
+      <style>
+        /* Five across on desktop. The shared .kpi-grid is 4-up, so the wallet
+           row gets its own grid rather than fighting that breakpoint. */
+        .wallet-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin:0 0 18px; }
+        .wallet-card{
+          display:flex; align-items:flex-start; gap:12px; padding:16px;
+          background:var(--bs-body-bg,#fff); border:1px solid var(--bs-border-color,#eef0f4);
+          border-radius:18px; box-shadow:0 8px 24px rgba(20,22,26,.05); min-width:0;
+          transition:transform .15s ease, box-shadow .15s ease; text-decoration:none; color:inherit;
+        }
+        .wallet-card:hover{ transform:translateY(-2px); box-shadow:0 12px 30px rgba(20,22,26,.09); }
+        .wallet-ico{ width:42px; height:42px; flex:0 0 42px; border-radius:13px; display:grid;
+          place-items:center; font-size:20px; }
+        .wallet-meta{ min-width:0; flex:1; }
+        .wallet-meta small{ display:block; font-size:11.5px; font-weight:600;
+          color:var(--bs-secondary-color,#8a8f99); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .wallet-meta strong{ display:block; font-size:19px; font-weight:800; margin:3px 0 2px;
+          letter-spacing:-.4px; font-variant-numeric:tabular-nums; word-break:break-all; }
+        .wallet-meta strong u{ text-decoration:none; font-size:11px; font-weight:600;
+          color:var(--bs-secondary-color,#8a8f99); margin-left:3px; }
+        .wallet-meta span{ font-size:10.5px; color:var(--bs-secondary-color,#8a8f99); }
+        @media (max-width:1280px){ .wallet-grid{ grid-template-columns:repeat(3,1fr); } }
+        @media (max-width:760px){  .wallet-grid{ grid-template-columns:repeat(2,1fr); } }
+        @media (max-width:420px){  .wallet-grid{ grid-template-columns:1fr; } }
+      </style>
 
-        <div class="kpi-card">
-          <div class="kpi-icon" style="background:#fff7ed;color:var(--warn);"><i class="ph ph-hourglass"></i></div>
-          <div class="kpi-meta">
-            <small>Pending Commission</small>
-            <strong> <b id="user_pending_commission">0.00</b></strong>
-            <span>Next payout today</span>
-          </div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-icon" style="background:#eff6ff;color:var(--info);"><i class="ph ph-trend-up"></i></div>
-          <div class="kpi-meta">
-            <small>Total Earned</small>
-            <strong> <b id="direct_site_currency">0.00</b></strong>
-            <span>Lifetime income</span>
-          </div>
-        </div>
-
-        <div class="kpi-card">
-          <div class="kpi-icon" style="background:#fef2f2;color:var(--bad);"><i class="ph ph-bank"></i></div>
-          <div class="kpi-meta">
-            <small>Total Withdrawn</small>
-            <strong> <b id="user_total_withdrawn">0.00</b></strong>
-            <span>To bank account</span>
-          </div>
-        </div>
+      <!-- Wallets -->
+      <div class="wallet-grid">
+        <?php foreach ($w_cards as $wc):
+          $bal = (float) ($wallets[$wc['key']] ?? 0); ?>
+          <a class="wallet-card" href="<?= base_url('user/wallet'); ?>" title="<?= $wc['label']; ?>">
+            <div class="wallet-ico" style="background:<?= $wc['bg']; ?>;color:<?= $wc['fg']; ?>">
+              <i class="ph <?= $wc['icon']; ?>"></i>
+            </div>
+            <div class="wallet-meta">
+              <small><?= $wc['label']; ?></small>
+              <strong><?= number_format($bal, $wc['dp']); ?><u><?= $wc['unit']; ?></u></strong>
+              <span><?= $wc['note']; ?></span>
+            </div>
+          </a>
+        <?php endforeach; ?>
       </div>
 
       <!-- Quick Actions -->
@@ -563,15 +595,15 @@
 
         <div class="list">
           <div class="panel-title" style="margin-bottom:10px;">
-            <h3>Recent Orders</h3>
-            <span class="chip">E-Commerce</span>
+            <h3>Recent Staking Purchases</h3>
+            <span class="chip">Staking</span>
           </div>
 
           <!-- AJAX will fill here -->
           <div id="recent_orders_list">
             <div class="row-item">
               <div class="left">
-                <div class="bullet"><i class="ph ph-receipt"></i></div>
+                <div class="bullet"><i class="ph ph-coins"></i></div>
                 <div class="txt">
                   <b>Loading...</b>
                   <small>Please wait</small>
@@ -584,7 +616,7 @@
           </div>
 
           <button id="btn_view_all_orders" class="btn-full"
-            onclick="window.location.href='<?= base_url('orders'); ?>'">View All Orders</button>
+            onclick="window.location.href='<?= base_url('user/stakings'); ?>'">View All Staking</button>
         </div>
 
 
@@ -630,12 +662,14 @@
         .replaceAll("'", "&#039;");
     }
 
+    // Swap state machine, not shipment states: the endpoint collapses
+    // swap_completed / pending_* / failed_* / cancelled into these.
     function statusClass(status) {
       const s = (status || '').toLowerCase();
-      if (['delivered', 'success', 'completed'].includes(s)) return 'success';
-      if (['shipped', 'in_transit', 'dispatch', 'dispatched'].includes(s)) return 'ship';
-      if (['processing', 'placed', 'packed', 'pending'].includes(s)) return 'pending';
-      if (['cancelled', 'canceled', 'failed', 'returned'].includes(s)) return 'failed';
+      if (s === 'completed') return 'success';
+      if (s === 'processing') return 'ship';
+      if (s === 'pending') return 'pending';
+      if (s === 'failed' || s === 'cancelled') return 'failed';
       return 'pending';
     }
 
@@ -652,9 +686,9 @@
             $('#recent_orders_list').html(`
           <div class="row-item">
             <div class="left">
-              <div class="bullet"><i class="ph ph-receipt"></i></div>
+              <div class="bullet"><i class="ph ph-coins"></i></div>
               <div class="txt">
-                <b>No Orders</b>
+                <b>No Staking Purchases</b>
                 <small>Nothing found</small>
               </div>
             </div>
@@ -673,10 +707,10 @@
             $('#recent_orders_list').html(`
           <div class="row-item">
             <div class="left">
-              <div class="bullet"><i class="ph ph-receipt"></i></div>
+              <div class="bullet"><i class="ph ph-coins"></i></div>
               <div class="txt">
-                <b>No Recent Orders</b>
-                <small>Try later</small>
+                <b>No Staking Yet</b>
+                <small>Buy a package to get started</small>
               </div>
             </div>
             <div class="amount">
@@ -693,18 +727,23 @@
           let html = '';
           orders.forEach(o => {
             const cls = statusClass(o.order_status);
+            // Staking purchase: package + plan/term on top, BMAN bought on the
+            // right. The bonus is shown separately because it is NOT part of the
+            // stake — it lands in the bonus wallet.
+            const bonus = parseFloat(String(o.bonus_bman).replace(/,/g, '')) > 0
+              ? ` • +${escapeHtml(o.bonus_bman)} bonus` : '';
             html += `
           <div class="row-item">
             <div class="left">
-              <div class="bullet"><i class="ph ph-receipt"></i></div>
+              <div class="bullet"><i class="ph ph-coins"></i></div>
               <div class="txt">
-                <b>Order #${escapeHtml(o.order_code)}</b>
-                <small>${escapeHtml(o.order_date)} • BV Earned: ${escapeHtml(o.bv_earned)}</small>
+                <b>${escapeHtml(o.package)}</b>
+                <small>${escapeHtml(o.order_date)} • ${escapeHtml(o.plan)} ${escapeHtml(o.term)}${bonus}</small>
               </div>
             </div>
             <div class="amount">
-              ${symbol} ${escapeHtml(o.total_amount)}
-              <small><span class="status ${cls}">${escapeHtml((o.order_status || 'PROCESSING').toUpperCase())}</span></small>
+              ${escapeHtml(o.bman_amount)} ${symbol}
+              <small><span class="status ${cls}">${escapeHtml((o.order_status || 'PENDING').toUpperCase())}</span></small>
             </div>
           </div>
         `;
@@ -717,7 +756,7 @@
           $('#recent_orders_list').html(`
         <div class="row-item">
           <div class="left">
-            <div class="bullet"><i class="ph ph-receipt"></i></div>
+            <div class="bullet"><i class="ph ph-coins"></i></div>
             <div class="txt">
               <b>Failed to load</b>
               <small>Check API</small>
