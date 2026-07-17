@@ -58,7 +58,8 @@ Cron Lab       : admin/wallet/cron-lab → "Binary Matching Payout (Engine + On-
 
 
 
-
+php index.php rankachievementcron run watch
+php index.php rankpowercron run watch
 
 
 

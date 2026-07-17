@@ -1,828 +1,263 @@
+<?php
+/**
+ * Member ▸ Chat — premium redesign.
+ * ----------------------------------------------------------------------------
+ * Three rooms:
+ *   world     everyone on the platform
+ *   team      the member's genealogy path (upline ∪ downline)
+ *   personal  1:1 DM, restricted to that same path (enforced server-side)
+ *
+ * Transport: 2s cursor poll (GET user/chat/fetch?after=<lastId>) + 5s recent-list
+ * poll. No websocket.
+ *
+ * THEMING — this page must NOT redeclare :root. The member panel's --primary and
+ * --mp-* tokens are injected by user_style.php from site_settings('member_theme'),
+ * so an admin can recolour the panel live. The previous version redeclared
+ * :root{--primary:#6E56CF} in a <style> that loaded afterwards, silently
+ * clobbering the admin's colour for the WHOLE page — sidebar and header included.
+ * Everything here is scoped under .chatx and derives from the global tokens.
+ *
+ * Dark mode is honoured via html[data-bs-theme="dark"], matching style.css.
+ *
+ * @var int    $user_id
+ * @var string $username
+ * @var string $chat_fetch_url, $chat_send_url, $chat_recent_url
+ * @var array  $team_members  [['id','username'], …] — who this member may DM
+ */
+?>
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat</title>
+
     <?php $this->load->view('user/layout/v2/user_style'); ?>
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
-
-    <!-- React CDN -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-    <!-- Swal -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-    <!-- Emoji Picker Web Component -->
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script type="module" src="https://unpkg.com/emoji-picker-element@^1/index.js"></script>
 
     <style>
-        :root {
-            --chat-bg: #f4f7fe;
-            --chat-card: #ffffff;
-            --chat-line: #f1f1f6;
-            --chat-muted: #8E8E93;
-            --chat-text: #1A1A1A;
-            --primary: #6E56CF;
-            --primary-2: #4c3ba0;
-            --shadow: 0 16px 40px rgba(0, 0, 0, .06);
-            --radius: 24px;
-        }
-
-        .mlm-chat-shell {
-            background: var(--chat-card);
-            border: 1px solid #f5f5f7;
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-
-            height: 100vh;
-            /* full viewport */
+        /* ============================================================
+           Scoped under .chatx and DERIVED from the global member-theme
+           tokens. Nothing here redeclares :root.
+           ============================================================ */
+        .chatx {
+            --cx-p: var(--primary, #6E56CF);
+            --cx-txt: var(--text-main, #1A1A1A);
+            --cx-mut: var(--text-muted, #8E8E93);
+            --cx-card: var(--bg-card, #fff);
+            --cx-line: var(--line, #f0f0f0);
+            --cx-soft: #f7f7fb;
+            --cx-canvas: #f4f5fa;
+            --cx-in: #fff;
+            --cx-shadow: 0 12px 34px rgba(0, 0, 0, .06);
+            --cx-r: 20px;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
-            /* prevent outer scroll */
-        }
-
-        .chat-topbar {
-            background: #2f3437;
-            padding: 14px 14px 0 14px;
-            border-bottom: 1px solid rgba(255, 255, 255, .06);
-        }
-
-        .chat-toprow {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding-bottom: 10px;
-        }
-
-        .chat-tabs {
-            display: flex;
-            gap: 8px;
-            align-items: flex-end;
-            flex-wrap: wrap;
-        }
-
-        .tab {
-            appearance: none;
-            border: none;
-            cursor: pointer;
-            padding: 10px 16px;
-            border-radius: 14px 14px 0 0;
-            background: rgba(255, 255, 255, .08);
-            color: rgba(255, 255, 255, .72);
-            font-size: 12px;
-            font-weight: 900;
-            display: inline-flex;
-            gap: 8px;
-            align-items: center;
-            transition: .15s;
-            white-space: nowrap;
-        }
-
-        .tab:hover {
-            background: rgba(255, 255, 255, .12);
-        }
-
-        .tab.active {
-            background: var(--primary);
-            color: #fff;
-            box-shadow: 0 10px 25px rgba(110, 86, 207, .25);
-        }
-
-        .tab:disabled {
-            opacity: .6;
-            cursor: not-allowed;
-        }
-
-        .chat-actions {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .icon-btn {
-            width: 40px;
-            height: 40px;
-            border-radius: 14px;
-            border: 1px solid rgba(255, 255, 255, .12);
-            background: rgba(255, 255, 255, .06);
-            color: #fff;
-            display: grid;
-            place-items: center;
-            cursor: pointer;
-            transition: .15s;
-        }
-
-        .icon-btn:hover {
-            background: rgba(255, 255, 255, .10);
-        }
-
-        .icon-btn:disabled {
-            opacity: .6;
-            cursor: not-allowed;
-        }
-
-        .chat-subrow {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 10px;
-            padding: 10px 0 14px 0;
-        }
-
-        .room-meta {
-            color: rgba(255, 255, 255, .78);
-            font-size: 12px;
-            font-weight: 900;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .room-pill {
-            background: rgba(255, 255, 255, .10);
-            border: 1px solid rgba(255, 255, 255, .12);
-            padding: 6px 10px;
-            border-radius: 999px;
-            display: inline-flex;
-            gap: 8px;
-            align-items: center;
-            font-size: 11px;
-            font-weight: 1000;
-        }
-
-        .online-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #22c55e;
-            box-shadow: 0 0 0 4px rgba(34, 197, 94, .15);
-        }
-
-        /* body wrapper */
-        .chat-body {
-            flex: 1;
-            display: flex;
-            background: var(--chat-bg);
-
-            min-height: 0;
-            /* CRITICAL FIX */
+            height: calc(100vh - 170px);
+            min-height: 520px;
+            border-radius: var(--cx-r);
+            background: var(--cx-card);
+            border: 1px solid var(--cx-line);
+            box-shadow: var(--cx-shadow);
             overflow: hidden;
         }
 
-        /* ---------- PERSONAL SPLIT LAYOUT ---------- */
-        .personal-split {
-            flex: 1;
-            display: grid;
-            grid-template-columns: 320px 1fr;
-
-            min-height: 0;
-            /* IMPORTANT */
+        html[data-bs-theme="dark"] .chatx {
+            --cx-soft: #1e1f26;
+            --cx-canvas: #17181d;
+            --cx-in: #23242c;
+            --cx-line: #2b2c34;
+            --cx-shadow: 0 12px 34px rgba(0, 0, 0, .4);
         }
 
-        .recent-panel {
-            background: #fff;
-            border-right: 1px solid var(--chat-line);
-            overflow-y: auto;
-            padding: 14px;
+        /* ---------------- titlebar ---------------- */
+        .cx-title { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+        .cx-title h1 { font-size:22px; font-weight:800; color:var(--text-main); display:flex; align-items:center; gap:8px; margin:0; }
+        .cx-title h1 i { color:var(--primary); }
+        .cx-title p { margin:4px 0 0; font-size:12.5px; color:var(--text-muted); }
+
+        /* ---------------- topbar / room tabs ---------------- */
+        .cx-top {
+            display:flex; align-items:center; justify-content:space-between; gap:12px;
+            padding:12px 16px; border-bottom:1px solid var(--cx-line);
+            background:var(--cx-card); flex-wrap:wrap;
+        }
+        .cx-tabs { display:inline-flex; background:var(--cx-soft); padding:4px; border-radius:14px; gap:2px; }
+        .cx-tab {
+            border:0; background:transparent; font-family:inherit; font-size:12.5px; font-weight:700;
+            color:var(--cx-mut); padding:8px 14px; border-radius:11px; cursor:pointer;
+            display:inline-flex; align-items:center; gap:6px; transition:all .18s ease; white-space:nowrap;
+        }
+        .cx-tab:hover { color:var(--cx-txt); }
+        .cx-tab.on { background:var(--cx-card); color:var(--cx-p); box-shadow:0 2px 8px rgba(0,0,0,.07); }
+        .cx-peer { display:flex; align-items:center; gap:10px; min-width:0; }
+        .cx-peer-name { font-size:13px; font-weight:800; color:var(--cx-txt); }
+        .cx-peer-sub { font-size:10.5px; color:var(--cx-mut); }
+        .cx-live { display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:700; color:var(--cx-mut); }
+        .cx-dot { width:7px; height:7px; border-radius:50%; background:var(--good,#22c55e); box-shadow:0 0 0 3px rgba(34,197,94,.18); }
+        .cx-dot.off { background:var(--cx-mut); box-shadow:none; }
+
+        /* ---------------- body ---------------- */
+        .cx-body { flex:1; display:flex; min-height:0; position:relative; }
+
+        /* conversation rail */
+        .cx-rail { width:280px; flex:0 0 280px; border-right:1px solid var(--cx-line); display:flex; flex-direction:column; background:var(--cx-card); min-height:0; }
+        .cx-rail-h { padding:12px 14px 10px; border-bottom:1px solid var(--cx-line); }
+        .cx-search { position:relative; }
+        .cx-search i { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--cx-mut); font-size:14px; }
+        .cx-search input {
+            width:100%; font-family:inherit; font-size:12.5px; padding:9px 11px 9px 32px; border-radius:11px;
+            border:1px solid var(--cx-line); background:var(--cx-soft); color:var(--cx-txt); outline:none;
+        }
+        .cx-search input:focus { border-color:var(--cx-p); }
+        .cx-rail-list { flex:1; overflow-y:auto; padding:8px; }
+        .cx-conv {
+            display:flex; gap:10px; align-items:center; padding:10px; border-radius:14px; cursor:pointer;
+            transition:background .15s ease; border:1px solid transparent;
+        }
+        .cx-conv:hover { background:var(--cx-soft); }
+        .cx-conv.on { background:var(--cx-soft); border-color:var(--cx-line); }
+        .cx-conv-b { min-width:0; flex:1; }
+        .cx-conv-n { font-size:12.5px; font-weight:700; color:var(--cx-txt); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .cx-conv-m { font-size:11px; color:var(--cx-mut); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+        .cx-conv-t { font-size:9.5px; color:var(--cx-mut); white-space:nowrap; align-self:flex-start; }
+
+        /* avatar — initials + deterministic colour. No third-party avatar service. */
+        .cx-av {
+            width:38px; height:38px; flex:0 0 38px; border-radius:50%; display:grid; place-items:center;
+            color:#fff; font-weight:800; font-size:13px; letter-spacing:.3px; user-select:none;
+        }
+        .cx-av.sm { width:30px; height:30px; flex:0 0 30px; font-size:11px; }
+
+        /* thread */
+        .cx-thread { flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; background:var(--cx-canvas); }
+        .cx-scroll { flex:1; overflow-y:auto; padding:20px 18px; }
+        .cx-day { text-align:center; margin:14px 0; }
+        .cx-day span {
+            font-size:10px; font-weight:700; color:var(--cx-mut); background:var(--cx-card);
+            padding:4px 12px; border-radius:999px; border:1px solid var(--cx-line);
+        }
+        .cx-row { display:flex; gap:9px; margin-bottom:12px; align-items:flex-end; }
+        .cx-row.me { flex-direction:row-reverse; }
+        .cx-bub { max-width:min(560px, 74%); min-width:0; }
+        .cx-who { font-size:10.5px; font-weight:700; color:var(--cx-mut); margin:0 4px 4px; }
+        .cx-msg {
+            padding:10px 13px; border-radius:16px; font-size:13px; line-height:1.55; color:var(--cx-txt);
+            background:var(--cx-card); border:1px solid var(--cx-line);
+            border-bottom-left-radius:5px; word-wrap:break-word; overflow-wrap:anywhere; white-space:pre-wrap;
+        }
+        .cx-row.me .cx-msg {
+            background:var(--cx-p); color:#fff; border-color:transparent;
+            border-bottom-left-radius:16px; border-bottom-right-radius:5px;
+        }
+        .cx-time { font-size:9.5px; color:var(--cx-mut); margin:4px 4px 0; }
+        .cx-row.me .cx-time { text-align:right; }
+        .cx-img { max-width:260px; border-radius:12px; display:block; cursor:zoom-in; }
+        .cx-file {
+            display:flex; align-items:center; gap:9px; text-decoration:none; color:inherit;
+            background:rgba(0,0,0,.05); padding:8px 10px; border-radius:10px;
+        }
+        .cx-row.me .cx-file { background:rgba(255,255,255,.18); }
+        .cx-file i { font-size:19px; }
+        .cx-file b { font-size:11.5px; display:block; max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .cx-file small { font-size:9.5px; opacity:.75; }
+
+        /* states */
+        .cx-empty { height:100%; display:grid; place-items:center; text-align:center; padding:30px; }
+        .cx-empty i { font-size:42px; color:var(--cx-line); display:block; margin-bottom:12px; }
+        .cx-empty b { font-size:14px; color:var(--cx-txt); display:block; margin-bottom:5px; }
+        .cx-empty p { font-size:12px; color:var(--cx-mut); margin:0 auto; max-width:290px; line-height:1.6; }
+        .cx-err {
+            margin:10px 18px 0; padding:10px 12px; border-radius:12px; font-size:12px; font-weight:600;
+            background:#fee2e2; color:#b91c1c; display:flex; align-items:center; gap:8px;
         }
 
-        .recent-title {
-            font-weight: 1100;
-            font-size: 12px;
-            letter-spacing: .6px;
-            color: #6b7280;
-            margin-bottom: 10px;
-            text-transform: uppercase;
+        /* composer */
+        .cx-foot { border-top:1px solid var(--cx-line); background:var(--cx-card); padding:11px 14px; position:relative; }
+        .cx-compose { display:flex; align-items:flex-end; gap:8px; }
+        .cx-ico {
+            border:0; background:var(--cx-soft); color:var(--cx-mut); width:38px; height:38px; flex:0 0 38px;
+            border-radius:12px; cursor:pointer; font-size:18px; display:grid; place-items:center; transition:all .15s ease;
         }
-
-        .recent-item {
-            border: 1px solid #eee;
-            border-radius: 14px;
-            padding: 10px 12px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            transition: .12s;
+        .cx-ico:hover { color:var(--cx-p); background:var(--cx-line); }
+        .cx-input {
+            flex:1; min-width:0; font-family:inherit; font-size:13px; line-height:1.5; padding:10px 13px;
+            border-radius:14px; border:1px solid var(--cx-line); background:var(--cx-in); color:var(--cx-txt);
+            outline:none; resize:none; max-height:120px; min-height:40px;
         }
-
-        .recent-item:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 12px 18px rgba(0, 0, 0, .05);
+        .cx-input:focus { border-color:var(--cx-p); }
+        .cx-input:disabled { opacity:.55; cursor:not-allowed; }
+        .cx-send {
+            border:0; background:var(--cx-p); color:#fff; width:38px; height:38px; flex:0 0 38px;
+            border-radius:12px; cursor:pointer; font-size:17px; display:grid; place-items:center; transition:transform .12s ease;
         }
+        .cx-send:hover:not(:disabled) { transform:scale(1.06); }
+        .cx-send:disabled { opacity:.4; cursor:not-allowed; }
+        .cx-hint { font-size:9.5px; color:var(--cx-mut); margin:6px 0 0 92px; }
+        .cx-emoji { position:absolute; bottom:64px; left:14px; z-index:40; }
 
-        .recent-item.active {
-            border-color: rgba(110, 86, 207, .35);
-            box-shadow: 0 14px 26px rgba(110, 86, 207, .10);
-            background: rgba(110, 86, 207, .04);
+        /* attachment preview */
+        .cx-att {
+            display:flex; align-items:center; gap:10px; background:var(--cx-soft); border:1px solid var(--cx-line);
+            border-radius:12px; padding:8px 10px; margin-bottom:9px;
         }
+        .cx-att img { width:38px; height:38px; border-radius:8px; object-fit:cover; }
+        .cx-att b { font-size:12px; color:var(--cx-txt); display:block; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .cx-att small { font-size:10px; color:var(--cx-mut); }
+        .cx-att button { margin-left:auto; border:0; background:transparent; color:var(--cx-mut); cursor:pointer; font-size:16px; }
 
-        .recent-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 14px;
-            object-fit: cover;
-            border: 1px solid #eee;
-            background: #fff;
-            flex-shrink: 0;
+        /* lightbox */
+        .cx-light { position:fixed; inset:0; background:rgba(8,8,14,.86); z-index:9999; display:grid; place-items:center; padding:30px; }
+        .cx-light img { max-width:92vw; max-height:88vh; border-radius:12px; }
+        .cx-light button { position:absolute; top:18px; right:20px; border:0; background:rgba(255,255,255,.14); color:#fff; width:40px; height:40px; border-radius:50%; cursor:pointer; font-size:19px; }
+
+        /* skeleton */
+        .cx-sk { padding:20px 18px; }
+        .cx-sk-r { display:flex; gap:9px; margin-bottom:14px; align-items:flex-end; }
+        .cx-sk-r.me { flex-direction:row-reverse; }
+        .cx-sk-a { width:38px; height:38px; border-radius:50%; flex:0 0 38px; }
+        .cx-sk-b { height:38px; border-radius:16px; }
+        .cx-shimmer {
+            background:linear-gradient(90deg, var(--cx-line) 25%, var(--cx-soft) 50%, var(--cx-line) 75%);
+            background-size:200% 100%; animation:cxsh 1.4s infinite;
         }
+        @keyframes cxsh { 0% { background-position:200% 0; } 100% { background-position:-200% 0; } }
 
-        .recent-main {
-            flex: 1;
-            min-width: 0;
+        .cx-scroll::-webkit-scrollbar, .cx-rail-list::-webkit-scrollbar { width:6px; }
+        .cx-scroll::-webkit-scrollbar-thumb, .cx-rail-list::-webkit-scrollbar-thumb { background:var(--cx-line); border-radius:99px; }
+        .cx-scroll::-webkit-scrollbar-track, .cx-rail-list::-webkit-scrollbar-track { background:transparent; }
+
+        /* responsive */
+        @media (max-width:900px) {
+            .chatx { height:calc(100vh - 150px); }
+            .cx-rail { width:240px; flex:0 0 240px; }
         }
-
-        .recent-name {
-            font-weight: 1100;
-            font-size: 13px;
-            color: #111;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .recent-time {
-            font-size: 11px;
-            font-weight: 900;
-            color: #9ca3af;
-            flex-shrink: 0;
-            margin-left: 12px;
-        }
-
-        .recent-preview {
-            margin-top: 3px;
-            font-weight: 900;
-            font-size: 12px;
-            color: #6b7280;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100%;
-        }
-
-        .recent-empty {
-            opacity: .65;
-            font-weight: 900;
-            padding: 10px;
-        }
-
-        .chat-panel {
-            overflow-y: auto;
-            padding: 18px;
-            scroll-behavior: smooth;
-            overscroll-behavior: contain;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        /* ---------- WORLD/TEAM FULL PANEL ---------- */
-        .full-panel {
-            height: 100%;
-            overflow-y: auto;
-            padding: 18px;
-            scroll-behavior: smooth;
-            overscroll-behavior: contain;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        /* ---------- MESSAGES ---------- */
-        .msg-row {
-            display: flex;
-            gap: 14px;
-            align-items: flex-start;
-            margin-bottom: 18px;
-        }
-
-        .msg-row.me {
-            justify-content: flex-end;
-        }
-
-        .avatar-box {
-            width: 56px;
-            height: 56px;
-            border-radius: 16px;
-            background: #fff;
-            border: 2px solid rgba(255, 255, 255, .9);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, .06);
-            overflow: hidden;
-            flex-shrink: 0;
-            display: grid;
-            place-items: center;
-            cursor: pointer;
-            /* clickable */
-        }
-
-        .avatar-box img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .msg-wrap {
-            max-width: 620px;
-            min-width: 180px;
-        }
-
-        .msg-head {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 6px;
-            flex-wrap: wrap;
-        }
-
-        .vip {
-            font-size: 10px;
-            font-weight: 1100;
-            padding: 3px 8px;
-            border-radius: 8px;
-            background: rgba(110, 86, 207, .12);
-            border: 1px solid rgba(110, 86, 207, .25);
-            color: var(--primary);
-            display: inline-flex;
-            gap: 6px;
-            align-items: center;
-        }
-
-        .uname {
-            font-size: 13px;
-            font-weight: 1100;
-            color: #374151;
-            cursor: pointer;
-            /* clickable */
-        }
-
-        .uname:hover {
-            text-decoration: underline;
-        }
-
-        .meta {
-            font-size: 11px;
-            font-weight: 900;
-            color: var(--chat-muted);
-            margin-left: auto;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .bubble {
-            background: #fff;
-            border: 2px solid rgba(245, 158, 11, .65);
-            border-radius: 18px;
-            padding: 12px 14px;
-            font-size: 13px;
-            font-weight: 900;
-            color: #111;
-            line-height: 1.5;
-            box-shadow: 0 10px 18px rgba(0, 0, 0, .03);
-            position: relative;
-            word-break: break-word;
-        }
-
-        .bubble:before {
-            content: "";
-            position: absolute;
-            left: -8px;
-            top: 16px;
-            width: 14px;
-            height: 14px;
-            background: #fff;
-            border-left: 2px solid rgba(245, 158, 11, .65);
-            border-bottom: 2px solid rgba(245, 158, 11, .65);
-            transform: rotate(45deg);
-            border-radius: 2px;
-        }
-
-        .msg-row.me .bubble {
-            background: linear-gradient(105deg, var(--primary) 0%, var(--primary-2) 100%);
-            border: none;
-            color: #fff;
-            box-shadow: 0 14px 26px rgba(110, 86, 207, .20);
-        }
-
-        .msg-row.me .bubble:before {
-            display: none;
-        }
-
-        .msg-row.me .avatar-box {
-            display: none;
-        }
-
-        .attach-card {
-            margin-top: 10px;
-            background: #f7f7fb;
-            border: 1px solid #eee;
-            padding: 10px 12px;
-            border-radius: 14px;
-            display: inline-flex;
-            gap: 10px;
-            align-items: center;
-            text-decoration: none;
-            color: #111;
-        }
-
-        .attach-img {
-            margin-top: 10px;
-            display: block;
-            max-width: 320px;
-            border-radius: 14px;
-            border: 1px solid #eee;
-        }
-
-        .chat-footer {
-            background: #fff;
-            border-top: 1px solid var(--chat-line);
-            padding: 12px 14px;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            position: relative;
-        }
-
-        .tool-btn {
-            width: 44px;
-            height: 44px;
-            border-radius: 16px;
-            border: 1px solid #f1f1f6;
-            background: #f7f7fb;
-            color: #111;
-            display: grid;
-            place-items: center;
-            cursor: pointer;
-            transition: .15s;
-            flex-shrink: 0;
-        }
-
-        .tool-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 12px 20px rgba(0, 0, 0, .06);
-        }
-
-        .tool-btn:disabled {
-            opacity: .6;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .composer {
-            flex: 1;
-            background: #f7f7fb;
-            border: 1px solid #f1f1f6;
-            border-radius: 18px;
-            padding: 10px 12px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            min-width: 0;
-        }
-
-        .composer input {
-            border: none;
-            outline: none;
-            background: transparent;
-            width: 100%;
-            font-size: 13px;
-            font-weight: 900;
-            min-width: 0;
-        }
-
-        .composer input:disabled {
-            opacity: .6;
-            cursor: not-allowed;
-        }
-
-        .send-btn {
-            width: 50px;
-            height: 50px;
-            border-radius: 18px;
-            border: none;
-            cursor: pointer;
-            background: var(--primary);
-            color: #fff;
-            display: grid;
-            place-items: center;
-            box-shadow: 0 16px 28px rgba(110, 86, 207, .22);
-            transition: .15s;
-            flex-shrink: 0;
-        }
-
-        .send-btn:disabled {
-            opacity: .55;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        .emoji-pop {
-            position: absolute;
-            left: 12px;
-            bottom: 74px;
-            background: #fff;
-            border: 1px solid #eee;
-            box-shadow: 0 16px 40px rgba(0, 0, 0, .12);
-            border-radius: 16px;
-            overflow: hidden;
-            z-index: 99;
-        }
-
-        /* preview modal */
-        .preview-backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, .45);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            padding: 16px;
-        }
-
-        .preview-card {
-            width: 520px;
-            max-width: 96vw;
-            background: #fff;
-            border-radius: 20px;
-            box-shadow: 0 18px 60px rgba(0, 0, 0, .18);
-            overflow: hidden;
-        }
-
-        .preview-head {
-            padding: 14px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            border-bottom: 1px solid #f1f1f6;
-        }
-
-        .preview-title {
-            font-weight: 1000;
-            color: #111;
-            font-size: 14px;
-        }
-
-        .preview-close {
-            width: 38px;
-            height: 38px;
-            border-radius: 12px;
-            border: 1px solid #f1f1f6;
-            background: #f7f7fb;
-            display: grid;
-            place-items: center;
-            cursor: pointer;
-        }
-
-        .preview-body {
-            padding: 16px;
-        }
-
-        .preview-img {
-            width: 100%;
-            max-height: 320px;
-            object-fit: contain;
-            border-radius: 16px;
-            border: 1px solid #eee;
-            background: #fafafa;
-        }
-
-        .preview-file {
-            border: 1px solid #eee;
-            border-radius: 16px;
-            padding: 12px;
-            background: #f7f7fb;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            font-weight: 900;
-        }
-
-        .preview-meta {
-            margin-top: 10px;
-            font-size: 12px;
-            color: #6b7280;
-            font-weight: 800;
-        }
-
-        .preview-caption {
-            margin-top: 12px;
-            width: 100%;
-            border: 1px solid #f1f1f6;
-            background: #fff;
-            border-radius: 14px;
-            padding: 10px 12px;
-            font-weight: 900;
-            outline: none;
-        }
-
-        .preview-actions {
-            padding: 14px 16px;
-            border-top: 1px solid #f1f1f6;
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-        }
-
-        .btn-lite {
-            border: 1px solid #eee;
-            background: #f7f7fb;
-            padding: 10px 14px;
-            border-radius: 14px;
-            font-weight: 1000;
-            cursor: pointer;
-        }
-
-        .btn-primary {
-            border: none;
-            background: var(--primary);
-            color: #fff;
-            padding: 10px 14px;
-            border-radius: 14px;
-            font-weight: 1000;
-            cursor: pointer;
-        }
-
-        .btn-lite:disabled,
-        .btn-primary:disabled {
-            opacity: .6;
-            cursor: not-allowed;
-        }
-
-        @media(max-width: 980px) {
-            .personal-split {
-                grid-template-columns: 280px 1fr;
-            }
-        }
-
-        @media(max-width: 760px) {
-            .personal-split {
-                grid-template-columns: 1fr;
-            }
-
-            .recent-panel {
-                display: none;
-                /* mobile hide left recent */
-            }
-        }
-
-        /* =========================
-   MOBILE CHAT IMPROVEMENTS
-   ========================= */
-
-        @media (max-width: 760px) {
-
-            /* Make shell full height */
-            .mlm-chat-shell {
-                min-height: calc(100vh - 120px);
-                border-radius: 16px;
-            }
-
-            /* Make topbar stack nicely */
-            .chat-toprow {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 10px;
-            }
-
-            .chat-tabs {
-                overflow-x: auto;
-                flex-wrap: nowrap;
-                padding-bottom: 4px;
-            }
-
-            .chat-tabs::-webkit-scrollbar {
-                display: none;
-            }
-
-            .tab {
-                flex-shrink: 0;
-                font-size: 11px;
-                padding: 8px 12px;
-            }
-
-            /* Sub row stack */
-            .chat-subrow {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 6px;
-            }
-
-            /* Messages padding smaller */
-            .chat-panel,
-            .full-panel {
-                padding: 14px;
-            }
-
-            /* Smaller avatars */
-            .avatar-box {
-                width: 42px;
-                height: 42px;
-                border-radius: 12px;
-            }
-
-            /* Reduce message width */
-            .msg-wrap {
-                max-width: 88%;
-                min-width: 120px;
-            }
-
-            .bubble {
-                font-size: 12px;
-                padding: 10px 12px;
-            }
-
-            /* Footer stack */
-            .chat-footer {
-                padding: 10px;
-                gap: 8px;
-            }
-
-            .tool-btn {
-                width: 40px;
-                height: 40px;
-                border-radius: 14px;
-            }
-
-            .composer {
-                padding: 8px 10px;
-                border-radius: 14px;
-            }
-
-            .composer input {
-                font-size: 12px;
-            }
-
-            .send-btn {
-                width: 44px;
-                height: 44px;
-                border-radius: 14px;
-            }
-
-            /* Emoji popup adjust */
-            .emoji-pop {
-                left: 10px;
-                right: 10px;
-                width: auto;
-                bottom: 68px;
-            }
-        }
-
-        .chat-panel,
-        .full-panel {
-            flex: 1;
-            overflow-y: auto;
-            padding: 18px;
-
-            scroll-behavior: smooth;
-            -webkit-overflow-scrolling: touch;
-
-            display: flex;
-            flex-direction: column;
-
-            min-height: 0;
-            /* IMPORTANT */
-        }
-
-        .chat-footer {
-            background: #fff;
-            border-top: 1px solid var(--chat-line);
-            padding: 12px 14px;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-
-            flex-shrink: 0;
-            /* prevents collapsing */
-            position: relative;
-        }
-
-        @media(max-width: 760px) {
-            .personal-split {
-                position: relative;
-            }
-
-            .recent-panel {
-                position: absolute;
-                inset: 0;
-                z-index: 20;
-                background: #fff;
-                display: none;
-            }
-
-            .recent-panel.open {
-                display: block;
-            }
+        @media (max-width:680px) {
+            .cx-rail { width:100%; flex:1 1 auto; border-right:0; }
+            .cx-rail.hide-sm { display:none; }
+            .cx-thread.hide-sm { display:none; }
+            .cx-bub { max-width:84%; }
+            .cx-hint { margin-left:0; text-align:center; }
         }
     </style>
 
     <script>
-        const CHAT_FETCH_URL = "<?php echo $chat_fetch_url; ?>";
-        const CHAT_SEND_URL = "<?php echo $chat_send_url; ?>";
-        const CURRENT_USER_ID = "<?php echo (int) $user_id; ?>";
-        const CURRENT_USERNAME = "<?php echo html_escape($username ?? 'User'); ?>";
-        const CHAT_RECENT_URL = "<?php echo base_url('user/chat/recent'); ?>";
+        const CHAT_FETCH_URL  = "<?php echo $chat_fetch_url; ?>";
+        const CHAT_SEND_URL   = "<?php echo $chat_send_url; ?>";
+        const CHAT_RECENT_URL = "<?php echo $chat_recent_url; ?>";
+        const CURRENT_USER_ID = <?php echo (int) $user_id; ?>;
+        const CURRENT_USERNAME = <?php echo json_encode($username ?? 'User'); ?>;
+        /* Who this member may DM: their genealogy path. The server enforces the
+           same allowlist on send AND fetch, so the picker can never offer someone
+           the server would reject. */
+        const CHAT_PEERS = <?php echo json_encode(array_map(function ($m) {
+            return ['id' => (int) $m['id'], 'username' => (string) $m['username']];
+        }, $team_members ?: [])); ?>;
     </script>
 </head>
 
@@ -832,7 +267,15 @@
 
         <main class="main-content">
             <?php $this->load->view('user/layout/v2/user_header'); ?>
-            <div class="mlm-chat-shell" id="chatApp"></div>
+
+            <div class="cx-title">
+                <div>
+                    <h1><i class="ph-fill ph-chats-circle"></i> Chat</h1>
+                    <p>Talk to the whole platform, your team, or a member one-to-one.</p>
+                </div>
+            </div>
+
+            <div class="chatx" id="chatApp"></div>
         </main>
 
         <aside class="right-panel">
@@ -840,663 +283,481 @@
         </aside>
     </div>
 
-    <script src="<?php echo base_url(); ?>/assets/user_v2/js/script.js?ver=2.9"></script>
-
     <script>
-        const E = React.createElement;
+        (function () {
+            const { useState, useEffect, useRef, useCallback, useMemo } = React;
+            const E = React.createElement;
 
-        function swalError(message) {
-            Swal.fire({
-                icon: "error",
-                title: "Oops...",
-                text: message || "Something went wrong",
-                buttonsStyling: false,
-                confirmButtonText: "Ok, got it!",
-                customClass: { confirmButton: "btn btn-primary" }
-            });
-        }
+            /* ---------------- helpers ---------------- */
 
-        function safeRoom(room) {
-            return (room === 'world' || room === 'team' || room === 'personal') ? room : 'personal';
-        }
+            // Deterministic avatar colour from the user id. Replaces the old
+            // i.pravatar.cc avatars, which shipped every member's user id to a
+            // third party and ignored real profile photos anyway.
+            const AV = ['#6E56CF', '#0ea5e9', '#059669', '#db2777', '#d97706', '#7c3aed', '#dc2626', '#0891b2'];
+            const avColor = id => AV[Math.abs(parseInt(id, 10) || 0) % AV.length];
+            const initials = name => String(name || '?').trim().slice(0, 2).toUpperCase();
 
-        // for "YYYY-MM-DD HH:mm:ss"
-        function formatHHMMFromSQL(dt) {
-            try {
-                const d = new Date(String(dt || '').replace(' ', 'T'));
-                return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-            } catch {
-                return '';
-            }
-        }
-
-        function formatHHMM(datetimeStr) {
-            try {
-                const d = new Date((datetimeStr || '').replace(' ', 'T'));
-                return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-            } catch {
-                return '';
-            }
-        }
-
-        function humanSize(bytes) {
-            const b = Number(bytes || 0);
-            if (!b) return "0 B";
-            const units = ["B", "KB", "MB", "GB"];
-            let i = 0, val = b;
-            while (val >= 1024 && i < units.length - 1) { val /= 1024; i++; }
-            return `${val.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
-        }
-
-        function ChatApp() {
-            const [room, setRoom] = React.useState('personal'); // world|team|personal
-
-            // selected peer for personal chat
-            const [peerId, setPeerId] = React.useState(0);
-            const [peerName, setPeerName] = React.useState('');
-
-            const [messages, setMessages] = React.useState({ world: [], team: [], personal: [] });
-            const [lastId, setLastId] = React.useState({ world: 0, team: 0, personal: 0 });
-
-            const [sending, setSending] = React.useState(false);
-            const [uploading, setUploading] = React.useState(false);
-            const busy = sending || uploading;
-
-            const [showEmoji, setShowEmoji] = React.useState(false);
-
-            // attachment preview state
-            const [pendingFile, setPendingFile] = React.useState(null);
-            const [pendingUrl, setPendingUrl] = React.useState(null);
-            const [pendingCaption, setPendingCaption] = React.useState('');
-
-            // message input
-            const [text, setText] = React.useState('');
-
-            // refs
-            const inputRef = React.useRef(null);
-            const fileRef = React.useRef(null);
-            const pickerRef = React.useRef(null);
-            const pollTimerRef = React.useRef(null);
-
-            // panels ref (scroll)
-            const fullPanelRef = React.useRef(null);
-            const personalPanelRef = React.useRef(null);
-
-            // recent state
-            const [recent, setRecent] = React.useState([]);
-
-            const focusInput = () => setTimeout(() => inputRef.current?.focus(), 30);
-
-            // smart autoscroll
-            const shouldAutoScrollRef = React.useRef(true);
-
-            const getScrollEl = () => {
-                if (room === 'personal') return personalPanelRef.current;
-                return fullPanelRef.current;
+            const fmtSize = b => {
+                b = Number(b) || 0;
+                if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB';
+                if (b >= 1024) return Math.round(b / 1024) + ' KB';
+                return b + ' B';
+            };
+            const parseDt = s => new Date(String(s || '').replace(' ', 'T'));
+            const fmtTime = s => {
+                const d = parseDt(s);
+                return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            };
+            const dayKey = s => {
+                const d = parseDt(s);
+                if (isNaN(d)) return '';
+                const t = new Date(), y = new Date(Date.now() - 86400000);
+                if (d.toDateString() === t.toDateString()) return 'Today';
+                if (d.toDateString() === y.toDateString()) return 'Yesterday';
+                return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
             };
 
-            const isNearBottom = () => {
-                const el = getScrollEl();
-                if (!el) return true;
-                const threshold = 140;
-                return (el.scrollHeight - el.scrollTop - el.clientHeight) < threshold;
-            };
+            const ROOMS = [
+                { key: 'world', label: 'World', icon: 'ph-globe-hemisphere-west' },
+                { key: 'team', label: 'My Team', icon: 'ph-users-three' },
+                { key: 'personal', label: 'Direct', icon: 'ph-chat-teardrop-text' }
+            ];
 
-            const handleScroll = () => { shouldAutoScrollRef.current = isNearBottom(); };
+            const Avatar = ({ id, name, sm }) =>
+                E('div', {
+                    className: 'cx-av' + (sm ? ' sm' : ''),
+                    style: { background: avColor(id) }, title: name
+                }, initials(name));
 
-            const scrollBottomIfAllowed = () => {
-                const el = getScrollEl();
-                if (!el) return;
-                if (!shouldAutoScrollRef.current) return;
-                el.scrollTop = el.scrollHeight;
-            };
+            /* ---------------- app ---------------- */
+            function Chat() {
+                const [room, setRoom] = useState('world');
+                const [peer, setPeer] = useState(null);
+                const [byRoom, setByRoom] = useState({ world: [], team: [], personal: [] });
+                const [recent, setRecent] = useState([]);
+                const [text, setText] = useState('');
+                const [file, setFile] = useState(null);
+                const [sending, setSending] = useState(false);
+                const [loading, setLoading] = useState(true);
+                const [error, setError] = useState('');
+                const [online, setOnline] = useState(true);
+                const [q, setQ] = useState('');
+                const [light, setLight] = useState(null);
+                const [showEmoji, setShowEmoji] = useState(false);
 
-            const forceScrollBottom = () => {
-                const el = getScrollEl();
-                if (!el) return;
-                shouldAutoScrollRef.current = true;
-                el.scrollTop = el.scrollHeight;
-            };
+                const scrollRef = useRef(null);
+                const fileRef = useRef(null);
+                const taRef = useRef(null);
+                const emojiRef = useRef(null);
 
-            // cleanup objectURL
-            React.useEffect(() => {
-                return () => { if (pendingUrl) URL.revokeObjectURL(pendingUrl); };
-            }, [pendingUrl]);
+                // Cursor + de-dupe are per THREAD, not global. The old version kept a
+                // single id Set, reset it on room change but left the message array
+                // intact, so World → Team → World re-appended the whole history and
+                // every message appeared twice.
+                const threadKey = useMemo(
+                    () => room === 'personal' ? 'personal:' + (peer ? peer.id : 'none') : room,
+                    [room, peer]
+                );
+                const cursors = useRef({});
+                const seen = useRef({});
 
-            // emoji picker insert
-            React.useEffect(() => {
-                if (!showEmoji) return;
-                const picker = pickerRef.current;
-                if (!picker) return;
+                const messages = (room === 'personal' && !peer) ? [] : (byRoom[room] || []);
 
-                const onEmoji = (e) => {
-                    const emoji = e?.detail?.unicode || '';
-                    if (!emoji) return;
-                    setText(prev => (prev || '') + emoji);
-                    focusInput();
+                const atBottom = () => {
+                    const el = scrollRef.current;
+                    return !el || (el.scrollHeight - el.scrollTop - el.clientHeight < 90);
+                };
+                const toBottom = smooth => {
+                    const el = scrollRef.current;
+                    if (el) el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
                 };
 
-                picker.addEventListener('emoji-click', onEmoji);
-                return () => picker.removeEventListener('emoji-click', onEmoji);
-            }, [showEmoji]);
+                /* ---- fetch ---- */
+                const load = useCallback(async (reset) => {
+                    if (room === 'personal' && !peer) { setLoading(false); return; }
+                    const key = threadKey;
+                    if (reset) { cursors.current[key] = 0; seen.current[key] = new Set(); }
+                    const after = cursors.current[key] || 0;
 
-            // de-dupe message ids by room
-            const renderedIdsRef = React.useRef({
-                world: new Set(),
-                team: new Set(),
-                personal: new Set(),
-            });
+                    const url = new URL(CHAT_FETCH_URL, window.location.origin);
+                    url.searchParams.set('room', room);
+                    url.searchParams.set('after', after);
+                    if (room === 'personal' && peer) url.searchParams.set('peer_id', peer.id);
 
-            const mergeMessages = React.useCallback((roomKey, list) => {
-                if (!list || !list.length) return;
+                    try {
+                        const res = await fetch(url.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                        if (res.status === 403) {
+                            const j = await res.json().catch(() => ({}));
+                            setOnline(true); setLoading(false);
+                            setError(j.message || 'You cannot access this conversation.');
+                            return;
+                        }
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        const j = await res.json();
+                        setOnline(true);
+                        if (!j.ok) { setError(j.message || 'Could not load messages.'); setLoading(false); return; }
+                        setError('');
 
-                const ids = renderedIdsRef.current[roomKey];
-                const newOnes = [];
-                let maxId = lastId[roomKey] || 0;
+                        const incoming = j.messages || [];
+                        if (incoming.length) {
+                            if (!seen.current[key]) seen.current[key] = new Set();
+                            const set = seen.current[key];
+                            const fresh = incoming.filter(m => !set.has(String(m.id)));
+                            fresh.forEach(m => set.add(String(m.id)));
+                            cursors.current[key] = incoming.reduce(
+                                (a, m) => Math.max(a, Number(m.id) || 0), after);
+                            if (fresh.length) {
+                                const stick = atBottom();
+                                setByRoom(prev => ({
+                                    ...prev,
+                                    [room]: reset ? fresh : [...(prev[room] || []), ...fresh]
+                                }));
+                                if (stick || reset) setTimeout(() => toBottom(!reset), 40);
+                            }
+                        } else if (reset) {
+                            setByRoom(prev => ({ ...prev, [room]: [] }));
+                        }
+                    } catch (e) {
+                        setOnline(false);
+                    } finally {
+                        setLoading(false);
+                    }
+                }, [room, peer, threadKey]);
 
-                for (const m of list) {
-                    const idStr = String(m.id);
-                    if (ids.has(idStr)) continue;
-                    ids.add(idStr);
-                    newOnes.push(m);
+                /* Reset the thread when room/peer changes — clears the array AND the
+                   cursor together, which is what the old duplicate bug missed. */
+                useEffect(() => {
+                    setLoading(true);
+                    setError('');
+                    setByRoom(prev => ({ ...prev, [room]: [] }));
+                    load(true);
+                    // eslint-disable-next-line react-hooks/exhaustive-deps
+                }, [room, peer && peer.id]);
 
-                    const mid = parseInt(m.id, 10);
-                    if (!Number.isNaN(mid)) maxId = Math.max(maxId, mid);
-                }
+                /* 2s poll, only while visible and nothing in flight */
+                useEffect(() => {
+                    let alive = true, t;
+                    const tick = async () => {
+                        if (!alive) return;
+                        if (document.visibilityState === 'visible' && !sending) await load(false);
+                        if (alive) t = setTimeout(tick, 2000);
+                    };
+                    t = setTimeout(tick, 2000);
+                    return () => { alive = false; clearTimeout(t); };
+                }, [load, sending]);
 
-                if (newOnes.length) {
-                    setMessages(prev => ({ ...prev, [roomKey]: [...prev[roomKey], ...newOnes] }));
-                    setLastId(prev => ({ ...prev, [roomKey]: maxId }));
-                    setTimeout(scrollBottomIfAllowed, 0);
-                }
-            }, [lastId]);
+                /* Recent DM list — skipped while the tab is hidden (it used to poll
+                   forever in background tabs). */
+                useEffect(() => {
+                    let alive = true;
+                    const pull = async () => {
+                        if (!alive || document.visibilityState !== 'visible') return;
+                        try {
+                            const res = await fetch(CHAT_RECENT_URL + '?limit=50',
+                                { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                            const j = await res.json();
+                            if (alive && j.ok) setRecent(j.items || []);
+                        } catch (e) { /* transient — next tick retries */ }
+                    };
+                    pull();
+                    const iv = setInterval(pull, 5000);
+                    return () => { alive = false; clearInterval(iv); };
+                }, []);
 
-            // fetch recent
-            const fetchRecent = React.useCallback(async () => {
-                try {
-                    const res = await fetch(`${CHAT_RECENT_URL}?limit=50`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                    const data = await res.json();
-                    if (!data.ok) return;
-                    setRecent(data.items || []);
-                } catch { }
-            }, []);
+                /* Emoji picker */
+                useEffect(() => {
+                    if (!showEmoji || !emojiRef.current) return;
+                    const el = emojiRef.current.querySelector('emoji-picker');
+                    if (!el) return;
+                    const on = ev => setText(t => t + ev.detail.unicode);
+                    el.addEventListener('emoji-click', on);
+                    return () => el.removeEventListener('emoji-click', on);
+                }, [showEmoji]);
 
-            React.useEffect(() => { fetchRecent(); }, [fetchRecent]);
-            React.useEffect(() => {
-                const t = setInterval(() => fetchRecent(), 5000);
-                return () => clearInterval(t);
-            }, [fetchRecent]);
+                useEffect(() => {
+                    if (!showEmoji) return;
+                    const close = e => {
+                        if (emojiRef.current && !emojiRef.current.contains(e.target)) setShowEmoji(false);
+                    };
+                    document.addEventListener('mousedown', close);
+                    return () => document.removeEventListener('mousedown', close);
+                }, [showEmoji]);
 
-            // ✅ normalize + de-duplicate recent by peer_id (keep latest)
-            const recentUnique = React.useMemo(() => {
-                const map = new Map();
+                /* Auto-grow composer */
+                useEffect(() => {
+                    const ta = taRef.current;
+                    if (!ta) return;
+                    ta.style.height = 'auto';
+                    ta.style.height = Math.min(120, ta.scrollHeight) + 'px';
+                }, [text]);
 
-                for (const it of (recent || [])) {
-                    const pid = String(it.peer_id || '');
-                    if (!pid) continue;
+                /* ---- send ---- */
+                const send = async () => {
+                    const body = text.trim();
+                    if ((!body && !file) || sending) return;
+                    if (room === 'personal' && !peer) { setError('Pick someone to message first.'); return; }
 
-                    const t = String(it.last_message_time || '').replace(' ', 'T');
-                    const ts = Date.parse(t) || 0;
+                    setSending(true); setError('');
+                    const fd = new FormData();
+                    fd.append('room', room);
+                    fd.append('message', body);
+                    if (room === 'personal' && peer) fd.append('peer_id', peer.id);
+                    if (file) fd.append('chat_file', file);
 
-                    const prev = map.get(pid);
-                    if (!prev || (prev._ts || 0) < ts) {
-                        map.set(pid, {
-                            peer_id: it.peer_id,
-                            peer_name: it.peer_name || 'User',
-                            last_message_time: it.last_message_time || '',
-                            last_message: it.last_message || '',
-                            last_message_type: it.last_message_type || 'text',
-                            _ts: ts
+                    try {
+                        const res = await fetch(CHAT_SEND_URL, {
+                            method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }
                         });
+                        const j = await res.json().catch(() => ({ ok: false, message: 'Unexpected server response.' }));
+                        if (!j.ok) { setError(j.message || 'Could not send.'); return; }
+                        setText(''); setFile(null);
+                        if (fileRef.current) fileRef.current.value = '';
+                        await load(false);
+                        toBottom(true);
+                    } catch (e) {
+                        setError('Network error — your message was not sent.');
+                    } finally {
+                        setSending(false);
                     }
-                }
-
-                return Array.from(map.values()).sort((a, b) => (b._ts || 0) - (a._ts || 0));
-            }, [recent]);
-
-            // fetch new messages (polling)
-            const fetchNew = React.useCallback(async (roomKey) => {
-                roomKey = safeRoom(roomKey);
-                const after = lastId[roomKey] || 0;
-
-                // personal requires peer
-                if (roomKey === 'personal' && !peerId) return;
-
-                let url = `${CHAT_FETCH_URL}?room=${encodeURIComponent(roomKey)}&after=${after}`;
-                if (roomKey === 'personal') url += `&peer_id=${encodeURIComponent(peerId)}`;
-
-                try {
-                    const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                    const data = await res.json();
-                    if (!data.ok) return;
-                    mergeMessages(roomKey, data.messages || []);
-                } catch { }
-            }, [lastId, peerId, mergeMessages]);
-
-            // polling loop
-            React.useEffect(() => {
-                let stopped = false;
-
-                const loop = async () => {
-                    if (stopped) return;
-                    if (document.visibilityState === 'visible' && !busy && !pendingFile) {
-                        await fetchNew(room);
-                    }
-                    pollTimerRef.current = setTimeout(loop, 2000);
                 };
 
-                loop();
-
-                const onVis = () => { if (document.visibilityState === 'visible') fetchNew(room); };
-                document.addEventListener('visibilitychange', onVis);
-
-                return () => {
-                    stopped = true;
-                    document.removeEventListener('visibilitychange', onVis);
-                    if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
-                };
-            }, [room, busy, pendingFile, fetchNew]);
-
-            // on room change
-            React.useEffect(() => {
-                setShowEmoji(false);
-                focusInput();
-
-                // reset cache on tab switch
-                renderedIdsRef.current[room] = new Set();
-                fetchNew(room);
-                setTimeout(forceScrollBottom, 30);
-            }, [room]);
-
-            // ✅ open personal peer-peer chat (used by recent click + username click)
-            const openPersonal = React.useCallback((pid, pname) => {
-                const id = parseInt(pid, 10) || 0;
-                if (!id) return;
-
-                setRoom('personal');
-                setPeerId(id);
-                setPeerName(pname || '');
-
-                // reset personal cache
-                renderedIdsRef.current.personal = new Set();
-                setMessages(prev => ({ ...prev, personal: [] }));
-                setLastId(prev => ({ ...prev, personal: 0 }));
-
-                setTimeout(() => fetchNew('personal'), 0);
-                setTimeout(() => forceScrollBottom(), 40);
-            }, [fetchNew]);
-
-            const sendText = async () => {
-                const msg = (text || '').trim();
-                if (busy) return;
-                if (!msg) return;
-
-                if (room === 'personal' && !peerId) {
-                    swalError("Select a user from Recent Chats (Personal).");
-                    return;
-                }
-
-                setSending(true);
-                setShowEmoji(false);
-
-                const fd = new FormData();
-                fd.append('room', room);
-                fd.append('message', msg);
-                if (room === 'personal') fd.append('peer_id', String(peerId));
-
-                setText('');
-
-                try {
-                    const res = await fetch(CHAT_SEND_URL, {
-                        method: 'POST',
-                        body: fd,
-                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                    });
-                    const data = await res.json();
-                    if (!data.ok) {
-                        swalError(data.message || 'Send failed');
+                const pickFile = e => {
+                    const f = e.target.files[0];
+                    if (!f) return;
+                    if (f.size > 5 * 1024 * 1024) {
+                        setError('Files must be 5 MB or smaller.');
+                        e.target.value = '';
                         return;
                     }
-
-                    await fetchNew(room);
-                    setTimeout(forceScrollBottom, 0);
-                } catch {
-                    swalError("Network error while sending.");
-                } finally {
-                    setSending(false);
-                    focusInput();
-                }
-            };
-
-            const validateFile = (file) => {
-                const maxMB = 5;
-                const sizeMB = file.size / (1024 * 1024);
-                if (sizeMB > maxMB) return `File too large. Max ${maxMB}MB allowed.`;
-
-                const allowedExt = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'zip'];
-                const ext = (file.name.split('.').pop() || '').toLowerCase();
-                if (!allowedExt.includes(ext)) return "File type not allowed.";
-                return null;
-            };
-
-            const pickFile = () => {
-                if (busy) return;
-                if (room === 'personal' && !peerId) {
-                    swalError("Select a user from Recent Chats first (Personal).");
-                    return;
-                }
-                setShowEmoji(false);
-                fileRef.current?.click();
-            };
-
-            // select file -> preview modal
-            const onFileChange = (e) => {
-                const file = e.target.files?.[0];
-                e.target.value = '';
-                if (!file) return;
-                if (busy) return;
-
-                const err = validateFile(file);
-                if (err) { swalError(err); return; }
-
-                if (pendingUrl) URL.revokeObjectURL(pendingUrl);
-
-                const isImage = (file.type || '').startsWith('image/');
-                const url = isImage ? URL.createObjectURL(file) : null;
-
-                setPendingFile(file);
-                setPendingUrl(url);
-                setPendingCaption(text || '');
-                setText('');
-                setShowEmoji(false);
-            };
-
-            const closePreview = () => {
-                if (pendingUrl) URL.revokeObjectURL(pendingUrl);
-                setPendingFile(null);
-                setPendingUrl(null);
-                setPendingCaption('');
-                focusInput();
-            };
-
-            const submitAttachment = async () => {
-                if (!pendingFile) return;
-                if (busy) return;
-
-                if (room === 'personal' && !peerId) {
-                    swalError("Select a user from Recent Chats first (Personal).");
-                    return;
-                }
-
-                setUploading(true);
-
-                const fd = new FormData();
-                fd.append('room', room);
-                fd.append('message', (pendingCaption || '').trim());
-                fd.append('chat_file', pendingFile);
-                if (room === 'personal') fd.append('peer_id', String(peerId));
-
-                try {
-                    const res = await fetch(CHAT_SEND_URL, {
-                        method: 'POST',
-                        body: fd,
-                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                    });
-                    const data = await res.json();
-                    if (!data.ok) {
-                        swalError(data.message || 'Upload failed');
-                        return;
-                    }
-
-                    closePreview();
-                    await fetchNew(room);
-                    setTimeout(forceScrollBottom, 0);
-                } catch {
-                    swalError("Network error while uploading.");
-                } finally {
-                    setUploading(false);
-                    focusInput();
-                }
-            };
-
-            const roomLabel = (r) => r === 'team' ? 'Alliance (Team)' : (r === 'world' ? 'World' : 'Personal');
-
-            // no global search now (removed)
-            const list = (messages[room] || []);
-
-            const MessageRow = ({ m }) => {
-                const isMe = String(m.user_id) === String(CURRENT_USER_ID);
-
-                let attach = null;
-                if (m.file_url) {
-                    if (m.message_type === 'image') {
-                        attach = E('a', { href: m.file_url, target: "_blank", rel: "noreferrer" },
-                            E('img', { className: "attach-img", src: m.file_url, alt: m.file_name || 'image' })
-                        );
-                    } else {
-                        attach = E('a', { className: "attach-card", href: m.file_url, target: "_blank", rel: "noreferrer" },
-                            E('span', null, '📎'),
-                            E('b', null, m.file_name || 'Download file')
-                        );
-                    }
-                }
-
-                // ✅ click avatar/name in WORLD or TEAM => open personal peer-peer
-                const canOpenPeer = (!isMe && (room === 'world' || room === 'team'));
-                const onOpenPeer = () => {
-                    if (!canOpenPeer) return;
-                    openPersonal(m.user_id, m.username || 'User');
+                    setError(''); setFile(f);
                 };
 
-                return E('div', { className: "msg-row" + (isMe ? " me" : "") },
-                    !isMe && E('div', { className: "avatar-box", onClick: onOpenPeer, title: canOpenPeer ? "Open personal chat" : "" },
-                        E('img', { src: "https://i.pravatar.cc/80?u=" + encodeURIComponent(m.user_id), alt: "user" })
-                    ),
-                    E('div', { className: "msg-wrap" },
-                        E('div', { className: "msg-head" },
-                            !isMe && E('span', { className: "vip" }, E('i', { className: "ph ph-star-four" }), ""),
-                            !isMe && E('span', { className: "uname", onClick: onOpenPeer, title: canOpenPeer ? "Open personal chat" : "" }, m.username || 'User'),
-                            E('span', { className: "meta" }, E('i', { className: "ph ph-clock" }), " ", formatHHMM(m.created_at))
-                        ),
-                        E('div', { className: "bubble" },
-                            E('div', null, m.message || ''),
-                            attach
+                /* ---- rail ---- */
+                const railItems = useMemo(() => {
+                    const term = q.trim().toLowerCase();
+                    const convs = (recent || []).map(r => ({
+                        id: Number(r.peer_id), username: r.peer_name,
+                        last: r.last_message, when: r.last_message_time, type: r.last_message_type
+                    }));
+                    const have = new Set(convs.map(c => c.id));
+                    // Everyone else in the path, so a first message is possible
+                    // without an existing thread.
+                    const rest = (CHAT_PEERS || [])
+                        .filter(p => !have.has(Number(p.id)))
+                        .map(p => ({ id: Number(p.id), username: p.username, last: '', when: '', type: 'text' }));
+                    return [...convs, ...rest]
+                        .filter(c => !term || String(c.username || '').toLowerCase().includes(term));
+                }, [recent, q]);
+
+                const Rail = () => E('div', { className: 'cx-rail' + (peer ? ' hide-sm' : '') },
+                    E('div', { className: 'cx-rail-h' },
+                        E('div', { className: 'cx-search' },
+                            E('i', { className: 'ph ph-magnifying-glass' }),
+                            E('input', {
+                                type: 'search', placeholder: 'Search your team…',
+                                value: q, onChange: e => setQ(e.target.value)
+                            })
                         )
+                    ),
+                    E('div', { className: 'cx-rail-list' },
+                        railItems.length === 0
+                            ? E('div', {
+                                style: { padding: '24px 12px', textAlign: 'center', fontSize: '11.5px', color: 'var(--cx-mut)' }
+                            }, q ? 'Nobody matches that search.' : 'No one in your team path yet.')
+                            : railItems.map(c => E('div', {
+                                key: c.id,
+                                className: 'cx-conv' + (peer && peer.id === c.id ? ' on' : ''),
+                                onClick: () => setPeer({ id: c.id, username: c.username })
+                            },
+                                E(Avatar, { id: c.id, name: c.username }),
+                                E('div', { className: 'cx-conv-b' },
+                                    E('div', { className: 'cx-conv-n' }, c.username),
+                                    E('div', { className: 'cx-conv-m' },
+                                        c.type === 'image' ? '📷 Photo'
+                                            : (c.type === 'file' ? '📎 File' : (c.last || 'Start a conversation')))
+                                ),
+                                c.when ? E('div', { className: 'cx-conv-t' }, fmtTime(c.when)) : null
+                            ))
                     )
                 );
-            };
 
-            return E(React.Fragment, null,
-
-                // Preview Modal
-                pendingFile && E('div', { className: "preview-backdrop", onClick: (e) => { if (e.target.classList.contains('preview-backdrop')) closePreview(); } },
-                    E('div', { className: "preview-card" },
-                        E('div', { className: "preview-head" },
-                            E('div', { className: "preview-title" }, "Preview Attachment"),
-                            E('button', { className: "preview-close", type: "button", onClick: closePreview, disabled: uploading },
-                                E('i', { className: "ph ph-x" })
-                            )
-                        ),
-                        E('div', { className: "preview-body" },
-                            pendingUrl
-                                ? E('img', { className: "preview-img", src: pendingUrl, alt: "preview" })
-                                : E('div', { className: "preview-file" },
-                                    E('span', null, '📎'),
-                                    E('div', null,
-                                        E('div', null, pendingFile.name),
-                                        E('div', { className: "preview-meta" }, `${humanSize(pendingFile.size)} • ${(pendingFile.type || 'file')}`)
-                                    )
-                                ),
-                            E('input', {
-                                className: "preview-caption",
-                                placeholder: "Add a caption (optional)...",
-                                value: pendingCaption,
-                                onChange: (e) => setPendingCaption(e.target.value),
-                                disabled: uploading
-                            })
-                        ),
-                        E('div', { className: "preview-actions" },
-                            E('button', { className: "btn-lite", type: "button", onClick: closePreview, disabled: uploading }, "Cancel"),
-                            E('button', { className: "btn-primary", type: "button", onClick: submitAttachment, disabled: uploading },
-                                uploading ? "Uploading..." : "Send"
-                            )
-                        )
-                    )
-                ),
-
-                // TOP BAR
-                E('div', { className: "chat-topbar" },
-                    E('div', { className: "chat-toprow" },
-                        E('div', { className: "chat-tabs" },
-                            E('button', { className: "tab" + (room === 'world' ? " active" : ""), type: "button", onClick: () => setRoom('world'), disabled: busy || !!pendingFile },
-                                E('i', { className: "ph ph-globe-hemisphere-east" }), " World"
-                            ),
-                            E('button', { className: "tab" + (room === 'team' ? " active" : ""), type: "button", onClick: () => setRoom('team'), disabled: busy || !!pendingFile },
-                                E('i', { className: "ph ph-users-three" }), " Alliance (Team)"
-                            ),
-                            E('button', { className: "tab" + (room === 'personal' ? " active" : ""), type: "button", onClick: () => setRoom('personal'), disabled: busy || !!pendingFile },
-                                E('i', { className: "ph ph-chat-teardrop-text" }), " Personal"
-                            ),
-                        ),
-                        E('div', { className: "chat-actions" },
-                            E('button', { className: "icon-btn", type: "button", title: "Settings", disabled: busy || !!pendingFile },
-                                E('i', { className: "ph ph-gear" })
-                            )
-                        )
-                    ),
-
-                    E('div', { className: "chat-subrow" },
-                        E('div', { className: "room-meta" },
-                            E('span', { className: "room-pill" }, E('span', { className: "online-dot" }), " Room: ", E('b', null, roomLabel(room))),
-                            (room === 'personal' && peerId) && E('span', { className: "room-pill" }, E('i', { className: "ph ph-chat-circle-text" }), " Chatting: ", E('b', null, peerName || ('ID ' + peerId))),
-                            (room === 'personal' && !peerId) && E('span', { className: "room-pill" }, E('i', { className: "ph ph-warning" }), " Select from Recent Chats"),
-                            E('span', { className: "room-pill" }, E('i', { className: "ph ph-shield-check" }), " Safe Chat")
-                        ),
-                        E('div', { style: { color: 'rgba(255,255,255,.65)', fontWeight: 900, fontSize: 12 } },
-                            (room === 'world' || room === 'team')
-                                ? "Tip: Click any user's avatar/name to open Personal chat"
-                                : ""
-                        )
-                    )
-                ),
-
-                // BODY
-                E('div', { className: "chat-body" },
-
-                    // ✅ PERSONAL: left recent panel + right message panel
-                    (room === 'personal')
-                        ? E('div', { className: "personal-split" },
-
-                            // LEFT recent list
-                            E('div', { className: "recent-panel" },
-                                E('div', { className: "recent-title" }, "Recent Chats"),
-
-                                (recentUnique.length === 0)
-                                    ? E('div', { className: "recent-empty" }, "No recent chats yet…")
-                                    : recentUnique.map(item => {
-                                        const active = String(item.peer_id) === String(peerId);
-                                        return E('div', {
-                                            key: String(item.peer_id),
-                                            className: "recent-item" + (active ? " active" : ""),
-                                            onClick: () => openPersonal(item.peer_id, item.peer_name),
-                                        },
-                                            E('img', {
-                                                className: "recent-avatar",
-                                                src: `https://i.pravatar.cc/80?u=${encodeURIComponent(item.peer_id)}`,
-                                                alt: "u"
-                                            }),
-                                            E('div', { className: "recent-main" },
-                                                E('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' } },
-                                                    E('div', { className: "recent-name" }, item.peer_name || 'User'),
-                                                    E('div', { className: "recent-time" }, formatHHMMFromSQL(item.last_message_time))
-                                                ),
-                                                E('div', { className: "recent-preview" }, item.last_message || '')
-                                            )
-                                        );
+                /* ---- bubbles ---- */
+                const Bubble = m => {
+                    const mine = String(m.user_id) === String(CURRENT_USER_ID);
+                    const isPlaceholder = m.message === '📷 Image' || m.message === '📎 File';
+                    return E('div', { className: 'cx-row' + (mine ? ' me' : ''), key: m.id },
+                        E(Avatar, { id: m.user_id, name: m.username, sm: true }),
+                        E('div', { className: 'cx-bub' },
+                            (!mine && room !== 'personal') ? E('div', { className: 'cx-who' }, m.username) : null,
+                            E('div', { className: 'cx-msg' },
+                                (m.message_type === 'image' && m.file_url)
+                                    ? E('img', {
+                                        className: 'cx-img', src: m.file_url, alt: m.file_name || '',
+                                        loading: 'lazy', onClick: () => setLight(m.file_url)
                                     })
+                                    : ((m.message_type === 'file' && m.file_url)
+                                        ? E('a', {
+                                            className: 'cx-file', href: m.file_url,
+                                            target: '_blank', rel: 'noopener noreferrer'
+                                        },
+                                            E('i', { className: 'ph-fill ph-file-arrow-down' }),
+                                            E('span', null,
+                                                E('b', null, m.file_name || 'Attachment'),
+                                                E('small', null, fmtSize(m.file_size)))
+                                        )
+                                        : null),
+                                // React escapes this text node. The server no longer
+                                // pre-escapes, so "Tom & Jerry" renders correctly
+                                // instead of "Tom &amp; Jerry".
+                                (m.message && !isPlaceholder)
+                                    ? E('div', { style: m.file_url ? { marginTop: '7px' } : null }, m.message)
+                                    : null
                             ),
-
-                            // RIGHT messages panel
-                            E('div', {
-                                className: "chat-panel",
-                                ref: personalPanelRef,
-                                onScroll: handleScroll
-                            },
-                                (!peerId)
-                                    ? E('div', { style: { opacity: .75, fontWeight: 1000, padding: '14px', lineHeight: 1.6 } },
-                                        "Select a member from Recent Chats (left side) to start peer-to-peer chat."
-                                    )
-                                    : (list.length === 0
-                                        ? E('div', { style: { opacity: .65, fontWeight: 900, padding: '10px' } }, "No messages yet…")
-                                        : list.map(m => E(MessageRow, { key: m.id, m }))
-                                    )
-                            )
+                            E('div', { className: 'cx-time' }, fmtTime(m.created_at))
                         )
+                    );
+                };
 
-                        // ✅ WORLD / TEAM: full panel
-                        : E('div', { className: "full-panel", ref: fullPanelRef, onScroll: handleScroll },
-                            (list.length === 0)
-                                ? E('div', { style: { opacity: .65, fontWeight: 900, padding: '10px' } }, "No messages yet…")
-                                : list.map(m => E(MessageRow, { key: m.id, m }))
+                const Thread = () => {
+                    if (room === 'personal' && !peer) {
+                        return E('div', { className: 'cx-empty' }, E('div', null,
+                            E('i', { className: 'ph ph-chat-teardrop-text' }),
+                            E('b', null, 'Pick someone to message'),
+                            E('p', null, 'You can message anyone in your team path — your upline and your downline.')));
+                    }
+                    if (loading) {
+                        return E('div', { className: 'cx-sk' }, [0, 1, 2, 3].map(i =>
+                            E('div', { className: 'cx-sk-r' + (i % 2 ? ' me' : ''), key: i },
+                                E('div', { className: 'cx-sk-a cx-shimmer' }),
+                                E('div', {
+                                    className: 'cx-sk-b cx-shimmer',
+                                    style: { width: (140 + (i * 47) % 180) + 'px' }
+                                }))));
+                    }
+                    if (!messages.length) {
+                        return E('div', { className: 'cx-empty' }, E('div', null,
+                            E('i', { className: 'ph ph-paper-plane-tilt' }),
+                            E('b', null, 'No messages yet'),
+                            E('p', null, room === 'world'
+                                ? 'Say hello — everyone on the platform can see the World room.'
+                                : (room === 'team'
+                                    ? 'Start the conversation with your team.'
+                                    : 'Send the first message to ' + (peer ? peer.username : 'this member') + '.'))));
+                    }
+                    const out = [];
+                    let last = null;
+                    messages.forEach(m => {
+                        const k = dayKey(m.created_at);
+                        if (k && k !== last) {
+                            out.push(E('div', { className: 'cx-day', key: 'd' + m.id }, E('span', null, k)));
+                            last = k;
+                        }
+                        out.push(Bubble(m));
+                    });
+                    return out;
+                };
+
+                const composerDisabled = room === 'personal' && !peer;
+
+                return E(React.Fragment, null,
+                    /* topbar */
+                    E('div', { className: 'cx-top' },
+                        E('div', { className: 'cx-tabs' },
+                            ROOMS.map(r => E('button', {
+                                key: r.key,
+                                className: 'cx-tab' + (room === r.key ? ' on' : ''),
+                                onClick: () => setRoom(r.key)
+                            }, E('i', { className: 'ph ' + r.icon }), r.label))
+                        ),
+                        E('div', { className: 'cx-peer' },
+                            (room === 'personal' && peer)
+                                ? E(React.Fragment, null,
+                                    E('button', {
+                                        className: 'cx-ico', title: 'Back to conversations',
+                                        style: { width: '30px', height: '30px', flex: '0 0 30px', fontSize: '14px' },
+                                        onClick: () => setPeer(null)
+                                    }, E('i', { className: 'ph ph-arrow-left' })),
+                                    E(Avatar, { id: peer.id, name: peer.username, sm: true }),
+                                    E('div', null,
+                                        E('div', { className: 'cx-peer-name' }, peer.username),
+                                        E('div', { className: 'cx-peer-sub' }, 'Direct message')))
+                                : null,
+                            E('span', { className: 'cx-live', title: online ? 'Connected' : 'Reconnecting…' },
+                                E('span', { className: 'cx-dot' + (online ? '' : ' off') }),
+                                online ? 'Live' : 'Offline')
                         )
-                ),
-
-                // FOOTER
-                E('div', { className: "chat-footer" },
-
-                    showEmoji && !busy && !pendingFile && E('div', { className: "emoji-pop" },
-                        E('emoji-picker', { ref: pickerRef, style: { width: "320px", height: "360px" } })
                     ),
 
-                    E('button', {
-                        className: "tool-btn",
-                        type: "button",
-                        title: busy ? "Please wait..." : "Emoji",
-                        onClick: () => { if (!busy && !pendingFile) setShowEmoji(v => !v); },
-                        disabled: busy || !!pendingFile
-                    }, E('i', { className: "ph ph-smiley" })),
-
-                    E('button', {
-                        className: "tool-btn",
-                        type: "button",
-                        title: uploading ? "Uploading..." : "Attach",
-                        onClick: pickFile,
-                        disabled: busy || !!pendingFile || (room === 'personal' && !peerId)
-                    }, E('i', { className: uploading ? "ph ph-hourglass" : "ph ph-paperclip" })),
-
-                    E('input', {
-                        ref: fileRef,
-                        type: "file",
-                        onChange: onFileChange,
-                        style: { display: 'none' },
-                        accept: ".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
-                    }),
-
-                    E('div', { className: "composer" },
-                        E('i', { className: "ph ph-pencil-simple-line", style: { color: "var(--chat-muted)", fontSize: 18 } }),
-                        E('input', {
-                            ref: inputRef,
-                            value: text,
-                            onChange: (e) => setText(e.target.value),
-                            placeholder: busy ? "Please wait..." : (room === 'personal' && !peerId ? "Select from Recent Chats..." : "Type your message..."),
-                            onKeyDown: (e) => { if (e.key === 'Enter') sendText(); },
-                            disabled: busy || !!pendingFile || (room === 'personal' && !peerId)
-                        })
+                    /* body */
+                    E('div', { className: 'cx-body' },
+                        room === 'personal' ? Rail() : null,
+                        E('div', { className: 'cx-thread' + (room === 'personal' && !peer ? ' hide-sm' : '') },
+                            error ? E('div', { className: 'cx-err' },
+                                E('i', { className: 'ph-fill ph-warning-circle' }), error) : null,
+                            E('div', { className: 'cx-scroll', ref: scrollRef }, Thread())
+                        )
                     ),
 
-                    E('button', {
-                        className: "send-btn",
-                        type: "button",
-                        onClick: sendText,
-                        disabled: busy || !!pendingFile || !text.trim() || (room === 'personal' && !peerId)
-                    }, E('i', { className: sending ? "ph ph-hourglass" : "ph ph-paper-plane-tilt" }))
-                )
-            );
-        }
+                    /* composer */
+                    E('div', { className: 'cx-foot' },
+                        showEmoji ? E('div', { className: 'cx-emoji', ref: emojiRef }, E('emoji-picker', null)) : null,
 
-        ReactDOM.createRoot(document.getElementById('chatApp')).render(E(ChatApp));
+                        file ? E('div', { className: 'cx-att' },
+                            file.type.indexOf('image/') === 0
+                                ? E('img', { src: URL.createObjectURL(file), alt: '' })
+                                : E('i', { className: 'ph-fill ph-file', style: { fontSize: '26px', color: 'var(--cx-p)' } }),
+                            E('div', null, E('b', null, file.name), E('small', null, fmtSize(file.size))),
+                            E('button', {
+                                title: 'Remove',
+                                onClick: () => { setFile(null); if (fileRef.current) fileRef.current.value = ''; }
+                            }, E('i', { className: 'ph ph-x' }))
+                        ) : null,
+
+                        E('div', { className: 'cx-compose' },
+                            E('button', {
+                                className: 'cx-ico', title: 'Emoji', disabled: composerDisabled,
+                                onClick: () => setShowEmoji(s => !s)
+                            }, E('i', { className: 'ph ph-smiley' })),
+                            E('button', {
+                                className: 'cx-ico', title: 'Attach a file', disabled: composerDisabled,
+                                onClick: () => fileRef.current && fileRef.current.click()
+                            }, E('i', { className: 'ph ph-paperclip' })),
+                            E('input', {
+                                type: 'file', ref: fileRef, style: { display: 'none' }, onChange: pickFile,
+                                accept: '.jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip'
+                            }),
+                            E('textarea', {
+                                className: 'cx-input', ref: taRef, rows: 1, maxLength: 500,
+                                placeholder: room === 'personal'
+                                    ? (peer ? 'Message ' + peer.username + '…' : 'Pick someone to message first')
+                                    : (room === 'world' ? 'Message everyone…' : 'Message your team…'),
+                                value: text,
+                                disabled: composerDisabled,
+                                onChange: e => setText(e.target.value),
+                                // Enter sends, Shift+Enter newlines. The old composer
+                                // was an <input>, so multi-line was impossible.
+                                onKeyDown: e => {
+                                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+                                }
+                            }),
+                            E('button', {
+                                className: 'cx-send', onClick: send, title: 'Send',
+                                disabled: sending || composerDisabled || (!text.trim() && !file)
+                            }, E('i', { className: sending ? 'ph ph-circle-notch' : 'ph-fill ph-paper-plane-right' }))
+                        ),
+                        E('div', { className: 'cx-hint' }, 'Enter to send · Shift + Enter for a new line')
+                    ),
+
+                    light ? E('div', { className: 'cx-light', onClick: () => setLight(null) },
+                        E('button', { onClick: () => setLight(null) }, E('i', { className: 'ph ph-x' })),
+                        E('img', { src: light, alt: '', onClick: e => e.stopPropagation() })
+                    ) : null
+                );
+            }
+
+            ReactDOM.createRoot(document.getElementById('chatApp')).render(E(Chat));
+        })();
     </script>
-
 </body>
 
 </html>
