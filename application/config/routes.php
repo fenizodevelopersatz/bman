@@ -370,6 +370,8 @@ $route['chain-sync-cron'] = 'Chainsynccron/run';             // RPC-first balanc
 $route['binary-matching-payout-cron'] = 'BinaryMatchingPayoutCron/run';  // run Stakingmatching_model + take level-wise payouts on-chain (treasury balance precheck, retry) — every 5 min, token-gated
 $route['rank-achievement-cron'] = 'RankAchievementCron/run';   // §10 permanent rank evaluation + reward/certificate issuance (hourly, 500/batch, token-gated)
 $route['rank-power-cron'] = 'RankPowerCron/run';               // §11 60-day cycle roll + current-cycle power rank calc (daily, token-gated)
+$route['wallet-transfer-settlement-cron'] = 'WalletTransferSettlementCron/run';   // on-chain settlement of wallet_internal_transfer rows from the Treasury wallet (disabled + dry-run by default, token-gated)
+$route['wallet-transfer-settlement-cron/test'] = 'WalletTransferSettlementCron/test';
 
 
 
@@ -778,6 +780,12 @@ $route['admin/finance/internal-transfers/balances']['post'] = 'admin/wallet/Inte
 $route['admin/finance/internal-transfers/do-transfer']['post'] = 'admin/wallet/Internaltransfers/do_transfer';
 $route['admin/finance/internal-transfers/preview']['post'] = 'admin/wallet/Internaltransfers/preview';   // POST AJAX (shared UI)
 $route['admin/finance/internal-transfers/tx-detail']['get'] = 'admin/wallet/Internaltransfers/tx_detail'; // GET AJAX (shared modal)
+
+/**************** Admin — Treasury Direct Send (new BMAN, no ledger movement) */
+$route['admin/finance/treasury-send'] = 'admin/wallet/Treasurysend';
+$route['admin/finance/treasury-send/users']['get'] = 'admin/wallet/Treasurysend/users';
+$route['admin/finance/treasury-send/send']['post'] = 'admin/wallet/Treasurysend/send';
+$route['admin/finance/treasury-send/settings']['post'] = 'admin/wallet/Treasurysend/updateSettings';
 
 /**************** Master — Token Settings (blockchain single source of truth) */
 $route['admin/master/token-settings'] = 'admin/master/Tokenmaster';

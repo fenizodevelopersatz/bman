@@ -26,6 +26,7 @@ class Wallettransferservice_model extends CI_Model
     private $wallets = ['exchange', 'earning', 'staking', 'bonus'];
     /** Internal (own-wallet) allowed directions — Exchange source-only. */
     private $internalPairs = ['exchange' => ['bonus', 'earning', 'staking']];
+    private $settleSettingsCache = null;
 
     public function __construct()
     {
@@ -229,6 +230,31 @@ class Wallettransferservice_model extends CI_Model
 
     private function _no($code, $msg) { return ['ok'=>false,'code'=>$code,'message'=>$msg,'ctx'=>null]; }
 
+    /* -------------------------- settlement helpers ----------------------- */
+
+    /** Cached single-row settlement config (falls back to safe off/dry-run defaults). */
+    private function _settlementSettings()
+    {
+        if ($this->settleSettingsCache === null) {
+            $row = $this->db->get_where('wallet_transfer_settlement_settings', ['id' => 1])->row_array();
+            $this->settleSettingsCache = $row ?: [
+                'enabled' => 0, 'dry_run' => 1, 'settle_self_transfers' => 1, 'settle_member_transfers' => 1,
+                'min_treasury_reserve' => '0', 'max_batch_size' => 20,
+            ];
+        }
+        return $this->settleSettingsCache;
+    }
+
+    /** A user's on-chain BEP-20 address, or null if they have no custodial wallet yet. */
+    private function _walletAddress($userId)
+    {
+        $userId = (int)$userId;
+        if (!$userId) return null;
+        $w = $this->db->select('wallet_address')->where('user_id', $userId)
+                      ->order_by('id', 'ASC')->limit(1)->get('user_wallet')->row_array();
+        return ($w && !empty($w['wallet_address'])) ? $w['wallet_address'] : null;
+    }
+
     /* ------------------------------ execute ----------------------------- */
 
     public function execute(array $c)
@@ -265,7 +291,19 @@ class Wallettransferservice_model extends CI_Model
             ['reference_id'=>$ref,'created_by'=>$adminId,'description'=>'Transfer received '.$from.' ['.$uid8.']']);
         if (!$okC) { $this->db->trans_rollback(); $this->audit($c,'failed','credit_failed',(string)$rC); return ['ok'=>false,'code'=>'credit_failed','message'=>$rC]; }
 
-        // 3) transfer history (double-entry linked via ledger ids)
+        // 3) on-chain settlement target — self settles to the source's OWN address
+        //    (delivering value that only ever existed as a ledger row); member
+        //    transfers settle to the RECIPIENT's address. Skipped (not pending) when
+        //    that transfer type is toggled off or no wallet address is on file — the
+        //    settlement cron only ever picks up rows left 'pending'.
+        $settleSettings = $this->_settlementSettings();
+        $destUserId = $isMember ? $rcp : $src;
+        $settlementAddress = $this->_walletAddress($destUserId);
+        $typeEnabled = $isMember ? (bool)$settleSettings['settle_member_transfers'] : (bool)$settleSettings['settle_self_transfers'];
+        $settlementStatus = ($typeEnabled && $settlementAddress) ? 'pending' : 'skipped';
+        $settlementError = $typeEnabled && !$settlementAddress ? 'No on-chain wallet address on file for the settlement recipient.' : null;
+
+        // 4) transfer history (double-entry linked via ledger ids)
         $this->db->insert('wallet_internal_transfer', [
             'ref'=>$ref,'txn_uid'=>$uid8,'user_id'=>$src,'to_user_id'=>$isMember ? $rcp : null,
             'from_wallet'=>$from,'to_wallet'=>$isMember ? $from : $to,
@@ -277,6 +315,8 @@ class Wallettransferservice_model extends CI_Model
             'debit_ledger_id'=>(int)$rD,'credit_ledger_id'=>(int)$rC,
             'idempotency_key'=>$key,'created_by'=>$adminId,
             'ip_address'=>$c['ip'] ?? null,'user_agent'=>isset($c['ua']) ? substr((string)$c['ua'],0,255) : null,
+            'settlement_status'=>$settlementStatus,'settlement_address'=>$settlementAddress,
+            'settlement_error'=>$settlementError,'credit_onchain_ledger_id'=>(int)$rC,
         ]);
         $tid = (int)$this->db->insert_id();
 
@@ -457,6 +497,17 @@ class Wallettransferservice_model extends CI_Model
             ];
         }
         $d['blockchain'] = $chain;                              // null → off-chain internal ledger settlement
+
+        // ---- settlement (queue state — populated even before a tx_hash exists,
+        //      so the UI can show "queued" / "failed" / "skipped" rather than
+        //      nothing at all while a real broadcast is pending) ----
+        $d['settlement'] = [
+            'status'     => $h['settlement_status'] ?? null,
+            'address'    => $h['settlement_address'] ?? null,
+            'attempts'   => isset($h['settlement_attempts']) ? (int)$h['settlement_attempts'] : null,
+            'error'      => $h['settlement_error'] ?? null,
+            'settled_at' => $h['settled_at'] ?? null,
+        ];
 
         // ---- validation (derived from THIS transfer's own record, not re-mocked) ----
         $memberRule = $this->memberRule($h['from_wallet']);

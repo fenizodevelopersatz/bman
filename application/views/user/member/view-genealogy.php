@@ -455,15 +455,18 @@
     }
 
     .tree-canvas {
-      height: 640px;
+      height: 72vh;
+      min-height: 640px;
       overflow: auto;
       position: relative;
-      padding: 24px 18px;
+      padding: 28px 20px 20px;
     }
 
     /* big draggable area */
     .tree-inner {
-      min-width: 980px;
+      width: max-content;
+      min-width: 100%;
+      padding-bottom: 16px;
       transform-origin: 0 0;
     }
 
@@ -479,7 +482,7 @@
       transition: .2s;
       display: flex;
       justify-content: center;
-      gap: 36px;
+      gap: 34px;
     }
 
     .tree li {
@@ -544,26 +547,27 @@
     .node {
       display: inline-flex;
       flex-direction: column;
-      gap: 8px;
-      width: 220px;
-      background: #fff;
-      border: 1px solid #f5f5f7;
-      border-radius: 22px;
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.05);
-      padding: 12px;
+      gap: 10px;
+      width: 224px;
+      background: linear-gradient(180deg, #ffffff 0%, #fbfbff 100%);
+      border: 1px solid #ececf5;
+      border-radius: 24px;
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+      padding: 14px;
       cursor: pointer;
       transition: .15s;
       position: relative;
+      overflow: hidden;
     }
 
     .node:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.06);
+      transform: translateY(-3px);
+      box-shadow: 0 18px 42px rgba(67, 56, 202, 0.12);
     }
 
     /* Left leg — blue accent */
     .node-left {
-      border-left: 4px solid #4169e1;
+      border-left: 4px solid #4f46e5;
     }
 
     .node-left:hover {
@@ -572,7 +576,7 @@
 
     /* Right leg — green accent */
     .node-right {
-      border-right: 4px solid #26a65b;
+      border-right: 4px solid #22c55e;
     }
 
     .node-right:hover {
@@ -581,49 +585,51 @@
 
     .node-top {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
-      gap: 10px;
+      gap: 12px;
     }
 
     .node-user {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 10px;
       min-width: 0;
+      flex: 1 1 auto;
     }
 
     .av {
-      width: 40px;
-      height: 40px;
-      border-radius: 16px;
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
       background: #f2f2f7;
       object-fit: cover;
       flex-shrink: 0;
       border: 2px solid #fff;
-      box-shadow: 0 10px 16px rgba(0, 0, 0, 0.06);
+      box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
     }
 
     .nm {
-      font-size: 12px;
+      font-size: 12.5px;
       font-weight: 1000;
-      white-space: nowrap;
+      white-space: normal;
       overflow: hidden;
       text-overflow: ellipsis;
+      line-height: 1.25;
     }
 
     .id {
       font-size: 11px;
       color: var(--text-muted);
       font-weight: 900;
-      margin-top: 2px;
+      margin-top: 3px;
     }
 
     .rank {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 7px 10px;
+      padding: 7px 11px;
       border-radius: 999px;
       font-size: 10px;
       font-weight: 1000;
@@ -631,6 +637,7 @@
       background: #efedfb;
       color: var(--primary);
       white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .st {
@@ -663,14 +670,14 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
-      padding-top: 6px;
+      padding-top: 2px;
     }
 
     .kv {
       background: #f7f7fb;
       border: 1px solid #f1f1f6;
-      border-radius: 16px;
-      padding: 10px;
+      border-radius: 14px;
+      padding: 9px 10px;
       text-align: left;
     }
 
@@ -695,9 +702,8 @@
     }
 
     .node-btm {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
       padding-top: 2px;
     }
@@ -706,13 +712,14 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 7px 10px;
+      padding: 8px 10px;
       border-radius: 999px;
       border: 1px solid #f1f1f6;
       background: #fff;
       font-size: 10px;
       font-weight: 1000;
       color: #111827;
+      min-width: 0;
     }
 
     .pill i {
@@ -900,7 +907,7 @@
       }
 
       .tree-inner {
-        min-width: 860px;
+        min-width: 900px;
       }
     }
 
@@ -910,11 +917,11 @@
       }
 
       .tree-inner {
-        min-width: 760px;
+        min-width: 780px;
       }
 
       .node {
-        width: 200px;
+        width: 208px;
       }
     }
 
@@ -949,12 +956,17 @@
       }
 
       .tree-canvas {
-        height: 560px;
+        height: 60vh;
+        min-height: 540px;
       }
 
       .tree-inner {
-        min-width: 880px;
+        min-width: 860px;
         /* still scrollable but less wide */
+      }
+
+      .node-btm {
+        grid-template-columns: 1fr;
       }
     }
 
@@ -1044,26 +1056,27 @@
 
       /* Tree canvas: better mobile height */
       .tree-canvas {
-        height: 520px;
-        padding: 18px 12px;
+        height: 56vh;
+        min-height: 500px;
+        padding: 18px 12px 14px;
       }
 
       /* Keep the tree scrollable without forcing too wide */
       .tree-inner {
-        min-width: 720px;
+        min-width: 760px;
       }
 
       /* Node smaller */
       .node {
-        width: 190px;
-        border-radius: 18px;
-        padding: 10px;
+        width: 200px;
+        border-radius: 20px;
+        padding: 11px;
       }
 
       .av {
-        width: 36px;
-        height: 36px;
-        border-radius: 14px;
+        width: 38px;
+        height: 38px;
+        border-radius: 13px;
       }
 
       .rank {
@@ -1073,22 +1086,22 @@
 
       .kv {
         border-radius: 14px;
-        padding: 9px;
+        padding: 9px 10px;
       }
 
       .pill {
-        padding: 6px 9px;
+        padding: 7px 9px;
         font-size: 9px;
       }
 
       /* Reduce spacing between branches */
       .tree ul {
-        gap: 18px;
+        gap: 24px;
         padding-top: 34px;
       }
 
       .tree li {
-        padding: 34px 6px 0 6px;
+        padding: 34px 8px 0 8px;
       }
 
       /* Side panel */
@@ -1126,15 +1139,15 @@
     /* Very small phones */
     @media (max-width: 380px) {
       .tree-inner {
-        min-width: 680px;
+        min-width: 720px;
       }
 
       .node {
-        width: 178px;
+        width: 190px;
       }
 
       .nm {
-        max-width: 120px;
+        max-width: 124px;
       }
     }
   </style>

@@ -33,3 +33,50 @@
 
 # Daily at 2:00 AM - Rank power
 0 2 * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php rankpowercron run >> cronlogs/rankpowercron.log 2>&1
+
+
+
+*/10 * * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && /usr/bin/php index.php stakingpurchascron run >> /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html/cronlogs/staking.log 2>&1
+
+
+
+
+Config token
+cron_token = dcron_9f27ab5c3e8140d6
+Base URL
+https://darkseagreen-crocodile-999780.hostingersite.com
+Full cron URLs
+Staking Purchase
+https://darkseagreen-crocodile-999780.hostingersite.com/staking-purchase-cron?token=dcron_9f27ab5c3e8140d6
+
+ROI Distribution (Monthly + Maturity)
+https://darkseagreen-crocodile-999780.hostingersite.com/roi-distribution-cron?token=dcron_9f27ab5c3e8140d6
+
+ROI Monthly Distribution
+https://darkseagreen-crocodile-999780.hostingersite.com/roi-monthly-distribution-process?token=dcron_9f27ab5c3e8140d6
+
+ROI Maturity Payment
+https://darkseagreen-crocodile-999780.hostingersite.com/roi-maturity-payment-process?token=dcron_9f27ab5c3e8140d6
+
+Wallet Maturity Unlock
+https://darkseagreen-crocodile-999780.hostingersite.com/wallet-maturity-cron?token=dcron_9f27ab5c3e8140d6
+
+Binary Matching Payout
+https://darkseagreen-crocodile-999780.hostingersite.com/binary-matching-payout-cron?token=dcron_9f27ab5c3e8140d6
+
+Rank Achievement
+https://darkseagreen-crocodile-999780.hostingersite.com/rank-achievement-cron?token=dcron_9f27ab5c3e8140d6 --> 404
+
+Rank Power
+https://darkseagreen-crocodile-999780.hostingersite.com/rank-power-cron?token=dcron_9f27ab5c3e8140d6 ---> 404
+
+
+
+* * * * *     staking-purchase-cron
+*/5 * * * *   roi-distribution-cron
+0 0 * * *     roi-monthly-distribution-process
+10 0 * * *    roi-maturity-payment-process
+20 0 * * *    wallet-maturity-cron
+*/5 * * * *   binary-matching-payout-cron
+0 * * * *     rank-achievement-cron
+0 2 * * *     rank-power-cron
