@@ -449,8 +449,7 @@
         <div class="qa"><i class="ph ph-money"></i> Withdraw</div>
         <div class="qa"><i class="ph ph-arrows-left-right"></i> Transfer Wallet</div>
         <div class="qa"><i class="ph ph-tree-structure"></i> View Binary Tree</div>
-        <div class="qa"><i class="ph ph-user-plus"></i> Invite Member</div>
-        <div class="qa"><i class="ph ph-bag"></i> Shop Products</div>
+        <div class="qa"><i class="ph ph-user-plus"></i> Invite Member</div>        
         <div class="qa"><i class="ph ph-headset"></i> Support Ticket</div>
       </div>
 
@@ -467,7 +466,7 @@
             <!-- Left -->
             <div class="mini">
               <div class="mini-top">
-                <span>Left Leg BV</span>
+                <span>Left Leg</span>
                 <b id="left_leg_strength" style="color:#2563eb;">STRONG</b>
               </div>
 
@@ -480,7 +479,7 @@
             <!-- Right -->
             <div class="mini">
               <div class="mini-top">
-                <span>Right Leg BV</span>
+                <span>Right Leg</span>
                 <b id="right_leg_strength" style="color:#f97316;">WEAK</b>
               </div>
 

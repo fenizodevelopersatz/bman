@@ -459,121 +459,111 @@ class Wallet_model extends CI_Model
 
 
     // ✅ Commission table source = history (bucketed types)
+    /**
+     * Real commission taxonomy on this platform — wallet_ledger credits,
+     * keyed by reference_type (set at the site where each is credited):
+     *   binary_matching -> BinaryMatchingPayoutCron
+     *   roi             -> RoiMonthlyDistribution_cron / RoiMaturityPayment_cron
+     *   swap_bonus      -> Swapengine_model (instant 25% bonus at stake purchase)
+     *   rank_reward     -> Rankreward_model (§10 rank achievement)
+     * Replaces the old `history` table buckets (binary_commission/level_commission/
+     * direct_commission/rank_commission/site_withdraw), none of which the pairing-
+     * era history rows ever actually used — history only ever holds staking_purchase
+     * rows, so every one of those buckets was permanently empty.
+     */
+    private $commissionBucketMap = [
+        'BINARY'  => ['binary_matching'],
+        'ROI'     => ['roi'],
+        'INSTANT' => ['swap_bonus'],
+        'RANK'    => ['rank_reward'],
+    ];
+
+    /** Human title + icon key per reference_type, for the row label. */
+    private function commissionTitle($refType)
+    {
+        switch ($refType) {
+            case 'binary_matching': return 'Binary Matching Bonus';
+            case 'roi':              return 'ROI';
+            case 'swap_bonus':       return 'Instant Bonus';
+            case 'rank_reward':      return 'Rank Reward';
+            default:                 return ucfirst(str_replace('_', ' ', $refType));
+        }
+    }
+
     public function getCommissionHistory($user_id, $filters, $page, $per_page)
     {
         $page = max(1, (int) $page);
         $per_page = max(1, (int) $per_page);
         $offset = ($page - 1) * $per_page;
 
-        // ✅ UI -> history.type buckets
-        $bucketMap = [
-            'PAIRING' => ['binary_commission'],                 // Pairing chip
-            'MATCHING' => ['level_commission', 'matching_bonus'],// Matching chip (add/remove as per your project)
-            'DIRECT' => ['direct_commission'],                 // Direct chip
-            'RANK' => ['rank_commission'],                   // Rank chip
-            'WITHDRAW' => ['site_withdraw'],                     // Withdraw chip
-        ];
+        $allowedTypes = array_values(array_unique(array_merge(...array_values($this->commissionBucketMap))));
 
-        // all allowed types for this page
-        $allowedTypes = array_values(array_unique(array_merge(...array_values($bucketMap))));
-
-        $where = ["{$this->h_user_id}=?"];
+        $where = ['user_id = ?', 'credit > 0'];
         $params = [$user_id];
 
-        // search
         if (!empty($filters['q'])) {
             $q = '%' . $filters['q'] . '%';
-            $where[] = "({$this->h_hash} LIKE ? OR {$this->h_desc} LIKE ?)";
-            $params[] = $q;
-            $params[] = $q;
+            $where[] = '(reference_id LIKE ? OR description LIKE ?)';
+            $params[] = $q; $params[] = $q;
         }
 
-        // ✅ Type filter (bucket)
-        if (!empty($filters['type'])) {
-            $t = strtoupper(trim($filters['type']));
-            if (isset($bucketMap[$t])) {
-                $types = $bucketMap[$t];
-                $placeholders = implode(',', array_fill(0, count($types), '?'));
-                $where[] = "{$this->h_type} IN ($placeholders)";
-                foreach ($types as $x)
-                    $params[] = $x;
-            } else {
-                // unknown type => fallback to allowed types
-                $placeholders = implode(',', array_fill(0, count($allowedTypes), '?'));
-                $where[] = "{$this->h_type} IN ($placeholders)";
-                foreach ($allowedTypes as $x)
-                    $params[] = $x;
-            }
+        if (!empty($filters['type']) && isset($this->commissionBucketMap[strtoupper(trim($filters['type']))])) {
+            $types = $this->commissionBucketMap[strtoupper(trim($filters['type']))];
         } else {
-            // default = only these buckets
-            $placeholders = implode(',', array_fill(0, count($allowedTypes), '?'));
-            $where[] = "{$this->h_type} IN ($placeholders)";
-            foreach ($allowedTypes as $x)
-                $params[] = $x;
+            $types = $allowedTypes;
+        }
+        $placeholders = implode(',', array_fill(0, count($types), '?'));
+        $where[] = "reference_type IN ($placeholders)";
+        foreach ($types as $x) $params[] = $x;
+
+        if (!empty($filters['from'])) { $where[] = 'DATE(created_at) >= ?'; $params[] = $filters['from']; }
+        if (!empty($filters['to']))   { $where[] = 'DATE(created_at) <= ?'; $params[] = $filters['to']; }
+
+        // Every wallet_ledger credit is, by definition, already posted — there
+        // is no pending/rejected state at this layer (that only exists one
+        // step earlier, e.g. rank_rewards.reward_status before it's credited
+        // here). So a Pending/Rejected filter here can only ever match zero
+        // rows — which is honest, not a bug: nothing in this table qualifies.
+        if (!empty($filters['status']) && strtoupper(trim($filters['status'])) !== 'SUCCESS') {
+            $where[] = '1=0';
         }
 
-        // date
-        if (!empty($filters['from'])) {
-            $where[] = "DATE({$this->h_date}) >= ?";
-            $params[] = $filters['from'];
-        }
-        if (!empty($filters['to'])) {
-            $where[] = "DATE({$this->h_date}) <= ?";
-            $params[] = $filters['to'];
-        }
+        $whereSql = 'WHERE ' . implode(' AND ', $where);
 
-        // status UI -> history.status
-        if (!empty($filters['status'])) {
-            $s = strtoupper(trim($filters['status']));
-            if ($s === 'SUCCESS')
-                $where[] = "{$this->h_status}='1'";
-            elseif ($s === 'PENDING')
-                $where[] = "{$this->h_status}='2'";
-            elseif ($s === 'REJECTED')
-                $where[] = "{$this->h_status}='0'";
-        }
-
-        $whereSql = "WHERE " . implode(" AND ", $where);
-
-        // ✅ bucket label for UI (CASE)
         $bucketCase = "
         CASE
-            WHEN {$this->h_type} IN ('binary_commission') THEN 'PAIRING'
-            WHEN {$this->h_type} IN ('level_commission','matching_bonus') THEN 'MATCHING'
-            WHEN {$this->h_type} IN ('direct_commission') THEN 'DIRECT'
-            WHEN {$this->h_type} IN ('rank_commission') THEN 'RANK'
-            WHEN {$this->h_type} IN ('site_withdraw') THEN 'WITHDRAW'
-            ELSE UPPER({$this->h_type})
+            WHEN reference_type = 'binary_matching' THEN 'BINARY'
+            WHEN reference_type = 'roi'              THEN 'ROI'
+            WHEN reference_type = 'swap_bonus'       THEN 'INSTANT'
+            WHEN reference_type = 'rank_reward'       THEN 'RANK'
+            ELSE UPPER(reference_type)
         END
     ";
 
-        // total
         $total = (int) $this->db->query("
-        SELECT COUNT(*) AS c
-        FROM {$this->history_table}
-        $whereSql
+        SELECT COUNT(*) AS c FROM wallet_ledger $whereSql
     ", $params)->row()->c;
 
         $pages = max(1, (int) ceil($total / $per_page));
 
-        // rows
         $rows = $this->db->query("
         SELECT
             id,
-            ($bucketCase)           AS type,         -- ✅ bucketed type for UI
-            {$this->h_type}         AS raw_type,     -- ✅ original history.type (optional)
-            {$this->h_hash}         AS ref,
-            {$this->h_date}         AS created_at,
-            {$this->h_amount}       AS amount,
-            {$this->h_status}       AS status,
-            {$this->h_desc}         AS note
-        FROM {$this->history_table}
+            ($bucketCase)     AS type,
+            reference_type    AS raw_type,
+            reference_id      AS ref,
+            created_at        AS created_at,
+            credit            AS amount,
+            'SUCCESS'         AS status,
+            description       AS note
+        FROM wallet_ledger
         $whereSql
-        ORDER BY {$this->h_date} DESC
+        ORDER BY created_at DESC, id DESC
         LIMIT ? OFFSET ?
     ", array_merge($params, [$per_page, $offset]))->result();
 
-        // counts for chips
+        foreach ($rows as $r) { $r->title = $this->commissionTitle($r->raw_type); }
+
         $counts = $this->getCommissionCounts($user_id, $filters);
 
         return [
@@ -590,76 +580,46 @@ class Wallet_model extends CI_Model
 
     public function getCommissionCounts($user_id, $filters)
     {
-        $counts = [
-            'ALL' => 0,
-            'PAIRING' => 0,
-            'MATCHING' => 0,
-            'DIRECT' => 0,
-            'RANK' => 0,
-            'WITHDRAW' => 0,
-        ];
+        $counts = ['ALL' => 0, 'BINARY' => 0, 'ROI' => 0, 'INSTANT' => 0, 'RANK' => 0];
 
-        // same bucket map
-        $bucketMap = [
-            'PAIRING' => ['binary_commission'],
-            'MATCHING' => ['level_commission', 'matching_bonus'],
-            'DIRECT' => ['direct_commission'],
-            'RANK' => ['rank_commission'],
-            'WITHDRAW' => ['site_withdraw'],
-        ];
+        $allowedTypes = array_values(array_unique(array_merge(...array_values($this->commissionBucketMap))));
 
-        $allowedTypes = array_values(array_unique(array_merge(...array_values($bucketMap))));
-
-        $where = ["{$this->h_user_id}=?"];
+        $where = ['user_id = ?', 'credit > 0'];
         $params = [$user_id];
 
-        // limit counts to these buckets only
         $placeholders = implode(',', array_fill(0, count($allowedTypes), '?'));
-        $where[] = "{$this->h_type} IN ($placeholders)";
-        foreach ($allowedTypes as $x)
-            $params[] = $x;
+        $where[] = "reference_type IN ($placeholders)";
+        foreach ($allowedTypes as $x) $params[] = $x;
 
-        if (!empty($filters['from'])) {
-            $where[] = "DATE({$this->h_date}) >= ?";
-            $params[] = $filters['from'];
-        }
-        if (!empty($filters['to'])) {
-            $where[] = "DATE({$this->h_date}) <= ?";
-            $params[] = $filters['to'];
-        }
+        if (!empty($filters['from'])) { $where[] = 'DATE(created_at) >= ?'; $params[] = $filters['from']; }
+        if (!empty($filters['to']))   { $where[] = 'DATE(created_at) <= ?'; $params[] = $filters['to']; }
 
-        $whereSql = "WHERE " . implode(" AND ", $where);
+        $whereSql = 'WHERE ' . implode(' AND ', $where);
 
-        // ALL
         $counts['ALL'] = (int) $this->db->query("
-        SELECT COUNT(*) AS c
-        FROM {$this->history_table}
-        $whereSql
+        SELECT COUNT(*) AS c FROM wallet_ledger $whereSql
     ", $params)->row()->c;
 
-        // ✅ group into buckets using CASE
         $bucketCase = "
         CASE
-            WHEN {$this->h_type} IN ('binary_commission') THEN 'PAIRING'
-            WHEN {$this->h_type} IN ('level_commission','matching_bonus') THEN 'MATCHING'
-            WHEN {$this->h_type} IN ('direct_commission') THEN 'DIRECT'
-            WHEN {$this->h_type} IN ('rank_commission') THEN 'RANK'
-            WHEN {$this->h_type} IN ('site_withdraw') THEN 'WITHDRAW'
+            WHEN reference_type = 'binary_matching' THEN 'BINARY'
+            WHEN reference_type = 'roi'              THEN 'ROI'
+            WHEN reference_type = 'swap_bonus'       THEN 'INSTANT'
+            WHEN reference_type = 'rank_reward'       THEN 'RANK'
             ELSE 'OTHER'
         END
     ";
 
         $rows = $this->db->query("
         SELECT ($bucketCase) AS t, COUNT(*) AS c
-        FROM {$this->history_table}
+        FROM wallet_ledger
         $whereSql
         GROUP BY ($bucketCase)
     ", $params)->result();
 
         foreach ($rows as $r) {
             $k = strtoupper(trim($r->t));
-            if (isset($counts[$k]))
-                $counts[$k] = (int) $r->c;
+            if (isset($counts[$k])) $counts[$k] = (int) $r->c;
         }
 
         return $counts;
@@ -667,54 +627,37 @@ class Wallet_model extends CI_Model
 
 
     // ✅ Summary cards values
+    /**
+     * "Pending Commission" — the only genuinely pending commission state in
+     * this architecture: a rank reward the achievement engine has recorded
+     * but not yet credited to the wallet (rank_rewards.reward_status =
+     * 'pending'). Binary matching / ROI / instant bonus are never pending —
+     * each is credited to wallet_ledger the moment it's earned, so there is
+     * nothing "awaiting payout" for those. (Old implementation summed
+     * user_investment, a table from the old e-commerce/investment module
+     * with no relationship to BMAN staking or commissions at all.)
+     */
     public function getPendingCommissionFromInvestments($user_id, $filters = '')
     {
-        $from = !empty($filters['from']) ? $filters['from'] : date('Y-m-d', strtotime('-29 days'));
-        $to = !empty($filters['to']) ? $filters['to'] : date('Y-m-d');
-
-        // ✅ Pick which date column defines the "investment date window"
-        // Options: created_date, starting_date, run_date
-        // Usually created_date or starting_date is best.
-        $date_col = 'created_date';
-
-        // ✅ Pending investments:
-        // In your data status=2 looks like matured/closed. If you want ONLY active pending use status=1.
-        // I'll keep BOTH 1 and 2 because you didn't confirm logic.
-        $statuses = [1, 2];
-
-        // Build placeholders for IN()
-        $in = implode(',', array_fill(0, count($statuses), '?'));
-        $params = array_merge([$user_id], $statuses, [$from, $to]);
-
-        // ✅ percentage wise sum
-        // pending = SUM(invest_amount * profit / 100)
-        $sql = "
-        SELECT COALESCE(SUM(invest_amount * profit / 100), 0) AS amt
-        FROM user_investment
-        WHERE user_id = ?
-          AND status IN ($in)
-          AND DATE($date_col) BETWEEN ? AND ?
-    ";
-
-        $row = $this->db->query($sql, $params)->row();
-
-        _dbg('getPendingCommissionFromInvestments', $this->db->last_query());
+        $row = $this->db->select('COALESCE(SUM(reward_amount),0) AS amt', false)
+            ->from('rank_rewards')
+            ->where('user_id', $user_id)
+            ->where('reward_status', 'pending')
+            ->get()->row();
         return (float) ($row->amt ?? 0);
     }
 
-
+    /** Lifetime BMAN commissions — same source/buckets as getCommissionHistory(). */
     public function getTotalCommissionEarned($user_id)
     {
+        $allowedTypes = array_values(array_unique(array_merge(...array_values($this->commissionBucketMap))));
+        $placeholders = implode(',', array_fill(0, count($allowedTypes), '?'));
         $row = $this->db->query("
-        SELECT COALESCE(SUM({$this->h_amount}),0) AS amt
-        FROM {$this->history_table}
-        WHERE {$this->h_user_id} = ?
-          AND {$this->h_status} = '1'
-          AND (
-                {$this->h_type} LIKE '%commission%'
-                OR {$this->h_type} = 'profit'
-          )
-    ", [$user_id])->row();
+        SELECT COALESCE(SUM(credit),0) AS amt
+        FROM wallet_ledger
+        WHERE user_id = ? AND credit > 0
+          AND reference_type IN ($placeholders)
+    ", array_merge([$user_id], $allowedTypes))->row();
 
         return (float) ($row->amt ?? 0);
     }

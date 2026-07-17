@@ -85,3 +85,10 @@ https://darkseagreen-crocodile-999780.hostingersite.com/rank-power-cron?token=dc
 */5 * * * *   binary-matching-payout-cron
 0 * * * *     rank-achievement-cron
 0 2 * * *     rank-power-cron
+
+
+http://192.168.29.18:9000/user/profit
+Need to display the commission of binary matching bonus
+-ROI bonus
+-Instant Bonus
+-All commission to display here
