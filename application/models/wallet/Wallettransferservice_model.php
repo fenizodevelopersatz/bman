@@ -291,11 +291,14 @@ class Wallettransferservice_model extends CI_Model
             ['reference_id'=>$ref,'created_by'=>$adminId,'description'=>'Transfer received '.$from.' ['.$uid8.']']);
         if (!$okC) { $this->db->trans_rollback(); $this->audit($c,'failed','credit_failed',(string)$rC); return ['ok'=>false,'code'=>'credit_failed','message'=>$rC]; }
 
-        // 3) on-chain settlement target — self settles to the source's OWN address
-        //    (delivering value that only ever existed as a ledger row); member
-        //    transfers settle to the RECIPIENT's address. Skipped (not pending) when
-        //    that transfer type is toggled off or no wallet address is on file — the
-        //    settlement cron only ever picks up rows left 'pending'.
+        // 3) on-chain settlement target — member transfers settle to the
+        //    RECIPIENT's address (value actually moved to someone else, so the
+        //    ledger and the chain should agree). Self-transfers stay internal
+        //    by default (settle_self_transfers=0): same account both ends,
+        //    nothing left custody, so there's nothing external to prove.
+        //    Skipped (not pending) when the type is toggled off or no wallet
+        //    address is on file — the settlement cron only ever picks up rows
+        //    left 'pending'.
         $settleSettings = $this->_settlementSettings();
         $destUserId = $isMember ? $rcp : $src;
         $settlementAddress = $this->_walletAddress($destUserId);

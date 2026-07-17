@@ -71,16 +71,32 @@ class Memberrank_model extends CI_Model
 
     /* ---------------------------- blocks ------------------------------ */
 
+    /**
+     * The tier_level=0 row (UN RANK) — used as the display placeholder for a
+     * member who hasn't achieved any real rank yet. Shown, not awarded: the
+     * badge/name come from here purely so the widget has something to render
+     * besides a plain dot; `has_rank` stays false either way.
+     */
+    private function _unrankedFallback()
+    {
+        static $row = false;
+        if ($row === false) {
+            $row = $this->db->where('tier_level', 0)->limit(1)->get('staking_ranks')->row_array() ?: null;
+        }
+        return $row;
+    }
+
     /** Achievement rank — permanent, never downgraded. */
     private function _rankBlock($current)
     {
         if (!$current || empty($current['highest_rank'])) {
+            $un = $this->_unrankedFallback();
             return [
                 'has_rank'    => false,
-                'name'        => 'UNRANKED',
+                'name'        => $un['name'] ?? 'UN RANK',
                 'tier'        => null,
-                'badge_image' => null,
-                'badge_color' => '#9e9e9e',
+                'badge_image' => $un['badge_image'] ?? null,
+                'badge_color' => $un['badge_color'] ?? '#9e9e9e',
                 'achieved_at' => null,
             ];
         }
@@ -249,13 +265,14 @@ class Memberrank_model extends CI_Model
     public function sidebar($user_id)
     {
         $user_id = (int)$user_id;
+        $un = $this->_unrankedFallback();
         $out = [
             'available'       => false,
             'has_rank'        => false,
-            'name'            => 'NONE',
+            'name'            => $un['name'] ?? 'UN RANK',
             'tier'            => null,
-            'badge_image'     => null,
-            'badge_color'     => '#9e9e9e',
+            'badge_image'     => $un['badge_image'] ?? null,
+            'badge_color'     => $un['badge_color'] ?? '#9e9e9e',
             'next_rank'       => null,
             'progress'        => 0,
             'group_volume'    => '0',

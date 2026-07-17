@@ -13,13 +13,16 @@
 -- controlling whether settlement runs at all, in dry-run or live, and for
 -- which transfer types.
 --
--- WHY EVERY TRANSFER, INCLUDING SELF-MOVES, GETS A SETTLEMENT ROW
--- A member has exactly ONE on-chain address (user_wallet.wallet_address).
--- Earning/Staking/Bonus balances were credited purely as ledger rows and were
--- never delivered on-chain — moving them between a member's own 4 internal
--- buckets is the first "real" event for that value, so it settles by sending
--- real BMAN from Treasury to the member's own address. Member-to-member
--- transfers settle to the RECIPIENT's address. Either way the source of every
+-- SELF-TRANSFERS DO NOT SETTLE ON-CHAIN BY DEFAULT
+-- A self-transfer moves value between one member's OWN 4 internal wallets —
+-- same account both ends, nothing leaves their custody. There is no external
+-- party to prove delivery to, so it settles purely on the internal ledger,
+-- same as before this migration. settle_self_transfers exists as an admin
+-- toggle for anyone who wants that on-chain proof anyway, but it defaults OFF.
+--
+-- Member-to-member transfers DO settle on-chain (settle_member_transfers=1):
+-- value moves to a different member, so the recipient's on-chain balance is
+-- brought in line with what the ledger says they're owed. The source of every
 -- settlement is the Treasury wallet (single custodial signer — see
 -- Web3bman.php; individual members do not sign their own on-chain transfers).
 --
@@ -95,7 +98,7 @@ CREATE TABLE IF NOT EXISTS `wallet_transfer_settlement_settings` (
   `id` TINYINT UNSIGNED NOT NULL,
   `enabled` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'master switch — 0 = behave exactly as before this migration',
   `dry_run` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 = record a DRYRUN- hash, never broadcast (mirrors token_settings.swap_dry_run, kept separate on purpose)',
-  `settle_self_transfers` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'a member moving between their OWN 4 wallets',
+  `settle_self_transfers` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'a member moving between their OWN 4 wallets — off by default, same account both ends, nothing to prove on-chain',
   `settle_member_transfers` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'user A -> user B',
   `min_treasury_reserve` DECIMAL(30,8) NOT NULL DEFAULT 0 COMMENT 'cron refuses to settle if it would drop the Treasury on-chain BMAN balance below this',
   `max_batch_size` INT NOT NULL DEFAULT 20 COMMENT 'settlements processed per cron invocation',
@@ -106,7 +109,7 @@ CREATE TABLE IF NOT EXISTS `wallet_transfer_settlement_settings` (
 
 INSERT IGNORE INTO `wallet_transfer_settlement_settings`
   (`id`, `enabled`, `dry_run`, `settle_self_transfers`, `settle_member_transfers`, `min_treasury_reserve`, `max_batch_size`)
-VALUES (1, 0, 1, 1, 1, 0, 20);
+VALUES (1, 0, 1, 0, 1, 0, 20);
 
 -- ----------------------------------------------------------------------------
 -- 3. Run-lock + cursor, matching rank_cron_state's exact shape (reserved word

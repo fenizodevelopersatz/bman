@@ -83,6 +83,14 @@ class User extends CI_Controller
 			$this->load->model('Walletledger_model', 'wl');
 			$this->data['wallets'] = $this->wl->balances($userid);
 
+			// Rank summary for the Binary Summary panel's checklist replacement
+			// (Achievement Rank / Rank Power / Group Volume / Next Rank Progress /
+			// Group Incentive) — Memberrank_model::sidebar() is the cheap, cached-
+			// volume entry point meant for exactly this: rendered on many pages,
+			// so it deliberately skips the live genealogy walk.
+			$this->load->model('user/Memberrank_model', 'mr');
+			$this->data['rank_summary'] = $this->mr->sidebar($userid);
+
 			$this->load->view('user/dashboard/index', $this->data);
 
 		} else {
@@ -1234,13 +1242,20 @@ class User extends CI_Controller
 		if ($limit > 20)
 			$limit = 20;
 
-		// Adjust column names if your history table differs.
-		// Common columns: id, user_id, type, amount, token_amount, remarks/description, status, created_at
+		// Commissions/bonuses are real wallet_ledger credits, not the `history`
+		// table (that only ever holds staking_purchase rows). reference_type
+		// values come straight from Walletledger_model::credit() call sites:
+		// binary_matching (BinaryMatchingPayoutCron), roi (RoiMonthly/Maturity
+		// cron), swap_bonus (Swapengine_model's instant 25% staking bonus),
+		// rank_reward (Rankreward_model, §10). A ledger row only ever exists
+		// once its movement has actually posted, so there is no pending/failed
+		// state here to surface — every row is a completed credit.
 		$rows = $this->db->query("
-        SELECT id, type, amount, status, date as created_at, description as remarks
-        FROM history
+        SELECT id, reference_type AS type, credit AS amount, description AS remarks, created_at
+        FROM wallet_ledger
         WHERE user_id = ?
-          AND type IN ('binary_commission','level_commission','direct_commission','rank_reward','profit')
+          AND reference_type IN ('binary_matching','roi','swap_bonus','rank_reward')
+          AND credit > 0
         ORDER BY id DESC
         LIMIT ?
     ", [$user_id, $limit])->result_array();
@@ -1248,22 +1263,14 @@ class User extends CI_Controller
 		$out = [];
 		foreach ($rows as $r) {
 			$type = (string) ($r['type'] ?? '');
-			$remarks = trim((string) ($r['remarks'] ?? ''));
-
-			// meta text (optional): you can store "Pair #1021" or "Level 1" in remarks
-			$meta = $remarks;
-
-			// if status empty, default success for commissions
-			$status = trim((string) ($r['status'] ?? ''));
-			if ($status === '')
-				$status = 'success';
+			$meta = trim((string) ($r['remarks'] ?? ''));
 
 			$out[] = [
 				'id' => (int) $r['id'],
 				'type' => $type,
 				'title' => $this->_commissionTitle($type),
 				'meta' => $meta,
-				'status' => $status,
+				'status' => 'success',
 				'amount' => number_format((float) ($r['amount'] ?? 0), 2),
 				'date_text' => date('d M Y', strtotime($r['created_at'])),
 			];
@@ -1281,8 +1288,10 @@ class User extends CI_Controller
 	private function _commissionTitle($type)
 	{
 		$t = strtolower(trim((string) $type));
-		if ($t === 'binary_commission')
-			return 'Pairing Bonus (Binary)';
+		if ($t === 'binary_matching' || $t === 'binary_commission')
+			return 'Binary Matching Bonus';
+		if ($t === 'swap_bonus')
+			return 'Instant 25% Bonus (Stake Purchase)';
 		if ($t === 'level_commission')
 			return 'Matching Bonus';
 		if ($t === 'direct_commission')
