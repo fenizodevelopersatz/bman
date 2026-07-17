@@ -50,6 +50,24 @@ $legMax   = max($leftVol, $rightVol, 1);             // for the leg bar widths o
 $rewardCnt = count($rewards);
 $certCnt   = count($certificates);
 $earnedCnt = count(array_filter($ladder, function ($l) { return $l['achieved']; }));
+
+// Milestone preview for section 9 — current rank / next rank, straight off
+// $ladder (already carries is_current, is_next, reward_bman/usdt/note per rank).
+// $msCurrent is null for an unranked member; $msNext is null once CHALLENGER
+// is held (there is nothing further to unlock).
+$msCurrent = null; $msNext = null;
+foreach ($ladder as $l) {
+    if ($l['is_current']) $msCurrent = $l;
+    if ($l['is_next'])    $msNext    = $l;
+}
+$msRewardText = function ($l) use ($rk_n) {
+    $parts = [];
+    if ((float) $l['reward_bman'] > 0) $parts[] = $rk_n($l['reward_bman']) . ' BMAN';
+    if ((float) $l['reward_usdt'] > 0) $parts[] = $rk_n($l['reward_usdt']) . ' USDT';
+    if ($parts) return implode(' + ', $parts);
+    if (!empty($l['reward_note'])) return $l['reward_note'];
+    return 'Badge, certificate & recognition';
+};
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -257,6 +275,23 @@ $earnedCnt = count(array_filter($ladder, function ($l) { return $l['achieved']; 
         .b-bad { background:#fee2e2; color:#b91c1c; }
         .b-mut { background:var(--soft); color:var(--muted); }
         .empty { text-align:center; padding:34px 16px; color:var(--muted); font-size:12.5px; line-height:1.6; }
+
+        /* ---- 9b. rank milestone preview (replaces the empty rewards state) ---- */
+        .rk-milestone { display:flex; align-items:center; gap:14px; margin:6px 0 12px; }
+        .rk-ms-box { flex:1; min-width:0; background:var(--soft); border:1px solid var(--stroke); border-radius:16px;
+            padding:18px 14px; text-align:center; position:relative; overflow:hidden; }
+        .rk-ms-box b { display:block; font-size:14px; font-weight:800; color:var(--txt); margin-top:9px; }
+        .rk-ms-box small { display:block; font-size:11px; color:var(--muted); margin-top:3px; }
+        .rk-ms-current { background:#fff; border-color:var(--p); box-shadow:0 0 0 3px rgba(110,86,207,.14); }
+        .rk-ms-mid { flex:0 0 60px; text-align:center; }
+        .rk-ms-pct { display:block; font-size:12px; font-weight:800; color:var(--p); margin-bottom:5px; }
+        .rk-ms-mid i { font-size:20px; color:var(--muted); }
+        .rk-ms-blurred { filter:blur(2.5px); opacity:.55; user-select:none; }
+        .rk-ms-lock { position:absolute; inset:0; z-index:2; display:flex; align-items:center; justify-content:center; }
+        .rk-ms-lock i { font-size:20px; color:var(--txt); background:rgba(255,255,255,.9); width:36px; height:36px;
+            border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,.12); }
+        .rk-ms-hint { font-size:11.5px; color:var(--muted); text-align:center; margin:0; line-height:1.65; }
+        @media (max-width:560px) { .rk-milestone { flex-direction:column; } .rk-ms-mid i { transform:rotate(90deg); } }
         .empty i { font-size:30px; display:block; margin-bottom:8px; opacity:.4; }
         .cert-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:12px; }
         .cert { border:1px solid var(--stroke); border-radius:16px; padding:13px; background:var(--soft); display:flex; gap:11px; align-items:center; text-decoration:none; transition:transform .15s ease, box-shadow .15s ease; }
@@ -765,7 +800,52 @@ $earnedCnt = count(array_filter($ladder, function ($l) { return $l['achieved']; 
                     <span class="chip"><?= $rewardCnt; ?> total</span>
                 </div>
 
-                <?php if (!$rewardCnt): ?>
+                <?php if (!$rewardCnt && ($msCurrent || $msNext)): ?>
+                    <!-- Milestone preview: no reward has been paid yet, so show what's
+                         coming instead of a bare "no rewards" message. The current rank
+                         is real and sharp; the next rank's reward is real too (pulled
+                         from the same admin-configured figures) but shown blurred —
+                         locked until it's actually earned. -->
+                    <div class="rk-milestone">
+                        <div class="rk-ms-box rk-ms-current">
+                            <?= $rk_badge($msCurrent['badge_image'] ?? null, $msCurrent['badge_color'] ?? '#9e9e9e', 52); ?>
+                            <b><?= htmlspecialchars($msCurrent ? $msCurrent['name'] : 'Unranked'); ?></b>
+                            <small><?= $msCurrent ? 'Current rank' : 'Not yet earned'; ?></small>
+                        </div>
+
+                        <?php if ($msNext): ?>
+                            <div class="rk-ms-mid">
+                                <span class="rk-ms-pct"><?= $hasNext ? (int) round($volPct) : 0; ?>%</span>
+                                <i class="ph ph-arrow-right"></i>
+                            </div>
+                            <div class="rk-ms-box rk-ms-next">
+                                <div class="rk-ms-lock"><i class="ph-fill ph-lock-simple"></i></div>
+                                <div class="rk-ms-blurred">
+                                    <?= $rk_badge($msNext['badge_image'], $msNext['badge_color'], 52); ?>
+                                    <b><?= htmlspecialchars($msNext['name']); ?></b>
+                                    <small><?= htmlspecialchars($msRewardText($msNext)); ?></small>
+                                </div>
+                            </div>
+                        <?php else: ?>
+                            <div class="rk-ms-mid">
+                                <i class="ph-fill ph-check-circle" style="color:var(--ok);"></i>
+                            </div>
+                            <div class="rk-ms-box">
+                                <i class="ph-fill ph-crown" style="font-size:36px;color:#f1c40f;"></i>
+                                <b>Highest rank</b>
+                                <small>Permanent</small>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <p class="rk-ms-hint">
+                        <?php if ($msNext): ?>
+                            Reach <b><?= htmlspecialchars($msNext['name']); ?></b> to unlock this reward —
+                            it's credited to your wallet automatically.
+                        <?php else: ?>
+                            You hold the highest rank in BMAN. Every reward along the way is permanent.
+                        <?php endif; ?>
+                    </p>
+                <?php elseif (!$rewardCnt): ?>
                     <div class="empty">
                         <i class="ph ph-gift"></i>
                         No rewards yet. Reach a rank and any reward is credited to your wallet automatically.
