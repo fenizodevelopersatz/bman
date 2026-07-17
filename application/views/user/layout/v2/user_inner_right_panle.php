@@ -159,8 +159,6 @@ $rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian not
     </style>
     <style>
         /* Rank card — achievement rank (permanent) + rank power (60-day cycle) */
-        .rp-badge-img { width:34px; height:34px; border-radius:9px; object-fit:contain; flex:0 0 34px; }
-        .rp-badge-dot { width:34px; height:34px; border-radius:50%; flex:0 0 34px; display:inline-block; }
         .rank-perm {
             display:inline-flex; align-items:center; gap:5px; font-size:9.5px; font-weight:700;
             color:#15803d; background:#dcfce7; padding:3px 7px; border-radius:999px; margin-top:5px;
@@ -182,11 +180,7 @@ $rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian not
 
     <div class="rank-card">
         <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-            <?php if (!empty($rk['badge_image'])): ?>
-                <img class="rp-badge-img" src="<?= base_url($rk['badge_image']); ?>" alt="" loading="lazy">
-            <?php else: ?>
-                <span class="rp-badge-dot" style="background:<?= htmlspecialchars($rk['badge_color']); ?>"></span>
-            <?php endif; ?>
+            <?= rank_badge_html($rk['badge_image'], $rk['badge_color'], 34); ?>
             <div style="min-width:0;">
                 <p class="label" style="margin:0;">Current Rank</p>
                 <span class="rank-badge"><?= htmlspecialchars($rk['name']); ?></span>
