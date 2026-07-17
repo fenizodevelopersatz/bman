@@ -45,8 +45,37 @@ class Dashboardchart_model extends CI_Model
     /** Guard: an enormous IN() list is worse than no filter at all. */
     const MAX_TEAM_IDS = 5000;
 
-    /** Earning-wallet credits that count as "earning coin" (line/matching bonus). */
-    private $earning_refs = ['binary_commission', 'matching_bonus', 'rank_reward'];
+    /**
+     * Earning-wallet credits that count as "earning coin" — the line / matching
+     * bonus the member received.
+     *
+     * 'binary_matching' is what the live data actually contains (it is what
+     * Stakingmatching_model writes); 'binary_commission' and 'matching_bonus'
+     * appear elsewhere in the codebase for the same idea. All are accepted so
+     * the series does not silently read zero depending on which writer ran.
+     * 'roi' and 'stake_purchase' also credit the earning wallet but are NOT a
+     * line/matching bonus, so they stay out.
+     */
+    private $earning_refs = [
+        'binary_matching',      // live data — Stakingmatching_model
+        'binary_commission',    // legacy / commission engine
+        'matching_bonus',       // alternate spelling in some writers
+        'rank_reward',
+    ];
+
+    /**
+     * Swap-order statuses that mean "the stake actually completed".
+     *
+     * The engine writes 'swap_completed' — NOT 'completed'. Verified against
+     * both the writers (Swapengine_model / StakingSwap_model only ever set
+     * active | failed_credit | pending_gas_fee | pending_usdt | pending_bman |
+     * swap_completed) and the live table, which contains only 'swap_completed'
+     * and 'cancelled'. The comment in db/staking_swap.sql:47 promising
+     * "created → usdt_sent → bman_sent → completed" is stale and does not match
+     * the code. Both spellings are accepted so this keeps working if the engine
+     * is ever aligned to the documented state machine.
+     */
+    private $done_status = ['swap_completed', 'completed'];
 
     private $ranges = [
         'daily'   => ['points' => 30, 'label' => 'Last 30 Days'],
@@ -240,15 +269,16 @@ class Dashboardchart_model extends CI_Model
 
     /**
      * staking_swap_orders — "how many user staking done".
-     * Both status AND cron_status must be 'completed'; that pair is what
-     * excludes cancelled / failed / pending / refunded across this codebase.
+     * The status pair is what excludes cancelled / failed / pending / refunded.
+     * See $done_status: the engine writes 'swap_completed', not 'completed'.
      */
     private function _applyStaking(&$buckets, $range, $from, $ids)
     {
         $b = $this->_bucketSql($range, 'created_at');
+        $done = $this->_inList($this->done_status);
         $sql = "SELECT {$b} AS bkt, COUNT(*) AS staking_done
                   FROM `staking_swap_orders`
-                 WHERE `status` = 'completed' AND `cron_status` = 'completed'
+                 WHERE `status` IN {$done} AND `cron_status` = 'completed'
                    AND `created_at` >= ?";
         $bind = [$from];
         if ($ids !== null) {
