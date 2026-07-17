@@ -289,52 +289,76 @@
       </div>
 
 
-      <!-- Finance Overview chart -->
+      <!-- User Activity & Coin Trend chart -->
       <style>
-        .fin-chart-card{ background:var(--bs-body-bg,#fff); border:1px solid var(--bs-border-color,#eef0f4);
-          border-radius:18px; padding:18px 20px; margin:0 0 18px; box-shadow:0 8px 24px rgba(20,22,26,.05); }
-        .fin-chart-head{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:8px; }
-        .fin-chart-head h3{ margin:0; font-weight:700; font-size:17px; }
-        .fin-chart-head small{ color:var(--bs-secondary-color,#8a8f99); }
-        .fin-filter{ display:inline-flex; background:var(--bs-secondary-bg,#f3f4f7); border-radius:30px; padding:4px; }
+        /* Palette + panel styling per the reference design. The chart owns a
+           deliberate, fixed palette (blue in / green out) rather than the panel
+           theme tokens, because the colours ARE the spec here: blue vs green is
+           how in-vs-out is read at a glance. */
+        .fin-chart-card{
+          --c-blue:#2563eb; --c-green:#22c55e; --c-amber:#f59e0b;
+          --c-purple:#8b5cf6; --c-grey:#94a3b8;
+          --c-ink:#0f172a; --c-muted:#64748b; --c-line:#e2e8f0; --c-card:#ffffff;
+          background:var(--c-card); border:1px solid var(--c-line);
+          border-radius:18px; padding:22px 24px; margin:0 0 18px;
+          box-shadow:0 6px 24px rgba(15,23,42,.05); color:var(--c-ink);
+        }
+        html[data-bs-theme="dark"] .fin-chart-card{
+          --c-ink:#e8eaf0; --c-muted:#8b93a5; --c-line:#2b2c34; --c-card:#1e1f26;
+        }
+        .fin-chart-head{ display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:6px; }
+        .fin-chart-head h3{ margin:0; font-weight:700; font-size:20px; color:var(--c-ink); }
+        .fin-chart-head small{ color:var(--c-muted); font-size:13px; margin-top:3px; display:block; }
+        /* Period dropdown, per the reference (replaces the old button group). */
+        .fin-period{
+          appearance:none; border:1px solid var(--c-line); background:var(--c-card);
+          border-radius:10px; padding:9px 34px 9px 14px; font-size:14px; font-weight:600;
+          color:var(--c-ink); cursor:pointer; font-family:inherit;
+          background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>");
+          background-repeat:no-repeat; background-position:right 12px center;
+        }
+        .fin-period:disabled{ opacity:.6; cursor:progress; }
+        .fin-filter{ display:none; }  /* superseded by .fin-period */
         .fin-filter button{ border:none; background:transparent; padding:6px 16px; border-radius:30px; font-weight:600;
           font-size:13px; color:var(--bs-secondary-color,#6b7280); cursor:pointer; transition:.2s; }
         .fin-filter button.active{ background:var(--mp-primary,#6D4AFF); color:#fff; }
         .fin-chart-body{ position:relative; height:300px; }
       </style>
       <style>
-        /* Stat tiles above the trend chart. One per series, colour-matched to
-           the dataset so the legend and the tiles read as one thing. */
-        .fin-tiles{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin:14px 0 18px; }
-        .fin-tile{ border:1px solid var(--bs-border-color,#eef0f4); border-radius:14px; padding:12px 14px;
-          background:var(--bs-body-bg,#fff); min-width:0; }
-        .fin-tile .k{ display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:600;
-          color:var(--bs-secondary-color,#8a8f99); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .fin-tile .k i{ width:9px; height:9px; border-radius:50%; flex:0 0 9px; display:inline-block; }
-        .fin-tile .v{ font-size:20px; font-weight:800; margin-top:5px; letter-spacing:-.4px;
+        /* KPI cards — one per series, dot colour-matched to its dataset. */
+        .fin-tiles{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin:18px 0 8px; }
+        .fin-tile{ border:1px solid var(--c-line); border-radius:14px; padding:12px 14px;
+          background:#fafbfe; min-width:0; }
+        html[data-bs-theme="dark"] .fin-tile{ background:#24252d; }
+        .fin-tile .k{ display:flex; align-items:center; gap:6px; font-size:12px;
+          color:var(--c-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .fin-tile .k i{ width:9px; height:9px; border-radius:3px; flex:0 0 9px; display:inline-block; }
+        .fin-tile .v{ font-size:20px; font-weight:700; margin-top:4px; color:var(--c-ink);
           font-variant-numeric:tabular-nums; }
-        .fin-tile .v small{ font-size:11px; font-weight:600; color:var(--bs-secondary-color,#8a8f99); margin-left:3px; }
-        .fin-tile.is-loading .v{ color:transparent; background:linear-gradient(90deg,#eee 25%,#f6f6f6 50%,#eee 75%);
-          background-size:200% 100%; animation:finsh 1.3s infinite; border-radius:6px; }
+        .fin-tile .v small{ font-size:12px; font-weight:400; color:var(--c-muted); margin-left:3px; }
+        .fin-tile.is-loading .v{ color:transparent; border-radius:6px;
+          background:linear-gradient(90deg,#e9edf3 25%,#f6f8fb 50%,#e9edf3 75%);
+          background-size:200% 100%; animation:finsh 1.3s infinite; }
         @keyframes finsh{ 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-        @media (max-width:1100px){ .fin-tiles{ grid-template-columns:repeat(3,1fr); } }
-        @media (max-width:620px){ .fin-tiles{ grid-template-columns:repeat(2,1fr); } }
+        .fin-chart-body{ position:relative; height:420px; margin-top:8px; }
+        @media (max-width:760px){ .fin-tiles{ grid-template-columns:repeat(2,1fr); } }
       </style>
       <div class="fin-chart-card">
         <div class="fin-chart-head">
           <div>
             <h3>User Activity &amp; Coin Trend</h3>
-            <small id="finRangeLabel">Loading live data…</small>
+            <small>Blue &amp; green bars (in vs out) · Earning / Bonus / Staking as trend lines —
+              <span id="finPeriodName">Months</span></small>
           </div>
-          <div class="fin-filter" id="finFilter">
-            <button type="button" data-range="daily">Days</button>
-            <button type="button" data-range="monthly" class="active">Months</button>
-            <button type="button" data-range="yearly">Yearly</button>
-          </div>
+          <select class="fin-period" id="finPeriod" aria-label="Period">
+            <option value="daily">Days</option>
+            <option value="monthly" selected>Months</option>
+            <option value="yearly">Yearly</option>
+          </select>
         </div>
 
         <div class="fin-tiles" id="finTiles">
-          <div class="fin-tile is-loading"><div class="k"><i style="background:#9aa3b2"></i>Active Users</div>
+          <div class="fin-tile is-loading"><div class="k"><i style="background:#94a3b8"></i>Active Users</div>
             <div class="v" id="finTileActive">0</div></div>
           <div class="fin-tile is-loading"><div class="k"><i style="background:#f59e0b"></i>Bonus Used</div>
             <div class="v" id="finTileBonus">0<small>BMAN</small></div></div>
@@ -937,27 +961,23 @@
 
     var ENDPOINT = '<?php echo base_url('user/activityTrendAjax'); ?>';
     var chart = null, range = 'monthly';
-    // Each range is fetched once and kept — flipping Days/Months/Yearly after
-    // the first visit is instant and costs no further requests.
+    // Each range is fetched once and kept — changing the dropdown after the
+    // first visit is instant and costs no further requests.
     var CACHE = {}, inflight = {};
 
-    // Money in = blue, money out = green (per spec). The three count/《used》
-    // series ride the right-hand axis so they aren't flattened by the coin
-    // amounts, which are orders of magnitude larger.
+    // Fixed palette per the reference design. Blue = coin IN, green = coin OUT
+    // — the colours ARE the spec here, which is why they don't derive from the
+    // panel theme tokens.
     var C = {
-      earning:  '#2563eb',  // blue  — earning coin in
-      withdraw: '#22c55e',  // green — coin withdrawn out
-      bonus:    '#f59e0b',
-      staking:  '#8b5cf6',
-      active:   '#9aa3b2'
+      blue:   '#2563eb',  // earning coin (in)
+      green:  '#22c55e',  // coin withdrawal (out)
+      amber:  '#f59e0b',  // bonus used
+      purple: '#8b5cf6',  // staking done
+      grey:   '#94a3b8'   // active users
     };
+    var PERIOD_NAME = { daily: 'Days', monthly: 'Months', yearly: 'Yearly' };
 
-    function fmt(v){
-      v = Number(v) || 0;
-      if (v >= 1000000) return (v/1000000).toFixed(1) + 'M';
-      if (v >= 1000)    return (v/1000).toFixed(v >= 10000 ? 0 : 1) + 'K';
-      return v;
-    }
+    function fmt(v){ v = Number(v) || 0; return v >= 1000 ? (v/1000) + 'K' : v; }
     function num(v){ return Number(v || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 
     function setTiles(s, loading){
@@ -976,39 +996,42 @@
       var labels = d.points.map(function(p){ return p.date; });
       var pick = function(k){ return d.points.map(function(p){ return p[k]; }); };
 
-      document.getElementById('finRangeLabel').textContent =
-        d.label + ' · ' + (d.scope === 'team' ? 'your team' : 'platform') + ' · live';
+      document.getElementById('finPeriodName').textContent = PERIOD_NAME[d.range] || d.label;
       setTiles(d.summary, false);
 
       var cfg = {
         data: { labels: labels, datasets: [
-          { type:'bar', label:'Earning Coin', data:pick('earning_coin'), backgroundColor:C.earning,
-            borderRadius:6, maxBarThickness:22, order:3, yAxisID:'y' },
-          { type:'bar', label:'Coin Withdrawal', data:pick('coin_withdrawal'), backgroundColor:C.withdraw,
-            borderRadius:6, maxBarThickness:22, order:3, yAxisID:'y' },
-          { type:'line', label:'Bonus Used', data:pick('bonus_used'), borderColor:C.bonus,
-            backgroundColor:C.bonus, borderWidth:2.5, tension:.35, pointRadius:2.5, fill:false, order:2, yAxisID:'y' },
-          { type:'line', label:'Staking Done', data:pick('staking_done'), borderColor:C.staking,
-            backgroundColor:C.staking, borderWidth:2.5, tension:.35, pointRadius:2.5, fill:false, order:1, yAxisID:'y1' },
-          { type:'line', label:'Active Users', data:pick('active_users'), borderColor:C.active,
-            backgroundColor:C.active, borderWidth:2, borderDash:[5,4], tension:.35, pointRadius:2,
-            fill:false, order:1, yAxisID:'y1' }
+          // Grouped bars: blue = earning (in), green = withdrawal (out).
+          { type:'bar', label:'Earning Coin', data:pick('earning_coin'),
+            backgroundColor:'rgba(37,99,235,.85)', borderRadius:6, order:3, yAxisID:'y' },
+          { type:'bar', label:'Coin Withdrawal', data:pick('coin_withdrawal'),
+            backgroundColor:'rgba(34,197,94,.85)', borderRadius:6, order:3, yAxisID:'y' },
+          // Trend lines. Bonus is a BMAN amount so it shares the left axis;
+          // Staking/Active are counts and ride the right axis, otherwise the
+          // coin amounts (orders of magnitude larger) flatten them to nothing.
+          { type:'line', label:'Bonus Used', data:pick('bonus_used'),
+            borderColor:C.amber, backgroundColor:C.amber, tension:.4, borderWidth:3,
+            pointRadius:3, pointBackgroundColor:C.amber, fill:false, order:1, yAxisID:'y' },
+          { type:'line', label:'Staking Done', data:pick('staking_done'), hidden:true,
+            borderColor:C.purple, backgroundColor:C.purple, tension:.4, borderWidth:2,
+            pointRadius:2, fill:false, order:1, yAxisID:'y1' },
+          { type:'line', label:'Active Users', data:pick('active_users'), hidden:true,
+            borderColor:C.grey, backgroundColor:C.grey, tension:.4, borderWidth:2,
+            borderDash:[5,4], pointRadius:2, fill:false, order:1, yAxisID:'y1' }
         ]},
         options: {
-          responsive:true, maintainAspectRatio:false, interaction:{ mode:'index', intersect:false },
+          responsive:true, maintainAspectRatio:false,
+          interaction:{ mode:'index', intersect:false },
           plugins:{
-            legend:{ position:'top', labels:{ usePointStyle:true, boxWidth:8, padding:14 } },
-            tooltip:{ callbacks:{ label:function(c){
-              var coin = (c.dataset.yAxisID === 'y');
-              return c.dataset.label + ': ' + num(c.raw) + (coin ? ' BMAN' : '');
-            } } }
+            legend:{ position:'top', labels:{ usePointStyle:true, boxWidth:8, padding:16, font:{ size:12 } } },
+            tooltip:{ callbacks:{ label:function(c){ return ' ' + c.dataset.label + ': ' + num(c.parsed.y); } } }
           },
           scales:{
-            x:{ grid:{ display:false } },
-            y:{  position:'left',  beginAtZero:true, title:{ display:true, text:'BMAN' },
-                 ticks:{ callback:function(v){ return fmt(v); } }, grid:{ color:'rgba(140,140,160,.12)' } },
-            y1:{ position:'right', beginAtZero:true, title:{ display:true, text:'Users / Stakes' },
-                 ticks:{ precision:0 }, grid:{ drawOnChartArea:false } }
+            x:{ grid:{ display:false }, ticks:{ font:{ size:11 } } },
+            y:{  beginAtZero:true, position:'left',  grid:{ color:'#eef2f7' },
+                 ticks:{ callback:function(v){ return fmt(v); } } },
+            y1:{ beginAtZero:true, position:'right', grid:{ display:false },
+                 ticks:{ precision:0, callback:function(v){ return fmt(v); } } }
           }
         }
       };
@@ -1018,16 +1041,18 @@
 
     function fail(msg){
       document.querySelector('.fin-chart-body').innerHTML =
-        '<div style="padding:40px;text-align:center;color:#8a8f99">' + msg + '</div>';
+        '<div style="padding:40px;text-align:center;color:#64748b">' + msg + '</div>';
       setTiles(null, false);
     }
 
+    var sel = document.getElementById('finPeriod');
+
     function load(r){
       if (CACHE[r]) { render(CACHE[r]); return; }
-      if (inflight[r]) return;              // don't stack requests on fast clicks
+      if (inflight[r]) return;              // don't stack requests on fast changes
       inflight[r] = true;
       setTiles(null, true);
-      document.getElementById('finRangeLabel').textContent = 'Loading live data…';
+      if (sel) sel.disabled = true;
 
       fetch(ENDPOINT + '?range=' + encodeURIComponent(r), {
         headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin'
@@ -1035,23 +1060,19 @@
         .then(function(res){ return res.json(); })
         .then(function(j){
           inflight[r] = false;
+          if (sel) sel.disabled = false;
           if (!j || !j.ok) { fail((j && j.message) || 'Chart data could not be loaded.'); return; }
           CACHE[r] = j;
           if (range === r) render(j);       // ignore a stale response for an old range
         })
         .catch(function(){
           inflight[r] = false;
+          if (sel) sel.disabled = false;
           fail('Chart data could not be loaded.');
         });
     }
 
-    document.getElementById('finFilter').addEventListener('click', function(e){
-      var b = e.target.closest('button[data-range]'); if (!b) return;
-      this.querySelectorAll('button').forEach(function(x){ x.classList.remove('active'); });
-      b.classList.add('active');
-      range = b.dataset.range;
-      load(range);
-    });
+    if (sel) sel.addEventListener('change', function(e){ range = e.target.value; load(range); });
 
     load(range);
   })();
