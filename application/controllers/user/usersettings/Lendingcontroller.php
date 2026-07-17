@@ -229,12 +229,26 @@ class Lendingcontroller extends CI_Controller
         $months       = $durationYears * 12;
 
         // Total ROI over the term (monthly plans accrue monthly ROI for the full term).
+        //
+        // COMBO SPLITS THE PRINCIPAL — each rate applies to its own half, never
+        // to the whole stake. This figure is only the swap order's headline
+        // snapshot; roi_staking_management (created below) is the source of
+        // truth for the actual payouts and does the same split.
         if ($planType === 'fixed') {
             $maturityRoiAmount = $bmanAmount * ($fixedPct / 100);
         } elseif ($planType === 'regular') {
             $maturityRoiAmount = $bmanAmount * ($monthlyPct / 100) * $months;
-        } else { // combo: monthly ROI for the term + fixed lump at maturity
-            $maturityRoiAmount = $bmanAmount * ($monthlyPct / 100) * $months + $bmanAmount * ($fixedPct / 100);
+        } else { // combo
+            $split = $this->db->select('combo_fixed_pct, combo_regular_pct')
+                              ->get_where('staking_plans', ['code' => 'combo'])->row_array();
+            $cf = $split ? (float)$split['combo_fixed_pct'] : 0;
+            $cr = $split ? (float)$split['combo_regular_pct'] : 0;
+            if ($cf <= 0 || $cr <= 0 || abs(($cf + $cr) - 100) > 0.001) { $cf = 50.0; $cr = 50.0; }
+
+            $fixedHalf   = $bmanAmount * ($cf / 100);
+            $regularHalf = $bmanAmount * ($cr / 100);
+            $maturityRoiAmount = $regularHalf * ($monthlyPct / 100) * $months
+                               + $fixedHalf * ($fixedPct / 100);
         }
 
         // Update swap order with the purchase/plan details only. ROI rate + maturity
