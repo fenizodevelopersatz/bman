@@ -7,10 +7,12 @@
  * Every completed internal transfer (self or member, user- or admin-initiated)
  * lands here with settlement_status='pending' unless its type was toggled off
  * or the destination had no on-chain wallet address at enqueue time (then it's
- * 'skipped'). This sweeps the pending queue and, from the single custodial
- * Treasury wallet, sends real BMAN to the resolved destination address —
- * self-transfers to the source's own address, member transfers to the
- * recipient's address (see Wallettransferservice_model's class doc for why).
+ * 'skipped'). By default only MEMBER transfers reach 'pending' — self-transfers
+ * (settle_self_transfers=0 by default) stay internal-ledger-only, since moving
+ * value between one member's own wallets never leaves their custody. This
+ * sweeps the pending queue and, from the single custodial Treasury wallet,
+ * sends real BMAN to the resolved destination address (see
+ * Wallettransferservice_model's class doc for why).
  *
  * Gated by wallet_transfer_settlement_settings:
  *   enabled = 0  -> run() no-ops immediately; the queue just accumulates.

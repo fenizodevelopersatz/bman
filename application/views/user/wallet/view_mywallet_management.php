@@ -1411,8 +1411,7 @@ function wallet_title_fallback($type)
         <div class="qa" onclick="location.href='<?= base_url('user/commissions'); ?>'"><i class="ph ph-coins"></i>
           Commission History</div>
         <div class="qa" onclick="location.href='<?= base_url('user/payouts'); ?>'"><i class="ph ph-bank"></i> Payouts
-        </div>
-        <div class="qa" onclick="location.href='<?= base_url('user/orders'); ?>'"><i class="ph ph-bag"></i> Orders</div>
+        </div>        
         <div class="qa" onclick="location.href='<?= base_url('user/support'); ?>'"><i class="ph ph-headset"></i> Support
         </div>
       </div>

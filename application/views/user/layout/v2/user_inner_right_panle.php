@@ -107,28 +107,6 @@ $rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian not
 
 
 <div class="rp-card rank-card-pro">
-    <!-- Top -->
-    <!-- <div class="rank-top-pro">
-        <div>
-            <p class="rank-kicker">Current Rank</p>
-            <div class="rank-line">
-                <div class="rank-pill">
-                    <i class="ph ph-medal"></i>
-                    <span>SILVER</span>
-                </div>
-                <span class="rank-next">Next: <b>GOLD</b></span>
-            </div>
-        </div>
-
-        </!-- Progress Ring --/>
-        <div class="ring" style="--p:48;">
-            <div class="ring-inner">
-                <b>48%</b>
-                <small>Progress</small>
-            </div>
-        </div>
-    </div> -->
-
     <style>
         .rank-card {
             display: flex;
