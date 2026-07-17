@@ -1271,6 +1271,42 @@ class User extends CI_Controller
 		return 'Commission';
 	}
 
+	/**
+	 * GET user/activityTrendAjax?range=daily|monthly|yearly
+	 *
+	 * Live data for the dashboard "User Activity & Coin Trend" chart. Replaces
+	 * assets/user_v2/data/dashboard_chart.json, which was static dummy data.
+	 *
+	 * Answers for the SESSION user only — the range is the sole input, and the
+	 * user id is never taken from the request, so one member cannot pull another
+	 * member's team figures.
+	 *
+	 * One range per call (the client caches each range it has already fetched),
+	 * so the first paint costs one query set instead of three.
+	 */
+	public function activityTrendAjax()
+	{
+		$userId = (int) $this->session->userdata('user_userid');
+		if (!$userId) {
+			return $this->_json(['ok' => false, 'message' => 'Not logged in']);
+		}
+
+		$range = (string) $this->input->get('range', true);
+		if (!in_array($range, ['daily', 'monthly', 'yearly'], true)) {
+			$range = 'monthly';
+		}
+
+		try {
+			$this->load->model('user/Dashboardchart_model', 'dashchart');
+			$data = $this->dashchart->trend($userId, $range);
+			return $this->_json(['ok' => true] + $data);
+		} catch (Throwable $e) {
+			// The chart must never take the dashboard down with it.
+			log_message('error', 'activityTrendAjax: ' . $e->getMessage());
+			return $this->_json(['ok' => false, 'message' => 'Could not load chart data.']);
+		}
+	}
+
 	private function _json($data)
 	{
 		$this->output
