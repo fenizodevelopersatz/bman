@@ -1046,17 +1046,13 @@ class Genealogycontroller extends MY_Controller
         $this->data['title'] = "Chat";
         $this->data['card_tilte'] = "Chat";
 
-        $this->data['currency_info'] = currency_info();
-        $this->data['token_info'] = token_info();
-        $this->data['wallet_balance'] = site_wallet_balance($id);
-        $this->data['token_wallet_balance'] = site_token_balance($id);
-
         $this->data['chat_fetch_url'] = base_url('user/chat/fetch');
         $this->data['chat_send_url'] = base_url('user/chat/send');
         $this->data['chat_recent_url'] = base_url('user/chat/recent');
 
-        // ✅ server-side rendered options for select2
-        // $this->data['team_members'] = $this->Chat_model->getTeamMembers($id);
+        // The people this member is allowed to DM: their genealogy path
+        // (upline ∪ downline). Same set the send/fetch authorisation enforces,
+        // so the picker can never offer someone the server would reject.
         $this->data['team_members'] = $this->Chat_model->getPathChatMembers($id);
 
         $this->load->view('user/member/chat', $this->data);
@@ -1090,6 +1086,18 @@ class Genealogycontroller extends MY_Controller
                 ->set_output(json_encode(['ok' => false, 'message' => 'Peer user is required for personal chat']));
         }
 
+        // AUTHORISATION — personal chat is limited to the member's own genealogy
+        // path (upline ∪ downline). Without this, any logged-in member could POST
+        // an arbitrary peer_id and DM a complete stranger.
+        if ($room === 'personal' && !$this->Chat_model->canChatWith($id, $peerId)) {
+            return $this->output->set_status_header(403)
+                ->set_content_type('application/json')
+                ->set_output(json_encode([
+                    'ok' => false,
+                    'message' => 'You can only message members in your own team path.',
+                ]));
+        }
+
         $userRow = $this->db->query("SELECT username FROM users WHERE id = ?", [$id])->row();
         $username = $userRow ? $userRow->username : 'User';
 
@@ -1103,7 +1111,14 @@ class Genealogycontroller extends MY_Controller
 
             if (ENABLE_SITE_UPLOAD_FUNCTION !== true) {
                 $this->_dbg('genealogy_upload_images', 'Uploads disabled');
-                return false;
+                // Must be JSON: a bare `return false` sent an empty body, so the
+                // client's res.json() threw and the member saw a misleading
+                // "Network error while uploading" instead of the real reason.
+                return $this->output->set_content_type('application/json')
+                    ->set_output(json_encode([
+                        'ok' => false,
+                        'message' => 'File uploads are currently disabled.',
+                    ]));
             }
 
             $uploadPath = FCPATH . 'uploads/chat/';
@@ -1191,23 +1206,42 @@ class Genealogycontroller extends MY_Controller
         try {
             $this->load->model('Chat_model');
 
-            // ✅ team access restriction: only downline (optional)
+            // AUTHORISATION — reading a DM thread needs the same genealogy-path
+            // check as sending one, or peer_id could be walked to read strangers'
+            // conversations.
+            if ($room === 'personal') {
+                if ($peerId <= 0) {
+                    return $this->output->set_content_type('application/json')
+                        ->set_output(json_encode(['ok' => true, 'room' => $room, 'messages' => []]));
+                }
+                if (!$this->Chat_model->canChatWith($userId, $peerId)) {
+                    return $this->output->set_status_header(403)
+                        ->set_content_type('application/json')
+                        ->set_output(json_encode([
+                            'ok' => false,
+                            'message' => 'You can only read conversations with members in your own team path.',
+                        ]));
+                }
+            }
+
+            // Team room is scoped to the member's genealogy path. Cached — this
+            // runs on a 2-second poll and used to re-walk the whole tree each time.
             $allowedIds = null;
             if ($room === 'team') {
-                // $allowedIds = $this->Chat_model->getTeamUserIds($userId);
-                $allowedIds = $this->Chat_model->getPathChatUserIds($userId);
+                $allowedIds = $this->Chat_model->getPathChatUserIdsCached($userId);
             }
 
-            // ✅ personal chat requires peerId
             $rows = $this->Chat_model->fetchMessagesSafe($room, $after, 80, $userId, $peerId, $allowedIds);
 
-            // escape
+            // NO html_escape here. The client renders every field as a React text
+            // node, which escapes on its own. Escaping server-side too double-encoded
+            // everything: "Tom & Jerry" displayed as "Tom &amp; Jerry", "<3" as "&lt;3".
+            // JSON is not HTML — escape at the point of render, once.
             foreach ($rows as &$r) {
-                $r['username'] = html_escape($r['username']);
-                $r['message'] = html_escape($r['message']);
-                $r['file_name'] = $r['file_name'] ? html_escape($r['file_name']) : null;
                 $r['file_url'] = $r['file_url'] ?: null;
+                $r['file_name'] = $r['file_name'] ?: null;
             }
+            unset($r);
 
             return $this->output->set_content_type('application/json')
                 ->set_output(json_encode(['ok' => true, 'room' => $room, 'messages' => $rows]));
@@ -1243,13 +1277,15 @@ class Genealogycontroller extends MY_Controller
         $this->load->model('Chat_model');
         $rows = $this->Chat_model->getRecentPeerChats($userId, $limit);
 
-        // escape output
+        // Plain values — the client escapes on render (see chat_fetch). Escaping
+        // here as well double-encoded names and previews in the recent list.
         foreach ($rows as &$r) {
-            $r['peer_name'] = html_escape((string) ($r['peer_name'] ?? ''));
-            $r['last_message'] = html_escape((string) ($r['last_message'] ?? ''));
+            $r['peer_name'] = (string) ($r['peer_name'] ?? '');
+            $r['last_message'] = (string) ($r['last_message'] ?? '');
             $r['last_message_time'] = (string) ($r['last_message_time'] ?? '');
             $r['last_message_type'] = (string) ($r['last_message_type'] ?? 'text');
         }
+        unset($r);
 
         return $this->output->set_content_type('application/json')
             ->set_output(json_encode(['ok' => true, 'items' => $rows]));
