@@ -365,7 +365,7 @@
 
   function renderDetail(d) {
     var h = d.header || {}, t = d.transaction || {}, S = d.sender || null, R = d.receiver || {},
-        L = d.ledger_entries || {}, B = d.blockchain, V = d.validation || {}, U = d.users || {}, audit = d.audit || [];
+        L = d.ledger_entries || {}, B = d.blockchain, SET = d.settlement || null, V = d.validation || {}, U = d.users || {}, audit = d.audit || [];
     var isMember = t.type === 'member';
     var statusCls = t.status === 'completed' ? 'ok' : (t.status === 'failed' ? 'bad' : 'warn');
 
@@ -457,6 +457,19 @@
         (B.from_address ? kv('From Address', '<span class="wtx-mono">' + esc(B.from_address) + '</span>', true) : '') +
         (B.to_address ? kv('To Address', '<span class="wtx-mono">' + esc(B.to_address) + '</span>', true) : '') +
         (link ? kv('Explorer', '<a class="wtx-a" target="_blank" rel="noopener" href="' + esc(link) + '">View on BscScan &#8599;</a>', true) : '')));
+    } else if (SET && SET.status && SET.status !== 'skipped') {
+      // Queued for on-chain settlement but no tx_hash yet (or the broadcast failed) —
+      // show the queue state instead of the misleading "off-chain, no chain tx" message.
+      var setMap = {
+        pending:    ['warn', 'Queued for on-chain settlement — a scheduled job will broadcast it shortly.'],
+        processing: ['warn', 'Currently being broadcast to the blockchain…'],
+        failed:     ['bad', 'On-chain settlement failed' + (SET.error ? ': ' + esc(SET.error) : '.') + ' An admin can retry it.'],
+      };
+      var info = setMap[SET.status] || ['neutral', 'Settlement status: ' + esc(SET.status)];
+      pBlockchain = pane('blockchain', false,
+        '<div class="wtx-empty">' + chip(info[0], String(SET.status).toUpperCase()) + ' ' + info[1] + '</div>' +
+        grid(kv('Settlement Address', SET.address ? '<span class="wtx-mono">' + esc(SET.address) + '</span>' : null, true) +
+          kv('Attempts', has(SET.attempts) ? esc(SET.attempts) : null)));
     } else {
       pBlockchain = pane('blockchain', false, '<div class="wtx-empty">This transfer was settled <b>off-chain</b> on the internal ledger — no blockchain transaction is associated. BMAN internal moves do not touch the chain.</div>');
     }
