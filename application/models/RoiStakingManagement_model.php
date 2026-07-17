@@ -12,6 +12,31 @@ class RoiStakingManagement_model extends CI_Model
     }
 
     /**
+     * The admin-configured combo split, as [fixed_pct, regular_pct].
+     *
+     * Falls back to 50/50 if the plan row is missing or the pair does not total
+     * 100 — a bad split must never silently mis-price a stake. Staking_model
+     * already validates the sum on save; this is the belt-and-braces read.
+     *
+     * @return array{0:float,1:float}
+     */
+    private function _comboSplit()
+    {
+        $row = $this->db->select('combo_fixed_pct, combo_regular_pct')
+                        ->get_where('staking_plans', ['code' => 'combo'])->row_array();
+
+        $f = $row !== null ? (float)$row['combo_fixed_pct'] : 0;
+        $r = $row !== null ? (float)$row['combo_regular_pct'] : 0;
+
+        if ($f <= 0 || $r <= 0 || abs(($f + $r) - 100) > 0.001) {
+            log_message('error', '[combo_split] staking_plans combo split is unusable ('
+                . $f . '/' . $r . ') — falling back to 50/50.');
+            return [50.0, 50.0];
+        }
+        return [$f, $r];
+    }
+
+    /**
      * Create ROI staking record for purchase
      */
     public function createROIRecord($stakingOrderId, $userId, $orderRef, $planType, $data)
@@ -30,15 +55,49 @@ class RoiStakingManagement_model extends CI_Model
         $maturityDate   = $data['maturity_date'];
         $firstMonthDate = date('Y-m-d H:i:s', strtotime('+1 month', strtotime($createdAt)));
 
-        $monthlyAmount = $principal * ($monthlyPct / 100);
-        $fixedAmount   = $principal * ($fixedPct / 100);
+        // ------------------------------------------------------------------
+        // COMBO SPLITS THE PRINCIPAL.
+        // Each rate applies to its OWN HALF, never to the whole stake. Applying
+        // both to the full principal promised exactly 2x on every combo stake:
+        // a 100,000 / 5y at 400% + 3%/mo paid 680,000 instead of 340,000.
+        //
+        // The split comes from staking_plans.combo_fixed_pct / combo_regular_pct
+        // (admin-configurable, validated to total 100%) and is SNAPSHOTTED onto
+        // the record, so a later admin edit can never re-price a live stake.
+        // ------------------------------------------------------------------
+        list($comboFixedPct, $comboRegularPct) = $this->_comboSplit();
+
+        if ($planType === 'combo') {
+            $fixedPrincipal   = $principal * ($comboFixedPct / 100);
+            $regularPrincipal = $principal * ($comboRegularPct / 100);
+        } elseif ($planType === 'fixed') {
+            $fixedPrincipal = $principal; $regularPrincipal = 0;
+        } else { // regular
+            $fixedPrincipal = 0; $regularPrincipal = $principal;
+        }
+
+        // Each component earns off its own principal.
+        $monthlyAmount = $regularPrincipal * ($monthlyPct / 100);
+        $fixedAmount   = $fixedPrincipal * ($fixedPct / 100);
 
         if ($planType === 'fixed') {
-            $roiRate = $fixedPct;   $totalROI = $fixedAmount;
+            // Unchanged: fixed% is ROI, and the principal is returned on top.
+            $roiRate  = $fixedPct;
+            $totalROI = $fixedAmount;
+            $principalReturn = $principal;
         } elseif ($planType === 'regular') {
-            $roiRate = $monthlyPct; $totalROI = $monthlyAmount * $months;
+            // Unchanged: monthly ROI for the term, principal returned at maturity.
+            $roiRate  = $monthlyPct;
+            $totalROI = $monthlyAmount * $months;
+            $principalReturn = $principal;
         } else { // combo
-            $roiRate = $monthlyPct; $totalROI = $monthlyAmount * $months + $fixedAmount;
+            $roiRate  = $monthlyPct;
+            $totalROI = $monthlyAmount * $months + $fixedAmount;
+            // The fixed half's payout is GROSS — principal x fixed% is the whole
+            // return for that half (400% = 4x your money back, principal
+            // included), so only the REGULAR half's principal comes back.
+            // 90,000 + 200,000 + 50,000 = 340,000 on the 100,000 example.
+            $principalReturn = $regularPrincipal;
         }
 
         $recordData = [
@@ -47,6 +106,9 @@ class RoiStakingManagement_model extends CI_Model
             'ref' => $orderRef . '-ROI',
             'plan_type' => $planType,
             'principal_amount' => $principal,
+            'fixed_principal' => $fixedPrincipal,
+            'regular_principal' => $regularPrincipal,
+            'principal_return_amount' => $principalReturn,
             'roi_rate_percent' => $roiRate,
             'total_roi_amount' => $totalROI,
             'duration_years' => $durationYears,
@@ -73,10 +135,12 @@ class RoiStakingManagement_model extends CI_Model
                 break;
 
             case 'combo':
+                $recordData['combo_fixed_pct']            = $comboFixedPct;
+                $recordData['combo_regular_pct']          = $comboRegularPct;
                 $recordData['regular_payment_amount']     = $monthlyAmount;
                 $recordData['regular_payment_count']      = $months;
                 $recordData['regular_payments_completed'] = 0;
-                $recordData['fixed_payment_amount']       = $fixedAmount; // lump at maturity
+                $recordData['fixed_payment_amount']       = $fixedAmount; // gross lump at maturity
                 $recordData['fixed_maturity_date']        = $maturityDate;
                 $recordData['fixed_status']               = 'pending';
                 $recordData['next_payment_date']          = $firstMonthDate;

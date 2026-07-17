@@ -327,7 +327,24 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
 (function(){
   const BASE = '<?= base_url() ?>';
   const PKGS = <?= json_encode(array_map(function($p){ return ['id'=>(int)$p['id'],'name'=>$p['name'],'stake'=>(float)$p['stake_amount'],'bonus_pct'=>(float)$p['bonus_percent'],'roi'=>array_map(function($c){return ['pct'=>(float)$c['roi_percent'],'basis'=>$c['roi_basis']];}, $p['roi'] ?? [])]; }, $staking_packages)) ?>;
-  const PLANS = <?= json_encode(array_map(function($pl){ return ['code'=>$pl['code'],'name'=>$pl['name'],'terms'=>array_values(array_map(function($t){return (int)$t['duration_years'];}, $pl['terms'] ?? []))]; }, $staking_plans)) ?>;
+  const PLANS = <?= json_encode(array_map(function($pl){ return ['code'=>$pl['code'],'name'=>$pl['name'],'combo_fixed_pct'=>isset($pl['combo_fixed_pct'])?(float)$pl['combo_fixed_pct']:null,'combo_regular_pct'=>isset($pl['combo_regular_pct'])?(float)$pl['combo_regular_pct']:null,'terms'=>array_values(array_map(function($t){return (int)$t['duration_years'];}, $pl['terms'] ?? []))]; }, $staking_plans)) ?>;
+
+  /* ------------------------------------------------------------------
+     COMBO SPLITS THE PRINCIPAL. Each rate applies to its OWN half, never
+     to the whole stake. Showing both against the full principal quoted
+     exactly 2x: a 100,000 / 5y at 400% + 3%/mo read 580,000 ROI when the
+     real figure is 290,000.
+
+     Split comes from staking_plans.combo_fixed_pct / combo_regular_pct so
+     the admin's Combo split fields actually drive the maths. Falls back to
+     50/50 if the pair is unusable — must match RoiStakingManagement_model.
+     ------------------------------------------------------------------ */
+  function comboSplit(){
+    const p = PLANS.find(x => x.code === 'combo') || {};
+    const f = +p.combo_fixed_pct || 0, r = +p.combo_regular_pct || 0;
+    if (f <= 0 || r <= 0 || Math.abs((f + r) - 100) > 0.001) return { fixed: 50, regular: 50 };
+    return { fixed: f, regular: r };
+  }
   const DISTS = <?= json_encode(array_reduce($coin_distribution_options ?? [], function($carry, $opt){
     $carry[(int)$opt['id']] = [
       'name' => $opt['option_name'],
@@ -382,10 +399,17 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
 
     if(cur.roi_plan==='combo'){
       const f=roiMap['fixed_'+years], r=roiMap['regular_'+years];
-      const fixedROI = f ? principal * (f.pct / 100) : 0;
-      const regularROI = r ? principal * (r.pct / 100) * 12 * years : 0;
-      const totalROI = fixedROI + regularROI;
-      $('stkm-roi').textContent=(f?f.pct+'% fixed':'?')+' + '+(r?r.pct+'% /mo':'?')+' = '+Number(totalROI).toLocaleString()+' BMAN';
+      const sp = comboSplit();
+      // Each rate earns off its OWN half of the principal.
+      const fixedHalf   = principal * (sp.fixed / 100);
+      const regularHalf = principal * (sp.regular / 100);
+      const fixedROI    = f ? fixedHalf * (f.pct / 100) : 0;
+      const regularROI  = r ? regularHalf * (r.pct / 100) * 12 * years : 0;
+      const totalROI    = fixedROI + regularROI;
+      $('stkm-roi').textContent =
+        (f ? sp.fixed+'% @ '+f.pct+'% fixed' : '?') + ' + ' +
+        (r ? sp.regular+'% @ '+r.pct+'% /mo' : '?') + ' = ' +
+        Number(totalROI).toLocaleString() + ' BMAN';
     } else {
       const c=roiMap[cur.roi_plan+'_'+years];
       if(c){
@@ -417,23 +441,31 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     // Calculate total ROI based on plan type
     // Fixed plan: rate is TOTAL % over entire term (e.g., 150% for 2 years)
     // Regular plan: rate is % PER MONTH (e.g., 2.3% monthly)
-    // Combo plan: 50% Fixed + 50% Regular
+    // Combo plan: the principal is SPLIT — each rate earns off its own half.
     let totalROI, annualROI;
+    // How much principal comes back at maturity. Combo returns only the REGULAR
+    // half: the fixed half's payout is gross (principal x fixed% = 4x your money,
+    // principal included), so returning it again would pay that half twice.
+    let principalBack = principal;
 
     if(cur.roi_plan === 'combo'){
-      // Combo: Full Fixed + Full Regular (both combined)
       const fixedData = roi['fixed_'+years] || {pct:0};
       const regularData = roi['regular_'+years] || {pct:0};
       const fixedRate = +fixedData.pct || 0;
       const regularRate = +regularData.pct || 0;
 
-      // Fixed part: total % over term
-      const fixedROI = principal * (fixedRate / 100);
-      // Regular part: monthly rate (paid 3x on 5th, 15th, 25th) * 12 months * years
-      const regularROI = principal * (regularRate / 100) * 12 * years;
+      const sp = comboSplit();
+      const fixedHalf   = principal * (sp.fixed / 100);
+      const regularHalf = principal * (sp.regular / 100);
+
+      // Fixed half: total % over the term, GROSS (principal included).
+      const fixedROI = fixedHalf * (fixedRate / 100);
+      // Regular half: monthly rate x 12 x years.
+      const regularROI = regularHalf * (regularRate / 100) * 12 * years;
 
       totalROI = fixedROI + regularROI;
       annualROI = totalROI / years;
+      principalBack = regularHalf;
     } else if(basis === 'monthly'){
       // Regular plan: monthly rate (2.3%) paid 3x per month (5th, 15th, 25th)
       // 2.3% is the total monthly rate, divided into 3 equal payments
@@ -444,7 +476,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
       totalROI = principal * (ratePercent / 100);
       annualROI = totalROI / years;
     }
-    const totalAtMaturity = principal + totalROI;
+    const totalAtMaturity = principalBack + totalROI;
 
     // Update preview tab elements
     $('stkm-roi-principal').textContent = Number(principal).toLocaleString();
