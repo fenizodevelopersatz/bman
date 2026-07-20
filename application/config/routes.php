@@ -469,6 +469,7 @@ $route['user/auth/success'] = 'user/auth/login/success';
 $route['user/login-otp-verify'] = 'user/auth/login/verifyotp';
 $route['user/login-finel-verify'] = 'user/auth/login/finelVerify';
 $route['user/forgot'] = 'user/auth/login/forgot';
+$route['user/reset-password'] = 'user/auth/login/reset_password';
 $route['user/logout'] = 'user/user/logout';
 
 $route['user/tranfer'] = 'user/usersettings/tranfercontroller';
