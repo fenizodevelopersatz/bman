@@ -3600,13 +3600,8 @@ Nexman
 
 http://192.168.29.18:9000/admin
 
-
-
-
-
 I need to completed to change the admin dashboard with calculating the chart details  - Staking purchase amount and count
-
-
 
 recent login auditing logs
 
+*0Mu&M]>l3B

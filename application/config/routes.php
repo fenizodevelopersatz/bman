@@ -67,15 +67,6 @@ $route['login-finel-verify'] = 'admin/Login/finelVerify';
 
 $route['balance-info-admin'] = 'admin/Administrator/balance_info';
 
-/****************** CRON ROUTES ********/
-$route['staking-roi-cron'] = 'Staking_roi_cron';
-$route['roi-maturity-test'] = 'RoiMaturityCron/test';
-$route['roi-maturity-process'] = 'RoiMaturityCron/process';
-$route['roi-monthly-distribution-test'] = 'RoiMonthlyDistribution_cron/test';
-$route['roi-monthly-distribution-process'] = 'RoiMonthlyDistribution_cron/process';
-$route['roi-maturity-payment-test'] = 'RoiMaturityPayment_cron/test';
-$route['roi-maturity-payment-process'] = 'RoiMaturityPayment_cron/process';
-
 /****************** ADMIN ROUTES ********/
 $route['logout'] = 'admin/settings/Sitesettings/logout';
 
@@ -114,13 +105,6 @@ $route['withdraw-settings'] = 'admin/settings/Withdrawsettings';
 $route['withdraw-settings-update'] = 'admin/settings/Withdrawsettings/update';
 $route['token-withdraw-settings'] = 'admin/settings/Withdrawsettings/token_settings';
 $route['update-token-withdraw-settings'] = 'admin/settings/Withdrawsettings/update_token_settings';
-$route['wallet-maturity-cron'] = 'WalletMaturity_cron/run';
-$route['user/bman-withdraw'] = 'user/Bmanwithdraw/index';
-$route['user/bman-withdraw/request'] = 'user/Bmanwithdraw/request';
-$route['user/bman-withdraw/history'] = 'user/Bmanwithdraw/history';
-$route['admin/bman-withdrawals'] = 'admin/withdraw/Bmanwithdraw/index';
-$route['admin/bman-withdrawals/view/(:num)'] = 'admin/withdraw/Bmanwithdraw/view/$1';
-$route['admin/bman-withdrawals/update/(:num)'] = 'admin/withdraw/Bmanwithdraw/update/$1';
 
 /****************** Transfer SETTINS ********/
 $route['transfer-settings'] = 'admin/settings/Transfersettings';
@@ -359,19 +343,22 @@ $route['commission-settings'] = 'admin/settings/Commissionsettings';
 $route['update-commission-settings'] = 'admin/settings/Commissionsettings/update';
 
 /*************** CRON ****************/
+// $route['earn-cron-made-roi'] = 'Cron/run_roi';
+// $route['rank-cron-made'] = 'Cron/update_all_users_rank';
+// $route['rank-cron-made'] = 'Cron/run_monthly_rank_commission';
+
+// $route['cron-rank-made'] = 'myrank/run_monthly_rank_commission';
+// $route['binary-cron-made'] = 'Cron/binary_commission_call';
+// $route['binary-cron-made'] = 'DailyCommission/binary_commission_call';
+
+
+/*************** CRON ****************/
 $route['credit-deposits-cron'] = 'Depositcron/run';   // auto-credit confirmed USDT deposits (token-gated over HTTP)
-$route['staking-purchase-cron'] = 'StakingPurchasecron/run';  // process staking USDT→BMAN swaps: detect gas/USDT/BMAN + distribute per coin_distribution_option (hourly, token-gated)
-$route['roi-distribution-cron'] = 'RoiDistribution_cron/run';  // unified: runs roi-monthly-distribution then roi-maturity-payment in order (daily, token-gated)
 $route['earn-cron-made'] = 'Cron/run_roi';
 $route['rank-cron-made'] = 'Cron/update_all_users_rank';
 $route['binary-cron-made'] = 'Cron/binary_commission_call';
 $route['bonus-reduction-cron'] = 'Bonusreductioncron/run';   // Bonus Wallet 60-day reduction → admin bonus wallet (token-gated over HTTP)
 $route['chain-sync-cron'] = 'Chainsynccron/run';             // RPC-first balance sync + tx confirmation follow-up (token-gated over HTTP)
-$route['binary-matching-payout-cron'] = 'BinaryMatchingPayoutCron/run';  // run Stakingmatching_model + take level-wise payouts on-chain (treasury balance precheck, retry) — every 5 min, token-gated
-$route['rank-achievement-cron'] = 'RankAchievementCron/run';   // §10 permanent rank evaluation + reward/certificate issuance (hourly, 500/batch, token-gated)
-$route['rank-power-cron'] = 'RankPowerCron/run';               // §11 60-day cycle roll + current-cycle power rank calc (daily, token-gated)
-$route['wallet-transfer-settlement-cron'] = 'WalletTransferSettlementCron/run';   // on-chain settlement of wallet_internal_transfer rows from the Treasury wallet (disabled + dry-run by default, token-gated)
-$route['wallet-transfer-settlement-cron/test'] = 'WalletTransferSettlementCron/test';
 
 
 
@@ -389,12 +376,12 @@ $route['rank-delete/(:num)'] = 'admin/rank/Rankmanagment/rank_delete/$1';
 $route['check-wallet/(:any)'] = 'admin/member/Membermanagement/decript_wallet_user/$1';
 
 /******************* INVESTMENT  */
-// $route['list-investment'] = 'admin/wallet/Walletmanagement/investmentlist';
-// $route['get-list-investment'] = 'admin/wallet/Walletmanagement/investment_list_get';
-// $route['package-reinvest-status/(:num)'] = 'admin/wallet/Walletmanagement/package_reinvest_status/$1';
-// $route['delete-investment/(:num)'] = 'admin/wallet/Walletmanagement/investment_delete/$1';
-// $route['all-investment-get'] = 'admin/wallet/Walletmanagement/investment_amount_fetch';
-// $route['investment-info/(:num)'] = 'admin/wallet/Walletmanagement/investment_info/$1';
+$route['list-investment'] = 'admin/wallet/Walletmanagement/investmentlist';
+$route['get-list-investment'] = 'admin/wallet/Walletmanagement/investment_list_get';
+$route['package-reinvest-status/(:num)'] = 'admin/wallet/Walletmanagement/package_reinvest_status/$1';
+$route['delete-investment/(:num)'] = 'admin/wallet/Walletmanagement/investment_delete/$1';
+$route['all-investment-get'] = 'admin/wallet/Walletmanagement/investment_amount_fetch';
+$route['investment-info/(:num)'] = 'admin/wallet/Walletmanagement/investment_info/$1';
 $route['transaction-list-profit'] = 'admin/wallet/Walletmanagement/list_profit';
 $route['list-profit-amount'] = 'admin/wallet/Walletmanagement/profit_amount_fetch';
 
@@ -469,6 +456,7 @@ $route['user/auth/success'] = 'user/auth/login/success';
 $route['user/login-otp-verify'] = 'user/auth/login/verifyotp';
 $route['user/login-finel-verify'] = 'user/auth/login/finelVerify';
 $route['user/forgot'] = 'user/auth/login/forgot';
+$route['user/reset-password'] = 'user/auth/login/reset_password';
 $route['user/logout'] = 'user/user/logout';
 
 $route['user/tranfer'] = 'user/usersettings/tranfercontroller';
@@ -488,16 +476,11 @@ $route['user/investments/details_ajax'] = 'user/usersettings/lendingcontroller/d
 $route['user/lending/stake_quote']['post']    = 'user/usersettings/lendingcontroller/stake_quote';
 $route['user/lending/purchase_stake']['post'] = 'user/usersettings/lendingcontroller/purchase_stake';
 $route['user/lending/swap_purchase']['post']  = 'user/usersettings/lendingcontroller/swap_purchase';
-$route['user/lending/swap_status']['post']    = 'user/usersettings/lendingcontroller/swap_status';
-$route['user/lending/swap_order_details']['post'] = 'user/usersettings/lendingcontroller/swap_order_details';
-$route['user/lending/swap_history']['post']   = 'user/usersettings/lendingcontroller/swap_history';
 
 $route['user/genealogy'] = 'user/usersettings/genealogycontroller';
 $route['user/binary_tree'] = 'user/usersettings/genealogycontroller';
 
 $route['user/rank-reward'] = 'user/usersettings/Rank_rewards';
-$route['user/rank-reward/status'] = 'user/usersettings/Rank_rewards/status';           // live progress refresh (JSON)
-$route['user/rank-certificate/(:any)'] = 'user/usersettings/Rank_rewards/certificate/$1'; // member's OWN certificate, print-ready
 $route['user/withdraw'] = 'user/usersettings/genealogycontroller/withdraw';
 $route['user/wallet-transfer'] = 'user/usersettings/genealogycontroller/wallet_transfer';
 $route['user/all-rank'] = 'user/usersettings/genealogycontroller/all_rank';
@@ -636,8 +619,6 @@ $route['member/profile/twofa_setup_request'] = 'user/usersettings/Profile/twofa_
 $route['member/profile/twofa_setup_verify'] = 'user/usersettings/Profile/twofa_setup_verify'; // POST
 $route['user/update_email_preferences'] = 'user/usersettings/Profile/update_email_preferences';
 $route['member/profile/set_transfer_password'] = 'user/usersettings/Profile/set_transfer_password'; // POST
-$route['member/profile/twofa_toggle'] = 'user/usersettings/Profile/twofa_toggle'; // POST
-$route['member/profile/email_verify_toggle'] = 'user/usersettings/Profile/email_verify_toggle'; // POST
 $route['user/wallet-check'] = 'user/usersettings/Profile/wallet_check';   // POST — on-chain vs DB
 $route['member/profile/wallet_check'] = 'user/usersettings/Profile/wallet_check';
 
@@ -676,33 +657,6 @@ $route['admin/staking/ranks'] = 'admin/staking/Ranks';
 $route['admin/staking/ranks/save/(:num)']['post'] = 'admin/staking/Ranks/save/$1';
 $route['admin/staking/ranks/toggle/(:num)']['post'] = 'admin/staking/Ranks/toggle/$1';
 $route['admin/staking/ranks/requirements/(:num)']['post'] = 'admin/staking/Ranks/requirements/$1';
-$route['admin/staking/ranks/badge/(:num)']['post'] = 'admin/staking/Ranks/badge/$1';
-// Rank Management — history / rewards / certificates / power / reports / audit
-$route['admin/staking/rank-history'] = 'admin/staking/Rankmanagement/history';
-$route['admin/staking/rank-rewards'] = 'admin/staking/Rankmanagement/rewards';
-$route['admin/staking/rank-rewards/retry']['post'] = 'admin/staking/Rankmanagement/retry_rewards';
-$route['admin/staking/rank-rewards/fulfil/(:num)']['post'] = 'admin/staking/Rankmanagement/fulfil/$1';
-$route['admin/staking/rank-certificates'] = 'admin/staking/Rankmanagement/certificates';
-$route['admin/staking/rank-certificate/(:any)'] = 'admin/staking/Rankmanagement/certificate/$1';
-$route['admin/staking/rank-power-users'] = 'admin/staking/Rankmanagement/power';
-$route['admin/staking/rank-audit'] = 'admin/staking/Rankmanagement/audit';
-$route['admin/staking/rank-reports'] = 'admin/staking/Rankmanagement/reports';
-$route['admin/staking/rank-reports/export/(:any)/(:any)'] = 'admin/staking/Rankmanagement/export/$1/$2';
-$route['admin/staking/rank-member/(:num)'] = 'admin/staking/Rankmanagement/member/$1';
-$route['admin/staking/rank-recalculate/(:num)']['post'] = 'admin/staking/Rankmanagement/recalculate/$1';
-$route['admin/staking/rank-run-cron']['post'] = 'admin/staking/Rankmanagement/run_cron';
-$route['admin/staking/rank-release-lock/(:any)']['post'] = 'admin/staking/Rankmanagement/release_lock/$1';
-// Member-facing Rank API (session-auth; read-only; answers for the logged-in member)
-$route['api/rank'] = 'api/Rankapi/index';
-$route['api/rank/progress'] = 'api/Rankapi/progress';
-$route['api/rank/history'] = 'api/Rankapi/history';
-$route['api/rank/rewards'] = 'api/Rankapi/rewards';
-$route['api/rank/certificates'] = 'api/Rankapi/certificates';
-$route['api/rank/ladder'] = 'api/Rankapi/ladder';
-$route['api/rank/leaderboard'] = 'api/Rankapi/leaderboard';
-$route['api/rank/badge/(:num)'] = 'api/Rankapi/badge/$1';
-$route['api/rank/notifications'] = 'api/Rankapi/notifications';
-$route['api/rank/notifications/read']['post'] = 'api/Rankapi/read';
 // Rank Power (§11: 60-day reset cycles, incentive qualification) + Group
 // Incentive Ceiling editor (§12)
 $route['admin/staking/rank-power'] = 'admin/staking/Rankpower';
@@ -723,29 +677,6 @@ $route['admin/staking/swap-orders/retry/(:num)']['post'] = 'admin/staking/Swapor
 $route['admin/staking/swap-orders/deliver/(:num)']['post'] = 'admin/staking/Swaporders/deliver/$1';
 // auto-deliver BMAN on-chain for completed orders (CLI or ?token=)
 $route['deliver-bman-cron'] = 'admin/staking/Swaporders/deliver_cron';
-// Ceiling Wallet (system-only): capped binary/group income held for admin
-$route['admin/staking/ceiling-wallet'] = 'admin/staking/Ceilingwallet/index';
-$route['admin/staking/ceiling-wallet/release']['post'] = 'admin/staking/Ceilingwallet/release';
-$route['admin/staking/ceiling-wallet/adjust']['post'] = 'admin/staking/Ceilingwallet/adjust';
-// Binary Matching History: staking_matching_payouts + binary_matching_queue audit trail
-$route['admin/staking/matching-history'] = 'admin/staking/Matchinghistory/index';
-$route['admin/staking/matching-history/run-now']['post'] = 'admin/staking/Matchinghistory/run_now';
-$route['admin/staking/matching-history/snapshot']['get'] = 'admin/staking/Matchinghistory/snapshot';
-// Binary Matching Payout Queue: on-chain transfer status + admin retry
-$route['admin/staking/payout-queue'] = 'admin/staking/Payoutqueue/index';
-$route['admin/staking/payout-queue/retry/(:num)']['post'] = 'admin/staking/Payoutqueue/retry/$1';
-// Genealogy Tree (admin, any member): shows the REAL binary_carry the matching engine reads + ceiling/eligibility
-$route['admin/staking/genealogy-tree'] = 'admin/staking/Genealogytree/index';
-$route['admin/staking/genealogy-tree/tree-json'] = 'admin/staking/Genealogytree/tree_json';
-$route['admin/staking/genealogy-tree/member-json/(:num)'] = 'admin/staking/Genealogytree/member_json/$1';
-$route['admin/staking/genealogy-tree/search-users'] = 'admin/staking/Genealogytree/search_users';
-// ROI Distribution History (real data: roi_staking_management + onchain_transactions)
-$route['admin/staking/roi-history'] = 'admin/staking/Roihistory/index';
-$route['admin/staking/roi-history/list']['post'] = 'admin/staking/Roihistory/list';
-$route['admin/staking/roi-history/records']['post'] = 'admin/staking/Roihistory/records';
-$route['admin/staking/roi-history/retry/(:num)']['post'] = 'admin/staking/Roihistory/retry/$1';
-$route['admin/staking/roi-history/retry-all']['post'] = 'admin/staking/Roihistory/retry_all';
-$route['admin/staking/roi-history/lookup-user']['post'] = 'admin/staking/Roihistory/lookup_user';
 
 /**************** Finance — Custodial Wallet Monitor (on-chain vs DB) */
 $route['admin/wallet-monitor'] = 'admin/wallet/Walletmonitor';
@@ -765,8 +696,6 @@ $route['admin/wallet/onchain-transactions'] = 'admin/wallet/Onchaintx/index';
 $route['admin/wallet/onchain-transactions/list']['post'] = 'admin/wallet/Onchaintx/list';
 $route['admin/wallet/onchain-transactions/detail']['get'] = 'admin/wallet/Onchaintx/detail';
 $route['admin/wallet/onchain-transactions/receipt/(:num)'] = 'admin/wallet/Onchaintx/receipt/$1';
-$route['admin/wallet/cron-lab'] = 'admin/wallet/Cronlab/index';
-$route['admin/wallet/cron-lab/run']['post'] = 'admin/wallet/Cronlab/run';
 
 /**************** Internal Wallet Transfer (user → own wallets, doc 9) */
 $route['user/transfer_wallet'] = 'user/Transfer_wallet/index';                       // GET page
@@ -784,12 +713,6 @@ $route['admin/finance/internal-transfers/balances']['post'] = 'admin/wallet/Inte
 $route['admin/finance/internal-transfers/do-transfer']['post'] = 'admin/wallet/Internaltransfers/do_transfer';
 $route['admin/finance/internal-transfers/preview']['post'] = 'admin/wallet/Internaltransfers/preview';   // POST AJAX (shared UI)
 $route['admin/finance/internal-transfers/tx-detail']['get'] = 'admin/wallet/Internaltransfers/tx_detail'; // GET AJAX (shared modal)
-
-/**************** Admin — Treasury Direct Send (new BMAN, no ledger movement) */
-$route['admin/finance/treasury-send'] = 'admin/wallet/Treasurysend';
-$route['admin/finance/treasury-send/users']['get'] = 'admin/wallet/Treasurysend/users';
-$route['admin/finance/treasury-send/send']['post'] = 'admin/wallet/Treasurysend/send';
-$route['admin/finance/treasury-send/settings']['post'] = 'admin/wallet/Treasurysend/updateSettings';
 
 /**************** Master — Token Settings (blockchain single source of truth) */
 $route['admin/master/token-settings'] = 'admin/master/Tokenmaster';
@@ -858,7 +781,6 @@ $route['top-6-mlm-plans'] = 'Blog/top_six_mlm';
 
 $route['user/recentOrdersAjax'] = 'user/user/recentOrdersAjax';
 $route['user/recentCommissionsAjax'] = 'user/user/recentCommissionsAjax';
-$route['user/activityTrendAjax'] = 'user/user/activityTrendAjax';   // live data for the dashboard User Activity & Coin Trend chart (replaces the static dummy JSON)
 
 
 $route['user/payouts/request'] = 'user/payouts/request';

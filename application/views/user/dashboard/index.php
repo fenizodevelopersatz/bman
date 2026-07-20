@@ -1161,6 +1161,10 @@
     load(range);
   })();
   </script>
+  <style>
+    .quick-actions .qa{  text-decoration: none !important;}
+  </style>
+
 </body>
 
 </html>
