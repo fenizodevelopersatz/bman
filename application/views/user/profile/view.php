@@ -2725,6 +2725,26 @@ async function freezeWithdraw() {
           close2FAModal();
           // Refresh the toggle state
           document.getElementById('twofaTog').classList.add('on');
+
+          // NOW SAVE THE TOGGLE STATUS TO DATABASE
+          const saveFd = new FormData();
+          saveFd.append('status', 1);
+          saveFd.append(csrfName, csrfHash);
+
+          try {
+            const saveR = await fetch("<?= site_url('member/profile/twofa_toggle'); ?>", {
+              method: 'POST',
+              body: saveFd,
+              headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const saveRes = await saveR.json();
+            setCsrfFromResponse(saveRes);
+            document.getElementById('twofaTog_msg').textContent = saveRes.message || '2FA enabled successfully';
+            document.getElementById('twofaTog_msg').style.color = '#149a55';
+          } catch (e) {
+            document.getElementById('twofaTog_msg').textContent = 'Setup complete but database save failed!';
+            document.getElementById('twofaTog_msg').style.color = '#c0392b';
+          }
         } else {
           msgEl.textContent = res.message || 'Invalid code';
           msgEl.style.color = '#c0392b';
