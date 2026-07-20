@@ -12,6 +12,11 @@ $staking_packages = isset($staking_packages) && is_array($staking_packages) ? $s
 $staking_plans    = isset($staking_plans) && is_array($staking_plans) ? $staking_plans : [];
 $owned_stake_ids  = isset($owned_stake_ids) && is_array($owned_stake_ids) ? $owned_stake_ids : [];
 
+// Hide the 10,000 BMAN package from the public listing.
+$staking_packages = array_values(array_filter($staking_packages, function ($p) {
+    return (float)($p['stake_amount'] ?? 0) !== 10000.0;
+}));
+
 if (!empty($staking_packages)):
 
 // which durations actually appear across the ROI matrix (fallback 2/3/5)
@@ -46,15 +51,15 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   .stk-plan .pmeta{margin-top:10px;font-size:11.5px;font-weight:900;color:#0b1220;display:flex;flex-wrap:wrap;gap:6px;}
   .stk-plan .pmeta span{background:rgba(15,23,42,.05);border-radius:8px;padding:3px 8px;}
   /* package cards */
-  .stk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}
+  .stk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
   .stk-card{position:relative;background:var(--card,#fff);border:1px solid rgba(15,23,42,.08);border-radius:18px;
-    padding:18px;box-shadow:0 8px 24px rgba(15,23,42,.05);transition:transform .15s,box-shadow .15s;overflow:hidden;}
+    padding:16px;box-shadow:0 8px 24px rgba(15,23,42,.05);transition:transform .15s,box-shadow .15s;overflow:hidden;}
   .stk-card:hover{transform:translateY(-3px);box-shadow:0 14px 32px rgba(67,56,202,.14);border-color:rgba(99,102,241,.35);}
   .stk-card::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:linear-gradient(90deg,#6366f1,#22c55e);}
-  .stk-card .amt{font-size:24px;font-weight:1200;color:var(--text,#0b1220);line-height:1;}
+  .stk-card .amt{font-size:22px;font-weight:1200;color:var(--text,#0b1220);line-height:1;}
   .stk-card .amt small{font-size:12px;font-weight:900;color:var(--muted,#6b7280);}
   .stk-card .nm{font-size:12.5px;font-weight:900;color:var(--muted,#6b7280);margin-top:2px;}
-  .stk-badges{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 14px;}
+  .stk-badges{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 12px;}
   .stk-b{display:inline-flex;align-items:center;gap:5px;border-radius:9px;padding:5px 9px;font-size:11.5px;font-weight:900;}
   .stk-b.bonus{background:rgba(34,197,94,.12);color:#15803d;}
   .stk-b.ceil{background:rgba(234,179,8,.14);color:#a16207;}
@@ -65,18 +70,12 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   .stk-roi .fx{color:#4338ca;font-weight:1100;}
   .stk-roi .rg{color:#0f766e;font-weight:1100;}
   .stk-roi .na{color:#cbd5e1;font-weight:900;}
-  .stk-foot{margin-top:12px;font-size:11px;line-height:1.5;color:var(--muted,#6b7280);font-weight:700;
+  .stk-foot{margin-top:10px;font-size:11px;line-height:1.5;color:var(--muted,#6b7280);font-weight:700;
     display:flex;gap:12px;flex-wrap:wrap;}
   .stk-foot b{color:#0b1220;}
   .stk-card.owned{border-color:#22c55e;box-shadow:0 10px 28px rgba(34,197,94,.18);}
   .stk-card .owned-rib{position:absolute;top:14px;right:-32px;transform:rotate(45deg);background:#22c55e;color:#fff;
     font-size:10px;font-weight:1000;letter-spacing:.5px;padding:3px 36px;box-shadow:0 4px 10px rgba(34,197,94,.3);z-index:2;}
-  .stk-terms{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
-  .stk-terms .t{display:inline-flex;align-items:center;gap:5px;background:rgba(15,23,42,.05);border-radius:8px;
-    padding:4px 9px;font-size:11px;font-weight:900;color:#334155;}
-  .stk-terms .t.ok{background:rgba(34,197,94,.12);color:#15803d;}
-  .stk-tc{margin-top:10px;text-align:center;}
-  .stk-tc a{font-size:11.5px;font-weight:900;color:#4f46e5;cursor:pointer;text-decoration:underline;}
   .stkm-table-wrap{margin-top:10px;overflow:auto;border:1px solid rgba(15,23,42,.10);border-radius:14px;background:#fff;}
   .stkm-table{width:100%;border-collapse:collapse;font-size:12px;min-width:520px;}
   .stkm-table th,.stkm-table td{padding:10px 12px;border-bottom:1px solid rgba(15,23,42,.08);white-space:nowrap;}
@@ -169,14 +168,8 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         <span><b>Regular:</b> % credited monthly</span>
       </div>
 
-      <div class="stk-terms">
-        <span class="t"><i class="ph ph-lock-key"></i> <?= implode(' / ', $durations) ?> yr terms</span>
-        <span class="t"><i class="ph ph-coins"></i> Min <?= number_format((float)$p['stake_amount']) ?> BMAN</span>
-        <span class="t ok"><i class="ph ph-seal-check"></i> Available</span>
-      </div>      
-
       <button type="button" class="stk-buy" onclick="stkOpen(<?= (int)$p['id'] ?>)">
-        <i class="ph ph-lock-key"></i> <?= !empty($swap_enabled) ? 'Buy BMAN' : 'Stake Now' ?>
+        <i class="ph ph-lock-key"></i> SELECT
       </button>
     </div>
     <?php endforeach; ?>
@@ -185,7 +178,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
 
 <!-- ===================== STAKING PURCHASE MODAL ===================== -->
 <style>
-  .stk-buy{width:100%;margin-top:14px;border:0;border-radius:12px;padding:11px;cursor:pointer;background:linear-gradient(135deg,#6366f1,#4338ca);color:#fff;font-weight:1000;font-size:13.5px;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .15s;}
+  .stk-buy{width:100%;margin-top:12px;border:0;border-radius:12px;padding:10px;cursor:pointer;background:linear-gradient(135deg,#6366f1,#4338ca);color:#fff;font-weight:1000;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .15s;}
   .stk-buy:hover{opacity:.9;}
   .stkm-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);backdrop-filter:blur(2px);z-index:9999;display:none;align-items:center;justify-content:center;padding:18px;}
   .stkm-overlay.open{display:flex;}
@@ -228,7 +221,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
 <div class="stkm-overlay" id="stkm">
   <div class="stkm">
     <?php $isSwap = !empty($swap_enabled); ?>
-    <div class="stkm-h"><h3><i class="ph-fill ph-stack"></i> <?= $isSwap ? 'Buy BMAN (Swap)' : 'Purchase Stake' ?></h3><button class="x" type="button" onclick="stkClose()">&times;</button></div>
+    <div class="stkm-h"><h3><i class="ph-fill ph-stack"></i> <?= $isSwap ? 'Select Package' : 'Purchase Stake' ?></h3><button class="x" type="button" onclick="stkClose()">&times;</button></div>
     <div class="stkm-b">
       <!-- LEFT: Staking Setup Flow -->
       <div class="stkm-left">
