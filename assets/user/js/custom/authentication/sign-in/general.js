@@ -411,6 +411,20 @@ KTUtil.onDOMContentLoaded((function () {
                             location.href = redirectUrl;
                         }
                     });
+                } else if (response.max_attempts_exceeded) {
+                    Swal.fire({
+                        text: response.message,
+                        icon: "warning",
+                        buttonsStyling: false,
+                        confirmButtonText: "Ok, got it!",
+                        customClass: {
+                            confirmButton: "btn btn-primary"
+                        }
+                    }).then(function (e) {
+                        if (e.isConfirmed && typeof response.redirect !== "undefined") {
+                            location.href = response.redirect;
+                        }
+                    });
                 } else {
                     Swal.fire({
                         text: "Sorry, " + response.message,

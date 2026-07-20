@@ -139,10 +139,10 @@ $msRewardText = function ($l) use ($rk_n) {
             box-shadow:var(--shadow-card);
         }
         .rk-hero-col { padding:24px 22px; position:relative; z-index:1; }
-        .rk-hero-badge-col { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; text-align:center; border-right:1px solid rgba(255,255,255,.14); }
+        /* .rk-hero-badge-col { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; text-align:center; border-right:1px solid rgba(255,255,255,.14); } */
         .rk-hero-badge-col .rk-badge {
-            width:210px;
-            height:210px;
+            width:360px;
+            height:360px;
             background:transparent;
             border:0;
             box-shadow:none;
@@ -155,8 +155,8 @@ $msRewardText = function ($l) use ($rk_n) {
             border-radius:0;
         }
         .rk-hero-badge-col .rk-badge-dot {
-            width:210px !important;
-            height:210px !important;
+            width:360px !important;
+            height:360px !important;
             border:0;
             background:transparent;
         }
@@ -185,7 +185,7 @@ $msRewardText = function ($l) use ($rk_n) {
             .rk-hero { grid-template-columns:1fr; }
             .rk-hero-badge-col, .rk-hero-progress-col { border:0; border-bottom:1px solid rgba(255,255,255,.14); }
             .rk-hero-badge-col .rk-badge,
-            .rk-hero-badge-col .rk-badge-dot { width:170px !important; height:170px !important; }
+            .rk-hero-badge-col .rk-badge-dot { width:220px !important; height:220px !important; }
         }
 
         /* ================= STATS ROW (4 cards) ================= */
@@ -359,7 +359,7 @@ $msRewardText = function ($l) use ($rk_n) {
             <!-- ================= HERO: badge | info | progress ================= -->
             <section class="rk-hero">
                 <div class="rk-hero-col rk-hero-badge-col">
-                    <?= rank_badge_html($rank['badge_image'], $rank['badge_color'], 120); ?>
+                    <?= rank_badge_html($rank['badge_image'], $rank['badge_color'], 210); ?>
                     <?php if ($rank['has_rank']): ?>
                         <span class="rk-perm-pill"><i class="ph-fill ph-lock-key-open"></i> Permanent</span>
                     <?php endif; ?>
@@ -896,6 +896,13 @@ $msRewardText = function ($l) use ($rk_n) {
             window.rkReset = function () { q.value = ''; type.value = ''; status.value = ''; apply(); };
         })();
     </script>
+    <style>
+        .grid-4 {
+            padding-bottom: 13px;
+        }
+    displ
+    </style>
 </body>
 
 </html>
+

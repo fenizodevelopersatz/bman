@@ -371,6 +371,10 @@ class Login extends CI_Controller
 				$needs_2fa   = (int) $this->session->userdata('twofa_required') === 1;
 				$needs_email = (int) $this->session->userdata('email_verify_required') === 1;
 
+				// Track OTP verification attempts (max 2 attempts allowed)
+				$otp_attempts = (int) $this->session->userdata('otp_attempts') ?? 0;
+				$max_attempts = 2;
+
 				$expected_otp = $this->session->userdata('sender_otp');
 				$verify_1 = $needs_2fa ? $this->twofachecker($admin_id, $twofaOTP) : true;
 				$verify_2 = $needs_email
@@ -381,6 +385,7 @@ class Login extends CI_Controller
 
 					$this->session->set_userdata('verify_payment_page', "ok");
 					$this->session->set_userdata('sender_otp', "");
+					$this->session->unset_userdata('otp_attempts');
 					$response = array(
 						'status' => true,
 						'message' => "Verify Successfully"
@@ -391,11 +396,34 @@ class Login extends CI_Controller
 
 				} else {
 
-					$this->session->set_flashdata('danger', 'Invalide OTP !');
-					$response = array(
-						'status' => false,
-						'message' => "Invalid OTP!"
-					);
+					// Increment failed attempt counter
+					$otp_attempts++;
+					$this->session->set_userdata('otp_attempts', $otp_attempts);
+
+					// After 2 failed attempts, reset login and show login form
+					if ($otp_attempts >= $max_attempts) {
+						$this->session->set_flashdata('danger', 'Maximum OTP attempts exceeded. Please login again.');
+						$this->session->unset_userdata('otp_required');
+						$this->session->unset_userdata('twofa_required');
+						$this->session->unset_userdata('email_verify_required');
+						$this->session->unset_userdata('user_get_id');
+						$this->session->unset_userdata('sender_otp');
+						$this->session->unset_userdata('otp_attempts');
+
+						$response = array(
+							'status' => false,
+							'message' => "Maximum attempts exceeded. Please login again.",
+							'redirect' => base_url('user/in'),
+							'max_attempts_exceeded' => true
+						);
+					} else {
+						$remaining_attempts = $max_attempts - $otp_attempts;
+						$this->session->set_flashdata('danger', "Invalid OTP! ({$remaining_attempts} attempts remaining)");
+						$response = array(
+							'status' => false,
+							'message' => "Invalid OTP! ({$remaining_attempts} attempts remaining)"
+						);
+					}
 				}
 
 
@@ -529,6 +557,13 @@ class Login extends CI_Controller
 		}
 
 		$this->session->set_userdata($array);
+
+		// Clear OTP-related session flags after successful login
+		$this->session->unset_userdata('otp_required');
+		$this->session->unset_userdata('twofa_required');
+		$this->session->unset_userdata('email_verify_required');
+		$this->session->unset_userdata('user_get_id');
+		$this->session->unset_userdata('sender_otp');
 	}
 
 	private function twofachecker($admin_id, $oneCode)
