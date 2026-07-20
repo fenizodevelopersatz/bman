@@ -81,6 +81,10 @@
                     <div id="reset_message" style="margin-top: 8px; padding: 10px 12px; border-radius: 8px; display: none; font-size: 13px; font-weight: 500;"></div>
                 </div>
 
+                <div class="text-center mb-4">
+                    <a href="<?php echo base_url(); ?>user/in" class="link-primary fw-semibold">Back to Login</a>
+                </div>
+
                 <div class="d-flex flex-wrap justify-content-center gap-3 pb-lg-0">
                     <button type="button" id="kt_password_reset_submit" class="btn btn-primary flex-grow-1">
                         <span class="indicator-label">Submit</span>
