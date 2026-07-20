@@ -312,6 +312,40 @@ class Profile extends MY_Controller
         return $this->_json(['status' => 'success', 'message' => 'Transfer password saved.']);
     }
 
+    // ------------------ SECURITY: 2FA enable/disable ------------
+    public function twofa_toggle()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $uid = (int) $this->session->userdata('user_userid');
+        if (!$uid) return $this->_json(['status' => 'error', 'message' => 'Not logged in'], 401);
+
+        $status = $this->input->post('status', true) ? 1 : 0;
+        $this->Users_model->update_user($uid, ['twofa_status' => $status]);
+
+        return $this->_json([
+            'status' => 'success',
+            'message' => $status ? 'Two-Factor Authentication enabled.' : 'Two-Factor Authentication disabled.',
+            'twofa_status' => $status,
+        ]);
+    }
+
+    // ------------------ SECURITY: Email Verification enable/disable ------------
+    public function email_verify_toggle()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $uid = (int) $this->session->userdata('user_userid');
+        if (!$uid) return $this->_json(['status' => 'error', 'message' => 'Not logged in'], 401);
+
+        $status = $this->input->post('status', true) ? 1 : 0;
+        $this->Users_model->update_user($uid, ['email_verify_status' => $status]);
+
+        return $this->_json([
+            'status' => 'success',
+            'message' => $status ? 'Email Verification enabled.' : 'Email Verification disabled.',
+            'email_verify_status' => $status,
+        ]);
+    }
+
     // ----------------------------- KYC SUBMIT -----------------------------
     public function kyc_submit()
     {

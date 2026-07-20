@@ -173,8 +173,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         <span class="t"><i class="ph ph-lock-key"></i> <?= implode(' / ', $durations) ?> yr terms</span>
         <span class="t"><i class="ph ph-coins"></i> Min <?= number_format((float)$p['stake_amount']) ?> BMAN</span>
         <span class="t ok"><i class="ph ph-seal-check"></i> Available</span>
-      </div>
-      <div class="stk-tc"><a onclick="stkTerms()">Terms &amp; Conditions</a></div>
+      </div>      
 
       <button type="button" class="stk-buy" onclick="stkOpen(<?= (int)$p['id'] ?>)">
         <i class="ph ph-lock-key"></i> <?= !empty($swap_enabled) ? 'Buy BMAN' : 'Stake Now' ?>

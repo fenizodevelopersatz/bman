@@ -52,12 +52,30 @@ class Login extends CI_Controller
 
 				if ($result_status) {
 
-					$this->sender_otp($result_get['data']->id);
+					$uid = $result_get['data']->id;
+					$this->session->set_userdata('user_get_id', $uid);
 
-					$userarray = array(
-						"user_get_id" => $result_get['data']->id,
-					);
-					$this->session->set_userdata($userarray);
+					$user_row = $this->db->get_where('users', ['id' => (int) $uid])->row();
+					$needs_2fa   = $user_row && (int) $user_row->twofa_status === 1;
+					$needs_email = $user_row && (int) $user_row->email_verify_status === 1;
+
+					if ($needs_2fa || $needs_email) {
+
+						$this->session->set_userdata('twofa_required', $needs_2fa ? 1 : 0);
+						$this->session->set_userdata('email_verify_required', $needs_email ? 1 : 0);
+						$this->session->set_userdata('otp_required', 1);
+
+						if ($needs_email) {
+							$this->sender_otp($uid);
+						}
+
+					} else {
+
+						// Neither factor is enabled for this user — log them in immediately.
+						$this->session->set_userdata('otp_required', 0);
+						$this->_complete_login($user_row);
+
+					}
 
 					$response = [
 						'status' => true,
@@ -78,9 +96,9 @@ class Login extends CI_Controller
 			}
 		} else {
 
-			$send_otp = $this->session->userdata('sender_otp');
+			$otp_required = $this->session->userdata('otp_required');
 
-			if ($send_otp) {
+			if ($otp_required) {
 
 				$this->auth_verify();
 
@@ -131,8 +149,8 @@ class Login extends CI_Controller
 
 					if ($method == "email_otp") {
 
-						$verify = true;
-						//emailVerify($admin_id,'email_verify',$otp);
+						$expected = $this->session->userdata('sender_otp');
+						$verify = ($expected !== null && $expected !== '' && (string) $otp === (string) $expected);
 
 						if ($verify) {
 
@@ -216,13 +234,18 @@ class Login extends CI_Controller
 				$emailOTP = $this->input->post('emailOTP');
 				$twofaOTP = $this->input->post('twofaOTP');
 
-				$verify_1 = $this->twofachecker($admin_id, $twofaOTP);
-				$verify_2 = true;
+				$needs_2fa   = (int) $this->session->userdata('twofa_required') === 1;
+				$needs_email = (int) $this->session->userdata('email_verify_required') === 1;
+
+				$expected_otp = $this->session->userdata('sender_otp');
+				$verify_1 = $needs_2fa ? $this->twofachecker($admin_id, $twofaOTP) : true;
+				$verify_2 = $needs_email
+					? ($expected_otp !== null && $expected_otp !== '' && (string) $emailOTP === (string) $expected_otp)
+					: true;
 
 				if ($verify_1 && $verify_2) {
 
 					$this->session->set_userdata('verify_payment_page', "ok");
-
 					$this->session->set_userdata('sender_otp', "");
 					$response = array(
 						'status' => true,
@@ -230,40 +253,7 @@ class Login extends CI_Controller
 					);
 
 					$result = $this->db->query("SELECT * FROM users where id = '" . $admin_id . "' ")->row();
-					$array = array(
-						"user_logged_in" => TRUE,
-						"user_full_name" => $result->username,
-						"user_userid" => $result->id,
-						"user_email" => $result->email,
-						"user_login" => TRUE
-					);
-
-					$userarray = array(
-						"user_userid" => $result->id,
-						"user_logindate" => date('Y-m-d H:i:s'),
-						"user_ip_address" => $_SERVER['REMOTE_ADDR']
-					);
-
-
-					$this->session->set_userdata('remember_me', true);
-
-					$cookie = array(
-						'name' => 'remember_me',
-						'value' => '1212',
-						'expire' => '1209600',
-						'domain' => base_url(),
-						'path' => base_url() . 'admin'
-					);
-					if ($result) {
-						setcookie("remember_me", md5($result->id), time() + (60 * 2), '/');
-
-						if (isset($_COOKIE['remember_me'])) {
-							$array['cookiee'] = $_COOKIE['remember_me'];
-							$condition = "cookiee=" . "'" . md5($result->id) . "'";
-						}
-
-						$this->session->set_userdata($array);
-					}
+					$this->_complete_login($result);
 
 				} else {
 
@@ -297,16 +287,24 @@ class Login extends CI_Controller
 	public function auth_verify()
 	{
 
+		$needs_email = (int) $this->session->userdata('email_verify_required') === 1;
 		$send_otp = $this->session->userdata('sender_otp');
 
-		if ($send_otp == "") {
-			$this->sender_otp();
+		if ($needs_email && $send_otp == "") {
+			$this->sender_otp($this->session->userdata('user_get_id'));
 		}
 
-		$admin_id = '1';
 		$this->data['verify_type'] = '0';
 		$this->data['title'] = 'Verify Page';
 		$this->data['action'] = base_url() . "user/auth/success";
+		$this->data['show_twofa_code'] = (int) $this->session->userdata('twofa_required') === 1;
+		$this->data['show_email_code'] = $needs_email;
+
+		if ($needs_email) {
+			$user_row = $this->db->get_where('users', ['id' => (int) $this->session->userdata('user_get_id')])->row();
+			$this->data['admin_mail'] = $user_row ? $user_row->email : '';
+		}
+
 		$this->load->view('user/auth/login', $this->data);
 
 	}
@@ -373,6 +371,31 @@ class Login extends CI_Controller
 	}
 
 
+
+	// Finalizes a login: sets the full authenticated session (shared by the
+	// no-verification-required path in index() and the OTP success path in
+	// finelVerify()).
+	private function _complete_login($result)
+	{
+		if (!$result) return;
+
+		$array = array(
+			"user_logged_in" => TRUE,
+			"user_full_name" => $result->username,
+			"user_userid" => $result->id,
+			"user_email" => $result->email,
+			"user_login" => TRUE
+		);
+
+		$this->session->set_userdata('remember_me', true);
+
+		setcookie("remember_me", md5($result->id), time() + (60 * 2), '/');
+		if (isset($_COOKIE['remember_me'])) {
+			$array['cookiee'] = $_COOKIE['remember_me'];
+		}
+
+		$this->session->set_userdata($array);
+	}
 
 	private function twofachecker($admin_id, $oneCode)
 	{
