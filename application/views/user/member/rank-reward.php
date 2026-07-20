@@ -140,8 +140,26 @@ $msRewardText = function ($l) use ($rk_n) {
         }
         .rk-hero-col { padding:26px 22px; position:relative; z-index:1; }
         .rk-hero-badge-col { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; text-align:center; border-right:1px solid rgba(255,255,255,.14); }
-        .rk-hero-badge-col .rk-badge { width:120px; height:120px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); box-shadow:0 12px 30px rgba(0,0,0,.25); border-radius:20px; }
-        .rk-hero-badge-col .rk-badge-dot { width:120px !important; height:120px !important; border:3px solid rgba(255,255,255,.5); }
+        .rk-hero-badge-col .rk-badge {
+            width:150px;
+            height:150px;
+            background:transparent;
+            border:0;
+            box-shadow:none;
+            border-radius:0;
+        }
+        .rk-hero-badge-col .rk-badge-img {
+            object-fit:contain;
+            width:100%;
+            height:100%;
+            border-radius:0;
+        }
+        .rk-hero-badge-col .rk-badge-dot {
+            width:150px !important;
+            height:150px !important;
+            border:0;
+            background:transparent;
+        }
         .rk-perm-pill { display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.2); padding:6px 12px; border-radius:999px; font-size:11px; font-weight:700; }
         .rk-perm-pill i { color:#ffd76e; }
 

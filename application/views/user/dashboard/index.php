@@ -102,6 +102,7 @@
       .quick-actions .qa {
         flex: 1 1 calc(50% - 10px) !important;
         min-width: 160px;
+        text-decoration: none !important;
       }
 
       /* Two columns → one column */
@@ -172,6 +173,7 @@
         padding: 10px 10px !important;
         border-radius: 14px !important;
         font-size: 12px !important;
+        text-decoration: none !important;
       }
 
       /* Binary summary cards -> 1 column */
@@ -446,11 +448,11 @@
 
       <!-- Quick Actions -->
       <div class="quick-actions">
-        <div class="qa"><i class="ph ph-money"></i> Withdraw</div>
-        <div class="qa"><i class="ph ph-arrows-left-right"></i> Transfer Wallet</div>
-        <div class="qa"><i class="ph ph-tree-structure"></i> View Binary Tree</div>
-        <div class="qa"><i class="ph ph-user-plus"></i> Invite Member</div>        
-        <div class="qa"><i class="ph ph-headset"></i> Support Ticket</div>
+        <a href="<?= base_url('user/withdraw'); ?>" class="qa"><i class="ph ph-money"></i> Withdraw</a>
+        <a href="<?= base_url('user/transfer-wallet'); ?>" class="qa"><i class="ph ph-arrows-left-right"></i> Transfer Wallet</a>
+        <a href="<?= base_url('user/binary-tree'); ?>" class="qa"><i class="ph ph-tree-structure"></i> View Binary Tree</a>
+        <a href="<?= base_url('user/profile'); ?>" class="qa"><i class="ph ph-user-plus"></i> Invite Member</a>
+        <a href="<?= base_url('support'); ?>" class="qa"><i class="ph ph-headset"></i> Support Ticket</a>
       </div>
 
       <!-- Binary + Team -->
@@ -511,14 +513,6 @@
             $nextLabel = !empty($rs['next_rank']) ? ' to ' . htmlspecialchars($rs['next_rank']) : '';
             ?>
             <div class="small-grid" style="margin-top:12px;">
-              <div class="small-k">
-                <small>Achievement Rank</small>
-                <strong><?= htmlspecialchars($rs['name'] ?? 'UN RANK'); ?></strong>
-              </div>
-              <div class="small-k">
-                <small>Rank Power</small>
-                <strong><?= htmlspecialchars($rs['power_rank'] ?? 'None yet'); ?></strong>
-              </div>
               <div class="small-k">
                 <small>Group Volume</small>
                 <strong><?= number_format((float)($rs['group_volume'] ?? 0), 2); ?> BMAN</strong>
