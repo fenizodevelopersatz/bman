@@ -134,9 +134,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     ?>
     <div class="stk-card<?= $owned ? ' owned' : '' ?>">
       <?php if ($owned): ?><span class="owned-rib">OWNED</span><?php endif; ?>
-      <div class="amt"><?= number_format((float)$p['stake_amount']) ?> <small>BMAN</small></div>
-      <div class="nm"><?= htmlspecialchars($p['name']) ?> Package</div>
-
+      <div class="amt"><?= number_format((float)$p['stake_amount']) ?> <small>BMAN</small></div>      
       <div class="stk-badges">
         <span class="stk-b bonus"><i class="ph-fill ph-gift"></i> <?= rtrim(rtrim(number_format((float)$p['bonus_percent'], 2), '0'), '.') ?>% Bonus</span>        
       </div>
