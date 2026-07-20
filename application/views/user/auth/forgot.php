@@ -28,16 +28,18 @@
         max-width:1180px; margin:0 auto; padding:30px 24px; }
     .lpx-form-side{ flex:1 1 0; min-width:0; display:flex; align-items:center; justify-content:center; padding:10px; }
     .lpx-form-inner{ width:100%; max-width:420px; }
-    .lpx-brand-side{ flex:1 1 0; min-width:0; position:relative; display:flex; align-items:center; justify-content:center;
-        min-height:560px; border-radius:24px; padding:48px;
+    .lpx-brand-side{ flex:1 1 0; min-width:0; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden;
+        min-height:560px; border-radius:32px; padding:56px 52px;
         /* driven by Admin -> Member Panel Theme (Gradient Start / Gradient End) */
         background: var(--mp-gradient, linear-gradient(150deg, #6D4AFF 0%, #A855F7 100%));
-        box-shadow:0 20px 60px rgba(0,0,0,.35); }
-    .lpx-brand-inner{ padding:48px; text-align:center; }
-    .lpx-brand-inner img{ height:200px; margin-bottom:26px; }
-    .lpx-brand-inner h2{ color:#fff; font-weight:800; font-size:34px; line-height:1.3; margin:0; }
+        box-shadow:0 22px 70px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.14); }
+    .lpx-brand-side:before{ content:""; position:absolute; inset:18px; border-radius:26px;
+        border:1px solid rgba(255,255,255,.12); pointer-events:none; }
+    .lpx-brand-inner{ position:relative; z-index:1; padding:36px 28px; text-align:center; max-width:420px; }
+    .lpx-brand-inner img{ height:180px; margin-bottom:28px; }
+    .lpx-brand-inner h2{ color:#fff; font-weight:800; font-size:34px; line-height:1.16; margin:0; }
     .lpx-brand-inner h2 .lpx-brand-name{ display:block; }
-    .lpx-home{ position:absolute; top:24px; right:30px; color:#fff; font-weight:600; letter-spacing:.5px; text-decoration:none; }
+    .lpx-home{ position:absolute; top:28px; right:34px; z-index:1; color:#fff; font-weight:600; letter-spacing:.5px; text-decoration:none; }
     .lpx-home:hover{ color:#fff; opacity:.85; }
     .lpx-home i{ margin-right:8px; }
 
