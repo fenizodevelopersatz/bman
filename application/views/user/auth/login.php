@@ -153,7 +153,7 @@
                 <!--end::Form-->
             <?php } ?>
 
-            <?php if($verify_type != '1') { $this->session->unset_userdata('sender_otp'); ?>
+            <?php if($verify_type != '1') { ?>
                 <!--begin::Form-->
                 <form class="form w-100 mb-5" novalidate="novalidate" action="<?php echo base_url();?>user/login-finel-verify" method="POST" id="kt_sing_in_two_factor_form">
                     <div class="text-center mb-8">
@@ -165,6 +165,7 @@
                         <div class="fw-bold text-gray-900 fs-3"><?php echo isset($admin_mail)?$admin_mail:''; ?></div>
                     </div>
 
+                    <?php if (!empty($show_twofa_code)): ?>
                     <div class="mb-8">
                         <div class="fw-bold text-start text-gray-900 fs-6 mb-1 ms-1"><?php echo lang('two_factor_input_label'); ?></div>
                         <div class="otp-container">
@@ -179,9 +180,10 @@
                             <span class="otp-loader d-none">⏳ Verifying...</span>
                             <p class="otp-message"></p>
                         </div>
-                        <p>OTP:123456</p>
                     </div>
+                    <?php endif; ?>
 
+                    <?php if (!empty($show_email_code)): ?>
                     <div class="mb-8">
                         <div class="fw-bold text-start text-gray-900 fs-6 mb-1 ms-1"><?php echo lang('email_otp_input_label'); ?></div>
                         <div class="otp-container">
@@ -196,8 +198,8 @@
                             <span class="otp-loader d-none">⏳ Verifying...</span>
                             <p class="otp-message"></p>
                         </div>
-                        <p>OTP:123456</p>
                     </div>
+                    <?php endif; ?>
 
                     <div class="d-flex flex-center">
                         <button type="submit" id="kt_sing_in_two_factor_submit" data-kt-redirect-url="<?php echo base_url();?>user/main" disabled class="btn btn-lg btn-primary fw-bold w-100">

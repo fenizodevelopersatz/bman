@@ -20,6 +20,7 @@ $user = (object) array_merge([
   'referral_id' => '',
   'rank_id' => '',
   'twofa_status' => 0,
+  'email_verify_status' => 0,
   'gender' => '',
   'dob' => '',
   'address' => '',
@@ -1922,11 +1923,22 @@ function renderExistingPreview($url, $title)
                     <div class="switch-row">
                       <div>
                         <b>Two-Factor Authentication (2FA)</b>
-                        <span>Recommended for withdrawals & profile changes.</span>
+                        <span>Requires a one-time code at login. Recommended for withdrawals & profile changes.</span>
                       </div>
                       <div class="tog <?= ((int) $user->twofa_status === 1) ? 'on' : ''; ?>" id="twofaTog"></div>
                     </div>
-                    <div class="hint">2FA save API not added here (you can add later).</div>
+                    <div class="hint" id="twofaTog_msg"></div>
+                  </div>
+
+                  <div class="field full">
+                    <div class="switch-row">
+                      <div>
+                        <b>Email Verification</b>
+                        <span>Emails a one-time code you must enter at login.</span>
+                      </div>
+                      <div class="tog <?= ((int) $user->email_verify_status === 1) ? 'on' : ''; ?>" id="emailVerifyTog"></div>
+                    </div>
+                    <div class="hint" id="emailVerifyTog_msg"></div>
                   </div>
 
                   <div class="field full">
@@ -2546,6 +2558,41 @@ async function freezeWithdraw() {
         }
       } catch (e) { msg.textContent = 'Network error.'; msg.style.color = '#c0392b'; }
     }
+
+    // ---------- Security toggles (2FA / Email Verification) ----------
+    async function saveToggle(el, url, msgEl) {
+      const wasOn = el.classList.contains('on');
+      const next = wasOn ? 0 : 1;
+      el.classList.toggle('on', !!next);
+      if (msgEl) { msgEl.textContent = 'Saving…'; msgEl.style.color = ''; }
+
+      const fd = new FormData();
+      fd.append('status', next);
+      fd.append('<?= $csrfName; ?>', '<?= $csrfHash; ?>');
+
+      try {
+        const r = await fetch(url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const j = await r.json();
+        setCsrfFromResponse(j);
+        if (j.status === 'success') {
+          if (msgEl) { msgEl.textContent = next ? 'Enabled.' : 'Disabled.'; msgEl.style.color = '#149a55'; }
+          if (window.toastMini) toastMini(j.message || (next ? 'Enabled' : 'Disabled'));
+        } else {
+          el.classList.toggle('on', !!wasOn);
+          if (msgEl) { msgEl.textContent = j.message || 'Could not save.'; msgEl.style.color = '#c0392b'; }
+        }
+      } catch (e) {
+        el.classList.toggle('on', !!wasOn);
+        if (msgEl) { msgEl.textContent = 'Network error.'; msgEl.style.color = '#c0392b'; }
+      }
+    }
+
+    document.getElementById('twofaTog')?.addEventListener('click', function () {
+      saveToggle(this, "<?= site_url('member/profile/twofa_toggle'); ?>", document.getElementById('twofaTog_msg'));
+    });
+    document.getElementById('emailVerifyTog')?.addEventListener('click', function () {
+      saveToggle(this, "<?= site_url('member/profile/email_verify_toggle'); ?>", document.getElementById('emailVerifyTog_msg'));
+    });
 
     // ---------- Toast ----------
     function toastMini(msg) {

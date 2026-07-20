@@ -634,6 +634,8 @@ $route['user/password_update'] = 'user/usersettings/Profile/update_password';
 $route['user/twofa/toggle'] = 'user/usersettings/Profile/twofa_toggle';
 $route['user/update_email_preferences'] = 'user/usersettings/Profile/update_email_preferences';
 $route['member/profile/set_transfer_password'] = 'user/usersettings/Profile/set_transfer_password'; // POST
+$route['member/profile/twofa_toggle'] = 'user/usersettings/Profile/twofa_toggle'; // POST
+$route['member/profile/email_verify_toggle'] = 'user/usersettings/Profile/email_verify_toggle'; // POST
 $route['user/wallet-check'] = 'user/usersettings/Profile/wallet_check';   // POST — on-chain vs DB
 $route['member/profile/wallet_check'] = 'user/usersettings/Profile/wallet_check';
 

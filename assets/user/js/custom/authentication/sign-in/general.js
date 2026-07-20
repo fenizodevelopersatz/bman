@@ -351,7 +351,11 @@ KTUtil.onDOMContentLoaded((function () {
     });
 
     function check_button() {
-        if (emailvalidestep && twovalidestep) {
+        const needEmail = !!document.querySelector('.email-code');
+        const needTwofa = !!document.querySelector('.fa-code');
+        const emailOk = !needEmail || emailvalidestep > 0;
+        const twofaOk = !needTwofa || twovalidestep > 0;
+        if (emailOk && twofaOk) {
             $('#kt_sing_in_two_factor_submit').removeAttr('disabled');
         }
     }
@@ -363,8 +367,11 @@ KTUtil.onDOMContentLoaded((function () {
         let form = e.target;
         let submitButton = $('#kt_sing_in_two_factor_submit');
 
+        const needEmail = !!document.querySelector('.email-code');
+        const needTwofa = !!document.querySelector('.fa-code');
+
         // Prevent submission if validations fail
-        if (emailvalidestep === 0 || twovalidestep === 0) {
+        if ((needEmail && emailvalidestep === 0) || (needTwofa && twovalidestep === 0)) {
             Swal.fire({
                 text: "Please complete all verification steps!",
                 icon: "warning",
