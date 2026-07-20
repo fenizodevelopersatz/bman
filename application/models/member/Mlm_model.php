@@ -367,44 +367,50 @@ class Mlm_model extends CI_Model
         $query = $this->db->get_where('email_config', array('id' => 1));
         $config = $query->row_array();
 
-        if ($config) {
-            $mail = new PHPMailer(true);
+        if (!$config) {
+            log_message('error', 'Email Config Not Found');
+            return false;
+        }
 
-            try {
-                $mail->isSMTP();
-                $mail->Host = $config['host'];
-                $mail->SMTPOptions = [
-                    'ssl' => [
-                        'verify_peer' => false,
-                        'verify_peer_name' => false,
-                        'allow_self_signed' => true
-                    ]
-                ];
-                $mail->SMTPAuth = ($config['smtp_auth'] === 'true');
-                $mail->Username = $config['username'];
-                $mail->Password = $config['password'];
-                $mail->SMTPSecure = $config['smtpsecure'];
-                $mail->Port = $config['port'];
-                $mail->setFrom($config['from_mail'], $config['from_name']);
-                $mail->addAddress($useremail);
-                // Add CC
-                $mail->addCC('ashokece68@gmail.com');
+        if (!$config['smtp_status']) {
+            log_message('error', 'SMTP Status Disabled');
+            return false;
+        }
 
-                $mail->isHTML(true);
-                $mail->Subject = $subject;
+        $mail = new PHPMailer(true);
 
-                // Only set the body once!
-                $mail->Body = trim($message);
+        try {
+            $mail->isSMTP();
+            $mail->Host = $config['host'];
+            $mail->SMTPOptions = [
+                'ssl' => [
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                    'allow_self_signed' => true
+                ]
+            ];
+            $mail->SMTPAuth = (int) $config['smtp_auth'] === 1 || $config['smtp_auth'] === 'true';
+            $mail->Username = $config['username'];
+            $mail->Password = $config['password'];
+            $mail->SMTPSecure = $config['smtpsecure'];
+            $mail->Port = (int) $config['port'];
+            $mail->setFrom($config['from_mail'], $config['from_name']);
+            $mail->addAddress($useremail);
+            $mail->addCC('ashokece68@gmail.com');
 
-                if ($mail->send()) {
-                    return true;
-                } else {
-                    return false;
-                }
-            } catch (Exception $e) {
+            $mail->isHTML(true);
+            $mail->Subject = $subject;
+            $mail->Body = trim($message);
+
+            if ($mail->send()) {
+                log_message('info', 'Email sent successfully to: ' . $useremail);
+                return true;
+            } else {
+                log_message('error', 'Email send failed for: ' . $useremail . ' | Error: ' . $mail->ErrorInfo);
                 return false;
             }
-        } else {
+        } catch (Exception $e) {
+            log_message('error', 'Email Exception for ' . $useremail . ': ' . $e->getMessage());
             return false;
         }
     }

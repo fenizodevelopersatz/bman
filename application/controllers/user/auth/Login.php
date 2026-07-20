@@ -56,8 +56,15 @@ class Login extends CI_Controller
 					$this->session->set_userdata('user_get_id', $uid);
 
 					$user_row = $this->db->get_where('users', ['id' => (int) $uid])->row();
-					$needs_2fa   = $user_row && (int) $user_row->twofa_status === 1;
-					$needs_email = $user_row && (int) $user_row->email_verify_status === 1;
+
+					// Validate user_row exists before checking flags
+					if (!$user_row) {
+						echo json_encode(['status' => false, 'errors' => ['auth' => 'User not found']]);
+						exit;
+					}
+
+					$needs_2fa   = (int) $user_row->twofa_status === 1;
+					$needs_email = (int) $user_row->email_verify_status === 1;
 
 					if ($needs_2fa || $needs_email) {
 
@@ -121,9 +128,136 @@ class Login extends CI_Controller
 	*/
 	public function forgot()
 	{
+		if ($this->input->post()) {
+			$this->output->set_content_type('application/json');
+
+			$email = $this->input->post('email', TRUE);
+
+			if (!$email) {
+				echo json_encode(['status' => false, 'message' => 'Email is required']);
+				exit;
+			}
+
+			$user = $this->db->get_where('users', ['email' => $email])->row();
+
+			if (!$user) {
+				echo json_encode(['status' => true, 'message' => 'If this email exists, we will send you password reset instructions']);
+				exit;
+			}
+
+			try {
+				$reset_token = bin2hex(random_bytes(32));
+				$token_expiry = date('Y-m-d H:i:s', strtotime('+1 hour'));
+
+				$this->db->update('users', [
+					'password_reset_token' => $reset_token,
+					'password_reset_expiry' => $token_expiry
+				], ['id' => $user->id]);
+
+				$this->load->model('member/Mlm_model');
+				$reset_link = base_url('user/reset-password?token=' . $reset_token);
+
+				$subject = "Password Reset Request";
+				$message = "
+					<p>Hello " . htmlspecialchars($user->username) . ",</p>
+					<p>We received a request to reset your password. Click the link below to reset it:</p>
+					<p><a href='" . $reset_link . "' style='display: inline-block; padding: 10px 20px; background: #6366F1; color: white; text-decoration: none; border-radius: 4px;'>Reset Password</a></p>
+					<p>This link will expire in 1 hour.</p>
+					<p>If you didn't request this, you can safely ignore this email.</p>
+					<p>Best regards,<br>Nexman Team</p>
+				";
+
+				$send_result = $this->Mlm_model->sendmail($email, $subject, $message);
+				email_log($reset_token, $email, 'password_reset');
+
+				echo json_encode(['status' => true, 'message' => 'If this email exists, we will send you password reset instructions']);
+			} catch (Exception $e) {
+				log_message('error', 'Forgot password error: ' . $e->getMessage());
+				echo json_encode(['status' => false, 'message' => 'An error occurred. Please try again later.']);
+			}
+			exit;
+		}
+
 		$this->data['action'] = base_url() . "user/forgot";
 		$this->load->view('user/auth/forgot', $this->data);
 	}
+
+	public function reset_password()
+	{
+		$token = $this->input->get('token');
+
+		if (!$token) {
+			show_error('Invalid reset link. Token is missing.', 400);
+			return;
+		}
+
+		if ($this->input->post()) {
+			$this->output->set_content_type('application/json');
+
+			$password = $this->input->post('password');
+			$password_confirm = $this->input->post('password_confirm');
+
+			if (!$password || !$password_confirm) {
+				echo json_encode(['status' => false, 'message' => 'Password and confirmation are required']);
+				exit;
+			}
+
+			if ($password !== $password_confirm) {
+				echo json_encode(['status' => false, 'message' => 'Passwords do not match']);
+				exit;
+			}
+
+			if (strlen($password) < 8) {
+				echo json_encode(['status' => false, 'message' => 'Password must be at least 8 characters']);
+				exit;
+			}
+
+			try {
+				$user = $this->db->get_where('users', ['password_reset_token' => $token])->row();
+
+				if (!$user) {
+					echo json_encode(['status' => false, 'message' => 'Invalid or expired reset link']);
+					exit;
+				}
+
+				if (strtotime($user->password_reset_expiry) < time()) {
+					echo json_encode(['status' => false, 'message' => 'Reset link has expired. Please request a new one.']);
+					exit;
+				}
+
+				$hashed_password = password_hash($password, PASSWORD_BCRYPT);
+
+				$this->db->update('users', [
+					'password' => $hashed_password,
+					'password_reset_token' => NULL,
+					'password_reset_expiry' => NULL
+				], ['id' => $user->id]);
+
+				echo json_encode(['status' => true, 'message' => 'Password reset successfully. You can now login.']);
+			} catch (Exception $e) {
+				log_message('error', 'Password reset error: ' . $e->getMessage());
+				echo json_encode(['status' => false, 'message' => 'An error occurred. Please try again.']);
+			}
+			exit;
+		}
+
+		$user = $this->db->get_where('users', ['password_reset_token' => $token])->row();
+
+		if (!$user) {
+			show_error('Invalid or expired reset link', 400);
+			return;
+		}
+
+		if (strtotime($user->password_reset_expiry) < time()) {
+			show_error('Reset link has expired. Please request a new one.', 400);
+			return;
+		}
+
+		$this->data['token'] = $token;
+		$this->data['action'] = base_url() . "user/reset-password?token=" . $token;
+		$this->load->view('user/auth/reset_password', $this->data);
+	}
+
 	/*
 	|--------------------------------------------------------------------------
 	| VERIFY  OTP

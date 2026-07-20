@@ -132,17 +132,17 @@ $msRewardText = function ($l) use ($rk_n) {
            overrides live here, on the specific wrapper classes below. */
 
         /* ================= HERO: badge | info | progress ================= */
-        .rk-hero {
-            display:grid; grid-template-columns:200px 1fr 220px; gap:0;
+        .rk-hero { 
+            display:grid; grid-template-columns:260px 1fr 220px; gap:0;
             background:linear-gradient(135deg, var(--primary) 0%, var(--mp-hover, #4338CA) 62%, #241a52 100%);
             border-radius:var(--radius-lg); color:#fff; margin-bottom:18px; overflow:hidden;
             box-shadow:var(--shadow-card);
         }
-        .rk-hero-col { padding:26px 22px; position:relative; z-index:1; }
+        .rk-hero-col { padding:24px 22px; position:relative; z-index:1; }
         .rk-hero-badge-col { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; text-align:center; border-right:1px solid rgba(255,255,255,.14); }
         .rk-hero-badge-col .rk-badge {
-            width:150px;
-            height:150px;
+            width:210px;
+            height:210px;
             background:transparent;
             border:0;
             box-shadow:none;
@@ -155,8 +155,8 @@ $msRewardText = function ($l) use ($rk_n) {
             border-radius:0;
         }
         .rk-hero-badge-col .rk-badge-dot {
-            width:150px !important;
-            height:150px !important;
+            width:210px !important;
+            height:210px !important;
             border:0;
             background:transparent;
         }
@@ -184,6 +184,8 @@ $msRewardText = function ($l) use ($rk_n) {
         @media (max-width:1100px) {
             .rk-hero { grid-template-columns:1fr; }
             .rk-hero-badge-col, .rk-hero-progress-col { border:0; border-bottom:1px solid rgba(255,255,255,.14); }
+            .rk-hero-badge-col .rk-badge,
+            .rk-hero-badge-col .rk-badge-dot { width:170px !important; height:170px !important; }
         }
 
         /* ================= STATS ROW (4 cards) ================= */

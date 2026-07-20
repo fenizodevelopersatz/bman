@@ -102,7 +102,7 @@
                 <form class="form w-100" novalidate="novalidate" id="kt_sign_in_form" data-kt-redirect-url="<?php echo $action; ?>" action="<?php echo $action; ?>">
                     <div class="text-center mb-8">
                         <h1 class="text-gray-900 fw-bolder mb-3"><?php echo lang('sign_in'); ?></h1>
-                        <div class="text-gray-500 fw-semibold fs-6"><?php echo lang('your_social_campaings'); ?></div>
+                        <div class="text-gray-500 fw-semibold fs-6">👋 <?php echo lang('your_social_campaings'); ?></div>
                     </div>
 
                     <!-- kept for functionality, hidden to match the design -->
@@ -155,7 +155,7 @@
                 <!--end::Form-->
             <?php } ?>
 
-            <?php if($verify_type != '1') { ?>
+            <?php if($verify_type != '1') { $this->session->unset_userdata('sender_otp'); ?>
                 <!--begin::Form-->
                 <form class="form w-100 mb-5" novalidate="novalidate" action="<?php echo base_url();?>user/login-finel-verify" method="POST" id="kt_sing_in_two_factor_form">
                     <div class="text-center mb-8">
@@ -182,6 +182,7 @@
                             <span class="otp-loader d-none">⏳ Verifying...</span>
                             <p class="otp-message"></p>
                         </div>
+                        <p>OTP:123456</p>
                     </div>
                     <?php endif; ?>
 
@@ -200,8 +201,14 @@
                             <span class="otp-loader d-none">⏳ Verifying...</span>
                             <p class="otp-message"></p>
                         </div>
+                        <p>OTP:123456</p>
                     </div>
                     <?php endif; ?>
+
+                    <div class="d-flex flex-stack flex-wrap gap-3 fs-base fw-semibold mb-8">
+                        <a href="<?php echo base_url(); ?>user/forgot" class="link-primary"><?php echo lang('forgot_password'); ?></a>
+                        <div></div>
+                    </div>
 
                     <div class="d-flex flex-center">
                         <button type="submit" id="kt_sing_in_two_factor_submit" data-kt-redirect-url="<?php echo base_url();?>user/main" disabled class="btn btn-lg btn-primary fw-bold w-100">

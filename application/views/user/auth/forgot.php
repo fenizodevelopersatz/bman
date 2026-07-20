@@ -28,18 +28,15 @@
         max-width:1180px; margin:0 auto; padding:30px 24px; }
     .lpx-form-side{ flex:1 1 0; min-width:0; display:flex; align-items:center; justify-content:center; padding:10px; }
     .lpx-form-inner{ width:100%; max-width:420px; }
-    .lpx-brand-side{ flex:1 1 0; min-width:0; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden;
-        min-height:560px; border-radius:32px; padding:56px 52px;
+    .lpx-brand-side{ flex:1 1 0; min-width:0; position:relative; display:flex; align-items:center; justify-content:center;
+        min-height:560px; border-radius:24px; padding:48px;
         /* driven by Admin -> Member Panel Theme (Gradient Start / Gradient End) */
         background: var(--mp-gradient, linear-gradient(150deg, #6D4AFF 0%, #A855F7 100%));
-        box-shadow:0 22px 70px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.14); }
-    .lpx-brand-side:before{ content:""; position:absolute; inset:18px; border-radius:26px;
-        border:1px solid rgba(255,255,255,.12); pointer-events:none; }
-    .lpx-brand-inner{ position:relative; z-index:1; padding:36px 28px; text-align:center; max-width:420px; }
-    .lpx-brand-inner img{ height:180px; margin-bottom:28px; }
-    .lpx-brand-inner h2{ color:#fff; font-weight:800; font-size:34px; line-height:1.16; margin:0; }
-    .lpx-brand-inner h2 .lpx-brand-name{ display:block; }
-    .lpx-home{ position:absolute; top:28px; right:34px; z-index:1; color:#fff; font-weight:600; letter-spacing:.5px; text-decoration:none; }
+        box-shadow:0 20px 60px rgba(0,0,0,.35); }
+    .lpx-brand-inner{ padding:48px; }
+    .lpx-brand-inner img{ height:135px; margin-bottom:26px; }
+    .lpx-brand-inner h2{ color:#fff; font-weight:800; font-size:34px; line-height:1.2; margin:0; }
+    .lpx-home{ position:absolute; top:24px; right:30px; color:#fff; font-weight:600; letter-spacing:.5px; text-decoration:none; }
     .lpx-home:hover{ color:#fff; opacity:.85; }
     .lpx-home i{ margin-right:8px; }
 
@@ -81,6 +78,7 @@
 
                 <div class="fv-row mb-8">
                     <input type="text" placeholder="Email" name="email" autocomplete="off" class="form-control bg-transparent" />
+                    <div id="reset_message" style="margin-top: 8px; padding: 10px 12px; border-radius: 8px; display: none; font-size: 13px; font-weight: 500;"></div>
                 </div>
 
                 <div class="d-flex flex-wrap justify-content-center gap-3 pb-lg-0">
@@ -105,7 +103,7 @@
             <a class="lpx-home" href="<?php echo base_url('landing'); ?>"><i class="bi bi-arrow-left"></i> TAKE ME HOME</a>
             <div class="lpx-brand-inner">
                 <a href="<?php echo base_url('landing'); ?>"><img src="<?php echo base_url($lpx_logo); ?>" alt="logo" onerror="this.onerror=null;this.src='<?php echo base_url('assets/img/logo/logo.svg'); ?>';"></a>
-                <h2>Reset your access to<span class="lpx-brand-name"><?php echo html_escape($lpx_name); ?></span></h2>
+                <h2>Reset your access to <?php echo html_escape($lpx_name); ?></h2>
             </div>
         </div>
 
@@ -133,6 +131,80 @@
         });
     })();
     const base_url = '<?php echo base_url();?>';
+
+    // Handle forgot password form submission
+    document.addEventListener('DOMContentLoaded', function() {
+        const submitBtn = document.getElementById('kt_password_reset_submit');
+        if (!submitBtn) return;
+
+        submitBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const form = document.getElementById('kt_password_reset_form');
+        const email = form.querySelector('input[name="email"]').value.trim();
+        const button = this;
+        const label = button.querySelector('.indicator-label');
+        const progress = button.querySelector('.indicator-progress');
+        const msgEl = document.getElementById('reset_message');
+
+        // Clear previous message
+        msgEl.textContent = '';
+        msgEl.style.display = 'none';
+
+        if (!email) {
+            msgEl.textContent = 'Please enter your email address';
+            msgEl.style.display = 'block';
+            msgEl.style.background = '#fee2e2';
+            msgEl.style.color = '#991b1b';
+            msgEl.style.border = '1px solid #fca5a5';
+            return;
+        }
+
+        // Show loading state
+        button.disabled = true;
+        label.style.display = 'none';
+        progress.style.display = 'block';
+
+        // Send AJAX request
+        fetch(base_url + 'user/forgot', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: 'email=' + encodeURIComponent(email)
+        })
+        .then(r => r.json())
+        .then(res => {
+            button.disabled = false;
+            label.style.display = 'block';
+            progress.style.display = 'none';
+
+            msgEl.textContent = res.message || (res.status ? 'Check your email for password reset instructions' : 'Something went wrong. Please try again.');
+            msgEl.style.display = 'block';
+
+            if (res.status) {
+                msgEl.style.background = '#dcfce7';
+                msgEl.style.color = '#166534';
+                msgEl.style.border = '1px solid #86efac';
+                setTimeout(() => form.reset(), 1000);
+            } else {
+                msgEl.style.background = '#fee2e2';
+                msgEl.style.color = '#991b1b';
+                msgEl.style.border = '1px solid #fca5a5';
+            }
+        })
+        .catch(err => {
+            button.disabled = false;
+            label.style.display = 'block';
+            progress.style.display = 'none';
+            msgEl.textContent = 'Network error. Please try again.';
+            msgEl.style.display = 'block';
+            msgEl.style.background = '#fee2e2';
+            msgEl.style.color = '#991b1b';
+            msgEl.style.border = '1px solid #fca5a5';
+        });
+        });
+    });
     </script>
 
     </body>
