@@ -1355,8 +1355,7 @@ function wallet_title_fallback($type)
             </div>
 
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
-              <button class="btn-main" type="button" onclick="refreshWalletState()"><i class="ph ph-arrows-clockwise"></i> Check On-chain Balance</button>
-              <button class="btn-warn" type="button" onclick="location.href='<?= base_url('admin/wallet-monitor'); ?>'"><i class="ph ph-list"></i> View Monitor</button>
+              <button class="btn-main" type="button" onclick="refreshWalletState()"><i class="ph ph-arrows-clockwise"></i> Check On-chain Balance</button>              
             </div>
 
             <div class="wb" style="margin-top:0;">

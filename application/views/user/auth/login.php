@@ -35,9 +35,10 @@
         /* NEW: driven by Admin -> Member Panel Theme (Gradient Start / Gradient End) */
         background: var(--mp-gradient, linear-gradient(150deg, #6D4AFF 0%, #A855F7 100%));
         box-shadow:0 20px 60px rgba(0,0,0,.35); }
-    .lpx-brand-inner{ padding:48px; }
-    .lpx-brand-inner img{ height:135px; margin-bottom:26px; }
-    .lpx-brand-inner h2{ color:#fff; font-weight:800; font-size:34px; line-height:1.2; margin:0; }
+    .lpx-brand-inner{ padding:48px; text-align:center; }
+    .lpx-brand-inner img{ height:200px; margin-bottom:26px; }
+    .lpx-brand-inner h2{ color:#fff; font-weight:800; font-size:34px; line-height:1.3; margin:0; }
+    .lpx-brand-inner h2 .lpx-brand-name{ display:block; }
     .lpx-home{ position:absolute; top:24px; right:30px; color:#fff; font-weight:600; letter-spacing:.5px; text-decoration:none; }
     .lpx-home:hover{ color:#fff; opacity:.85; }
     .lpx-home i{ margin-right:8px; }
@@ -99,7 +100,7 @@
                 <form class="form w-100" novalidate="novalidate" id="kt_sign_in_form" data-kt-redirect-url="<?php echo $action; ?>" action="<?php echo $action; ?>">
                     <div class="text-center mb-8">
                         <h1 class="text-gray-900 fw-bolder mb-3"><?php echo lang('sign_in'); ?></h1>
-                        <div class="text-gray-500 fw-semibold fs-6">👋 <?php echo lang('your_social_campaings'); ?></div>
+                        <div class="text-gray-500 fw-semibold fs-6"><?php echo lang('your_social_campaings'); ?></div>
                     </div>
 
                     <!-- kept for functionality, hidden to match the design -->
