@@ -114,6 +114,41 @@
         </div>
     </div>
 </div>
+
+<!-- OTP Verification Modal -->
+<div id="payoutOtpModal" class="modal fade" tabindex="-1" role="dialog" style="display: none;">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Verify Payout Request - OTP</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" onclick="closePayoutOtpModal()"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-3">We've sent a 6-digit OTP to <strong id="otpEmail"></strong>. Enter it below to verify your withdrawal request.</p>
+
+                <div class="mb-3">
+                    <label class="form-label">Enter OTP Code</label>
+                    <div class="d-flex gap-2 justify-content-center mb-2">
+                        <input type="text" class="form-control otp-code" maxlength="1" placeholder="0" style="width: 45px; text-align: center; font-size: 20px; font-weight: bold;">
+                        <input type="text" class="form-control otp-code" maxlength="1" placeholder="0" style="width: 45px; text-align: center; font-size: 20px; font-weight: bold;">
+                        <input type="text" class="form-control otp-code" maxlength="1" placeholder="0" style="width: 45px; text-align: center; font-size: 20px; font-weight: bold;">
+                        <input type="text" class="form-control otp-code" maxlength="1" placeholder="0" style="width: 45px; text-align: center; font-size: 20px; font-weight: bold;">
+                        <input type="text" class="form-control otp-code" maxlength="1" placeholder="0" style="width: 45px; text-align: center; font-size: 20px; font-weight: bold;">
+                        <input type="text" class="form-control otp-code" maxlength="1" placeholder="0" style="width: 45px; text-align: center; font-size: 20px; font-weight: bold;">
+                    </div>
+                    <div id="otpMessage" class="text-center small" style="min-height: 20px; color: #999;"></div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-primary flex-grow-1" id="otpSubmitBtn" onclick="verifyPayoutOtp()">Verify OTP</button>
+                    <button type="button" class="btn btn-secondary flex-grow-1" onclick="closePayoutOtpModal()">Cancel</button>
+                </div>
+                <button type="button" class="btn btn-outline-secondary w-100 mt-2" onclick="resendPayoutOtp()">📧 Resend OTP</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 (function () {
     const sel = document.getElementById('source_wallet');
@@ -147,8 +182,158 @@ document.getElementById('bmanWithdrawForm').addEventListener('submit', async fun
     const formData = new FormData(this);
     const res = await fetch('<?= base_url('user/bman-withdraw/request'); ?>', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' }});
     const data = await res.json();
-    alert(data.message || 'Done');
-    if (data.status) window.location.reload();
+
+    // Check if OTP verification is required
+    if (data.require_otp) {
+        document.getElementById('otpEmail').textContent = data.email || 'your email';
+        showPayoutOtpModal();
+        return;
+    }
+
+    if (data.status) {
+        alert(data.message || 'Withdrawal request submitted successfully!');
+        window.location.reload();
+    } else {
+        alert(data.message || 'Error submitting withdrawal request');
+    }
 });
+
+function showPayoutOtpModal() {
+    const modal = document.getElementById('payoutOtpModal');
+    modal.style.display = 'block';
+    // Auto-focus first OTP input
+    setTimeout(() => {
+        const firstInput = document.querySelector('#payoutOtpModal .otp-code');
+        if (firstInput) firstInput.focus();
+    }, 100);
+
+    // Setup OTP input handlers
+    setupOtpInputs();
+}
+
+function closePayoutOtpModal() {
+    document.getElementById('payoutOtpModal').style.display = 'none';
+    // Clear OTP inputs
+    document.querySelectorAll('#payoutOtpModal .otp-code').forEach(inp => inp.value = '');
+}
+
+function setupOtpInputs() {
+    const inputs = document.querySelectorAll('#payoutOtpModal .otp-code');
+
+    inputs.forEach((input, index) => {
+        input.addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '').slice(0, 1);
+            const nextInput = inputs[index + 1];
+            if (this.value.length === 1 && nextInput) {
+                nextInput.focus();
+            } else if (!nextInput && this.value) {
+                verifyPayoutOtp();
+            }
+        });
+
+        input.addEventListener('keydown', function(event) {
+            if (event.key === "Backspace" && this.value.length === 0) {
+                const prevInput = inputs[index - 1];
+                if (prevInput) prevInput.focus();
+            }
+            if (event.key === "Enter") {
+                verifyPayoutOtp();
+            }
+        });
+
+        input.addEventListener('paste', function(event) {
+            event.preventDefault();
+            const pasteData = (event.clipboardData || window.clipboardData).getData("text");
+            const digits = pasteData.replace(/\D/g, '').slice(0, inputs.length);
+            if (digits.length) {
+                digits.split('').forEach((digit, idx) => {
+                    if (inputs[idx]) inputs[idx].value = digit;
+                });
+                if (inputs[digits.length]) {
+                    inputs[digits.length].focus();
+                } else {
+                    inputs[inputs.length - 1].focus();
+                }
+            }
+        });
+    });
+}
+
+async function verifyPayoutOtp() {
+    const inputs = document.querySelectorAll('#payoutOtpModal .otp-code');
+    const otp = Array.from(inputs).map(inp => inp.value).join('');
+    const messageBox = document.getElementById('otpMessage');
+    const btn = document.getElementById('otpSubmitBtn');
+
+    if (otp.length !== 6) {
+        messageBox.textContent = 'Please enter all 6 digits';
+        messageBox.style.color = '#d9534f';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Verifying...';
+    messageBox.textContent = '';
+
+    try {
+        const res = await fetch('<?= base_url('user/payouts/verify-otp'); ?>', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: 'otp=' + encodeURIComponent(otp)
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            messageBox.textContent = '✓ OTP verified! Processing...';
+            messageBox.style.color = '#0f9d58';
+            setTimeout(() => {
+                closePayoutOtpModal();
+                alert('Withdrawal request submitted successfully!');
+                window.location.reload();
+            }, 1500);
+        } else {
+            messageBox.textContent = '✗ ' + (data.message || 'Invalid OTP');
+            messageBox.style.color = '#d9534f';
+            inputs.forEach(inp => inp.value = '');
+            inputs[0].focus();
+        }
+    } catch (err) {
+        messageBox.textContent = '⚠️ Error: ' + (err.message || 'Server error');
+        messageBox.style.color = '#ff9800';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Verify OTP';
+    }
+}
+
+async function resendPayoutOtp() {
+    try {
+        const res = await fetch('<?= base_url('user/login/resend-otp'); ?>', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await res.json();
+        const messageBox = document.getElementById('otpMessage');
+
+        if (data.status) {
+            messageBox.textContent = '✓ New OTP sent to your email!';
+            messageBox.style.color = '#0f9d58';
+            document.querySelectorAll('#payoutOtpModal .otp-code').forEach(inp => inp.value = '');
+            setTimeout(() => {
+                messageBox.textContent = '';
+                document.querySelector('#payoutOtpModal .otp-code').focus();
+            }, 2000);
+        } else {
+            messageBox.textContent = '✗ ' + (data.message || 'Failed to resend');
+            messageBox.style.color = '#d9534f';
+        }
+    } catch (err) {
+        document.getElementById('otpMessage').textContent = '⚠️ Error: ' + err.message;
+        document.getElementById('otpMessage').style.color = '#ff9800';
+    }
+}
 </script>
 <?php $this->load->view('user/layout/user_footer'); ?>
