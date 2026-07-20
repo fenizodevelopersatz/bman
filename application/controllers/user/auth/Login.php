@@ -399,18 +399,15 @@ class Login extends CI_Controller
 
 	private function twofachecker($admin_id, $oneCode)
 	{
+		$this->load->library('Google_authendicator');
+		$user = $this->db->query("SELECT * FROM `users` WHERE id = '" . $admin_id . "'")->row();
 
-		// $this->load->library('Google_authendicator');
-		// $admin_auth = $this->db->query("SELECT * FROM `admin_members` where  id= '".$admin_id."' ")->row()->auth_key;
-		// $ga = new Google_authendicator();	
+		if (!$user || !$user->twofa_secret) {
+			return false;
+		}
 
-		// $checkResult = $ga->verifyCode($admin_auth, $oneCode, 2);
-		// if($checkResult) {
-		// return true;
-		// } else {
-		// return false;
-		// }
-		return true;
+		$ga = new Google_authendicator();
+		return $ga->verifyCode($user->twofa_secret, $oneCode, 2);
 	}
 
 
