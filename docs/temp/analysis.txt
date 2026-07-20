@@ -3572,3 +3572,41 @@ Withdrawable functionality is completed
 
 Admin side
     -History of Request
+
+
+
+
+Today i discussed below points 
+* USDT wallet in / out
+* Exchange wallet BMAN coin in /out (ROI also need to come this wallet , Maturity also need to come this wallet )
+* Usdt to BMAN conversion USDT WALLET TO EXCHANGE WALLET both BMAN to USDT WALLET 
+* Group incentive left and right based on staked matching bouns 10% need to come below wallet BMAN coin only
+* Earning WALLET 8%
+* Staking wallet 2%
+
+
+http://192.168.29.18:9000/user/forgot
+Reset your access to
+Nexman
+
+http://192.168.29.18:9000/user/in
+Start your journey with
+Nexman
+
+http://192.168.29.18:9000/user/re
+Start your journey with
+Nexman
+
+
+http://192.168.29.18:9000/admin
+
+
+
+
+
+I need to completed to change the admin dashboard with calculating the chart details  - Staking purchase amount and count
+
+
+
+recent login auditing logs
+

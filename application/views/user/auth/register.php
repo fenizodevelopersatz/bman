@@ -36,9 +36,10 @@
         /* NEW: driven by Admin -> Member Panel Theme (Gradient Start / Gradient End) */
         background: var(--mp-gradient, linear-gradient(150deg, #6D4AFF 0%, #A855F7 100%));
         box-shadow:0 20px 60px rgba(0,0,0,.35); }
-    .lpx-brand-inner{ padding:48px; }
-    .lpx-brand-inner img{ height:135px; margin-bottom:26px; }
-    .lpx-brand-inner h2{ color:#fff; font-weight:800; font-size:34px; line-height:1.2; margin:0; }
+    .lpx-brand-inner{ padding:48px; text-align:center; }
+    .lpx-brand-inner img{ height:200px; margin-bottom:26px; }
+    .lpx-brand-inner h2{ color:#fff; font-weight:800; font-size:34px; line-height:1.3; margin:0; }
+    .lpx-brand-inner h2 .lpx-brand-name{ display:block; }
     .lpx-home{ position:absolute; top:24px; right:30px; color:#fff; font-weight:600; letter-spacing:.5px; text-decoration:none; }
     .lpx-home:hover{ color:#fff; opacity:.85; }
     .lpx-home i{ margin-right:8px; }
@@ -159,7 +160,7 @@
             <a class="lpx-home" href="<?php echo base_url('landing'); ?>"><i class="bi bi-arrow-left"></i> TAKE ME HOME</a>
             <div class="lpx-brand-inner">
                 <a href="<?php echo base_url('landing'); ?>"><img src="<?php echo base_url($lpx_logo); ?>" alt="logo" onerror="this.onerror=null;this.src='<?php echo base_url('assets/img/logo/logo.svg'); ?>';"></a>
-                <h2>Start your journey with <?php echo html_escape($lpx_name); ?></h2>
+                <h2>Start your journey with<span class="lpx-brand-name"><?php echo html_escape($lpx_name); ?></span></h2>
             </div>
         </div>
 
