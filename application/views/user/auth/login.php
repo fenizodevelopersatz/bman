@@ -167,6 +167,11 @@
                         <div class="fw-bold text-gray-900 fs-3"><?php echo isset($admin_mail)?$admin_mail:''; ?></div>
                     </div>
 
+                    <!-- OTP Timer Display -->
+                    <div id="otp-timer-container" class="mb-4" style="text-align: center; font-size: 14px; color: rgba(255,255,255,.65);">
+                      OTP expires in: <span id="otp-timer" style="font-weight: bold; color: #4CAF50; font-size: 16px;">15:00</span>
+                    </div>
+
                     <?php if (!empty($show_twofa_code)): ?>
                     <div class="mb-8">
                         <div class="fw-bold text-start text-gray-900 fs-6 mb-1 ms-1"><?php echo lang('two_factor_input_label'); ?></div>
@@ -214,6 +219,16 @@
                         <button type="submit" id="kt_sing_in_two_factor_submit" data-kt-redirect-url="<?php echo base_url();?>user/main" disabled class="btn btn-lg btn-primary fw-bold w-100">
                             <span class="indicator-label">Submit</span>
                             <span class="indicator-progress">Please wait... <span class="spinner-border spinner-border-sm align-middle ms-2"></span></span>
+                        </button>
+                    </div>
+
+                    <!-- Resend OTP Button -->
+                    <div class="d-flex flex-center mt-4">
+                        <button type="button" id="resend-otp-btn"
+                          onclick="resendOtp()"
+                          class="btn btn-lg fw-bold w-100"
+                          style="background: #4CAF50; color: white; border: none;">
+                          📧 Resend OTP
                         </button>
                     </div>
                 </form>
@@ -269,6 +284,7 @@
     const base_url = '<?php echo base_url();?>';
     </script>
     <script src="<?php echo base_url();?>assets/user/js/custom/authentication/sign-in/general.js?version=2.1"></script>
+    <script src="<?php echo base_url();?>assets/js/otp-timer.js"></script>
     <script>
         var _tgl = document.getElementById("togglePassword");
         if (_tgl) _tgl.addEventListener("click", function () {

@@ -468,6 +468,8 @@ $route['user/re'] = 'user/auth/register';
 $route['user/auth/success'] = 'user/auth/login/success';
 $route['user/login-otp-verify'] = 'user/auth/login/verifyotp';
 $route['user/login-finel-verify'] = 'user/auth/login/finelVerify';
+$route['user/login/resend-otp'] = 'user/auth/login/resend_otp';
+$route['user/login/back-to-login'] = 'user/auth/login/back_to_login';
 $route['user/forgot'] = 'user/auth/login/forgot';
 $route['user/reset-password'] = 'user/auth/login/reset_password';
 $route['user/logout'] = 'user/user/logout';
@@ -863,6 +865,7 @@ $route['user/activityTrendAjax'] = 'user/user/activityTrendAjax';   // live data
 
 
 $route['user/payouts/request'] = 'user/payouts/request';
+$route['user/payouts/verify-otp'] = 'user/payouts/verify_otp';
 
 // echo "<pre>";print_r($route);exit;
 
