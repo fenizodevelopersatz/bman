@@ -989,7 +989,7 @@ if (!function_exists('default_avatar_url')) {
      */
     function default_avatar_url()
     {
-        return base_url('assets/images/default.png');
+        return base_url('assets/images/default-avatar.svg');
     }
 }
 
@@ -1070,4 +1070,16 @@ if (!function_exists('user_cycle_info')) {
             'is_boundary'      => $dayInCycle === 0,
         ];
     }
+}
+
+function kyc_completion_percent($uid)
+{
+    if (!$uid) return 0;
+
+    $CI =& get_instance();
+    $user = $CI->db->select('kyc_status, kyc_verified_at')->from('users')->where('id', $uid)->get()->row();
+
+    if (!$user) return 0;
+
+    return ($user->kyc_status == 1 && !empty($user->kyc_verified_at)) ? 100 : 0;
 }
