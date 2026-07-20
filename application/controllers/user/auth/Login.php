@@ -71,6 +71,7 @@ class Login extends CI_Controller
 						$this->session->set_userdata('twofa_required', $needs_2fa ? 1 : 0);
 						$this->session->set_userdata('email_verify_required', $needs_email ? 1 : 0);
 						$this->session->set_userdata('otp_required', 1);
+						$this->session->set_userdata('otp_started_at', time()); // Track when verification started
 
 						if ($needs_email) {
 							$this->sender_otp($uid);
@@ -104,8 +105,28 @@ class Login extends CI_Controller
 		} else {
 
 			$otp_required = $this->session->userdata('otp_required');
+			$user_get_id = $this->session->userdata('user_get_id');
+			$otp_started_at = $this->session->userdata('otp_started_at');
 
-			if ($otp_required) {
+			// Session timeout: 1 hour (3600 seconds)
+			$otp_timeout = 3600;
+			$session_expired = false;
+
+			// Check if OTP session has expired
+			if ($otp_started_at && (time() - $otp_started_at) > $otp_timeout) {
+				// Clear all verification session flags
+				$this->session->unset_userdata('otp_required');
+				$this->session->unset_userdata('user_get_id');
+				$this->session->unset_userdata('twofa_required');
+				$this->session->unset_userdata('email_verify_required');
+				$this->session->unset_userdata('sender_otp');
+				$this->session->unset_userdata('otp_started_at');
+				$this->session->unset_userdata('otp_attempts');
+				$session_expired = true;
+			}
+
+			// If user is in verification process (has user_get_id or otp_required flag) AND session not expired
+			if (($otp_required || $user_get_id) && !$session_expired) {
 
 				$this->auth_verify();
 
@@ -469,6 +490,41 @@ class Login extends CI_Controller
 
 		$this->load->view('user/auth/login', $this->data);
 
+	}
+
+	// Resend OTP via email
+	public function resend_otp()
+	{
+		$user_id = $this->session->userdata('user_get_id');
+
+		if (!$user_id) {
+			echo json_encode(['status' => false, 'message' => 'No active verification session']);
+			exit;
+		}
+
+		$result = $this->sender_otp($user_id);
+
+		if ($result) {
+			echo json_encode(['status' => true, 'message' => 'OTP resent to your email']);
+		} else {
+			echo json_encode(['status' => false, 'message' => 'Failed to resend OTP']);
+		}
+		exit;
+	}
+
+	// Clear verification session and go back to login
+	public function back_to_login()
+	{
+		// Clear all verification flags
+		$this->session->unset_userdata('otp_required');
+		$this->session->unset_userdata('user_get_id');
+		$this->session->unset_userdata('twofa_required');
+		$this->session->unset_userdata('email_verify_required');
+		$this->session->unset_userdata('sender_otp');
+		$this->session->unset_userdata('otp_started_at');
+		$this->session->unset_userdata('otp_attempts');
+
+		redirect('user/in');
 	}
 
 
