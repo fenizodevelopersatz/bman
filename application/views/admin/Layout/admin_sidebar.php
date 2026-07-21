@@ -672,6 +672,11 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
           </div>
 
           <!--end::Scroll wrapper-->
+
+
+
+
+
           <!--end::Scroll wrapper-->
           <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
             class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention">
@@ -727,12 +732,6 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                     class="menu-title">Withdraw Settings</span>
                 </a>
               </div>
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/audit-log">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Admin Audit Log</span>
-                </a>
-              </div>
 
 
               <div class="menu-item">
@@ -785,20 +784,22 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
 
 
           <!--end::Scroll wrapper-->
-          <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
-            class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention">
-            <span class="menu-link"><span class="menu-icon">
-                <i class="fa fa-exchange fs-2 " aria-hidden="true"></i>
-              </span><span class="menu-title">All Transaction</span><span class="menu-arrow"></span></span>
-            <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto">
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>all-transaction">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">All
-                    Transaction</span>
-                </a>
-              </div>
+          <div class="menu-item">
+            <a href="<?php echo base_url(); ?>admin/all-transaction" class="menu-link">
+              <span class="menu-icon">
+                <i class="fa fa-exchange fs-2" aria-hidden="true"></i>
+              </span>
+              <span class="menu-title">All Transactions</span>
+            </a>
+          </div>
 
-            </div>
+          <div class="menu-item">
+            <a href="<?php echo base_url(); ?>admin/audit-log" class="menu-link">
+              <span class="menu-icon">
+                <i class="fa fa-history fs-2" aria-hidden="true"></i>
+              </span>
+              <span class="menu-title">Admin Audit Log</span>
+            </a>
           </div>
 
           <div class="menu-item bman-admin-logout">
@@ -826,12 +827,12 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
 
 
   <div class="app-sidebar-footer flex-column-auto pt-2 pb-6 px-6" id="kt_app_sidebar_footer">
-    <a href="#" class="btn btn-flex flex-center btn-custom btn-primary overflow-hidden text-nowrap px-0 h-440px w-100"
+    <a href="#" class="btn btn-flex flex-center btn-custom btn-primary overflow-hidden text-nowrap px-0 h-90px w-100"
       data-bs-toggle="tooltip" data-bs-trigger="hover" data-bs-dismiss-="click"
       data-bs-original-title="200+ in-house components and 3rd-party plugins" data-kt-initialized="1">
 
       <div>
-        <img src="<?php echo base_url(); ?>/assets/admin/media/illustrations/misc/upgrade.svg" />
+        <img src="<?php echo base_url(); ?>/assets/admin/media/illustrations/misc/upgrade.svg" style="max-height:32px;width:auto;" />
         <br>
         <span class="label">
           <b>Nexman Version 1.0</b>

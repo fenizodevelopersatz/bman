@@ -1286,7 +1286,8 @@
 
           <div class="profile" id="sideProfile">
             <img id="sideAvatar"
-              src="<?= !empty($tree['avatar']) ? $tree['avatar'] : 'https://i.pravatar.cc/100?u=root'; ?>" alt="">
+              src="<?= !empty($tree['avatar']) ? $tree['avatar'] : default_avatar_url(); ?>" alt=""
+              <?= avatar_onerror(); ?>>
             <div style="min-width:0;">
               <b id="sideName"><?= htmlspecialchars($tree['name'] ?? ucfirst($user->name ?? '—')); ?></b>
               <small id="sideUid">UID: <?= htmlspecialchars($tree['uid'] ?? ($user->uid ?? '—')); ?></small>
@@ -1385,6 +1386,7 @@
     // ✅ AJAX endpoints
     const TREE_URL = "<?= base_url('user/usersettings/genealogycontroller/tree_json'); ?>";
     const MEMBER_URL = "<?= base_url('user/usersettings/genealogycontroller/member_json/'); ?>";
+    const DEFAULT_AVATAR = "<?= default_avatar_url(); ?>";
 
     let TREE = {};
     let scale = 1;
@@ -1545,7 +1547,7 @@
     function miniCard(n) {
       if (!n) return '';
       const sc = statusClass(n.status);
-      const avatar = n.avatar ? n.avatar : ("https://i.pravatar.cc/100?u=" + encodeURIComponent(n.uid || n.id || ''));
+      const avatar = n.avatar ? n.avatar : DEFAULT_AVATAR;
       return `<div class="mini-card ${sc}"
         data-id="${escapeHtml(n.id || 0)}" data-uid="${escapeHtml(n.uid || '—')}"
         data-name="${escapeHtml(n.name || 'User')}" data-rank="${escapeHtml(n.rank || '—')}"
@@ -1553,7 +1555,7 @@
         data-lbv="${escapeHtml(n.left_bv || 0)}" data-rbv="${escapeHtml(n.right_bv || 0)}"
         data-inv="${escapeHtml(n.exchange || 0)}" data-avatar="${escapeHtml(avatar)}"
         onclick="selectNode(this)">
-        <img class="mc-av" src="${avatar}" alt="">
+        <img class="mc-av" src="${avatar}" alt="" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';">
         <div class="mc-meta"><b>${escapeHtml(ucfirstWords(n.name || 'User'))}</b><small>UID: ${escapeHtml(n.uid || '—')}</small></div>
         <div class="mc-inv"><small>Investment</small><b>${fmt(n.exchange || 0)} BMAN</b></div>
       </div>`;
@@ -1666,7 +1668,7 @@
       if (!SHOW_EMPTY && st === "EMPTY") return "";
 
       const sc = statusClass(n.status);
-      const avatar = n.avatar ? n.avatar : "https://i.pravatar.cc/100?u=" + encodeURIComponent(n.uid || n.id || Math.random());
+      const avatar = n.avatar ? n.avatar : DEFAULT_AVATAR;
       const rank = n.rank ? n.rank : "—";
       const uid = n.uid ? n.uid : "—";
       const name = n.name ? n.name : "User";
@@ -1700,7 +1702,7 @@
 
         <div class="node-top">
           <div class="node-user">
-            <img class="av" src="${avatar}" alt="">
+            <img class="av" src="${avatar}" alt="" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';">
             <div style="min-width:0;text-align:left;">
               <div class="nm">${escapeHtml(ucfirstWords(name))}</div>
               <div class="id">UID: ${escapeHtml(uid)}</div>

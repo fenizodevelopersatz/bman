@@ -177,13 +177,22 @@ class Genealogycontroller extends MY_Controller
             $email = is_array($r) ? ($r['email'] ?? '') : ($r->email ?? '');
             $join = is_array($r) ? ($r['register_date'] ?? '—') : ($r->register_date ?? '—');
 
+            // Same profile_img -> image -> (client-side default) priority as
+            // user_profile_image(), inlined here since the columns are already
+            // in $r and this runs once per row of a whole-tree fetch.
+            $profileImg = is_array($r) ? ($r['profile_img'] ?? '') : ($r->profile_img ?? '');
+            $legacyImg = is_array($r) ? ($r['image'] ?? '') : ($r->image ?? '');
+            $avatar = !empty($profileImg)
+                ? base_url('assets/images/' . $profileImg)
+                : (!empty($legacyImg) ? base_url('assets/images/' . $legacyImg) : '');
+
             $map[$id] = [
                 'id' => $id,
                 'uid' => is_array($r) ? ($r['referral_id'] ?? ('UID-' . $id)) : ($r->referral_id ?? ('UID-' . $id)),
                 'name' => $name,
                 'email' => $email,
                 'rank' => is_array($r) ? ($r['rank'] ?? '—') : ($r->rank ?? '—'),
-                'avatar' => is_array($r) ? ($r['avatar'] ?? '') : ($r->avatar ?? ''),
+                'avatar' => $avatar,
                 'status' => is_array($r) ? ($r['status'] ?? 'ACTIVE') : ($r->status ?? 'ACTIVE'),
                 'join_date' => !empty($join) ? date('Y-m-d', strtotime($join)) : '—',
                 'left_bv' => (float) (is_array($r) ? ($r['left_bv'] ?? 0) : ($r->left_bv ?? 0)),
@@ -198,13 +207,16 @@ class Genealogycontroller extends MY_Controller
 
         // ensure root exists
         if (!isset($map[$rootId])) {
-            $u = $this->db->query("SELECT id, username, referral_id, register_date FROM users WHERE id=?", [$rootId])->row();
+            $u = $this->db->query("SELECT id, username, referral_id, register_date, profile_img, image FROM users WHERE id=?", [$rootId])->row();
+            $rootAvatar = !empty($u->profile_img)
+                ? base_url('assets/images/' . $u->profile_img)
+                : (!empty($u->image) ? base_url('assets/images/' . $u->image) : '');
             $map[$rootId] = [
                 'id' => $rootId,
                 'uid' => $u->referral_id ?? ('UID-' . $rootId),
                 'name' => $u->username ?? 'User',
                 'rank' => '—',
-                'avatar' => '',
+                'avatar' => $rootAvatar,
                 'status' => 'ACTIVE',
                 'join_date' => !empty($u->register_date) ? date('Y-m-d', strtotime($u->register_date)) : '—',
                 'left_bv' => 0,
@@ -1214,6 +1226,10 @@ class Genealogycontroller extends MY_Controller
         try {
             $this->load->model('Chat_model');
 
+            // Presence heartbeat — piggybacks on this 2s poll rather than adding a
+            // websocket/socket server. "Online" = active within the last ~15s.
+            $this->Chat_model->touchActive($userId);
+
             // AUTHORISATION — reading a DM thread needs the same genealogy-path
             // check as sending one, or peer_id could be walked to read strangers'
             // conversations.
@@ -1269,6 +1285,22 @@ class Genealogycontroller extends MY_Controller
         }
     }
 
+    // GET/POST: user/heartbeat — site-wide presence ping, loaded from the
+    // shared header on every authenticated page (not just Chat), so "online"
+    // reflects general site activity rather than only the Chat page's own poll.
+    public function heartbeat()
+    {
+        $userId = (int) $this->session->userdata('user_userid');
+        if (!$userId) {
+            return $this->output->set_content_type('application/json')
+                ->set_output(json_encode(['ok' => false]));
+        }
+        $this->load->model('Chat_model');
+        $this->Chat_model->touchActive($userId);
+        return $this->output->set_content_type('application/json')
+            ->set_output(json_encode(['ok' => true]));
+    }
+
     // GET: user/chat/recent
     public function chat_recent()
     {
@@ -1295,8 +1327,13 @@ class Genealogycontroller extends MY_Controller
         }
         unset($r);
 
+        // Online/offline for everyone this member can DM — reuses the same
+        // cached genealogy-path id list the fetch/send authorisation checks use.
+        $pathIds = $this->Chat_model->getPathChatUserIdsCached($userId);
+        $online = $this->Chat_model->onlineMap($pathIds);
+
         return $this->output->set_content_type('application/json')
-            ->set_output(json_encode(['ok' => true, 'items' => $rows]));
+            ->set_output(json_encode(['ok' => true, 'items' => $rows, 'online' => (object) $online]));
     }
 
     /*

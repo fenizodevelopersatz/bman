@@ -78,7 +78,7 @@ class WalletTracker_model extends CI_Model
         $this->_apply_filters($filters);
         $rows = $this->db->order_by('wl.id', 'DESC')
                          ->limit((int) $limit, (int) $offset)
-                         ->get('wallet_ledger wl')
+                         ->get()
                          ->result_array();
 
         return array_map([$this, 'enrich_row'], $rows);
@@ -87,7 +87,7 @@ class WalletTracker_model extends CI_Model
     public function count_transactions(array $filters = [])
     {
         $this->_apply_filters($filters);
-        return (int) $this->db->count_all_results('wallet_ledger wl');
+        return (int) $this->db->count_all_results();
     }
 
     private function _apply_filters(array $filters)

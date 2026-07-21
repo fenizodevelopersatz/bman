@@ -162,7 +162,7 @@
                                                                     <div class="d-flex align-items-center justify-content-end">
                                                                         <div class="symbol symbol-circle symbol-25px overflow-hidden me-3">
                                                                             <div class="symbol-label">
-                                                                                <img src="<?= base_url('assets/images/default-avatar.jpg') ?>" alt="Customer" class="w-100">
+                                                                                <img src="<?= default_avatar_url(); ?>" alt="Customer" class="w-100">
                                                                             </div>
                                                                         </div>
                                                                         <?= $user->name ?>
