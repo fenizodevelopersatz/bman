@@ -163,10 +163,17 @@
     <script>
     (function () {
         const base = '<?php echo base_url(); ?>';
+        const DEFAULT_AVATAR = '<?php echo default_avatar_url(); ?>';
         let page = 1;
         const limit = 50;
         let categories = {};
         let refTypes = {};
+        let explorerUrl = '';
+
+        function avatarImg(url, size) {
+            return '<img src="' + esc(url) + '" style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;object-fit:cover;" ' +
+                'onerror="this.onerror=null;this.src=\'' + DEFAULT_AVATAR + '\';">';
+        }
 
         function esc(s) {
             return String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -183,6 +190,16 @@
             return h.length > 16 ? h.slice(0, 8) + '…' + h.slice(-6) : h;
         }
 
+        /* Real on-chain hashes (0x…) link out to the explorer; DRYRUN-/internal
+           placeholders never had a real broadcast, so they render as plain text. */
+        function hashLink(hash) {
+            if (!hash) return '<span class="text-muted">—</span>';
+            const isReal = /^0x[0-9a-f]{10,}$/i.test(hash);
+            const label = '<span class="badge badge-light-warning fs-8" style="font-family:monospace;">' + esc(shortHash(hash)) + '</span>';
+            if (!isReal || !explorerUrl) return label;
+            return '<a href="' + explorerUrl + '/tx/' + encodeURIComponent(hash) + '" target="_blank" rel="noopener">' + label + '</a>';
+        }
+
         async function fetchJson(url) {
             const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
             return res.json();
@@ -194,6 +211,7 @@
             if (!j.status) return;
             categories = j.categories || {};
             refTypes = j.reference_types || {};
+            explorerUrl = j.explorer_url || '';
 
             const catSel = document.getElementById('at-f-category');
             Object.keys(categories).forEach(k => {
@@ -256,12 +274,15 @@
                     : '<span class="badge badge-light fs-8">internal</span>';
                 return '<tr class="at-row" data-id="' + r.ledger_id + '" style="cursor:pointer">' +
                     '<td class="fs-8 text-muted">' + esc(r.created_at) + '</td>' +
-                    '<td>#' + esc(r.user_id) + '</td>' +
+                    '<td><div class="d-flex align-items-center gap-2">' +
+                        avatarImg(r.avatar, 24) +
+                        '<span>#' + esc(r.user_id) + '</span>' +
+                        '</div></td>' +
                     '<td>' + categoryBadge(r.category) + '<div class="fs-8 text-muted">' + esc(r.type_label) + '</div></td>' +
                     '<td class="fw-bold ' + amtCls + '">' + amt + '</td>' +
                     '<td class="fs-8 text-muted">' + fmt(r.balance_after) + '</td>' +
                     '<td class="fs-8 text-muted mw-200px text-truncate">' + esc(r.description || '—') + '</td>' +
-                    '<td class="fs-8" title="' + esc(r.tx_hash || '') + '">' + esc(shortHash(r.tx_hash)) + '</td>' +
+                    '<td class="fs-8" title="' + esc(r.tx_hash || '') + '">' + hashLink(r.tx_hash) + '</td>' +
                     '<td>' + onchain + '</td>' +
                     '</tr>';
             }).join('');
@@ -298,25 +319,28 @@
             if (!j.status) { body.innerHTML = '<div class="text-danger">' + esc(j.message || 'Not found') + '</div>'; return; }
             const r = j.row;
             let html = '<table class="table table-row-dashed fs-7">';
-            const rowsOut = [
-                ['Ledger ID', r.ledger_id], ['User', '#' + r.user_id], ['Wallet', r.wallet_type],
-                ['Type', r.type_label + ' (' + r.reference_type + ')'],
-                ['Amount', (r.direction === 'credit' ? '+' : '−') + fmt(r.amount)],
-                ['Balance After', fmt(r.balance_after)],
-                ['Description', r.description || '—'],
-                ['Tx Hash', r.tx_hash || '—'],
-                ['When', r.created_at],
+            const userHtml = '<div class="d-flex align-items-center gap-2">' +
+                avatarImg(r.avatar, 28) +
+                '<span>#' + esc(r.user_id) + '</span></div>';
+            const rowsOutRaw = [
+                ['Ledger ID', esc(r.ledger_id)], ['User', userHtml], ['Wallet', esc(r.wallet_type)],
+                ['Type', esc(r.type_label + ' (' + r.reference_type + ')')],
+                ['Amount', esc((r.direction === 'credit' ? '+' : '−') + fmt(r.amount))],
+                ['Balance After', esc(fmt(r.balance_after))],
+                ['Description', esc(r.description || '—')],
+                ['Tx Hash', hashLink(r.tx_hash)],
+                ['When', esc(r.created_at)],
             ];
             if (r.onchain) {
-                rowsOut.push(['On-chain Status', r.onchain.status]);
-                rowsOut.push(['On-chain Amount', fmt(r.onchain.amount) + ' (' + (r.onchain.tx_type || '') + ')']);
-                if (r.onchain.block_number) rowsOut.push(['Block', r.onchain.block_number]);
+                rowsOutRaw.push(['On-chain Status', esc(r.onchain.status)]);
+                rowsOutRaw.push(['On-chain Amount', esc(fmt(r.onchain.amount) + ' (' + (r.onchain.tx_type || '') + ')')]);
+                if (r.onchain.block_number) rowsOutRaw.push(['Block', esc(r.onchain.block_number)]);
             }
             if (r.source && r.source.table) {
-                rowsOut.push(['Source Table', r.source.table + ' #' + (r.source.id || '—')]);
+                rowsOutRaw.push(['Source Table', esc(r.source.table + ' #' + (r.source.id || '—'))]);
             }
-            rowsOut.forEach(([k, v]) => {
-                html += '<tr><td class="fw-bold text-muted" style="width:180px">' + esc(k) + '</td><td>' + esc(v ?? '—') + '</td></tr>';
+            rowsOutRaw.forEach(([k, v]) => {
+                html += '<tr><td class="fw-bold text-muted" style="width:180px">' + esc(k) + '</td><td>' + (v ?? '—') + '</td></tr>';
             });
             html += '</table>';
             if (r.related_ledger && r.related_ledger.length) {

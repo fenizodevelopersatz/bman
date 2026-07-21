@@ -117,7 +117,6 @@ $route['update-token-withdraw-settings'] = 'admin/settings/Withdrawsettings/upda
 $route['withdraw-settings-audit'] = 'admin/settings/Withdrawsettings/audit';
 $route['admin/audit-log'] = 'admin/AdminAuditLog/index';
 $route['admin/audit-log/log'] = 'admin/AdminAuditLog/log';
-$route['admin/audit-log/clear'] = 'admin/AdminAuditLog/clear';
 $route['admin/all-transaction'] = 'admin/AllTransactions/index';
 $route['admin/all-transaction/options'] = 'admin/AllTransactions/options';
 $route['admin/all-transaction/list'] = 'admin/AllTransactions/list';

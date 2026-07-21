@@ -989,7 +989,7 @@ if (!function_exists('default_avatar_url')) {
      */
     function default_avatar_url()
     {
-        return base_url('assets/images/default-avatar.svg');
+        return base_url('assets/default-user.png');
     }
 }
 

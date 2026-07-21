@@ -66,6 +66,12 @@ $uid = $this->session->userdata('user_userid') ?? '';
   }
 </style>
 <header>
+  <div class="search-box">
+    <i class="ph ph-magnifying-glass"></i>
+    <input autocomplete="off" aria-autocomplete="none" type="text"
+      placeholder="Search: orders, commissions, members..." />
+  </div>
+
   <div class="header-actions">
     <?php $mp_us = site_settings('member_theme','user_switch'); if ($mp_us === '' || $mp_us === null) $mp_us = '1'; ?>
     <?php if ($mp_us !== '0'): ?>
@@ -84,7 +90,7 @@ $uid = $this->session->userdata('user_userid') ?? '';
     <div class="user-dropdown" id="userDropdown">
       <button class="user-pill" id="userDropdownBtn" type="button">
         <img src="<?php echo user_profile_image($uid); ?>" alt="user"
-          onerror="this.onerror=null;this.src='<?php echo base_url('assets/images/default-avatar.svg'); ?>';" />
+          <?php echo avatar_onerror(); ?> />
         <span><?php echo $this->session->userdata('user_full_name') ? ucfirst(strtolower($this->session->userdata('user_full_name'))) : 'Lucas'; ?></span>
         <i class="ph ph-caret-down" style="font-size:16px;"></i>
       </button>
@@ -123,9 +129,4 @@ $uid = $this->session->userdata('user_userid') ?? '';
     });
   })();
 </script>
-<?php if (empty($hide_user_search)): ?>
-  <style>
-    .search-box { display: flex; }
-  </style>
-<?php endif; ?>
 <?php $this->load->view("partials/browser_controls"); ?>
