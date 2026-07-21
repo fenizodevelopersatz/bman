@@ -107,6 +107,7 @@ $hero_progress = 48;
 <html lang="en">
 
 <head>
+  <?php $hide_user_search = true; ?>
   <?php $this->load->view('user/layout/v2/user_style'); ?>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <style>

@@ -63,6 +63,9 @@
                                                     <?php echo $title; ?> </li>
                                                 </ul>
                                             </div>
+                                            <div class="d-flex align-items-center gap-2 my-2">
+                                                <button type="button" class="btn btn-light btn-sm" id="wds-audit-btn">Audit Log</button>
+                                            </div>
                                         </div>
                                     </div>
                                     <!--end::Toolbar-->
@@ -360,6 +363,21 @@
 
                                 </div>
 
+                                <!-- Audit modal -->
+                                <div class="modal fade" id="wds-audit-modal" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered mw-900px">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h3 class="modal-title">Withdraw Settings Audit Log</h3>
+                                                <div class="btn btn-sm btn-icon" data-bs-dismiss="modal">
+                                                    <i class="ki-outline ki-cross fs-1"></i>
+                                                </div>
+                                            </div>
+                                            <div class="modal-body scroll-y mh-500px" id="wds-audit-body">Loading…</div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <!--begin::Footer-->
                                 <?php $this->load->view('admin/Layout/admin_footer');?>
 
@@ -399,6 +417,35 @@
 
 
             <script>
+            (function () {
+                function esc(s) {
+                    return String(s == null ? '' : s).replace(/[&<>"']/g,
+                        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+                }
+                document.getElementById('wds-audit-btn').addEventListener('click', async () => {
+                    const m = bootstrap.Modal.getOrCreateInstance(document.getElementById('wds-audit-modal'));
+                    const body = document.getElementById('wds-audit-body');
+                    body.innerHTML = 'Loading…';
+                    m.show();
+                    const res = await fetch(base_url + 'withdraw-settings-audit',
+                        { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                    const j = await res.json();
+                    const rows = (j.rows || []).map(r =>
+                        '<tr>' +
+                        '<td><span class="badge badge-light-info text-uppercase">' + esc(r.module) + '</span></td>' +
+                        '<td>' + esc(r.field_name) + '</td>' +
+                        '<td class="fs-8 text-muted mw-300px text-truncate">' + esc(r.old_value ?? '—') + '</td>' +
+                        '<td class="fs-8 text-muted mw-300px text-truncate">' + esc(r.new_value ?? '—') + '</td>' +
+                        '<td>' + esc(r.admin_name || ('#' + r.changed_by)) + '</td>' +
+                        '<td class="text-muted fs-8">' + esc(r.created_at) + '</td>' +
+                        '</tr>').join('');
+                    body.innerHTML = rows
+                        ? '<table class="table table-row-dashed fs-7"><thead><tr class="fw-bold text-muted">' +
+                          '<th>Type</th><th>Field</th><th>Old</th><th>New</th><th>By</th><th>When</th>' +
+                          '</tr></thead><tbody>' + rows + '</tbody></table>'
+                        : '<div class="text-muted">No changes recorded yet.</div>';
+                });
+            })();
             </script>
     </body>
 

@@ -81,4 +81,11 @@ class Bonussettings extends CI_Controller
         list($ok, $msg) = $this->staking->applyBonusDefaultToPackages();
         return $this->_json(['status' => $ok ? 'success' : 'error', 'message' => $msg], $ok ? 200 : 422);
     }
+
+    /* --------------------------- AJAX: audit log ------------------------- */
+    public function audit()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        return $this->_json(['status' => 'success', 'rows' => $this->staking->bonusAuditLog()]);
+    }
 }
