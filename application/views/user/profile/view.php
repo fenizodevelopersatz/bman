@@ -1323,8 +1323,12 @@ function renderExistingPreview($url, $title)
                   </div>
                   <div class="field">
                     <label><i class="ph ph-clock"></i> Timezone</label>
-                    <input class="inp" name="time_zone" value="<?= htmlspecialchars($user->time_zone); ?>"
-                      placeholder="Asia/Kolkata">
+                    <input class="inp" name="time_zone" value="<?= htmlspecialchars($user->time_zone ?: 'Asia/Kolkata'); ?>"
+                      placeholder="Asia/Kolkata" list="timezoneList">
+                    <datalist id="timezoneList">
+                      <option value="Asia/Kolkata"></option>
+                      <option value="Asia/Calcutta"></option>
+                    </datalist>
                   </div>
 
                   <div class="field">
@@ -1371,6 +1375,14 @@ function renderExistingPreview($url, $title)
                         <small>PNG/JPG/WebP up to 2MB. Recommended: 400×400.</small>
                       </div>
                       <input type="file" name="profile_img" accept="image/*">
+                    </div>
+                    <div class="upload-preview d-none" id="profileImgPreview">
+                      <img src="<?= htmlspecialchars($avatarUrl); ?>" alt="Profile preview">
+                      <div>
+                        <b id="profileImgName"><?= !empty($user->profile_img) ? htmlspecialchars($user->profile_img) : 'Current profile photo'; ?></b>
+                        <small id="profileImgSize"><?= !empty($user->profile_img) ? 'Saved profile image' : 'No new file selected yet'; ?></small>
+                        <a href="<?= htmlspecialchars($avatarUrl); ?>" target="_blank" id="profileImgView">View image</a>
+                      </div>
                     </div>
                   </div>
 
@@ -1589,13 +1601,13 @@ function renderExistingPreview($url, $title)
                         </div>
 
                         <div class="fg col-3">
-                          <div class="f-label">Issued</div>
+                          <div class="f-label">Issued <span class="text-muted fw-normal">(optional)</span></div>
                           <input class="f-input" type="date" name="doc_issue_date"
                             value="<?php echo html_escape($kyc->doc_issue_date ?? ''); ?>" <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
                         </div>
 
                         <div class="fg col-3">
-                          <div class="f-label">Expiry</div>
+                          <div class="f-label">Expiry <span class="text-muted fw-normal">(optional)</span></div>
                           <input class="f-input" type="date" name="doc_expiry_date"
                             value="<?php echo html_escape($kyc->doc_expiry_date ?? ''); ?>" <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
                         </div>
@@ -2241,9 +2253,78 @@ function renderExistingPreview($url, $title)
       return data;
     }
 
+    const profileForm = document.getElementById('profileForm');
+    const profileImgInput = profileForm?.querySelector('input[name="profile_img"]');
+    const profilePreview = document.getElementById('profileImgPreview');
+    const profilePreviewImg = profilePreview?.querySelector('img');
+    const profilePreviewName = document.getElementById('profileImgName');
+    const profilePreviewSize = document.getElementById('profileImgSize');
+    const profilePreviewView = document.getElementById('profileImgView');
+    let profilePreviewUrl = null;
+
+    function clearProfilePreview() {
+      if (profilePreviewUrl) {
+        URL.revokeObjectURL(profilePreviewUrl);
+        profilePreviewUrl = null;
+      }
+      if (profilePreview) profilePreview.classList.add('d-none');
+      if (profilePreviewImg) profilePreviewImg.removeAttribute('src');
+      if (profilePreviewName) profilePreviewName.textContent = 'Current profile photo';
+      if (profilePreviewSize) profilePreviewSize.textContent = 'No new file selected yet';
+      if (profilePreviewView) profilePreviewView.removeAttribute('href');
+    }
+
+    function fmtBytes(bytes) {
+      if (!bytes) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let i = 0;
+      let size = bytes;
+      while (size >= 1024 && i < units.length - 1) {
+        size /= 1024;
+        i++;
+      }
+      return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+    }
+
+    function validProfileImage(file) {
+      if (!file) return false;
+      const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+      return allowed.includes(file.type) && file.size <= 2 * 1024 * 1024;
+    }
+
+    profileImgInput?.addEventListener('change', () => {
+      const file = profileImgInput.files?.[0];
+      if (!file) {
+        clearProfilePreview();
+        return;
+      }
+      if (!validProfileImage(file)) {
+        profileImgInput.value = '';
+        clearProfilePreview();
+        toastMini('Profile photo must be PNG, JPG, or WebP up to 2 MB.');
+        return;
+      }
+      if (profilePreviewUrl) URL.revokeObjectURL(profilePreviewUrl);
+      profilePreviewUrl = URL.createObjectURL(file);
+      if (profilePreview) profilePreview.classList.remove('d-none');
+      if (profilePreviewImg) profilePreviewImg.src = profilePreviewUrl;
+      if (profilePreviewName) profilePreviewName.textContent = file.name;
+      if (profilePreviewSize) profilePreviewSize.textContent = fmtBytes(file.size);
+      if (profilePreviewView) profilePreviewView.href = profilePreviewUrl;
+    });
+
+    if (profilePreviewImg && !profilePreviewImg.getAttribute('src')) {
+      clearProfilePreview();
+    }
+
     // PROFILE AJAX
-    document.getElementById('profileForm')?.addEventListener('submit', async (e) => {
+    profileForm?.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const file = profileImgInput?.files?.[0];
+      if (file && !validProfileImage(file)) {
+        toastMini('Profile photo must be PNG, JPG, or WebP up to 2 MB.');
+        return;
+      }
       try {
         const res = await postForm(e.target);
         if (res.status === 'success') { toastMini(res.message || "Profile updated"); }
@@ -3041,8 +3122,6 @@ async function freezeWithdraw() {
           [el.docType, 'Please select a document type.', v => !!v],
           [el.docNumber, 'Document number is required.', v => String(v).trim().length >= 5],
           [el.docIssueCountry, 'Issuing country is required.', v => !!v],
-          [el.docIssueDate, 'Issue date is required.', v => !!v],
-          [el.docExpiryDate, 'Expiry date is required.', v => !!v],
         ];
 
         const valueOf = (field) => {
@@ -3063,6 +3142,23 @@ async function freezeWithdraw() {
         if (el.dob && valueOf(el.dob) && !isAdult(valueOf(el.dob))) {
           errors.push('You must be at least 18 years old.');
           showFieldError(el.dob, 'You must be at least 18 years old.');
+        }
+
+        if (valueOf(el.docIssueDate) && !isValidDate(valueOf(el.docIssueDate))) {
+          errors.push('Issue date is invalid.');
+          showFieldError(el.docIssueDate, 'Issue date is invalid.');
+        }
+        if (valueOf(el.docExpiryDate) && !isValidDate(valueOf(el.docExpiryDate))) {
+          errors.push('Expiry date is invalid.');
+          showFieldError(el.docExpiryDate, 'Expiry date is invalid.');
+        }
+        if (valueOf(el.docIssueDate) && valueOf(el.docExpiryDate)) {
+          const issue = parseUiDate(valueOf(el.docIssueDate));
+          const expiry = parseUiDate(valueOf(el.docExpiryDate));
+          if (issue && expiry && expiry <= issue) {
+            errors.push('Expiry date must be after issue date.');
+            showFieldError(el.docExpiryDate, 'Expiry date must be after issue date.');
+          }
         }
 
         const docFront = el.docFront?.files?.[0];
