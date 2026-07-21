@@ -44,6 +44,57 @@ $admin_mobile_logo_src = $admin_mobile_logo_file ? base_url('assets/images/' . r
         border-radius: 10px;
     }
 
+    .admin-header-search {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 320px;
+        max-width: 540px;
+        flex: 1 1 420px;
+        background: #fff;
+        border: 1px solid #eef0f6;
+        border-radius: 16px;
+        padding: 10px 14px;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, .04);
+        margin-left: 18px;
+        margin-right: 18px;
+    }
+
+    .admin-header-search i {
+        color: #64748b;
+        font-size: 18px;
+        flex: 0 0 auto;
+    }
+
+    .admin-header-search input {
+        width: 100%;
+        border: 0;
+        outline: none;
+        background: transparent;
+        font-size: 13px;
+        color: #0f172a;
+    }
+
+    .admin-header-search input::placeholder {
+        color: #94a3b8;
+    }
+
+    @media (max-width: 991.98px) {
+        .admin-header-search {
+            min-width: 0;
+            max-width: none;
+            flex: 1 1 auto;
+            margin-left: 10px;
+            margin-right: 10px;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        .admin-header-search {
+            display: none;
+        }
+    }
+
     @media (max-width: 575.98px) {
         .bman-admin-header-logo {
             height: 34px;
@@ -100,6 +151,15 @@ $admin_mobile_logo_src = $admin_mobile_logo_file ? base_url('assets/images/' . r
                             px-2 px-lg-0
                             " id="kt_app_header_menu" data-kt-menu="true">
                 </div>
+            </div>
+
+            <div class="admin-header-search">
+                <i class="ki-duotone ki-magnifier fs-2">
+                    <span class="path1"></span>
+                    <span class="path2"></span>
+                </i>
+                <input type="search" autocomplete="off" aria-label="Search admin"
+                    placeholder="Search here..." />
             </div>
 
 

@@ -36,6 +36,13 @@ class Plans extends CI_Controller
                      ->set_output(json_encode($data));
     }
 
+    private function _adminId()
+    {
+        $id = (int)$this->session->userdata('admin_userid');
+        if (!$id) $id = (int)$this->session->userdata('user_id');
+        return $id;
+    }
+
     /* ------------------------------- page ------------------------------- */
     public function index()
     {
@@ -60,13 +67,13 @@ class Plans extends CI_Controller
             $v = $this->input->post($f, true);
             if ($v !== null) $data[$f] = $v;
         }
-        list($ok, $msg) = $this->staking->savePlan((int)$id, $data);
+        list($ok, $msg) = $this->staking->savePlan((int)$id, $data, $this->_adminId());
         if (!$ok) return $this->_json(['status' => 'error', 'message' => $msg], 422);
 
         // durations arrive as years[] = [2,3,5]
         $years = $this->input->post('years');
         if ($years !== null) {
-            list($ok2, $msg2) = $this->staking->savePlanTerms((int)$id, is_array($years) ? $years : []);
+            list($ok2, $msg2) = $this->staking->savePlanTerms((int)$id, is_array($years) ? $years : [], $this->_adminId());
             if (!$ok2) return $this->_json(['status' => 'error', 'message' => $msg2], 422);
         }
         return $this->_json(['status' => 'success', 'message' => 'Plan updated.']);
@@ -77,7 +84,14 @@ class Plans extends CI_Controller
     {
         if (!$this->input->is_ajax_request()) show_404();
         $active = (int)$this->input->post('active');
-        $this->staking->togglePlan((int)$id, $active);
+        $this->staking->togglePlan((int)$id, $active, $this->_adminId());
         return $this->_json(['status' => 'success', 'message' => $active ? 'Plan enabled.' : 'Plan disabled.']);
+    }
+
+    /* --------------------------- AJAX: audit log ------------------------- */
+    public function audit()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        return $this->_json(['status' => 'success', 'rows' => $this->staking->stakingPlansAuditLog()]);
     }
 }

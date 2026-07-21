@@ -391,15 +391,15 @@
       // full decimal(30,8) precision is still stored/used for calculations,
       // this only affects what's rendered here).
       $w_cards = [
-        ['key'=>'usdt',     'label'=>'USDT Wallet',     'unit'=>'USDT', 'dp'=>2, 'note'=>'Deposits &amp; withdrawals',
+        ['key'=>'usdt',     'label'=>'USDT Wallet',     'unit'=>'USDT', 'dp'=>2,
          'icon'=>'ph-currency-dollar',   'bg'=>'#ecfdf3', 'fg'=>'#059669'],
-        ['key'=>'exchange', 'label'=>'Exchange Wallet', 'unit'=>'BMAN', 'dp'=>2, 'note'=>'Buy &amp; swap BMAN',
+        ['key'=>'exchange', 'label'=>'Exchange Wallet', 'unit'=>'BMAN', 'dp'=>2,
          'icon'=>'ph-arrows-left-right', 'bg'=>'#eff6ff', 'fg'=>'#2563eb'],
-        ['key'=>'earning',  'label'=>'Earning Wallet',  'unit'=>'BMAN', 'dp'=>2, 'note'=>'Commission &amp; ROI',
+        ['key'=>'earning',  'label'=>'Earning Wallet',  'unit'=>'BMAN', 'dp'=>2,
          'icon'=>'ph-trend-up',          'bg'=>'#f5f3ff', 'fg'=>'#7c3aed'],
-        ['key'=>'staking',  'label'=>'Staking Wallet',  'unit'=>'BMAN', 'dp'=>2, 'note'=>'Locked in stakes',
+        ['key'=>'staking',  'label'=>'Staking Wallet',  'unit'=>'BMAN', 'dp'=>2,
          'icon'=>'ph-lock-key',          'bg'=>'#fff7ed', 'fg'=>'#d97706'],
-        ['key'=>'bonus',    'label'=>'Bonus Wallet',    'unit'=>'BMAN', 'dp'=>2, 'note'=>'25% staking bonus',
+        ['key'=>'bonus',    'label'=>'Bonus Wallet',    'unit'=>'BMAN', 'dp'=>2,
          'icon'=>'ph-gift',              'bg'=>'#fdf2f8', 'fg'=>'#db2777'],
       ];
       ?>
@@ -430,14 +430,9 @@
       </style>
 
       <!-- Wallets -->
-      <?php $ww = $wallets_withdrawable ?? []; ?>
       <div class="wallet-grid">
         <?php foreach ($w_cards as $wc):
           $bal = (float) ($wallets[$wc['key']] ?? 0);
-          // USDT has no maturity concept — only the four BMAN wallets can have
-          // funds locked until a bonus/credit vests.
-          $withdrawable = ($wc['key'] === 'usdt') ? $bal : (float) ($ww[$wc['key'] . '_withdrawable'] ?? $bal);
-          $locked = max(0, $bal - $withdrawable);
           ?>
           <a class="wallet-card" href="<?= base_url('user/wallet'); ?>" title="<?= $wc['label']; ?>">
             <div class="wallet-ico" style="background:<?= $wc['bg']; ?>;color:<?= $wc['fg']; ?>">
@@ -446,11 +441,6 @@
             <div class="wallet-meta">
               <small><?= $wc['label']; ?></small>
               <strong><?= number_format($bal, $wc['dp']); ?><u><?= $wc['unit']; ?></u></strong>
-              <?php if ($locked > 0.000001): ?>
-                <span><?= number_format($withdrawable, $wc['dp']); ?> available now &middot; <?= number_format($locked, $wc['dp']); ?> locked</span>
-              <?php else: ?>
-                <span><?= $wc['note']; ?></span>
-              <?php endif; ?>
             </div>
           </a>
         <?php endforeach; ?>
