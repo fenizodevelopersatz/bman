@@ -127,6 +127,20 @@ class Profile extends MY_Controller
             log_message('error', '[wallet_check] Scan failed: ' . $e->getMessage());
         }
 
+        // Also scan for BMAN token sent in from an external wallet, crediting
+        // the Exchange wallet directly (on-demand only, same button — no cron).
+        $bmanCredited = 0;
+        $bmanSkipped = 0;
+        try {
+            $this->load->model('Depositlistener_model', 'listener');
+            $rb = $this->listener->scanBman($uid);
+            $bmanCredited = (int)($rb['credited'] ?? 0);
+            $bmanSkipped = (int)($rb['skipped'] ?? 0);
+            log_message('info', "[wallet_check] BMAN scan result: credited=$bmanCredited, skipped=$bmanSkipped");
+        } catch (Exception $e) {
+            log_message('error', '[wallet_check] BMAN scan failed: ' . $e->getMessage());
+        }
+
         try {
             // Get monitor data (balance check)
             $m = $this->cw->monitor($uid);
@@ -152,13 +166,18 @@ class Profile extends MY_Controller
             log_message('info', "[wallet_check] Fetched " . count($onchain_data['rows']) . " on-chain transactions");
 
             // Build complete response with enriched data
+            $messageParts = [];
+            if ($credited > 0) $messageParts[] = $credited.' USDT deposit(s) credited, '.$enriched.' enriched';
+            if ($bmanCredited > 0) $messageParts[] = $bmanCredited.' BMAN deposit(s) credited to Exchange wallet';
+            if ($bmanSkipped > 0) $messageParts[] = $bmanSkipped.' BMAN deposit(s) outside transfer limits';
+
             $response = [
-                "status"   => "success",
-                "credited" => $credited,
-                "enriched" => $enriched,
-                "message"  => $credited > 0
-                    ? ($credited.' deposit(s) credited, '.$enriched.' enriched.')
-                    : 'Wallet up to date.',
+                "status"        => "success",
+                "credited"      => $credited,
+                "enriched"      => $enriched,
+                "bman_credited" => $bmanCredited,
+                "bman_skipped"  => $bmanSkipped,
+                "message"       => $messageParts ? implode(', ', $messageParts).'.' : 'Wallet up to date.',
                 "data"     => $m,
                 // ✓ Complete on-chain transaction data with from/to addresses
                 "onchain_transactions" => [

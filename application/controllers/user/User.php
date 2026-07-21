@@ -83,6 +83,14 @@ class User extends CI_Controller
 			$this->load->model('Walletledger_model', 'wl');
 			$this->data['wallets'] = $this->wl->balances($userid);
 
+			// Some of those totals can include maturity-locked funds (e.g. a
+			// staking bonus that vests later) — surface what's actually
+			// withdrawable right now too, so the card can label the gap
+			// instead of silently disagreeing with Payouts/Wallet/Stakings,
+			// which show the withdrawable figure as their headline number.
+			$this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
+			$this->data['wallets_withdrawable'] = $this->bmanwithdraw->maturity_breakdown($userid);
+
 			// Rank summary for the Binary Summary panel's checklist replacement
 			// (Achievement Rank / Rank Power / Group Volume / Next Rank Progress /
 			// Group Incentive) — Memberrank_model::sidebar() is the cheap, cached-

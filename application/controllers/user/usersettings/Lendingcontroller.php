@@ -57,6 +57,14 @@ class Lendingcontroller extends CI_Controller
             'bonus'    => (float) ($bal['bonus_withdrawable'] ?? 0),
             'earning'  => (float) ($bal['earning_withdrawable'] ?? 0),
         ];
+        // Raw totals too, so the view can label the gap when a maturity hold
+        // (e.g. a staking bonus that hasn't vested yet) makes total > withdrawable.
+        $this->data['wallet_bman_total'] = [
+            'exchange' => (float) ($bal['exchange'] ?? 0),
+            'staking'  => (float) ($bal['staking'] ?? 0),
+            'bonus'    => (float) ($bal['bonus'] ?? 0),
+            'earning'  => (float) ($bal['earning'] ?? 0),
+        ];
         // ≈ BMAN the USDT balance could buy, at the admin exchange rate.
         $this->load->model('Tokenmaster_model', 'tokens');
         $conv = $this->tokens->convertUsdtToBman($this->data['wallet_usdt']);
@@ -3030,7 +3038,7 @@ class Lendingcontroller extends CI_Controller
             'pending_gas_fee' => 'Waiting for gas fee...',
             'pending_usdt' => 'Gas fee received! Ready to send USDT',
             'pending_bman' => 'USDT received! Waiting for BMAN transfer',
-            'swap_completed' => 'Swap completed! Staking activated',
+            'swap_completed' => 'completed! Staking activated',
             'failed' => 'Order failed: ' . ($order['error'] ?? 'Unknown error'),
         ];
 

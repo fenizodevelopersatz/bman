@@ -466,6 +466,7 @@ $route['update-changepassword-settings'] = 'admin/settings/Passwordsettings/upda
 $route['user/in'] = 'user/auth/login';
 $route['user/verify'] = 'user/auth/login/verify';
 $route['user/re'] = 'user/auth/register';
+$route['user/contact'] = 'user/auth/contact';
 $route['user/auth/success'] = 'user/auth/login/success';
 $route['user/login-otp-verify'] = 'user/auth/login/verifyotp';
 $route['user/login-finel-verify'] = 'user/auth/login/finelVerify';
@@ -831,6 +832,12 @@ $route['admin/bank-verification/list'] = 'admin/AdminBankVerification/list';
 $route['admin/bank-verification/show/(:num)'] = 'admin/AdminBankVerification/show/$1';
 $route['admin/bank-verification/decision/(:num)'] = 'admin/AdminBankVerification/decision/$1';
 $route['admin/bank-verification/export'] = 'admin/AdminBankVerification/export_csv';
+
+/****************** ADMIN CONTACT / ACCOUNT UNLOCK REQUESTS ********/
+$route['admin/contact-requests'] = 'admin/ContactRequests/index';
+$route['admin/contact-requests/list'] = 'admin/ContactRequests/list';
+$route['admin/contact-requests/show/(:num)'] = 'admin/ContactRequests/show/$1';
+$route['admin/contact-requests/decision/(:num)'] = 'admin/ContactRequests/decision/$1';
 
 
 // Admin

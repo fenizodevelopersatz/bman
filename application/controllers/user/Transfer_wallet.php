@@ -40,6 +40,12 @@ class Transfer_wallet extends MY_Controller
             'exchange' => (float)($all['exchange_withdrawable'] ?? 0), 'earning' => (float)($all['earning_withdrawable'] ?? 0),
             'staking'  => (float)($all['staking_withdrawable'] ?? 0),  'bonus'   => (float)($all['bonus_withdrawable'] ?? 0),
         ];
+        // Raw totals too, so the view can label the gap when a maturity hold
+        // makes total > withdrawable (e.g. a not-yet-vested staking bonus).
+        $data['internal_balances_total'] = [
+            'exchange' => (float)($all['exchange'] ?? 0), 'earning' => (float)($all['earning'] ?? 0),
+            'staking'  => (float)($all['staking'] ?? 0),  'bonus'   => (float)($all['bonus'] ?? 0),
+        ];
         $user = $this->Users_model->get_user($uid);
         $data['has_transfer_password'] = !empty($user['transfer_password']);
         $data['kyc_approved'] = (strtolower((string)($user['kyc_status'] ?? '')) === 'approved');

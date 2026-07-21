@@ -2404,11 +2404,14 @@ function renderExistingPreview($url, $title)
       try {
         const res = await postForm(e.target);
         if (res.status === 'success') {
-          toastMini(res.message || "Profile updated");
-          const label = document.getElementById('profileImgPreviewLabel');
-          if (label && label.textContent.startsWith('Selected photo')) {
-            label.textContent = 'Current photo';
-          }
+          Swal.fire({
+            icon: "success",
+            title: "Profile Updated",
+            text: res.message || "Your profile has been updated.",
+            buttonsStyling: false,
+            confirmButtonText: "Ok, got it!",
+            customClass: { confirmButton: "btn btn-primary" },
+          }).then(() => location.reload());
         }
         else toastMini(res.message || "Profile update failed");
       } catch (err) {

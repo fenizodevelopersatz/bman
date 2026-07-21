@@ -1244,6 +1244,7 @@ function wallet_title_fallback($type)
           display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
         .allw-strip .wval{font-size:18px;font-weight:900;color:#0b1220;line-height:1.1;}
         .allw-strip .wval small{font-size:11px;font-weight:900;color:#6b7280;}
+        .allw-strip .wsub{font-size:11px;font-weight:700;color:#6b7280;margin-top:2px;}
         .allw-strip .wtag{font-size:9px;font-weight:900;letter-spacing:.2px;padding:2px 7px;border-radius:99px;
           background:#26a17b1a;color:#1b8f6b;text-transform:uppercase;}
 
@@ -1262,12 +1263,21 @@ function wallet_title_fallback($type)
             <div class="wval"><?= number_format((float) $wallet_usdt, 2) ?> <small>USDT</small></div>
           </div>
         </div>
-        <?php foreach ($all_wallets as $k => $m): ?>
+        <?php
+        $wallet_bman_total = $wallet_bman_total ?? $wallet_bman;
+        foreach ($all_wallets as $k => $m):
+          $withdrawable = (float) ($wallet_bman[$k] ?? 0);
+          $total = (float) ($wallet_bman_total[$k] ?? $withdrawable);
+          $locked = max(0, $total - $withdrawable);
+        ?>
         <div class="wtile">
           <div class="wico" style="background:<?= $m[2] ?>1a;color:<?= $m[2] ?>;"><i class="ph <?= $m[1] ?>"></i></div>
           <div>
             <div class="wlbl"><?= $m[0] ?></div>
-            <div class="wval"><?= rtrim(rtrim(number_format((float) ($wallet_bman[$k] ?? 0), 4), '0'), '.') ?: '0' ?> <small>BMAN</small></div>
+            <div class="wval"><?= number_format($withdrawable, 2) ?> <small>BMAN</small></div>
+            <?php if ($locked > 0.000001): ?>
+              <div class="wsub"><?= number_format($total, 2) ?> total &middot; <?= number_format($locked, 2) ?> locked</div>
+            <?php endif; ?>
           </div>
         </div>
         <?php endforeach; ?>
@@ -1501,6 +1511,7 @@ function wallet_title_fallback($type)
                       tx_hash: '<?= htmlspecialchars($t['tx_hash'] ?? '', ENT_QUOTES); ?>',
                       type: '<?= htmlspecialchars($t['tx_type'] ?? 'transfer', ENT_QUOTES); ?>',
                       amount: '<?= htmlspecialchars($amt, ENT_QUOTES); ?>',
+                      token_symbol: '<?= htmlspecialchars($t['token_symbol'] ?? 'USDT', ENT_QUOTES); ?>',
                       from_address: '<?= htmlspecialchars($t['from_address'] ?? '', ENT_QUOTES); ?>',
                       to_address: '<?= htmlspecialchars($t['to_address'] ?? '', ENT_QUOTES); ?>',
                       block_number: <?= (int)($t['block_number'] ?? 0); ?>,
@@ -1532,7 +1543,7 @@ function wallet_title_fallback($type)
                         <?= htmlspecialchars($dt); ?>
                       </td>
                       <td class="amt">
-                        USDT <?= number_format((float)$amt, 4); ?>
+                        <?= htmlspecialchars($t['token_symbol'] ?? 'USDT'); ?> <?= number_format((float)$amt, 2); ?>
                       </td>
                       <td>
                         <span class="status <?= $flow === 'CREDIT' ? 'st-credit' : 'st-debit'; ?>">
@@ -1635,7 +1646,9 @@ function wallet_title_fallback($type)
                   class="ph ph-money"></i> Withdraw Now</button>
               <button class="btn-soft" type="button"
                 onclick="location.href='<?= base_url('user/transfer_wallet'); ?>'"><i
-                  class="ph ph-arrows-left-right"></i> Transfer Wallet</button>              
+                  class="ph ph-arrows-left-right"></i> Transfer Wallet</button>
+              <button class="btn-soft" type="button" onclick="location.href='<?= base_url('user/profit'); ?>'"><i
+                  class="ph ph-coins"></i> View Commissions</button>
             </div>
           </div>
 
@@ -2096,7 +2109,7 @@ function wallet_title_fallback($type)
                         </div>
                       </div>
                       <div style={{textAlign:'right',whiteSpace:'nowrap'}}>
-                        <div style={{fontSize:'12px',fontWeight:1000}}>{Number(r.amount_usdt || 0).toFixed(4)} USDT</div>
+                        <div style={{fontSize:'12px',fontWeight:1000}}>{Number(r.token === 'BMAN' ? (r.amount_bman || 0) : (r.amount_usdt || 0)).toFixed(2)} {r.token || 'USDT'}</div>
                         <div style={{fontSize:'10px',marginTop:'4px'}}>
                           <span style={{display:'inline-block',padding:'4px 8px',borderRadius:'999px',background:isConfirmed ? '#ecfdf3' : isPending ? '#fff7ed' : '#f7f7fb',border:'1px solid ' + (isConfirmed ? '#d1fadf' : isPending ? '#fed7aa' : '#f1f1f6'),color:isConfirmed ? '#0f9d58' : isPending ? '#c2410c' : '#6b7280',fontWeight:900,fontSize:'9px'}}>
                             {isConfirmed ? '✓ Credited' : isPending ? '⏳ Pending' : (r.status || '').toUpperCase()}
@@ -2182,7 +2195,7 @@ function wallet_title_fallback($type)
           <div>
             <small style="color:#6b7280;font-weight:900;font-size:12px;text-transform:uppercase;">Transaction Amount</small>
             <div style="font-size:28px;font-weight:900;color:#6e56cf;margin-top:4px;">
-              ${parseFloat(tx.amount).toFixed(4)} <span style="font-size:16px;">USDT</span>
+              ${parseFloat(tx.amount).toFixed(2)} <span style="font-size:16px;">${tx.token_symbol || 'USDT'}</span>
             </div>
           </div>
           <div style="font-size:48px;color:#6e56cf;opacity:0.2;">
@@ -2229,17 +2242,17 @@ function wallet_title_fallback($type)
         <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;padding:16px;background:linear-gradient(135deg,#f3f4f6,#fafbfc);border-radius:12px;border:1px solid #e5e7eb;">
           <div>
             <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;">Balance Before</small>
-            <div style="font-size:16px;font-weight:900;color:#0b1220;margin-top:4px;">${balanceBefore.toFixed(4)} USDT</div>
+            <div style="font-size:16px;font-weight:900;color:#0b1220;margin-top:4px;">${balanceBefore.toFixed(2)} ${tx.token_symbol || 'USDT'}</div>
           </div>
           <div style="text-align:center;">
             <div style="display:flex;flex-direction:column;align-items:center;">
               <i class="ph ph-arrow-right" style="font-size:24px;color:#6b7280;"></i>
-              <span style="font-size:11px;color:#6b7280;font-weight:900;margin-top:4px;">+${parseFloat(tx.amount).toFixed(4)}</span>
+              <span style="font-size:11px;color:#6b7280;font-weight:900;margin-top:4px;">+${parseFloat(tx.amount).toFixed(2)}</span>
             </div>
           </div>
           <div style="text-align:right;">
             <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;">Balance After</small>
-            <div style="font-size:16px;font-weight:900;color:#10b981;margin-top:4px;">${balanceAfter.toFixed(4)} USDT</div>
+            <div style="font-size:16px;font-weight:900;color:#10b981;margin-top:4px;">${balanceAfter.toFixed(2)} ${tx.token_symbol || 'USDT'}</div>
           </div>
         </div>
 

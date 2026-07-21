@@ -629,12 +629,18 @@
       ];
       foreach ($tile_meta as $key => $meta):
         $bal = $internal_balances[$key] ?? 0;
+        $total = $internal_balances_total[$key] ?? $bal;
+        $locked = max(0, $total - $bal);
       ?>
       <div class="wallet-tile <?= $key ?>" id="tile_<?= $key ?>">
         <div class="wt-icon"><i class="ph-fill <?= $meta['icon'] ?>"></i></div>
         <div class="wt-label"><?= $meta['label'] ?></div>
-        <div class="wt-amount" id="bal_<?= $key ?>"><?= number_format($bal, 4) ?></div>
-        <div class="wt-sub"><?= $meta['sub'] ?></div>
+        <div class="wt-amount" id="bal_<?= $key ?>"><?= number_format($bal, 2) ?></div>
+        <?php if ($locked > 0.000001): ?>
+          <div class="wt-sub"><?= number_format($total, 2) ?> total &middot; <?= number_format($locked, 2) ?> locked</div>
+        <?php else: ?>
+          <div class="wt-sub"><?= $meta['sub'] ?></div>
+        <?php endif; ?>
       </div>
       <?php endforeach; ?>
     </div>
@@ -1021,7 +1027,7 @@ function onFromChange() {
   // Keep the source list constrained to what this mode allows.
   if (window.WalletTransferUI) WalletTransferUI.applyMatrixToSelect(document.getElementById('fromWallet'), 'from', mode, '');
   const from = document.getElementById('fromWallet').value;
-  document.getElementById('balHint').textContent = from ? ((liveBalances[from] ?? 0).toFixed(4) + ' ' + (WL[from] || from)) : '—';
+  document.getElementById('balHint').textContent = from ? ((liveBalances[from] ?? 0).toFixed(2) + ' ' + (WL[from] || from)) : '—';
   const hint = document.getElementById('memberRuleHint');
   if (mode === 'self') {
     const toSel = document.getElementById('toWallet');
@@ -1125,13 +1131,13 @@ function updatePreview() {
 
   if (from && dest && amount > 0) {
     preview.style.display = 'flex';
-    previewText.textContent = amount.toFixed(4) + ' ' + (WL[from] || from) + ' → ' + dest;
+    previewText.textContent = amount.toFixed(2) + ' ' + (WL[from] || from) + ' → ' + dest;
   } else {
     preview.style.display = 'none';
   }
   if (from) {
     const bal = liveBalances[from] ?? 0;
-    document.getElementById('balHint').textContent = bal.toFixed(4) + ' available in ' + (WL[from] || from);
+    document.getElementById('balHint').textContent = bal.toFixed(2) + ' available in ' + (WL[from] || from);
   }
 }
 
@@ -1207,7 +1213,7 @@ function doTransferPost() {
         liveBalances = res.balances;
         Object.keys(res.balances).forEach(function(w) {
           const el = document.getElementById('bal_' + w);
-          if (el) el.textContent = parseFloat(res.balances[w]).toFixed(4);
+          if (el) el.textContent = parseFloat(res.balances[w]).toFixed(2);
         });
       }
       // Reset form
