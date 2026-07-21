@@ -56,7 +56,15 @@ class AllTransactions extends CI_Controller
             'reference_types' => $this->tracker->reference_types(),
             'categories'      => $this->tracker->categories(),
             'wallets'         => ['usdt', 'exchange', 'earning', 'staking', 'bonus'],
+            'explorer_url'    => $this->_explorer(),
         ]);
+    }
+
+    /** Active chain's block explorer base URL (e.g. https://bscscan.com), same convention as Onchaintx.php. */
+    private function _explorer()
+    {
+        $ts = $this->db->select('explorer_url')->get_where('token_settings', ['status' => 1])->row_array();
+        return rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
     }
 
     private function _filters()
@@ -85,12 +93,17 @@ class AllTransactions extends CI_Controller
         $limit   = min(200, max(1, (int) ($this->input->get('limit', true) ?: 50)));
         $offset  = ($page - 1) * $limit;
 
+        $rows = $this->tracker->list_transactions($filters, $limit, $offset);
+        foreach ($rows as &$r) {
+            $r['avatar'] = user_profile_image($r['user_id']);
+        }
+
         $this->_json([
             'status' => true,
             'total'  => $this->tracker->count_transactions($filters),
             'page'   => $page,
             'limit'  => $limit,
-            'rows'   => $this->tracker->list_transactions($filters, $limit, $offset),
+            'rows'   => $rows,
         ]);
     }
 
@@ -104,6 +117,7 @@ class AllTransactions extends CI_Controller
         $row = $this->tracker->transaction_detail($id);
         if (!$row) return $this->_json(['status' => false, 'message' => 'Not found'], 404);
 
+        $row['avatar'] = user_profile_image($row['user_id']);
         $this->_json(['status' => true, 'row' => $row]);
     }
 

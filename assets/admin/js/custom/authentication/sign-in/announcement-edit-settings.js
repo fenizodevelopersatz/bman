@@ -151,15 +151,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 e = document.querySelector("#kt_account_meta_details_submit");
 
                 r = FormValidation.formValidation(t, {
-                    fields: {
-                        announcement_content: {
-                            validators: {
-                                notEmpty: {
-                                    message: "The Announcement Content is Required"
-                                }
-                            }
-                        }
-                    },
+                    fields: {},
                     plugins: {
                         trigger: new FormValidation.plugins.Trigger(),
                         bootstrap: new FormValidation.plugins.Bootstrap5({
@@ -179,6 +171,28 @@ document.addEventListener("DOMContentLoaded", function () {
                             // ✅ DEMO MODE BLOCK (stop before API)
                             if (isDemoMode()) {
                                 demoBlockAlert("You Can not edit announcement.");
+                                return;
+                            }
+
+                            var typeChecked = document.querySelector('input[name="announcement_type"]:checked');
+                            var annType = typeChecked ? typeChecked.value : 'text';
+
+                            if (annType === 'text' && !t.elements.announcement_content.value.trim()) {
+                                Swal.fire({
+                                    text: "The Announcement Content is Required",
+                                    icon: "warning", buttonsStyling: false,
+                                    confirmButtonText: "Ok, got it!",
+                                    customClass: { confirmButton: "btn btn-warning" }
+                                });
+                                return;
+                            }
+                            if (annType === 'image' && window.annAnnouncementReadyToSubmit && !window.annAnnouncementReadyToSubmit()) {
+                                Swal.fire({
+                                    text: "Please choose an image and click \"Apply Crop\" first.",
+                                    icon: "warning", buttonsStyling: false,
+                                    confirmButtonText: "Ok, got it!",
+                                    customClass: { confirmButton: "btn btn-warning" }
+                                });
                                 return;
                             }
 

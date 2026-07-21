@@ -34,9 +34,6 @@
                                         <li class="breadcrumb-item text-muted"><?php echo $title; ?></li>
                                     </ul>
                                 </div>
-                                <div class="d-flex align-items-center gap-2 my-2">
-                                    <button type="button" class="btn btn-danger btn-sm" id="aal-clear-btn">Clear Log</button>
-                                </div>
                             </div>
                         </div>
                         <!--end::Toolbar-->
@@ -96,14 +93,6 @@
                 c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         }
 
-        function toast(msg, ok) {
-            if (window.Swal) {
-                Swal.fire({ text: msg, icon: ok ? 'success' : 'error',
-                    buttonsStyling: false, confirmButtonText: 'Ok',
-                    customClass: { confirmButton: 'btn btn-primary' } });
-            } else { alert(msg); }
-        }
-
         function render(rows) {
             const body = document.getElementById('aal-body');
             if (!rows.length) {
@@ -137,20 +126,6 @@
         document.getElementById('aal-filter').addEventListener('change', (e) => {
             const v = e.target.value;
             render(v ? allRows.filter(r => r.source === v) : allRows);
-        });
-
-        document.getElementById('aal-clear-btn').addEventListener('click', async () => {
-            if (!confirm('Permanently clear ALL audit log history shown on this page? This cannot be undone.')) return;
-            const fd = new FormData();
-            fd.append('confirm', 'yes');
-            const res = await fetch(base + 'admin/audit-log/clear', {
-                method: 'POST', body: fd,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            let j = {};
-            try { j = await res.json(); } catch (e) { j = { status: 'error', message: 'Server error.' }; }
-            toast(j.message || '', j.status === 'success');
-            if (j.status === 'success') load();
         });
 
         load();

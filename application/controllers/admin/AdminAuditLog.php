@@ -118,18 +118,4 @@ class AdminAuditLog extends CI_Controller
         ];
     }
 
-    /* --------------------------- AJAX: clear log -------------------------- */
-    public function clear()
-    {
-        if (!$this->input->is_ajax_request()) show_404();
-        if ($this->input->post('confirm') !== 'yes') {
-            return $this->_json(['status' => 'error', 'message' => 'Confirmation required.'], 422);
-        }
-
-        foreach (['staking_roi_audit', 'coin_distribution_audit', 'token_settings_audit', 'admin_settings_audit'] as $t) {
-            $this->db->empty_table($t);
-        }
-
-        return $this->_json(['status' => 'success', 'message' => 'Audit log cleared.']);
-    }
 }

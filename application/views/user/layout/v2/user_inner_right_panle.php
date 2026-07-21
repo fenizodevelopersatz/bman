@@ -59,7 +59,7 @@ $rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian not
     <div class="stat-circle" style="background:conic-gradient(var(--primary) <?= (int) $profile_percent ?>%, #f0f0f5 0);">
         <img src="<?= htmlspecialchars(user_profile_image($uid)); ?>"
             alt="avatar"
-            onerror="this.onerror=null;this.src='<?= base_url('assets/images/default-avatar.svg'); ?>';" />
+            <?= avatar_onerror(); ?> />
 
         <span class="stat-badge">
             <?= $profile_percent ?>%
