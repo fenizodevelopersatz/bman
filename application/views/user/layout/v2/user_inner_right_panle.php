@@ -13,7 +13,10 @@
  * rather than breaking every page in the member area.
  */
 $uid = $this->session->userdata('user_userid') ?? '';
-$profile_percent = profile_completion_percent($uid);
+// The top ring is KYC verification progress, not the broader 5-factor
+// profile-completeness score (name/address/photo/KYC/bank) — KYC is what
+// gates withdraw eligibility, so that's what this widget should reflect.
+$profile_percent = kyc_completion_percent($uid);
 
 /**
  * NOTE — use get_instance(), not $this, to load and reach the model here.
@@ -53,7 +56,7 @@ $rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian not
         <img src="https://i.pravatar.cc/100?u=mlm-user" alt="avatar" />
         <span class="stat-badge">72%</span>
     </div> -->
-    <div class="stat-circle">
+    <div class="stat-circle" style="background:conic-gradient(var(--primary) <?= (int) $profile_percent ?>%, #f0f0f5 0);">
         <img src="<?= htmlspecialchars(user_profile_image($uid)); ?>"
             alt="avatar"
             onerror="this.onerror=null;this.src='<?= base_url('assets/images/default-avatar.svg'); ?>';" />
@@ -61,6 +64,9 @@ $rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian not
         <span class="stat-badge">
             <?= $profile_percent ?>%
         </span>
+    </div>
+    <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--text-secondary, #8E8E93);margin:0 0 10px;text-transform:uppercase;letter-spacing:.4px;">
+        KYC Verification
     </div>
 
     <div class="hello">
@@ -107,28 +113,6 @@ $rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian not
 
 
 <div class="rp-card rank-card-pro">
-    <!-- Top -->
-    <!-- <div class="rank-top-pro">
-        <div>
-            <p class="rank-kicker">Current Rank</p>
-            <div class="rank-line">
-                <div class="rank-pill">
-                    <i class="ph ph-medal"></i>
-                    <span>SILVER</span>
-                </div>
-                <span class="rank-next">Next: <b>GOLD</b></span>
-            </div>
-        </div>
-
-        </!-- Progress Ring --/>
-        <div class="ring" style="--p:48;">
-            <div class="ring-inner">
-                <b>48%</b>
-                <small>Progress</small>
-            </div>
-        </div>
-    </div> -->
-
     <style>
         .rank-card {
             display: flex;
@@ -181,8 +165,6 @@ $rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian not
     </style>
     <style>
         /* Rank card — achievement rank (permanent) + rank power (60-day cycle) */
-        .rp-badge-img { width:34px; height:34px; border-radius:9px; object-fit:contain; flex:0 0 34px; }
-        .rp-badge-dot { width:34px; height:34px; border-radius:50%; flex:0 0 34px; display:inline-block; }
         .rank-perm {
             display:inline-flex; align-items:center; gap:5px; font-size:9.5px; font-weight:700;
             color:#15803d; background:#dcfce7; padding:3px 7px; border-radius:999px; margin-top:5px;
@@ -203,12 +185,8 @@ $rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian not
     </style>
 
     <div class="rank-card">
-        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-            <?php if (!empty($rk['badge_image'])): ?>
-                <img class="rp-badge-img" src="<?= base_url($rk['badge_image']); ?>" alt="" loading="lazy">
-            <?php else: ?>
-                <span class="rp-badge-dot" style="background:<?= htmlspecialchars($rk['badge_color']); ?>"></span>
-            <?php endif; ?>
+        <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+            <?= rank_badge_html($rk['badge_image'], $rk['badge_color'], 64); ?>
             <div style="min-width:0;">
                 <p class="label" style="margin:0;">Current Rank</p>
                 <span class="rank-badge"><?= htmlspecialchars($rk['name']); ?></span>

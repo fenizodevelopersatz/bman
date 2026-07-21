@@ -468,7 +468,10 @@ $route['user/re'] = 'user/auth/register';
 $route['user/auth/success'] = 'user/auth/login/success';
 $route['user/login-otp-verify'] = 'user/auth/login/verifyotp';
 $route['user/login-finel-verify'] = 'user/auth/login/finelVerify';
+$route['user/login/resend-otp'] = 'user/auth/login/resend_otp';
+$route['user/login/back-to-login'] = 'user/auth/login/back_to_login';
 $route['user/forgot'] = 'user/auth/login/forgot';
+$route['user/reset-password'] = 'user/auth/login/reset_password';
 $route['user/logout'] = 'user/user/logout';
 
 $route['user/tranfer'] = 'user/usersettings/tranfercontroller';
@@ -632,8 +635,12 @@ $route['user/update_password'] = 'user/usersettings/Profile/update_password';  /
 $route['user/verify_email_otp'] = 'user/usersettings/Profile/verify_email_otp';
 $route['user/password_update'] = 'user/usersettings/Profile/update_password';
 $route['user/twofa/toggle'] = 'user/usersettings/Profile/twofa_toggle';
+$route['member/profile/twofa_setup_request'] = 'user/usersettings/Profile/twofa_setup_request'; // POST
+$route['member/profile/twofa_setup_verify'] = 'user/usersettings/Profile/twofa_setup_verify'; // POST
 $route['user/update_email_preferences'] = 'user/usersettings/Profile/update_email_preferences';
 $route['member/profile/set_transfer_password'] = 'user/usersettings/Profile/set_transfer_password'; // POST
+$route['member/profile/twofa_toggle'] = 'user/usersettings/Profile/twofa_toggle'; // POST
+$route['member/profile/email_verify_toggle'] = 'user/usersettings/Profile/email_verify_toggle'; // POST
 $route['user/wallet-check'] = 'user/usersettings/Profile/wallet_check';   // POST — on-chain vs DB
 $route['member/profile/wallet_check'] = 'user/usersettings/Profile/wallet_check';
 
@@ -858,6 +865,7 @@ $route['user/activityTrendAjax'] = 'user/user/activityTrendAjax';   // live data
 
 
 $route['user/payouts/request'] = 'user/payouts/request';
+$route['user/payouts/verify-otp'] = 'user/payouts/verify_otp';
 
 // echo "<pre>";print_r($route);exit;
 

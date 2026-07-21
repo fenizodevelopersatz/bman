@@ -59,6 +59,19 @@ if (!function_exists('mp_hex_rgb')) {
 ?>
 <style id="member-theme-vars">
     :root{
+        /* ---- Global design tokens (platform-wide — see docs/theme) ----
+           Fixed, not admin-configurable via Site Settings (unlike --mp-* below,
+           which the Member Panel Theme page drives). Every card/button/badge/
+           table style across the member panel should reference these rather
+           than hardcoding hex values or re-declaring a local palette. */
+        --color-bg: #F8FAFC;
+        --color-card: #FFFFFF;
+        --color-border: #E5E7EB;
+        --text-primary: #111827;
+        --text-secondary: #6B7280;
+        --radius-lg: 16px;
+        --shadow-card: 0 10px 30px rgba(0,0,0,0.06);
+
         /* drive the dashboard's own accent so the palette controls the
            announcement banner, active sidebar, Create Ticket button, charts,
            progress rings, badges and links */
@@ -94,6 +107,16 @@ if (!function_exists('mp_hex_rgb')) {
     #mpThemeToggle .mp-moon{ display:none; }
     html[data-bs-theme="dark"] #mpThemeToggle .mp-sun{ display:none; }
     html[data-bs-theme="dark"] #mpThemeToggle .mp-moon{ display:inline-block; }
+
+    /* ---- rank badge component (rank_helper.php::rank_badge_html) ----
+       The ONE rank badge look, everywhere it's used: dashboard right panel,
+       Rank & Rewards hero/timeline/rewards/certificates. Pages set only the
+       size (inline style, per call) and may layer a page-local wrapper class
+       for spacing — never redeclare the image/dot rendering itself. */
+    .rk-badge{ display:inline-flex; align-items:center; justify-content:center; border-radius:10px; flex:0 0 auto; overflow:hidden; }
+    .rk-badge-img{ width:100%; height:100%; object-fit:contain; border-radius:inherit; }
+    .rk-badge-dot{ border-radius:50%; display:inline-block; }
+    .rk-badge-locked{ opacity:.4; filter:grayscale(1); }
 </style>
 
 <script>

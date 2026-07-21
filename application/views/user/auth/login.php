@@ -30,15 +30,18 @@
         max-width:1180px; margin:0 auto; padding:30px 24px; }
     .lpx-form-side{ flex:1 1 0; min-width:0; display:flex; align-items:center; justify-content:center; padding:10px; }
     .lpx-form-inner{ width:100%; max-width:420px; }
-    .lpx-brand-side{ flex:1 1 0; min-width:0; position:relative; display:flex; align-items:center; justify-content:center;
-        min-height:560px; border-radius:24px; padding:48px;
+    .lpx-brand-side{ flex:1 1 0; min-width:0; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden;
+        min-height:560px; border-radius:32px; padding:56px 52px;
         /* NEW: driven by Admin -> Member Panel Theme (Gradient Start / Gradient End) */
         background: var(--mp-gradient, linear-gradient(150deg, #6D4AFF 0%, #A855F7 100%));
-        box-shadow:0 20px 60px rgba(0,0,0,.35); }
-    .lpx-brand-inner{ padding:48px; }
-    .lpx-brand-inner img{ height:135px; margin-bottom:26px; }
-    .lpx-brand-inner h2{ color:#fff; font-weight:800; font-size:34px; line-height:1.2; margin:0; }
-    .lpx-home{ position:absolute; top:24px; right:30px; color:#fff; font-weight:600; letter-spacing:.5px; text-decoration:none; }
+        box-shadow:0 22px 70px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.14); }
+    .lpx-brand-side:before{ content:""; position:absolute; inset:18px; border-radius:26px;
+        border:1px solid rgba(255,255,255,.12); pointer-events:none; }
+    .lpx-brand-inner{ position:relative; z-index:1; padding:36px 28px; text-align:center; max-width:420px; }
+    .lpx-brand-inner img{ height:180px; margin-bottom:28px; }
+    .lpx-brand-inner h2{ color:#fff; font-weight:800; font-size:34px; line-height:1.16; margin:0; }
+    .lpx-brand-inner h2 .lpx-brand-name{ display:block; }
+    .lpx-home{ position:absolute; top:28px; right:34px; z-index:1; color:#fff; font-weight:600; letter-spacing:.5px; text-decoration:none; }
     .lpx-home:hover{ color:#fff; opacity:.85; }
     .lpx-home i{ margin-right:8px; }
 
@@ -164,6 +167,12 @@
                         <div class="fw-bold text-gray-900 fs-3"><?php echo isset($admin_mail)?$admin_mail:''; ?></div>
                     </div>
 
+                    <!-- OTP Timer Display -->
+                    <div id="otp-timer-container" class="mb-4" style="text-align: center; font-size: 14px; color: rgba(255,255,255,.65);">
+                      OTP expires in: <span id="otp-timer" style="font-weight: bold; color: #4CAF50; font-size: 16px;">15:00</span>
+                    </div>
+
+                    <?php if (!empty($show_twofa_code)): ?>
                     <div class="mb-8">
                         <div class="fw-bold text-start text-gray-900 fs-6 mb-1 ms-1"><?php echo lang('two_factor_input_label'); ?></div>
                         <div class="otp-container">
@@ -180,7 +189,9 @@
                         </div>
                         <p>OTP:123456</p>
                     </div>
+                    <?php endif; ?>
 
+                    <?php if (!empty($show_email_code)): ?>
                     <div class="mb-8">
                         <div class="fw-bold text-start text-gray-900 fs-6 mb-1 ms-1"><?php echo lang('email_otp_input_label'); ?></div>
                         <div class="otp-container">
@@ -197,11 +208,27 @@
                         </div>
                         <p>OTP:123456</p>
                     </div>
+                    <?php endif; ?>
+
+                    <div class="d-flex flex-stack flex-wrap gap-3 fs-base fw-semibold mb-8">
+                        <a href="<?php echo base_url(); ?>user/forgot" class="link-primary"><?php echo lang('forgot_password'); ?></a>
+                        <div></div>
+                    </div>
 
                     <div class="d-flex flex-center">
                         <button type="submit" id="kt_sing_in_two_factor_submit" data-kt-redirect-url="<?php echo base_url();?>user/main" disabled class="btn btn-lg btn-primary fw-bold w-100">
                             <span class="indicator-label">Submit</span>
                             <span class="indicator-progress">Please wait... <span class="spinner-border spinner-border-sm align-middle ms-2"></span></span>
+                        </button>
+                    </div>
+
+                    <!-- Resend OTP Button -->
+                    <div class="d-flex flex-center mt-4">
+                        <button type="button" id="resend-otp-btn"
+                          onclick="resendOtp()"
+                          class="btn btn-lg fw-bold w-100"
+                          style="background: #4CAF50; color: white; border: none;">
+                          📧 Resend OTP
                         </button>
                     </div>
                 </form>
@@ -257,6 +284,7 @@
     const base_url = '<?php echo base_url();?>';
     </script>
     <script src="<?php echo base_url();?>assets/user/js/custom/authentication/sign-in/general.js?version=2.1"></script>
+    <script src="<?php echo base_url();?>assets/js/otp-timer.js"></script>
     <script>
         var _tgl = document.getElementById("togglePassword");
         if (_tgl) _tgl.addEventListener("click", function () {

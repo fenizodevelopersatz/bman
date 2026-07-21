@@ -102,6 +102,7 @@
       .quick-actions .qa {
         flex: 1 1 calc(50% - 10px) !important;
         min-width: 160px;
+        text-decoration: none !important;
       }
 
       /* Two columns → one column */
@@ -172,6 +173,7 @@
         padding: 10px 10px !important;
         border-radius: 14px !important;
         font-size: 12px !important;
+        text-decoration: none !important;
       }
 
       /* Binary summary cards -> 1 column */
@@ -446,12 +448,11 @@
 
       <!-- Quick Actions -->
       <div class="quick-actions">
-        <div class="qa"><i class="ph ph-money"></i> Withdraw</div>
-        <div class="qa"><i class="ph ph-arrows-left-right"></i> Transfer Wallet</div>
-        <div class="qa"><i class="ph ph-tree-structure"></i> View Binary Tree</div>
-        <div class="qa"><i class="ph ph-user-plus"></i> Invite Member</div>
-        <div class="qa"><i class="ph ph-bag"></i> Shop Products</div>
-        <div class="qa"><i class="ph ph-headset"></i> Support Ticket</div>
+        <a href="<?= base_url('user/withdraw'); ?>" class="qa"><i class="ph ph-money"></i> Withdraw</a>
+        <a href="<?= base_url('user/transfer-wallet'); ?>" class="qa"><i class="ph ph-arrows-left-right"></i> Transfer Wallet</a>
+        <a href="<?= base_url('user/binary-tree'); ?>" class="qa"><i class="ph ph-tree-structure"></i> View Binary Tree</a>
+        <a href="<?= base_url('user/profile'); ?>" class="qa"><i class="ph ph-user-plus"></i> Invite Member</a>
+        <a href="<?= base_url('support'); ?>" class="qa"><i class="ph ph-headset"></i> Support Ticket</a>
       </div>
 
       <!-- Binary + Team -->
@@ -467,7 +468,7 @@
             <!-- Left -->
             <div class="mini">
               <div class="mini-top">
-                <span>Left Leg BV</span>
+                <span>Left Leg</span>
                 <b id="left_leg_strength" style="color:#2563eb;">STRONG</b>
               </div>
 
@@ -480,7 +481,7 @@
             <!-- Right -->
             <div class="mini">
               <div class="mini-top">
-                <span>Right Leg BV</span>
+                <span>Right Leg</span>
                 <b id="right_leg_strength" style="color:#f97316;">WEAK</b>
               </div>
 
@@ -502,11 +503,28 @@
               <div id="weekly_progress_bar" style="width:0%"></div>
             </div>
 
-            <div class="checklist">
-              <div class="check" id="chk_kyc"><i class="ph ph-warning-circle"></i> KYC Verified</div>
-              <div class="check" id="chk_bank"><i class="ph ph-warning-circle"></i> Bank Linked</div>
-              <div class="check" id="chk_active"><i class="ph ph-warning-circle"></i> Account Active</div>
-              <div class="check" id="chk_weak"><i class="ph ph-warning-circle"></i> Weak Leg Needs BV</div>
+            <?php
+            // Achievement Rank / Rank Power / Group Volume / Next Rank Progress /
+            // Group Incentive — replaces the old KYC/Bank/Account/Weak-Leg
+            // checklist, which tracked pairing-engine gates that no longer exist.
+            // Source: Memberrank_model::sidebar() (§10/§11), the same cheap,
+            // cached-volume call the right-hand rank widget uses.
+            $rs = $rank_summary ?? [];
+            $nextLabel = !empty($rs['next_rank']) ? ' to ' . htmlspecialchars($rs['next_rank']) : '';
+            ?>
+            <div class="small-grid" style="margin-top:12px;">
+              <div class="small-k">
+                <small>Group Volume</small>
+                <strong><?= number_format((float)($rs['group_volume'] ?? 0), 2); ?> BMAN</strong>
+              </div>
+              <div class="small-k">
+                <small>Next Rank Progress</small>
+                <strong><?= (int)($rs['progress'] ?? 0); ?>%<?= $nextLabel; ?></strong>
+              </div>
+              <div class="small-k">
+                <small>Group Incentive Eligibility</small>
+                <strong><?= !empty($rs['power_qualified']) ? 'Eligible' : 'Not Eligible'; ?></strong>
+              </div>
             </div>
           </div>
         </div>
@@ -545,17 +563,25 @@
               <b>Referral Link</b>
               <span style="font-size:11px;color:#5d56a8;font-weight:800;">Copy</span>
             </div>
+
+            <div class="ref-leg-tabs" style="display:flex;gap:8px;margin-bottom:10px;">
+              <button type="button" class="ref-tab active" data-side="left" onclick="selectDashRefTab('left')"
+                style="flex:1;border:1px solid #eeecff;background:var(--primary);color:#fff;padding:8px 10px;border-radius:12px;font-weight:800;font-size:12px;cursor:pointer;">Left Leg</button>
+              <button type="button" class="ref-tab" data-side="right" onclick="selectDashRefTab('right')"
+                style="flex:1;border:1px solid #eeecff;background:#fff;color:#5d56a8;padding:8px 10px;border-radius:12px;font-weight:800;font-size:12px;cursor:pointer;">Right Leg</button>
+            </div>
+
             <div style="display:flex;gap:10px;align-items:center;">
               <input id="referral_link"
                 style="flex:1;border:none;outline:none;background:#fff;padding:10px 12px;border-radius:14px;border:1px solid #eeecff;font-size:12px;"
                 value="<?php echo base_url() . 'user/re?ref=L-' . $userinfo->referral_id ?? ''; ?>" readonly />
               <button
                 style="border:none;background:var(--primary);color:#fff;padding:10px 14px;border-radius:14px;font-weight:800;cursor:pointer;"
-                onclick="copyText('left')"><i class="ph ph-copy"></i></button>
+                onclick="copyText(dashRefSide)"><i class="ph ph-copy"></i></button>
             </div>
 
             <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
-              <button class="btn primary" style="padding:10px 14px;" onclick="shareLink('left')">Invite <i
+              <button class="btn primary" style="padding:10px 14px;" onclick="shareLink(dashRefSide)">Invite <i
                   class="ph ph-share-network"></i></button>
               <button class="btn ghost" style="padding:10px 14px;">View Team <i class="ph ph-users-three"></i></button>
             </div>
@@ -779,7 +805,8 @@
   <script>
     function commissionIcon(type) {
       const t = (type || '').toLowerCase();
-      if (t === 'binary_commission') return 'ph-link';        // Pairing bonus
+      if (t === 'binary_matching' || t === 'binary_commission') return 'ph-link';  // Binary matching bonus
+      if (t === 'swap_bonus') return 'ph-gift';                // Instant 25% stake-purchase bonus
       if (t === 'level_commission') return 'ph-users-three';  // Matching/level
       if (t === 'direct_commission') return 'ph-user-plus';   // Direct bonus
       if (t === 'rank_reward' || t === 'rank') return 'ph-medal';
@@ -789,7 +816,8 @@
 
     function commissionTitle(type) {
       const t = (type || '').toLowerCase();
-      if (t === 'binary_commission') return 'Pairing Bonus (Binary)';
+      if (t === 'binary_matching' || t === 'binary_commission') return 'Binary Matching Bonus';
+      if (t === 'swap_bonus') return 'Instant 25% Bonus (Stake Purchase)';
       if (t === 'level_commission') return 'Matching Bonus';
       if (t === 'direct_commission') return 'Direct Referral Bonus';
       if (t === 'rank_reward' || t === 'rank') return 'Rank Reward';
@@ -921,6 +949,23 @@
     };
   </script>
   <script>
+    // Left Leg / Right Leg tabs on the dashboard's Referral Link box — the
+    // Copy/Invite buttons already read `dashRefSide` via getLink()/copyText()/
+    // shareLink() below, so switching tabs just needs to update the state and
+    // the visible link text.
+    var dashRefSide = 'left';
+    function selectDashRefTab(side) {
+      dashRefSide = (side === 'right') ? 'right' : 'left';
+      document.querySelectorAll('.ref-tab').forEach(function (btn) {
+        var active = btn.dataset.side === dashRefSide;
+        btn.classList.toggle('active', active);
+        btn.style.background = active ? 'var(--primary)' : '#fff';
+        btn.style.color = active ? '#fff' : '#5d56a8';
+      });
+      var input = document.getElementById('referral_link');
+      if (input) input.value = getLink(dashRefSide);
+    }
+
     function getLink(side) {
       const links = window.RefLinks || {};
       const url = (side === 'left') ? (links.left || '') : (links.right || '');
@@ -1116,6 +1161,10 @@
     load(range);
   })();
   </script>
+  <style>
+    .quick-actions .qa{  text-decoration: none !important;}
+  </style>
+
 </body>
 
 </html>

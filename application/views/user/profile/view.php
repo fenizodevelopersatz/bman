@@ -20,6 +20,7 @@ $user = (object) array_merge([
   'referral_id' => '',
   'rank_id' => '',
   'twofa_status' => 0,
+  'email_verify_status' => 0,
   'gender' => '',
   'dob' => '',
   'address' => '',
@@ -1922,11 +1923,22 @@ function renderExistingPreview($url, $title)
                     <div class="switch-row">
                       <div>
                         <b>Two-Factor Authentication (2FA)</b>
-                        <span>Recommended for withdrawals & profile changes.</span>
+                        <span>Requires a one-time code at login. Recommended for withdrawals & profile changes.</span>
                       </div>
                       <div class="tog <?= ((int) $user->twofa_status === 1) ? 'on' : ''; ?>" id="twofaTog"></div>
                     </div>
-                    <div class="hint">2FA save API not added here (you can add later).</div>
+                    <div class="hint" id="twofaTog_msg"></div>
+                  </div>
+
+                  <div class="field full">
+                    <div class="switch-row">
+                      <div>
+                        <b>Email Verification</b>
+                        <span>Emails a one-time code you must enter at login.</span>
+                      </div>
+                      <div class="tog <?= ((int) $user->email_verify_status === 1) ? 'on' : ''; ?>" id="emailVerifyTog"></div>
+                    </div>
+                    <div class="hint" id="emailVerifyTog_msg"></div>
                   </div>
 
                   <div class="field full">
@@ -2059,10 +2071,19 @@ function renderExistingPreview($url, $title)
                   class="ph ph-sliders-horizontal"></i> Manage</button>
             </div>
 
-            <div class="ring" style="--p:<?= (int) $rankPercent; ?>;">
+            <?php
+              $kycPercent = 0;
+              if (isset($kyc->status)) {
+                if ($kyc->status === 'approved') $kycPercent = 100;
+                elseif (in_array($kyc->status, ['under_review', 'pending'])) $kycPercent = 45;
+                else $kycPercent = 0;
+              }
+            ?>
+
+            <div class="ring" style="--p:<?= (int) $kycPercent; ?>;">
               <div class="in">
-                <b><?= (int) $rankPercent; ?>%</b>
-                <small>Rank Progress</small>
+                <b><?= (int) $kycPercent; ?>%</b>
+                <small>KYC Status</small>
               </div>
             </div>
 
@@ -2077,10 +2098,6 @@ function renderExistingPreview($url, $title)
                 </b>
               </div>
 
-              <div class="rowpill">
-                <div><b>KYC Status</b><span>Verification progress</span></div>
-                <span class="badge <?= badgeClassPro($kyc->status); ?>"><?= htmlspecialchars($kyc->status); ?></span>
-              </div>
 
               <div class="rowpill">
                 <div><b>Bank Status</b><span>Withdrawal account</span></div>
@@ -2137,6 +2154,40 @@ function renderExistingPreview($url, $title)
     </div>
   </div>
 
+  <!-- 2FA Setup Modal -->
+  <div id="twofa2Modal"
+    style="display:none;position:fixed;inset:0;background:rgba(10,10,20,.35);z-index:99999;align-items:center;justify-content:center;padding:14px;">
+    <div
+      style="width:min(480px,100%);background:#fff;border:1px solid #f5f5f7;border-radius:24px;box-shadow:0 26px 70px rgba(0,0,0,.18);overflow:hidden;">
+      <div
+        style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #f5f5f7;">
+        <b style="font-size:14px;font-weight:1100;">Setup 2FA Authentication</b>
+        <button class="btn-soft" onclick="close2FAModal()"><i class="ph ph-x"></i> Close</button>
+      </div>
+      <div style="padding:24px 16px;text-align:center;">
+        <div id="twofa_step1" style="display:none;">
+          <p style="margin:0 0 16px;color:#555;font-size:13px;">Scan this QR code with Google Authenticator</p>
+          <div id="twofa_qr" style="background:#f5f5f7;padding:16px;border-radius:12px;margin-bottom:16px;display:flex;justify-content:center;align-items:center;"></div>
+          <p style="margin:0 0 12px;color:#999;font-size:12px;">Or enter manually:</p>
+          <code id="twofa_secret" style="background:#f5f5f7;padding:8px 12px;border-radius:8px;font-size:12px;display:inline-block;word-break:break-all;"></code>
+          <div style="margin-top:20px;border-top:1px solid #f5f5f7;padding-top:16px;">
+            <label style="font-size:13px;margin-bottom:8px;display:block;">Enter 6-digit code from your authenticator:</label>
+            <input class="inp" type="text" id="twofa_code" placeholder="000000" maxlength="6" inputmode="numeric" style="text-align:center;font-size:18px;letter-spacing:4px;">
+            <div class="hint" id="twofa_code_msg"></div>
+          </div>
+        </div>
+        <div id="twofa_loading" style="display:none;text-align:center;">
+          <p>Generating QR code...</p>
+        </div>
+        <div style="margin-top:20px;display:flex;gap:10px;justify-content:center;">
+          <button class="btn-main" type="button" id="twofa_verify_btn" onclick="verify2FA()" style="display:none;"><i class="ph ph-check"></i> Verify & Save</button>
+          <button class="btn-soft" type="button" onclick="close2FAModal()"><i class="ph ph-x"></i> Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="<?php echo base_url(); ?>/assets/user_v2/js/script.js?ver=2.9"></script>
   <script>
     // ---------- Tabs ----------
@@ -2546,6 +2597,202 @@ async function freezeWithdraw() {
         }
       } catch (e) { msg.textContent = 'Network error.'; msg.style.color = '#c0392b'; }
     }
+
+    // ---------- Security toggles (2FA / Email Verification) ----------
+    async function saveToggle(el, url, msgEl) {
+      const wasOn = el.classList.contains('on');
+      const next = wasOn ? 0 : 1;
+      el.classList.toggle('on', !!next);
+      if (msgEl) { msgEl.textContent = 'Saving…'; msgEl.style.color = ''; }
+
+      const fd = new FormData();
+      fd.append('status', next);
+      fd.append('<?= $csrfName; ?>', '<?= $csrfHash; ?>');
+
+      try {
+        const r = await fetch(url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const j = await r.json();
+        setCsrfFromResponse(j);
+        if (j.status === 'success') {
+          if (msgEl) { msgEl.textContent = next ? 'Enabled.' : 'Disabled.'; msgEl.style.color = '#149a55'; }
+          if (window.toastMini) toastMini(j.message || (next ? 'Enabled' : 'Disabled'));
+        } else {
+          el.classList.toggle('on', !!wasOn);
+          if (msgEl) { msgEl.textContent = j.message || 'Could not save.'; msgEl.style.color = '#c0392b'; }
+        }
+      } catch (e) {
+        el.classList.toggle('on', !!wasOn);
+        if (msgEl) { msgEl.textContent = 'Network error.'; msgEl.style.color = '#c0392b'; }
+      }
+    }
+
+    // 2FA Toggle handler (with QR code setup modal)
+    let twofa_setup_secret = '';
+
+    function open2FAModal() {
+      document.getElementById('twofa2Modal').style.display = 'flex';
+      document.getElementById('twofa_loading').style.display = 'block';
+      document.getElementById('twofa_step1').style.display = 'none';
+      generate2FAQRCode();
+    }
+
+    function close2FAModal() {
+      document.getElementById('twofa2Modal').style.display = 'none';
+      document.getElementById('twofa_code').value = '';
+      document.getElementById('twofa_code_msg').textContent = '';
+      twofa_setup_secret = '';
+    }
+
+    async function generate2FAQRCode() {
+      const csrfName = document.getElementById('csrfName').value;
+      const csrfHash = document.getElementById('csrfHash').value;
+      const fd = new FormData();
+      fd.append(csrfName, csrfHash);
+
+      try {
+        const r = await fetch("<?= site_url('member/profile/twofa_setup_request'); ?>", {
+          method: 'POST',
+          body: fd,
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const res = await r.json();
+
+        if (res.status === 'success') {
+          twofa_setup_secret = res.secret;
+          document.getElementById('twofa_secret').textContent = res.secret;
+
+          // Generate QR code client-side using qrcode.js
+          const qrContainer = document.getElementById('twofa_qr');
+          qrContainer.innerHTML = '<div id="twofa_qr_canvas"></div>';
+
+          const otpauth = 'otpauth://totp/Nexman?secret=' + res.secret + '&issuer=Nexman';
+          new QRCode(document.getElementById('twofa_qr_canvas'), {
+            text: otpauth,
+            width: 200,
+            height: 200,
+            colorDark: '#000000',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.H
+          });
+
+          document.getElementById('twofa_loading').style.display = 'none';
+          document.getElementById('twofa_step1').style.display = 'block';
+          document.getElementById('twofa_verify_btn').style.display = 'inline-block';
+          setCsrfFromResponse(res);
+        } else {
+          toastMini(res.message || 'Failed to generate QR code');
+          close2FAModal();
+        }
+      } catch (e) {
+        toastMini('Error generating QR code');
+        close2FAModal();
+      }
+    }
+
+    async function verify2FA() {
+      const code = document.getElementById('twofa_code').value.trim();
+      const msgEl = document.getElementById('twofa_code_msg');
+
+      if (!code || code.length !== 6 || !/^\d+$/.test(code)) {
+        msgEl.textContent = 'Enter a valid 6-digit code';
+        msgEl.style.color = '#c0392b';
+        return;
+      }
+
+      const csrfName = document.getElementById('csrfName').value;
+      const csrfHash = document.getElementById('csrfHash').value;
+      const fd = new FormData();
+      fd.append('secret', twofa_setup_secret);
+      fd.append('code', code);
+      fd.append(csrfName, csrfHash);
+
+      msgEl.textContent = 'Verifying...';
+      msgEl.style.color = '#999';
+
+      try {
+        const r = await fetch("<?= site_url('member/profile/twofa_setup_verify'); ?>", {
+          method: 'POST',
+          body: fd,
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const res = await r.json();
+        setCsrfFromResponse(res);
+
+        if (res.status === 'success') {
+          msgEl.textContent = '✅ Verified! 2FA is now enabled.';
+          msgEl.style.color = '#149a55';
+          toastMini('2FA setup complete');
+          close2FAModal();
+          // Refresh the toggle state
+          document.getElementById('twofaTog').classList.add('on');
+
+          // NOW SAVE THE TOGGLE STATUS TO DATABASE
+          const saveFd = new FormData();
+          saveFd.append('status', 1);
+          saveFd.append(csrfName, csrfHash);
+
+          try {
+            const saveR = await fetch("<?= site_url('member/profile/twofa_toggle'); ?>", {
+              method: 'POST',
+              body: saveFd,
+              headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            const saveRes = await saveR.json();
+            setCsrfFromResponse(saveRes);
+            document.getElementById('twofaTog_msg').textContent = saveRes.message || '2FA enabled successfully';
+            document.getElementById('twofaTog_msg').style.color = '#149a55';
+          } catch (e) {
+            document.getElementById('twofaTog_msg').textContent = 'Setup complete but database save failed!';
+            document.getElementById('twofaTog_msg').style.color = '#c0392b';
+          }
+        } else {
+          msgEl.textContent = res.message || 'Invalid code';
+          msgEl.style.color = '#c0392b';
+        }
+      } catch (e) {
+        msgEl.textContent = 'Network error. Try again.';
+        msgEl.style.color = '#c0392b';
+      }
+    }
+
+    document.getElementById('twofaTog')?.addEventListener('click', async function() {
+      const wasOn = this.classList.contains('on');
+      const msgEl = document.getElementById('twofaTog_msg');
+
+      if (wasOn) {
+        // Turning OFF: just toggle
+        this.classList.remove('on');
+        const csrfName = document.getElementById('csrfName').value;
+        const csrfHash = document.getElementById('csrfHash').value;
+        const fd = new FormData();
+        fd.append('status', 0);
+        fd.append(csrfName, csrfHash);
+
+        try {
+          const r = await fetch("<?= site_url('member/profile/twofa_toggle'); ?>", {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          });
+          const res = await r.json();
+          setCsrfFromResponse(res);
+          msgEl.textContent = res.message || 'Two-Factor Authentication disabled.';
+          msgEl.style.color = '#999';
+        } catch (e) {
+          this.classList.add('on');
+          msgEl.textContent = 'Error disabling 2FA';
+          msgEl.style.color = '#c0392b';
+        }
+      } else {
+        // Turning ON: show QR code modal
+        open2FAModal();
+      }
+    });
+
+    // Email Verification toggle (simple toggle without setup modal)
+    document.getElementById('emailVerifyTog')?.addEventListener('click', function () {
+      saveToggle(this, "<?= site_url('member/profile/email_verify_toggle'); ?>", document.getElementById('emailVerifyTog_msg'));
+    });
 
     // ---------- Toast ----------
     function toastMini(msg) {

@@ -113,7 +113,7 @@ class Payouts extends CI_Controller
         $this->load->model('wallet/Payout_model', 'payoutModel');
     }
 
-    // POST: user/payouts/request  (AJAX)
+    // POST: user/payouts/request  (AJAX) - Step 1: Validate & Send OTP
     public function request()
     {
         $isAjax = strtolower($this->input->server('HTTP_X_REQUESTED_WITH') ?? '') === 'xmlhttprequest';
@@ -169,8 +169,16 @@ class Payouts extends CI_Controller
             ], $isAjax);
         }
 
-        // ✅ Create request + history deduct in same transaction
-        $result = $this->payoutModel->create_withdraw_request([
+        // ✅ Generate OTP for payout verification
+        $otp = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+        $otp_expiry = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+
+        // Store OTP in session
+        $this->session->set_userdata('payout_otp', $otp);
+        $this->session->set_userdata('payout_otp_expiry', $otp_expiry);
+
+        // Store payout details in session for later processing
+        $this->session->set_userdata('payout_pending', [
             'user_id' => $id,
             'amount' => $amount,
             'fee' => $withdraw_fee,
@@ -178,20 +186,87 @@ class Payouts extends CI_Controller
             'remark' => $remark,
         ]);
 
-        if (!$result['success']) {
-            return $this->_json(['success' => false, 'message' => $result['message'] ?? 'Failed'], $isAjax);
+        // Send OTP email using template
+        $this->load->model('user/Mlm_model', 'common_model');
+
+        $template = $this->db->get_where('email_template', ['subject' => 'Verify Your Payout Request - OTP'])->row();
+        if (!$template) {
+            $this->session->unset_userdata(['payout_otp', 'payout_otp_expiry', 'payout_pending']);
+            return $this->_json(['success' => false, 'message' => 'Email template not configured'], $isAjax);
         }
 
-        // ✅ Return updated snapshot + withdrawals + user history
+        $subject = $template->subject;
+        $message = str_replace('[USERNAME]', $user->username, $template->temp_content);
+        $message = str_replace('[OTP]', $otp, $message);
+        $message = str_replace('[AMOUNT]', $amount, $message);
+        $message = str_replace('[METHOD]', $method, $message);
+
+        $email_sent = $this->common_model->sendmail($user->email, $subject, $message);
+
+        if (!$email_sent) {
+            $this->session->unset_userdata(['payout_otp', 'payout_otp_expiry', 'payout_pending']);
+            return $this->_json(['success' => false, 'message' => 'Failed to send OTP email'], $isAjax);
+        }
+
+        return $this->_json([
+            'success' => true,
+            'message' => 'OTP sent to your email. Please verify to complete payout request.',
+            'require_otp' => true,
+            'email' => substr($user->email, 0, 3) . '***' . substr($user->email, -10),
+        ], $isAjax);
+    }
+
+    // POST: user/payouts/verify-otp  (AJAX) - Step 2: Verify OTP & Create Request
+    public function verify_otp()
+    {
+        $isAjax = strtolower($this->input->server('HTTP_X_REQUESTED_WITH') ?? '') === 'xmlhttprequest';
+
+        $id = (int) $this->session->userdata('user_userid');
+        if (!$id)
+            return $this->_json(['success' => false, 'message' => 'Login required'], $isAjax);
+
+        $otp = trim((string) $this->input->post('otp', true));
+        if (!$otp || strlen($otp) !== 6)
+            return $this->_json(['success' => false, 'message' => 'Invalid OTP format'], $isAjax);
+
+        // Check OTP validity
+        $session_otp = $this->session->userdata('payout_otp');
+        $otp_expiry = $this->session->userdata('payout_otp_expiry');
+        $payout_pending = $this->session->userdata('payout_pending');
+
+        if (!$session_otp || !$payout_pending) {
+            return $this->_json(['success' => false, 'message' => 'No pending payout request'], $isAjax);
+        }
+
+        if (strtotime($otp_expiry) < time()) {
+            $this->session->unset_userdata(['payout_otp', 'payout_otp_expiry', 'payout_pending']);
+            return $this->_json(['success' => false, 'message' => 'OTP expired'], $isAjax);
+        }
+
+        if ((string) $otp !== (string) $session_otp) {
+            return $this->_json(['success' => false, 'message' => 'Invalid OTP'], $isAjax);
+        }
+
+        // ✅ OTP verified - Now create the withdraw request
+        $result = $this->payoutModel->create_withdraw_request($payout_pending);
+
+        if (!$result['success']) {
+            return $this->_json(['success' => false, 'message' => $result['message'] ?? 'Failed to create request'], $isAjax);
+        }
+
+        // Clear OTP session data
+        $this->session->unset_userdata(['payout_otp', 'payout_otp_expiry', 'payout_pending']);
+
+        // ✅ Return updated snapshot
         $snap = $this->payoutModel->get_payout_snapshot($id);
 
         return $this->_json([
             'success' => true,
-            'message' => 'Withdraw request submitted',
+            'message' => 'Withdraw request submitted successfully',
             'insert' => $result['insert'],
             'payout' => $snap['payout'],
             'payouts' => $snap['payouts'],
-            'history' => $snap['history'], // ✅ added
+            'history' => $snap['history'],
         ], $isAjax);
     }
 

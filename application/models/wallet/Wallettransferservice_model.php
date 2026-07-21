@@ -286,16 +286,25 @@ class Wallettransferservice_model extends CI_Model
         list($okD, $rD) = $this->L->debit($src, $from, $amount, 'wallet_transfer',
             ['reference_id'=>$ref,'created_by'=>$adminId,'description'=>'Transfer '.$from.' ('.$x['mode'].') ['.$uid8.']']);
         if (!$okD) { $this->db->trans_rollback(); $this->audit($c,'failed','debit_failed',(string)$rD); return ['ok'=>false,'code'=>'debit_failed','message'=>$rD]; }
-        // 2) credit destination (self→to_wallet ; member→recipient same wallet)
+        // 2) credit destination (self→to_wallet ; member→recipient same wallet).
+        //    is_matured=1 / maturity_date=now: the value being moved was
+        //    already vested in the source wallet an instant ago (it's the
+        //    very debit above) — relocating it must not restart a fresh
+        //    maturity hold, exactly like Walletledger_model::transfer() does
+        //    for its own internal-move case.
         list($okC, $rC) = $this->L->credit($rcp, $isMember ? $from : $to, $amount, 'wallet_transfer',
-            ['reference_id'=>$ref,'created_by'=>$adminId,'description'=>'Transfer received '.$from.' ['.$uid8.']']);
+            ['reference_id'=>$ref,'created_by'=>$adminId,'description'=>'Transfer received '.$from.' ['.$uid8.']',
+             'is_matured'=>1,'maturity_date'=>date('Y-m-d H:i:s')]);
         if (!$okC) { $this->db->trans_rollback(); $this->audit($c,'failed','credit_failed',(string)$rC); return ['ok'=>false,'code'=>'credit_failed','message'=>$rC]; }
 
-        // 3) on-chain settlement target — self settles to the source's OWN address
-        //    (delivering value that only ever existed as a ledger row); member
-        //    transfers settle to the RECIPIENT's address. Skipped (not pending) when
-        //    that transfer type is toggled off or no wallet address is on file — the
-        //    settlement cron only ever picks up rows left 'pending'.
+        // 3) on-chain settlement target — member transfers settle to the
+        //    RECIPIENT's address (value actually moved to someone else, so the
+        //    ledger and the chain should agree). Self-transfers stay internal
+        //    by default (settle_self_transfers=0): same account both ends,
+        //    nothing left custody, so there's nothing external to prove.
+        //    Skipped (not pending) when the type is toggled off or no wallet
+        //    address is on file — the settlement cron only ever picks up rows
+        //    left 'pending'.
         $settleSettings = $this->_settlementSettings();
         $destUserId = $isMember ? $rcp : $src;
         $settlementAddress = $this->_walletAddress($destUserId);

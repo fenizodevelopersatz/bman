@@ -3572,3 +3572,60 @@ Withdrawable functionality is completed
 
 Admin side
     -History of Request
+
+
+
+
+Today i discussed below points 
+* USDT wallet in / out
+* Exchange wallet BMAN coin in /out (ROI also need to come this wallet , Maturity also need to come this wallet )
+* Usdt to BMAN conversion USDT WALLET TO EXCHANGE WALLET both BMAN to USDT WALLET 
+* Group incentive left and right based on staked matching bouns 10% need to come below wallet BMAN coin only
+* Earning WALLET 8%
+* Staking wallet 2%
+
+
+http://192.168.29.18:9000/user/forgot
+Reset your access to
+Nexman
+
+http://192.168.29.18:9000/user/in
+Start your journey with
+Nexman
+
+http://192.168.29.18:9000/user/re
+Start your journey with
+Nexman
+
+
+http://192.168.29.18:9000/admin
+
+I need to completed to change the admin dashboard with calculating the chart details  - Staking purchase amount and count
+
+recent login auditing logs
+
+*0Mu&M]>l3B
+
+
+
+20-07-26
+=============
+1. Need to add a bman to exchange wallet from external source(Receive bman from external)
+2. Only convert the exchange wallet to usdt (no others)
+3. on the pop to recheck the At maturity(only show the EXPECTED ROI)
+4. Rename the confirm & swap -> confirm
+5. Plan deactivate
+6. ROI credited here to distribute to exchange wallet
+7. Kyc Issued date optional
+8. Remove Comm tab on left side
+9. Only show to downline 
+10. http://192.168.29.18:9000/user/rank-reward Add to pdf or image or ppt - New points
+11. Add anoncement image + text (option text(bg color + text) / image (size validate on admin panel))  - New points
+
+
+
+Rank -> based on earning wallet(8%)
+
+
+Email + setting -completed
+Client demo
