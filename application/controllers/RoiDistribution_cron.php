@@ -40,16 +40,21 @@ class RoiDistribution_cron extends CI_Controller
             }
         }
 
+        $start = microtime(true);
         $monthly  = $this->_call('monthly');
         $maturity = $this->_call('maturity');
-
-        echo json_encode([
+        $result = [
             'status'   => 'success',
             'message'  => 'ROI distribution (monthly then maturity) completed',
             'monthly'  => $monthly,
             'maturity' => $maturity,
             'ran_at'   => date('Y-m-d H:i:s'),
-        ]) . PHP_EOL;
+        ];
+
+        $this->load->model('CronLog_model', 'cronlog');
+        $this->cronlog->record('roi_distribution', $result['status'], $result, (int) round((microtime(true) - $start) * 1000));
+
+        echo json_encode($result) . PHP_EOL;
     }
 
     /** Call one leg's real route as a fresh top-level request — see Roihistory::_runCron() for why. */

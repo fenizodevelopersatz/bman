@@ -1189,7 +1189,7 @@ function wallet_title_fallback($type)
               onclick="location.href='<?= base_url('user/transfer_wallet'); ?>'">
               Transfer Wallet <i class="ph ph-arrows-left-right"></i>
             </button>
-            <button class="btnH ghost" type="button" onclick="location.href='<?= base_url('user/kyc'); ?>'">
+            <button class="btnH ghost" type="button" onclick="location.href='<?= base_url('user/profile#kyc'); ?>'">
               Update KYC <i class="ph ph-identification-card"></i>
             </button>
           </div>
@@ -1417,8 +1417,6 @@ function wallet_title_fallback($type)
         </div>
         <div class="qa" onclick="location.href='<?= base_url('user/transfer_wallet'); ?>'"><i
             class="ph ph-arrows-left-right"></i> Transfer Wallet</div>
-        <div class="qa" onclick="location.href='<?= base_url('user/commissions'); ?>'"><i class="ph ph-coins"></i>
-          Commission History</div>
         <div class="qa" onclick="location.href='<?= base_url('user/payouts'); ?>'"><i class="ph ph-bank"></i> Payouts
         </div>        
         <div class="qa" onclick="location.href='<?= base_url('user/support'); ?>'"><i class="ph ph-headset"></i> Support
