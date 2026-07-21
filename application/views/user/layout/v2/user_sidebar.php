@@ -46,9 +46,7 @@ $sidebar_site_name = site_settings('meta-settings', 'site-name') ?: 'NEXMAN';
                 class="ph ph-arrows-left-right"></i> Transfer Wallet</a>
         <a href="<?php echo base_url('user/genealogy'); ?>"
             class="nav-item <?php echo $isBinaryTree ? 'active' : ''; ?>"><i class="ph ph-tree-structure"></i> Binary
-            Tree</a>
-        <a href="<?php echo base_url('user/profit'); ?>"
-            class="nav-item <?php echo $isCommissions ? 'active' : ''; ?>"><i class="ph ph-coins"></i> Commissions</a>
+            Tree</a>        
         <a href="<?php echo base_url('user/withdraw'); ?>" class="nav-item <?php echo $isPayouts ? 'active' : ''; ?>"><i
                 class="ph ph-calendar-check"></i> Payouts</a>
 

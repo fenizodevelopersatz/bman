@@ -189,7 +189,7 @@
                 <!-- Step 4: Swap Completed -->
                 <div id="step-completed" class="step-content d-none">
                     <div class="alert alert-success">
-                        <h6><i class="fas fa-check-circle"></i> Swap Completed!</h6>
+                        <h6><i class="fas fa-check-circle"></i> Completed!</h6>
                         <p class="mb-0">Your staking is now active. Check your portfolio to see it!</p>
                     </div>
 

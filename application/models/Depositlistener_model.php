@@ -156,6 +156,56 @@ class Depositlistener_model extends CI_Model
                 'message'=>"Detected $detected new deposit(s), credited $credited, enriched $enriched."];
     }
 
+    /**
+     * On-demand BMAN token deposit scan (mirrors scan() but for the platform's
+     * own BMAN contract). Unlike USDT — which only ever lands in the USDT
+     * wallet, with conversion happening exclusively at Staking Package
+     * Purchase time — BMAN sent in from an external wallet IS the Exchange
+     * wallet's asset, so a confirmed BMAN deposit credits Exchange directly.
+     *
+     * On-demand only: called from the "Check On-chain Balance" button
+     * (Profile::wallet_check). No cron path.
+     */
+    public function scanBman($only_user = null)
+    {
+        $this->load->model('Tokenmaster_model', 'tokens');
+        $this->load->model('Walletledger_model', 'ledger');
+
+        $cfg = $this->tokens->activeSettings();
+        if (!$cfg) return ['ok'=>false,'message'=>'No active Token Settings.'];
+        if (empty($cfg['bman_contract'])) return ['ok'=>false,'message'=>'BMAN contract not set in Token Settings.'];
+        if (empty($cfg['bman_enabled'])) return ['ok'=>false,'message'=>'BMAN deposits are currently disabled.'];
+
+        $this->db->select('user_id, wallet_address')->from('user_wallet');
+        if ($only_user) $this->db->where('user_id', (int)$only_user);
+        $wallets = $this->db->get()->result_array();
+        if (!$wallets) return ['ok'=>true,'detected'=>0,'credited'=>0,'skipped'=>0,'message'=>'No addresses to scan.'];
+
+        $mode = $cfg['deposit_scan_mode'] ?? 'bscscan';
+        $decimals = (int)$cfg['bman_decimals'];
+
+        try {
+            if ($mode === 'rpc') {
+                $current = (int)hexdec($this->rpc($cfg['rpc_url'], 'eth_blockNumber', []));
+                $detected = $this->detectViaRpc($cfg, $wallets, $current, 'BMAN', $cfg['bman_contract'], $decimals);
+            } else {
+                $detected = $this->detectViaBscscan($cfg, $wallets, 'BMAN', $cfg['bman_contract'], $decimals);
+                $current = $this->currentBlockForConfirmations($cfg);
+            }
+        } catch (Exception $e) {
+            return ['ok'=>false, 'detected'=>0, 'credited'=>0, 'skipped'=>0, 'message'=>$e->getMessage()];
+        }
+
+        $result = $this->creditConfirmedBman($current, (int)$cfg['minimum_confirmations'], $cfg, $only_user);
+
+        $msg = "Detected $detected new BMAN deposit(s), credited {$result['credited']}";
+        if ($result['skipped'] > 0) $msg .= ", {$result['skipped']} outside the configured transfer limits";
+        $msg .= '.';
+
+        return ['ok'=>true, 'detected'=>$detected, 'credited'=>$result['credited'],
+                'skipped'=>$result['skipped'], 'message'=>$msg];
+    }
+
     private function currentBlockForConfirmations($cfg)
     {
         $rpcUrl = trim((string)($cfg['rpc_url'] ?? ''));
@@ -186,65 +236,79 @@ class Depositlistener_model extends CI_Model
     }
 
     /** Insert a detected deposit if new (unique tx_hash+log_index). */
-    private function recordDeposit($uid, $address, $tx, $logIndex, $block, $amount, $network)
+    private function recordDeposit($uid, $address, $tx, $logIndex, $block, $amount, $network, $token = 'USDT', $fromAddress = null)
     {
         if (bccomp($amount, '0', 8) <= 0) return 0;
         $exists = $this->db->where(['tx_hash'=>$tx,'log_index'=>(int)$logIndex])
                            ->count_all_results('wallet_deposits');
         if ($exists > 0) return 0;
         $this->db->insert('wallet_deposits', [
-            'user_id'=>$uid, 'wallet_address'=>$address, 'tx_hash'=>$tx, 'log_index'=>(int)$logIndex,
-            'block_number'=>$block, 'token'=>'USDT', 'amount_usdt'=>$amount,
+            'user_id'=>$uid, 'wallet_address'=>$address, 'from_address'=>$fromAddress, 'tx_hash'=>$tx, 'log_index'=>(int)$logIndex,
+            'block_number'=>$block, 'token'=>$token,
+            'amount_usdt'=>($token === 'USDT' ? $amount : 0),
+            'amount_bman'=>($token === 'BMAN' ? $amount : 0),
             'network'=>$network, 'status'=>'pending',
         ]);
         return 1;
     }
 
-    /** BscScan / Etherscan-v2 provider: tokentx per address (free API key). */
-    private function detectViaBscscan($cfg, $wallets)
+    /**
+     * BscScan / Etherscan-v2 provider: tokentx per address (free API key).
+     * Defaults to USDT for backward compatibility; pass $tokenSymbol/$contract/
+     * $decimals to scan a different BEP-20 token (e.g. BMAN) against the same
+     * custodial addresses.
+     */
+    private function detectViaBscscan($cfg, $wallets, $tokenSymbol = 'USDT', $contract = null, $decimals = null)
     {
         $key = trim((string)($cfg['explorer_api_key'] ?? ''));
         if ($key === '') {
             throw new RuntimeException('Deposit auto-detect needs a BscScan/Etherscan API key — set it in Master → Token Settings (or switch scan mode to a log-capable RPC).');
         }
         $api = $cfg['explorer_api_url'] ?: 'https://api.etherscan.io/v2/api';
-        $usdt = $cfg['usdt_contract'];
+        $contract = $contract ?: $cfg['usdt_contract'];
         $chain = (int)$cfg['chain_id'];
-        $decimals = (int)$cfg['usdt_decimals'];
+        $decimals = $decimals ?? (int)$cfg['usdt_decimals'];
         $detected = 0;
 
         foreach ($wallets as $w) {
             $q = http_build_query([
                 'chainid' => $chain, 'module' => 'account', 'action' => 'tokentx',
-                'contractaddress' => $usdt, 'address' => $w['wallet_address'],
+                'contractaddress' => $contract, 'address' => $w['wallet_address'],
                 'page' => 1, 'offset' => 50, 'sort' => 'desc', 'apikey' => $key,
             ]);
             $ch = curl_init($api.'?'.$q);
             curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_TIMEOUT=>25]);
             $raw = curl_exec($ch); curl_close($ch);
-            $j = json_decode($raw, true);            
+            $j = json_decode($raw, true);
             if (!isset($j['result']) || !is_array($j['result'])) continue; // no txns / rate-limited
 
             foreach ($j['result'] as $t) {
                 // only incoming transfers TO our address
                 if (strtolower($t['to'] ?? '') !== strtolower($w['wallet_address'])) continue;
                 $amount = bcdiv((string)$t['value'], bcpow('10', (string)$decimals, 0), 8);
-                
+
                 $detected += $this->recordDeposit(
                     (int)$w['user_id'], $w['wallet_address'], $t['hash'],
                     isset($t['transactionIndex']) ? $t['transactionIndex'] : 0,
                     isset($t['blockNumber']) ? (int)$t['blockNumber'] : null,
-                    $amount, $cfg['network']
+                    $amount, $cfg['network'], $tokenSymbol,
+                    isset($t['from']) ? strtolower($t['from']) : null
                 );
             }
         }
         return $detected;
     }
 
-    /** RPC provider: eth_getLogs on a log-capable node. */
-    private function detectViaRpc($cfg, $wallets, $current)
+    /**
+     * RPC provider: eth_getLogs on a log-capable node. Defaults to USDT; pass
+     * $tokenSymbol/$contract/$decimals to scan a different token contract.
+     */
+    private function detectViaRpc($cfg, $wallets, $current, $tokenSymbol = 'USDT', $contract = null, $decimals = null)
     {
-        $state = $this->scanState($cfg['network'], 'USDT');
+        $contract = $contract ?: $cfg['usdt_contract'];
+        $decimals = $decimals ?? (int)$cfg['usdt_decimals'];
+
+        $state = $this->scanState($cfg['network'], $tokenSymbol);
         $from = $state ? ((int)$state['last_block'] + 1) : max(0, $current - self::MAX_BLOCK_SPAN);
         if ($from > $current) $from = $current;
         if ($current - $from > self::MAX_BLOCK_SPAN) $from = $current - self::MAX_BLOCK_SPAN;
@@ -252,11 +316,10 @@ class Depositlistener_model extends CI_Model
         $topicAddrs = array_map(function ($w) { return $this->pad32addr($w['wallet_address']); }, $wallets);
         $addrByLower = [];
         foreach ($wallets as $w) $addrByLower[strtolower($w['wallet_address'])] = (int)$w['user_id'];
-        $decimals = (int)$cfg['usdt_decimals'];
 
         $logs = $this->rpc($cfg['rpc_url'], 'eth_getLogs', [[
             'fromBlock' => '0x'.dechex($from), 'toBlock' => '0x'.dechex($current),
-            'address' => $cfg['usdt_contract'],
+            'address' => $contract,
             'topics' => [self::TRANSFER_TOPIC, null, $topicAddrs],
         ]]);
         $logs = is_array($logs) ? $logs : [];
@@ -270,10 +333,11 @@ class Depositlistener_model extends CI_Model
                 $addrByLower[$to], $this->topicToAddress($log['topics'][2]),
                 $log['transactionHash'], isset($log['logIndex']) ? (int)hexdec($log['logIndex']) : 0,
                 isset($log['blockNumber']) ? (int)hexdec($log['blockNumber']) : null,
-                $amount, $cfg['network']
+                $amount, $cfg['network'], $tokenSymbol,
+                isset($log['topics'][1]) ? $this->topicToAddress($log['topics'][1]) : null
             );
         }
-        $this->setScanState($cfg['network'], 'USDT', $current);
+        $this->setScanState($cfg['network'], $tokenSymbol, $current);
         return $detected;
     }
 
@@ -319,6 +383,76 @@ class Depositlistener_model extends CI_Model
             $credited++;
         }
         return $credited;
+    }
+
+    /**
+     * Move BMAN deposits through confirming → confirmed → credited, crediting
+     * the Exchange wallet. Idempotent the same way as USDT: Walletledger_model
+     * enforces a UNIQUE(tx_hash, wallet_type) constraint, so the same on-chain
+     * transfer can never be credited twice even under a race.
+     *
+     * bman_min_transfer / bman_max_transfer (Token Settings) are enforced only
+     * when configured above 0 — a value of 0 means that bound is disabled,
+     * matching how every other *_transfer/_deposit/_withdrawal threshold in
+     * this table behaves (there is no existing convention anywhere in this
+     * codebase where 0 means "block everything").
+     */
+    private function creditConfirmedBman($current, $minConf, $cfg, $only_user = null)
+    {
+        $this->load->model('Walletledger_model', 'ledger');
+
+        $this->db->where_in('status', ['pending','confirming','confirmed'])
+                 ->where('token', 'BMAN');
+        if ($only_user) $this->db->where('user_id', (int)$only_user);
+        $rows = $this->db->get('wallet_deposits')->result_array();
+
+        $min = (float)($cfg['bman_min_transfer'] ?? 0);
+        $max = (float)($cfg['bman_max_transfer'] ?? 0);
+
+        $credited = 0;
+        $skipped = 0;
+        foreach ($rows as $d) {
+            $conf = $d['block_number'] !== null ? max(0, $current - (int)$d['block_number']) : 0;
+            $status = $conf >= $minConf ? 'confirmed' : 'confirming';
+            $this->db->where('id', $d['id'])->update('wallet_deposits',
+                ['confirmations' => $conf, 'status' => $status]);
+            if ($conf < $minConf) continue;
+
+            $amount = (float) $d['amount_bman'];
+            if (($min > 0 && $amount < $min) || ($max > 0 && $amount > $max)) {
+                log_message('info', "[Depositlistener] BMAN deposit id={$d['id']} amount={$amount} outside configured limits (min={$min}, max={$max}) — not credited.");
+                $this->db->where('id', $d['id'])->update('wallet_deposits', ['status' => 'failed']);
+                $skipped++;
+                continue;
+            }
+
+            list($ok1) = $this->ledger->credit($d['user_id'], 'exchange', $d['amount_bman'], 'deposit', [
+                'tx_hash' => $d['tx_hash'], 'reference_id' => (string)$d['id'],
+                'description' => 'BMAN deposit '.$d['amount_bman'].' (BEP-20)',
+            ]);
+            if (!$ok1) continue;
+
+            $this->db->where('id', $d['id'])->update('wallet_deposits', [
+                'status' => 'credited', 'credited_at' => date('Y-m-d H:i:s'),
+            ]);
+
+            // The generic ledger→onchain_transactions hook (_captureOnchain)
+            // has no from/to address to work with, so the mirror row it just
+            // inserted has both as NULL — which silently excludes it from the
+            // Wallet History table (that view filters by address match).
+            // Backfill from what we captured at detection time.
+            if (!empty($d['from_address'])) {
+                $this->db->where('tx_hash', $d['tx_hash'])
+                    ->where('wallet_type', 'exchange')
+                    ->update('onchain_transactions', [
+                        'from_address' => $d['from_address'],
+                        'to_address' => $d['wallet_address'],
+                    ]);
+            }
+
+            $credited++;
+        }
+        return ['credited' => $credited, 'skipped' => $skipped];
     }
 
     /* ------------------------------ reads ------------------------------ */

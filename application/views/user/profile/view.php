@@ -111,6 +111,16 @@ if ($displayName === '')
 $displayUid = $user->referral_id ?: ('USER' . $user->id);
 $displayRank = $user->rank_id ?: '—';
 
+// Mini rank badge — same "fails soft" source as the shared right-panel rank
+// card (user_inner_right_panle.php): Memberrank_model::sidebar() reads the
+// cached BMAN Rank Achievement System state, not the old pairing engine.
+$CI =& get_instance();
+$CI->load->model('user/Memberrank_model', 'rp_rank_mini');
+$rkMini = $CI->rp_rank_mini->sidebar($user->id);
+if (!empty($rkMini['name'])) {
+  $displayRank = $rkMini['name'];
+}
+
 // Avatar
 $avatarUrl = !empty($user->profile_img)
   ? base_url('assets/images/' . $user->profile_img)
@@ -332,6 +342,20 @@ function renderExistingPreview($url, $title)
     .btn-danger {
       border: none;
       background: #ef4444;
+      color: #fff;
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-weight: 1100;
+      cursor: pointer;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-warn2 {
+      border: none;
+      background: #f59e0b;
       color: #fff;
       border-radius: 14px;
       padding: 10px 12px;
@@ -1001,6 +1025,43 @@ function renderExistingPreview($url, $title)
       box-shadow: 0 0 0 4px rgba(110, 86, 207, 0.10);
     }
 
+    .date-field-wrap {
+      position: relative;
+    }
+
+    .date-field-wrap .f-input {
+      padding-right: 64px;
+    }
+
+    .date-field-wrap .date-btn {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 26px;
+      height: 26px;
+      border: none;
+      background: transparent;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+
+    .date-field-wrap .date-btn:hover {
+      background: #efedfb;
+      color: var(--primary);
+    }
+
+    .date-field-wrap .date-btn-pick {
+      right: 34px;
+    }
+
+    .date-field-wrap .date-btn-clear {
+      right: 6px;
+    }
+
     .file-drop {
       border: 1px dashed #dcd7ff;
       background: linear-gradient(180deg, #ffffff 0%, #fbfbff 100%);
@@ -1257,10 +1318,14 @@ function renderExistingPreview($url, $title)
             <img class="ava" src="<?= htmlspecialchars($avatarUrl); ?>" alt="">
             <div class="pn">
               <b><?= htmlspecialchars($displayName); ?></b>
-              <small>
+              <small style="display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap;">
                 UID: <?= htmlspecialchars($displayUid); ?>
                 • Username: <?= htmlspecialchars($user->username ?: '—'); ?>
-                • Rank: <?= htmlspecialchars($displayRank); ?>
+                • Rank:
+                <?php if (!empty($rkMini['badge_image'])): ?>
+                  <?= rank_badge_html($rkMini['badge_image'], $rkMini['badge_color'] ?? null, 20); ?>
+                <?php endif; ?>
+                <?= htmlspecialchars($displayRank); ?>
               </small>
 
               <div class="minirow">
@@ -1273,7 +1338,7 @@ function renderExistingPreview($url, $title)
           <div class="tabs" style="margin-top:14px;">
             <button class="tab active" data-tab="profile"><i class="ph ph-user"></i> Profile</button>
             <button class="tab" data-tab="kyc"><i class="ph ph-identification-card"></i> KYC</button>
-            <button class="tab" data-tab="bank"><i class="ph ph-bank"></i> Bank</button>
+            <button class="tab" data-tab="bank"><i class="ph ph-wallet"></i> Wallet</button>
             <button class="tab" data-tab="security"><i class="ph ph-shield-check"></i> Security</button>
             <button class="tab" data-tab="notifications"><i class="ph ph-bell"></i> Notifications</button>
             <button class="tab" data-tab="danger"><i class="ph ph-warning"></i> Danger</button>
@@ -1294,37 +1359,38 @@ function renderExistingPreview($url, $title)
 
                 <div class="form-grid">
                   <div class="field">
-                    <label><i class="ph ph-user"></i> First Name</label>
-                    <input class="inp" name="first_name" value="<?= htmlspecialchars($user->username); ?>"
-                      placeholder="Enter first name">
+                    <label><i class="ph ph-user"></i> First Name <span class="req-star">*</span></label>
+                    <input class="inp" name="first_name" value="<?= htmlspecialchars($user->first_name); ?>"
+                      placeholder="Enter first name" required>
                   </div>
                   <div class="field">
-                    <label><i class="ph ph-user"></i> Last Name</label>
+                    <label><i class="ph ph-user"></i> Last Name <span class="req-star">*</span></label>
                     <input class="inp" name="last_name" value="<?= htmlspecialchars($user->last_name); ?>"
-                      placeholder="Enter last name">
+                      placeholder="Enter last name" required>
                   </div>
 
                   <div class="field">
                     <label><i class="ph ph-user"></i> Email</label>
-                    <input class="inp" name="email" value="<?= htmlspecialchars($user->email); ?>"
+                    <input class="inp" type="email" name="email" value="<?= htmlspecialchars($user->email); ?>"
                       placeholder="Enter email">
                   </div>
 
                   <div class="field full">
-                    <label><i class="ph ph-phone"></i> Phone</label>
-                    <input class="inp" name="contact" value="<?= htmlspecialchars($user->contact); ?>"
-                      placeholder="+91...">
+                    <label><i class="ph ph-phone"></i> Phone <span class="req-star">*</span></label>
+                    <input class="inp" type="tel" name="contact" value="<?= htmlspecialchars($user->contact); ?>"
+                      placeholder="+91..." required minlength="7" maxlength="15"
+                      pattern="[0-9+\-\s()]{7,15}" title="Digits only, 7-15 characters (+, -, spaces and () allowed)">
                   </div>
 
                   <div class="field">
-                    <label><i class="ph ph-globe"></i> Country</label>
+                    <label><i class="ph ph-globe"></i> Country <span class="req-star">*</span></label>
                     <input class="inp" name="country" value="<?= htmlspecialchars($user->country); ?>"
-                      placeholder="Country">
+                      placeholder="Country" required>
                   </div>
                   <div class="field">
-                    <label><i class="ph ph-clock"></i> Timezone</label>
+                    <label><i class="ph ph-clock"></i> Timezone <span class="req-star">*</span></label>
                     <input class="inp" name="time_zone" value="<?= htmlspecialchars($user->time_zone); ?>"
-                      placeholder="Asia/Kolkata">
+                      placeholder="Asia/Kolkata" required>
                   </div>
 
                   <div class="field">
@@ -1361,7 +1427,8 @@ function renderExistingPreview($url, $title)
                   <div class="field">
                     <label><i class="ph ph-mailbox"></i> Pin Code</label>
                     <input class="inp" name="zipcode" value="<?= htmlspecialchars($user->zipcode ?? ''); ?>"
-                      placeholder="Pin / ZIP code">
+                      placeholder="Pin / ZIP code" pattern="[A-Za-z0-9 \-]{3,12}"
+                      title="3-12 characters: letters, numbers, spaces and - only">
                   </div>
 
                   <div class="field full">
@@ -1370,8 +1437,20 @@ function renderExistingPreview($url, $title)
                         <b><i class="ph ph-image"></i> Update Profile Photo</b>
                         <small>PNG/JPG/WebP up to 2MB. Recommended: 400×400.</small>
                       </div>
-                      <input type="file" name="profile_img" accept="image/*">
+                      <input type="file" id="profileImgInput" name="profile_img"
+                        accept="image/jpeg,image/png,image/webp">
                     </div>
+                    <div class="upload-preview" id="profileImgPreview"
+                      <?= empty($user->profile_img) ? 'style="display:none;"' : ''; ?>>
+                      <img id="profileImgPreviewThumb"
+                        src="<?= !empty($user->profile_img) ? htmlspecialchars($avatarUrl) : ''; ?>"
+                        alt="Profile photo">
+                      <div>
+                        <b id="profileImgPreviewLabel"><?= !empty($user->profile_img) ? 'Current photo' : ''; ?></b>
+                        <small id="profileImgPreviewHint"><?= !empty($user->profile_img) ? htmlspecialchars($user->profile_img) : ''; ?></small>
+                      </div>
+                    </div>
+                    <div class="hint" id="profileImgError" style="display:none;color:#b91c1c;"></div>
                   </div>
 
                   <div class="field full">
@@ -1589,15 +1668,23 @@ function renderExistingPreview($url, $title)
                         </div>
 
                         <div class="fg col-3">
-                          <div class="f-label">Issued</div>
-                          <input class="f-input" type="date" name="doc_issue_date"
-                            value="<?php echo html_escape($kyc->doc_issue_date ?? ''); ?>" <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
+                          <div class="f-label">Issued <small style="font-weight:600;color:var(--text-muted);">(optional)</small></div>
+                          <div class="date-field-wrap">
+                            <input class="f-input date-clearable" type="date" name="doc_issue_date"
+                              value="<?php echo html_escape($kyc->doc_issue_date ?? ''); ?>" <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
+                            <button type="button" class="date-btn date-btn-pick" aria-label="Open calendar"><i class="ph ph-calendar"></i></button>
+                            <button type="button" class="date-btn date-btn-clear" aria-label="Clear date"><i class="ph ph-x"></i></button>
+                          </div>
                         </div>
 
                         <div class="fg col-3">
-                          <div class="f-label">Expiry</div>
-                          <input class="f-input" type="date" name="doc_expiry_date"
-                            value="<?php echo html_escape($kyc->doc_expiry_date ?? ''); ?>" <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
+                          <div class="f-label">Expiry <small style="font-weight:600;color:var(--text-muted);">(optional)</small></div>
+                          <div class="date-field-wrap">
+                            <input class="f-input date-clearable" type="date" name="doc_expiry_date"
+                              value="<?php echo html_escape($kyc->doc_expiry_date ?? ''); ?>" <?php echo !empty($read_only) ? 'readonly' : ''; ?> />
+                            <button type="button" class="date-btn date-btn-pick" aria-label="Open calendar"><i class="ph ph-calendar"></i></button>
+                            <button type="button" class="date-btn date-btn-clear" aria-label="Clear date"><i class="ph ph-x"></i></button>
+                          </div>
                         </div>
 
                         <div class="fg col-6"></div>
@@ -1798,7 +1885,7 @@ function renderExistingPreview($url, $title)
                 <!-- ===================== CUSTODIAL WALLET (proposal §3) ===================== -->
                 <?php
                 $fw = isset($five_wallets) ? $five_wallets : ['usdt'=>0,'exchange'=>0,'earning'=>0,'staking'=>0,'bonus'=>0];
-                $fmt = function ($v) { $v = (float)$v; return rtrim(rtrim(number_format($v, 4, '.', ','), '0'), '.') ?: '0'; };
+                $fmt = function ($v) { return number_format((float) $v, 2, '.', ','); };
                 $waddr = (!empty($wallet['wallet_address'])) ? $wallet['wallet_address'] : '';
                 $wqr = (!empty($wallet['wallet_qrimage'])) ? $wallet['wallet_qrimage'] : '';
                 ?>
@@ -1969,7 +2056,7 @@ function renderExistingPreview($url, $title)
                       <form id="transferPwForm" style="width:100%;display:grid;grid-template-columns:repeat(3,1fr);gap:10px" onsubmit="return false;">
                         <input type="hidden" name="<?= $csrfName; ?>" value="<?= $csrfHash; ?>">
                         <input class="inp" type="password" id="tpw_login" placeholder="Login password" autocomplete="current-password">
-                        <input class="inp" type="password" id="tpw_new" placeholder="New transfer password (min 4)" autocomplete="new-password">
+                        <input class="inp" type="password" id="tpw_new" placeholder="New transfer password (min 6, strong)" autocomplete="new-password">
                         <input class="inp" type="password" id="tpw_confirm" placeholder="Confirm" autocomplete="new-password">
                       </form>
                       <button class="btn-main" type="button" onclick="saveTransferPassword()"><i class="ph ph-check"></i>
@@ -2048,14 +2135,14 @@ function renderExistingPreview($url, $title)
 
                     <div class="upload">
                       <div>
-                        <b><i class="ph ph-shield-warning"></i> Freeze Withdrawals</b>
-                        <small>Temporarily block withdrawals for safety.</small>
+                        <b><i class="ph ph-shield-warning"></i> Freeze Account</b>
+                        <small>Immediately restricts your account and logs you out everywhere. Contact support to unfreeze.</small>
                       </div>
-                      <button class="btn-dark" type="button" onclick="freezeWithdraw()"><i class="ph ph-lock"></i>
+                      <button class="btn-warn2" type="button" onclick="freezeWithdraw()"><i class="ph ph-lock"></i>
                         Freeze</button>
                     </div>
 
-                    <div class="hint">Tip: You can enforce OTP/2FA before danger actions.</div>
+                    <div class="hint">Both actions require you to confirm a one-time code sent to your registered email before they take effect.</div>
                   </div>
                 </div>
               </div>
@@ -2099,15 +2186,10 @@ function renderExistingPreview($url, $title)
               </div>
 
 
-              <div class="rowpill">
-                <div><b>Bank Status</b><span>Withdrawal account</span></div>
-                <span class="badge <?= badgeClassPro($bank->status); ?>"><?= htmlspecialchars($bank->status); ?></span>
-              </div>
-
               <button class="sidebtn primary" type="button" onclick="goTab('kyc')"><i
                   class="ph ph-identification-card"></i> Update KYC</button>
-              <button class="sidebtn soft" type="button" onclick="goTab('bank')"><i class="ph ph-bank"></i> Update
-                Bank</button>
+              <button class="sidebtn soft" type="button" onclick="goTab('bank')"><i class="ph ph-wallet"></i> Update
+                Wallet</button>
               <button class="sidebtn dark" type="button" onclick="location.href='<?= base_url('user/support'); ?>'"><i
                   class="ph ph-headset"></i> Support Ticket</button>
             </div>
@@ -2241,12 +2323,96 @@ function renderExistingPreview($url, $title)
       return data;
     }
 
+    // KYC: calendar-open + clear buttons for optional date fields
+    document.querySelectorAll('.date-field-wrap').forEach((wrap) => {
+      const input = wrap.querySelector('input[type="date"]');
+      const pickBtn = wrap.querySelector('.date-btn-pick');
+      const clearBtn = wrap.querySelector('.date-btn-clear');
+      if (!input) return;
+
+      pickBtn?.addEventListener('click', () => {
+        if (input.readOnly || input.disabled) return;
+        if (typeof input.showPicker === 'function') {
+          try { input.showPicker(); } catch (e) { input.focus(); }
+        } else {
+          input.focus();
+        }
+      });
+
+      clearBtn?.addEventListener('click', () => {
+        if (input.readOnly || input.disabled) return;
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    });
+
+    // PROFILE: image preview (shown immediately on pick, before upload)
+    (function () {
+      const input = document.getElementById('profileImgInput');
+      const preview = document.getElementById('profileImgPreview');
+      const thumb = document.getElementById('profileImgPreviewThumb');
+      const label = document.getElementById('profileImgPreviewLabel');
+      const hint = document.getElementById('profileImgPreviewHint');
+      const errorBox = document.getElementById('profileImgError');
+      if (!input) return;
+
+      const MAX_BYTES = 2 * 1024 * 1024; // 2MB, matches server config
+      const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
+
+      input.addEventListener('change', () => {
+        errorBox.style.display = 'none';
+        const file = input.files && input.files[0];
+        if (!file) return;
+
+        if (!ALLOWED.includes(file.type)) {
+          errorBox.textContent = 'Only PNG, JPG or WebP images are allowed.';
+          errorBox.style.display = 'block';
+          input.value = '';
+          return;
+        }
+        if (file.size > MAX_BYTES) {
+          errorBox.textContent = 'Image must be 2MB or smaller.';
+          errorBox.style.display = 'block';
+          input.value = '';
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+          thumb.src = reader.result;
+          label.textContent = 'Selected photo (not yet saved)';
+          hint.textContent = file.name;
+          preview.style.display = 'flex';
+        };
+        reader.readAsDataURL(file);
+      });
+    })();
+
     // PROFILE AJAX
     document.getElementById('profileForm')?.addEventListener('submit', async (e) => {
       e.preventDefault();
+
+      // Basic frontend validation (required fields, phone/zip format, email
+      // format) via the browser's native constraint validation — surfaces
+      // the same inline bubble the user already sees on other forms.
+      if (!e.target.checkValidity()) {
+        e.target.reportValidity();
+        return;
+      }
+
       try {
         const res = await postForm(e.target);
-        if (res.status === 'success') { toastMini(res.message || "Profile updated"); }
+        if (res.status === 'success') {
+          Swal.fire({
+            icon: "success",
+            title: "Profile Updated",
+            text: res.message || "Your profile has been updated.",
+            buttonsStyling: false,
+            confirmButtonText: "Ok, got it!",
+            customClass: { confirmButton: "btn btn-primary" },
+          }).then(() => location.reload());
+        }
         else toastMini(res.message || "Profile update failed");
       } catch (err) {
         toastMini(err.message || "Profile update error");
@@ -2437,14 +2603,17 @@ async function askReason({
   return (value || "").trim();
 }
 
-// ✅ Helper: POST with CSRF + JSON
-async function postWithCsrf(url, reason) {
+// ✅ Helper: POST with CSRF + JSON (+ optional extra fields, e.g. otp)
+async function postWithCsrf(url, reason, extraFields) {
   const csrfName = document.getElementById("csrfName")?.value || "<?= $csrfName; ?>";
   const csrfHash = document.getElementById("csrfHash")?.value || "<?= $csrfHash; ?>";
 
   const fd = new FormData();
   fd.append("reason", reason);
   fd.append(csrfName, csrfHash);
+  if (extraFields) {
+    Object.keys(extraFields).forEach((k) => fd.append(k, extraFields[k]));
+  }
 
   const r = await fetch(url, {
     method: "POST",
@@ -2455,6 +2624,65 @@ async function postWithCsrf(url, reason) {
   const res = await r.json().catch(() => ({}));
   setCsrfFromResponse(res);
   return res;
+}
+
+// ✅ Helper: email OTP gate for Danger-zone actions (Freeze / Delete). Sends
+// a code to the account's own registered email, then prompts for it. Returns
+// the entered code, or null if sending failed / the user cancelled.
+async function askDangerOtp() {
+  const csrfName = document.getElementById("csrfName")?.value || "<?= $csrfName; ?>";
+  const csrfHash = document.getElementById("csrfHash")?.value || "<?= $csrfHash; ?>";
+
+  try {
+    const fd = new FormData();
+    fd.append(csrfName, csrfHash);
+    const r = await fetch("<?= site_url('member/profile/danger_send_otp'); ?>", {
+      method: "POST",
+      body: fd,
+      headers: { "X-Requested-With": "XMLHttpRequest" },
+    });
+    const sendRes = await r.json().catch(() => ({}));
+    setCsrfFromResponse(sendRes);
+    if (sendRes?.status !== "success") {
+      Swal.fire({
+        icon: "error",
+        title: "Couldn't send code",
+        text: sendRes?.message || "Please try again.",
+        buttonsStyling: false,
+        confirmButtonText: "Ok, got it!",
+        customClass: { confirmButton: "btn btn-primary" },
+      });
+      return null;
+    }
+  } catch (e) {
+    Swal.fire({
+      icon: "error",
+      title: "Network error",
+      text: "Could not send a verification code. Please try again.",
+      buttonsStyling: false,
+      confirmButtonText: "Ok, got it!",
+      customClass: { confirmButton: "btn btn-primary" },
+    });
+    return null;
+  }
+
+  const { value, isConfirmed } = await Swal.fire({
+    title: "Enter verification code",
+    text: "We emailed a 6-digit code to your registered email address.",
+    input: "text",
+    inputLabel: "Verification code",
+    inputPlaceholder: "123456",
+    inputAttributes: { maxlength: 6, inputmode: "numeric", autocomplete: "one-time-code" },
+    showCancelButton: true,
+    confirmButtonText: "Verify",
+    cancelButtonText: "Cancel",
+    buttonsStyling: false,
+    customClass: { confirmButton: "btn btn-primary", cancelButton: "btn btn-secondary" },
+    inputValidator: (v) => (!v || !/^\d{6}$/.test(v.trim())) ? "Enter the 6-digit code" : undefined,
+  });
+
+  if (!isConfirmed) return null;
+  return value.trim();
 }
 
 // ---------- Danger actions ----------
@@ -2473,10 +2701,14 @@ async function requestDelete() {
   });
   if (!reason) return;
 
+  const otp = await askDangerOtp();
+  if (!otp) return;
+
   try {
     const res = await postWithCsrf(
       "<?= site_url('member/profile/request_delete'); ?>",
-      reason
+      reason,
+      { otp }
     );
 
     if (res?.status === "success" || res?.status === true) {
@@ -2518,27 +2750,36 @@ async function freezeWithdraw() {
   }
 
   const reason = await askReason({
-    title: "Freeze Withdraw",
-    placeholder: "Why do you want to freeze withdraw?",
-    confirmText: "Freeze Now",
+    title: "Freeze Account",
+    placeholder: "Why do you want to freeze your account?",
+    confirmText: "Continue",
     confirmBtnClass: "btn btn-warning",
   });
   if (!reason) return;
 
+  const otp = await askDangerOtp();
+  if (!otp) return;
+
   try {
     const res = await postWithCsrf(
       "<?= site_url('member/profile/freeze_withdraw'); ?>",
-      reason
+      reason,
+      { otp }
     );
 
     if (res?.status === "success" || res?.status === true) {
       Swal.fire({
         icon: "success",
-        title: "Updated",
-        text: res.message || "Withdraw has been frozen.",
+        title: "Account Frozen",
+        text: res.message || "Your account has been frozen and you have been logged out.",
         buttonsStyling: false,
-        confirmButtonText: "Ok, got it!",
+        confirmButtonText: "Ok",
         customClass: { confirmButton: "btn btn-primary" },
+        allowOutsideClick: false,
+      }).then(() => {
+        if (res.force_logout) {
+          location.href = res.redirect || "<?= base_url('user/in'); ?>";
+        }
       });
     } else {
       Swal.fire({
@@ -2565,6 +2806,18 @@ async function freezeWithdraw() {
     function logoutAll() { toastMini("Logout all (API not connected)"); }
 
     // ---------- Transfer Password (authorizes internal wallet transfers) ----------
+    // Gmail-style strong password: length + a mix of character classes,
+    // not just a minimum length.
+    function transferPasswordIssues(pw) {
+      const issues = [];
+      if (pw.length < 6) issues.push('at least 6 characters');
+      if (!/[a-z]/.test(pw)) issues.push('a lowercase letter');
+      if (!/[A-Z]/.test(pw)) issues.push('an uppercase letter');
+      if (!/[0-9]/.test(pw)) issues.push('a number');
+      if (!/[^A-Za-z0-9]/.test(pw)) issues.push('a special character');
+      return issues;
+    }
+
     async function saveTransferPassword() {
       const login = document.getElementById('tpw_login').value;
       const npw   = document.getElementById('tpw_new').value;
@@ -2572,7 +2825,12 @@ async function freezeWithdraw() {
       const msg   = document.getElementById('tpw_msg');
       msg.style.color = '';
       if (!login) { msg.textContent = 'Enter your login password.'; msg.style.color = '#b5730a'; return; }
-      if (npw.length < 4) { msg.textContent = 'Transfer password must be at least 4 characters.'; msg.style.color = '#b5730a'; return; }
+      const issues = transferPasswordIssues(npw);
+      if (issues.length) {
+        msg.textContent = 'Password needs: ' + issues.join(', ') + '.';
+        msg.style.color = '#b5730a';
+        return;
+      }
       if (npw !== conf) { msg.textContent = 'Passwords do not match.'; msg.style.color = '#c0392b'; return; }
 
       const fd = new FormData();
@@ -3041,8 +3299,6 @@ async function freezeWithdraw() {
           [el.docType, 'Please select a document type.', v => !!v],
           [el.docNumber, 'Document number is required.', v => String(v).trim().length >= 5],
           [el.docIssueCountry, 'Issuing country is required.', v => !!v],
-          [el.docIssueDate, 'Issue date is required.', v => !!v],
-          [el.docExpiryDate, 'Expiry date is required.', v => !!v],
         ];
 
         const valueOf = (field) => {

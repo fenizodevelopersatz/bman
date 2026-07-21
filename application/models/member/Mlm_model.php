@@ -123,6 +123,7 @@ class Mlm_model extends CI_Model
             'password' => $hashedPassword,
             'status' => '1',
             'referral_id' => $referral_id,
+            'email_verify_status' => 1, // email OTP verification on by default for new accounts
             // 'twofactorsecret' => $secret,
             // 'twofacode_path' => base_url().''.$secret_img,
         ];

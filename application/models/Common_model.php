@@ -68,25 +68,32 @@ Class Common_model extends CI_Model {
           
 
             if (password_verify($password, $user_id->password)) {
-             
+
 			 if($user_id) {
-  
+
 				if($user_id->status == '1'){
-					
+
+				if ((int) ($user_id->account_frozen ?? 0) === 1) {
+					return array(
+						'status' => false,
+						'message' => "This account has been frozen for security reasons. Please contact support to unlock it."
+						);
+				}
+
 				if($user_id->get_status == '1'){
-					
+
                     return array(
                         'status' => false,
                         'message' =>"Account is deactivate!!"
                         );
-					
-				} else { 
-				 
+
+				} else {
+
                   return array(
                     'status' => TRUE,
                     'data' => $user_id
                   );
-					
+
 				}
 
 			}
@@ -100,7 +107,7 @@ Class Common_model extends CI_Model {
             'status' => false,
             'message' =>"Password doesn't match!!"
             );
-            
+
 		}
 
 	}

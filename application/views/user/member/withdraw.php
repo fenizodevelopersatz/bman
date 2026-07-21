@@ -914,6 +914,7 @@
           display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
         .allw-strip .wval{font-size:18px;font-weight:900;color:#0b1220;line-height:1.1;}
         .allw-strip .wval small{font-size:11px;font-weight:900;color:#6b7280;}
+        .allw-strip .wsub{font-size:11px;font-weight:700;color:#6b7280;margin-top:2px;}
         .allw-strip .wtag{font-size:9px;font-weight:900;letter-spacing:.2px;padding:2px 7px;border-radius:99px;
           background:#26a17b1a;color:#1b8f6b;text-transform:uppercase;}
       </style>
@@ -921,36 +922,51 @@
         <div class="wtile usdt">
           <div class="wico" style="background:#26a17b1a;color:#26a17b;"><i class="ph ph-currency-circle-dollar"></i></div>
           <div>
-            <div class="wlbl">USDT Wallet <span class="wtag">Staking Source</span></div>
+            <div class="wlbl">USDT Wallet <span class="wtag">(IN/OUT)</span></div>
             <div class="wval" id="wallet-usdt-val"><?= number_format($wallet_usdt, 2); ?> <small>USDT</small></div>
           </div>
         </div>
+        <?php
+        $wallet_bman_total = $wallet_bman_total ?? $wallet_bman;
+        $bmanTile = function ($key) use ($wallet_bman, $wallet_bman_total) {
+          $withdrawable = (float) ($wallet_bman[$key] ?? 0);
+          $total = (float) ($wallet_bman_total[$key] ?? $withdrawable);
+          $locked = max(0, $total - $withdrawable);
+          if ($locked > 0.000001) {
+            echo '<div class="wsub">' . number_format($total, 2) . ' total &middot; ' . number_format($locked, 2) . ' locked</div>';
+          }
+        };
+        ?>
         <div class="wtile">
           <div class="wico" style="background:#6366f11a;color:#6366f1;"><i class="ph ph-swap"></i></div>
           <div>
             <div class="wlbl">Exchange Wallet</div>
-            <div class="wval" id="wallet-exchange-val"><?= number_format((float)($wallet_bman['exchange'] ?? 0), 4); ?> <small>BMAN</small></div>
+            <div class="wval" id="wallet-exchange-val"><?= number_format((float)($wallet_bman['exchange'] ?? 0), 2); ?> <small>BMAN</small></div>
+            <?php $bmanTile('exchange'); ?>
           </div>
         </div>
         <div class="wtile">
           <div class="wico" style="background:#0ea5e91a;color:#0ea5e9;"><i class="ph ph-trend-up"></i></div>
           <div>
             <div class="wlbl">Earning Wallet</div>
-            <div class="wval" id="wallet-earning-val"><?= number_format((float)($wallet_bman['earning'] ?? 0), 4); ?> <small>BMAN</small></div>
+            <div class="wval" id="wallet-earning-val"><?= number_format((float)($wallet_bman['earning'] ?? 0), 2); ?> <small>BMAN</small></div>
+            <?php $bmanTile('earning'); ?>
           </div>
         </div>
         <div class="wtile">
           <div class="wico" style="background:#10b9811a;color:#10b981;"><i class="ph ph-lock-key"></i></div>
           <div>
             <div class="wlbl">Staking Wallet</div>
-            <div class="wval" id="wallet-staking-val"><?= number_format((float)($wallet_bman['staking'] ?? 0), 4); ?> <small>BMAN</small></div>
+            <div class="wval" id="wallet-staking-val"><?= number_format((float)($wallet_bman['staking'] ?? 0), 2); ?> <small>BMAN</small></div>
+            <?php $bmanTile('staking'); ?>
           </div>
         </div>
         <div class="wtile">
           <div class="wico" style="background:#f59e0b1a;color:#f59e0b;"><i class="ph ph-gift"></i></div>
           <div>
             <div class="wlbl">Bonus Wallet</div>
-            <div class="wval" id="wallet-bonus-val"><?= number_format((float)($wallet_bman['bonus'] ?? 0), 4); ?> <small>BMAN</small></div>
+            <div class="wval" id="wallet-bonus-val"><?= number_format((float)($wallet_bman['bonus'] ?? 0), 2); ?> <small>BMAN</small></div>
+            <?php $bmanTile('bonus'); ?>
           </div>
         </div>
       </div>
@@ -986,7 +1002,7 @@
                   <input class="inp" type="number" step="0.0001" min="0" id="bman_amount" name="withdraw_bman" placeholder="Enter BMAN amount"
                     required>
                   <div class="hint">Available:
-                    <?= number_format((float) ($payout->available_amount ?? $wallet_balance ?? 0), 4); ?> BMAN
+                    <?= number_format((float) ($payout->available_amount ?? $wallet_balance ?? 0), 2); ?> BMAN
                   </div>
                   <div class="hint" id="withdraw_amount_hint" style="color:#c2410c;"></div>
                 </div>
@@ -1460,7 +1476,7 @@
           // For now, we refresh the page OR rebuild table.
           const kAvail = document.getElementById('kpi-available');
           if (typeof data.available_balance !== "undefined" && kAvail) {
-            kAvail.textContent = Number(data.available_balance || 0).toFixed(4) + " BMAN";
+            kAvail.textContent = Number(data.available_balance || 0).toFixed(2) + " BMAN";
           }
           if (data.history && Array.isArray(data.history)) {
             rebuildPayoutTable(data.history);

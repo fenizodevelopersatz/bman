@@ -1050,6 +1050,7 @@ $hero_progress = 48;
       $wallet_usdt = $wallet_usdt ?? 0;
       $wallet_usdt_in_bman = $wallet_usdt_in_bman ?? null;
       $wallet_bman = $wallet_bman ?? ['exchange'=>0,'staking'=>0,'bonus'=>0,'earning'=>0];
+      $wallet_bman_total = $wallet_bman_total ?? $wallet_bman;
       // [label, icon, colour, tag]
       // Order: USDT (fixed first) → Exchange → Earning → Staking → Bonus
       $wstrip = [
@@ -1082,16 +1083,23 @@ $hero_progress = 48;
             <div class="wlbl">USDT Wallet <span class="wtag src">Staking source</span></div>
             <div class="wval"><?= number_format((float)$wallet_usdt, 2) ?> <small>USDT</small></div>
             <?php if ($wallet_usdt_in_bman !== null): ?>
-            <div class="wsub">≈ <?= number_format((float)$wallet_usdt_in_bman) ?> BMAN at current rate</div>
+            <div class="wsub">≈ <?= number_format((float)$wallet_usdt_in_bman, 2) ?> BMAN at current rate</div>
             <?php endif; ?>
           </div>
         </div>
-        <?php foreach ($wstrip as $k => $m): ?>
+        <?php foreach ($wstrip as $k => $m):
+          $withdrawable = (float)($wallet_bman[$k] ?? 0);
+          $total = (float)($wallet_bman_total[$k] ?? $withdrawable);
+          $locked = max(0, $total - $withdrawable);
+        ?>
         <div class="wtile">
           <div class="wico" style="background:<?= $m[2] ?>1a;color:<?= $m[2] ?>;"><i class="ph <?= $m[1] ?>"></i></div>
           <div>
             <div class="wlbl"><?= $m[0] ?><?php if (!empty($m[3])): ?> <span class="wtag"><?= $m[3] ?></span><?php endif; ?></div>
-            <div class="wval"><?= rtrim(rtrim(number_format((float)($wallet_bman[$k] ?? 0), 4), '0'), '.') ?: '0' ?> <small>BMAN</small></div>
+            <div class="wval"><?= number_format($withdrawable, 2) ?> <small>BMAN</small></div>
+            <?php if ($locked > 0.000001): ?>
+              <div class="wsub"><?= number_format($total, 2) ?> total &middot; <?= number_format($locked, 2) ?> locked</div>
+            <?php endif; ?>
           </div>
         </div>
         <?php endforeach; ?>
@@ -1151,9 +1159,10 @@ $hero_progress = 48;
                         if (strpos($status, 'pending') !== false) $badge_class = 'warning';
                         elseif ($status === 'swap_completed') $badge_class = 'success';
                         elseif (strpos($status, 'failed') !== false) $badge_class = 'danger';
+                        $status_label = ($status === 'swap_completed') ? 'Completed' : ucfirst(str_replace('_', ' ', $status));
                       ?>
                       <span style="display:inline-block;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:900;background:var(--<?= $badge_class ?>);color:#fff;">
-                        <?= ucfirst(str_replace('_', ' ', $status)) ?>
+                        <?= $status_label ?>
                       </span>
                     </td>
                     <td style="font-size:11px;color:#666;"><?= htmlspecialchars((string)($row->description ?? '—')) ?></td>
