@@ -37,8 +37,16 @@ var KTSigninGeneral = function () {
                 }),
 
                 e.addEventListener("click", (function (i) {
-                    i.preventDefault(),
-                        r.validate().then((function (r) {
+                    i.preventDefault();
+
+                    // Clear any server-side errors from a previous attempt so a new
+                    // submit never stacks a stale message on top of the current one.
+                    t.querySelectorAll(".invalid-feedback.server-error").forEach(function (el) { el.remove(); });
+                    t.querySelectorAll(".is-invalid").forEach(function (el) { el.classList.remove("is-invalid"); });
+                    var _oldGeneral = t.querySelector("#login-error-general");
+                    if (_oldGeneral) _oldGeneral.remove();
+
+                    r.validate().then((function (r) {
                             if ("Valid" == r) {
                                 e.setAttribute("data-kt-indicator", "on"),
                                     e.disabled = !0;
@@ -46,57 +54,75 @@ var KTSigninGeneral = function () {
                                 axios.post(e.closest("form").getAttribute("action"), new FormData(t))
                                     .then((function (response) {
                                         if (response.data.status === false) {
-                                            // Handle validation errors
+                                            // Show errors ON THE FORM ONLY — no popup.
                                             let errors = response.data.errors;
-                                            let errorMessages = [];
 
-                                            Object.keys(errors).forEach(function (field) {
-                                                let errorMessage = errors[field];
-                                                let inputField = t.querySelector(`[name="${field}"]`);
+                                            // Clear previous server-side error markers first.
+                                            t.querySelectorAll(".invalid-feedback.server-error").forEach(function (el) { el.remove(); });
+                                            t.querySelectorAll(".is-invalid").forEach(function (el) { el.classList.remove("is-invalid"); });
+                                            let oldGeneral = t.querySelector("#login-error-general");
+                                            if (oldGeneral) oldGeneral.remove();
 
-                                                if (inputField) {
-                                                    let errorDiv = document.createElement("div");
-                                                    errorDiv.classList.add("invalid-feedback");
-                                                    errorDiv.style.display = "block";
-                                                    errorDiv.textContent = errorMessage;
+                                            let generalMessages = [];
 
-                                                    // Remove previous errors
-                                                    let existingError = inputField.nextElementSibling;
-                                                    if (existingError && existingError.classList.contains("invalid-feedback")) {
-                                                        existingError.remove();
+                                            if (typeof errors === "string") {
+                                                // Single message, e.g. wrong password / deactivated account.
+                                                generalMessages.push(errors);
+                                            } else if (errors && typeof errors === "object") {
+                                                Object.keys(errors).forEach(function (field) {
+                                                    let errorMessage = errors[field];
+                                                    let inputField = t.querySelector('[name="' + field + '"]');
+                                                    if (inputField) {
+                                                        let errorDiv = document.createElement("div");
+                                                        errorDiv.classList.add("invalid-feedback", "server-error");
+                                                        errorDiv.style.display = "block";
+                                                        errorDiv.textContent = errorMessage;
+                                                        inputField.classList.add("is-invalid");
+                                                        inputField.parentNode.appendChild(errorDiv);
+                                                    } else {
+                                                        generalMessages.push(errorMessage);
                                                     }
+                                                });
+                                            }
 
-                                                    inputField.classList.add("is-invalid");
-                                                    inputField.parentNode.appendChild(errorDiv);
-                                                }
-
-                                                errorMessages.push(errorMessage);
-                                            });
-
-                                            Swal.fire({
-                                                text: errorMessages.join("\n"),
-                                                icon: "error",
-                                                buttonsStyling: !1,
-                                                confirmButtonText: "Ok, got it!",
-                                                customClass: {
-                                                    confirmButton: "btn btn-primary"
-                                                }
-                                            });
+                                            // Field-less messages go into a small inline banner at the
+                                            // top of the form (still on the form, not a popup).
+                                            if (generalMessages.length) {
+                                                let box = document.createElement("div");
+                                                box.id = "login-error-general";
+                                                box.className = "alert alert-danger py-2 px-3 mb-4";
+                                                box.style.display = "block";
+                                                box.textContent = generalMessages.join(" ");
+                                                t.prepend(box);
+                                            }
 
                                         } else {
                                             t.reset();
-                                            Swal.fire({
-                                                text: "You have successfully logged in!",
-                                                icon: "success",
-                                                buttonsStyling: !1,
-                                                confirmButtonText: "Ok, got it!",
-                                                customClass: {
-                                                    confirmButton: "btn btn-primary"
-                                                }
-                                            });
 
-                                            const redirectUrl = t.getAttribute("data-kt-redirect-url");
-                                            if (redirectUrl) location.href = redirectUrl;
+                                            // The server always decides where a successful login
+                                            // goes next: /user/verify when a second factor is
+                                            // required, /user/main otherwise. There is no valid
+                                            // "success but stay on this page" outcome, so a missing
+                                            // redirect is a bug — log it loudly instead of silently
+                                            // reloading the login form (which looks like nothing
+                                            // happened).
+                                            const redirectUrl = response.data.redirect;
+
+                                            if (!redirectUrl) {
+                                                console.error("Login succeeded but the server did not return a redirect URL.", response.data);
+                                                Swal.fire({
+                                                    text: "Logged in, but couldn't determine where to send you. Please contact support.",
+                                                    icon: "warning",
+                                                    buttonsStyling: !1,
+                                                    confirmButtonText: "Ok, got it!",
+                                                    customClass: {
+                                                        confirmButton: "btn btn-primary"
+                                                    }
+                                                });
+                                                return;
+                                            }
+
+                                            location.href = redirectUrl;
                                         }
                                     }))
                                     .catch((function () {
@@ -115,15 +141,8 @@ var KTSigninGeneral = function () {
                                         e.disabled = !1;
                                     });
                             } else {
-                                Swal.fire({
-                                    text: "Sorry, looks like there are some errors detected, please try again.",
-                                    icon: "error",
-                                    buttonsStyling: !1,
-                                    confirmButtonText: "Ok, got it!",
-                                    customClass: {
-                                        confirmButton: "btn btn-primary"
-                                    }
-                                });
+                                // Client-side validation already shows inline messages
+                                // under each field — no popup needed.
                             }
                         }));
                 }));

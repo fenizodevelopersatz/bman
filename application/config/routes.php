@@ -464,6 +464,7 @@ $route['update-changepassword-settings'] = 'admin/settings/Passwordsettings/upda
 
 /********************* USER AUTH LOGIN  */
 $route['user/in'] = 'user/auth/login';
+$route['user/verify'] = 'user/auth/login/verify';
 $route['user/re'] = 'user/auth/register';
 $route['user/auth/success'] = 'user/auth/login/success';
 $route['user/login-otp-verify'] = 'user/auth/login/verifyotp';

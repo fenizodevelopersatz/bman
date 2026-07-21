@@ -37,10 +37,11 @@
         box-shadow:0 22px 70px rgba(0,0,0,.30), inset 0 1px 0 rgba(255,255,255,.14); }
     .lpx-brand-side:before{ content:""; position:absolute; inset:18px; border-radius:26px;
         border:1px solid rgba(255,255,255,.12); pointer-events:none; }
-    .lpx-brand-inner{ position:relative; z-index:1; padding:36px 28px; text-align:center; max-width:420px; }
+    .lpx-brand-inner{ position:relative; z-index:1; padding:36px 28px; text-align:center; max-width:540px; }
     .lpx-brand-inner img{ height:180px; margin-bottom:28px; }
-    .lpx-brand-inner h2{ color:#fff; font-weight:800; font-size:34px; line-height:1.16; margin:0; }
-    .lpx-brand-inner h2 .lpx-brand-name{ display:block; }
+    .lpx-brand-inner h2{ color:#fff; font-weight:800; font-size:32px; line-height:1.2; margin:0; }
+    .lpx-brand-inner h2 .lpx-brand-lead{ display:block; white-space:nowrap; }
+    .lpx-brand-inner h2 .lpx-brand-name{ display:block; margin-top:4px; }
     .lpx-home{ position:absolute; top:28px; right:34px; z-index:1; color:#fff; font-weight:600; letter-spacing:.5px; text-decoration:none; }
     .lpx-home:hover{ color:#fff; opacity:.85; }
     .lpx-home i{ margin-right:8px; }
@@ -121,12 +122,12 @@
                     </div>
 
                     <div class="fv-row mb-5">
-                        <input type="text" placeholder="<?php echo lang('Email'); ?>" name="useremail" autocomplete="off" class="form-control bg-transparent" value="satz@yopmail.com" />
+                        <input type="text" placeholder="<?php echo lang('Email'); ?>" name="useremail" autocomplete="off" class="form-control bg-transparent" value="" />
                     </div>
 
                     <div class="fv-row mb-3">
                         <div class="input-group">
-                            <input type="password" class="form-control bg-transparent" placeholder="Password" name="password" id="password" value="Qwerty@123" required>
+                            <input type="password" class="form-control bg-transparent" placeholder="Password" name="password" id="password" value="" required>
                             <span class="input-group-text bg-transparent" id="togglePassword" style="cursor:pointer;">
                                 <i class="bi bi-eye"></i>
                             </span>
@@ -155,7 +156,7 @@
                 <!--end::Form-->
             <?php } ?>
 
-            <?php if($verify_type != '1') { $this->session->unset_userdata('sender_otp'); ?>
+            <?php if($verify_type != '1') { /* NOTE: do NOT clear sender_otp here — the verify page needs it to validate the emailed code */ ?>
                 <!--begin::Form-->
                 <form class="form w-100 mb-5" novalidate="novalidate" action="<?php echo base_url();?>user/login-finel-verify" method="POST" id="kt_sing_in_two_factor_form">
                     <div class="text-center mb-8">
@@ -187,7 +188,6 @@
                             <span class="otp-loader d-none">⏳ Verifying...</span>
                             <p class="otp-message"></p>
                         </div>
-                        <p>OTP:123456</p>
                     </div>
                     <?php endif; ?>
 
@@ -206,7 +206,6 @@
                             <span class="otp-loader d-none">⏳ Verifying...</span>
                             <p class="otp-message"></p>
                         </div>
-                        <p>OTP:123456</p>
                     </div>
                     <?php endif; ?>
 
@@ -245,7 +244,7 @@
             <a class="lpx-home" href="<?php echo base_url('landing'); ?>"><i class="bi bi-arrow-left"></i> TAKE ME HOME</a>
             <div class="lpx-brand-inner">
                 <a href="<?php echo base_url('landing'); ?>"><img src="<?php echo base_url($lpx_logo); ?>" alt="logo" onerror="this.onerror=null;this.src='<?php echo base_url('assets/img/logo/logo.svg'); ?>';"></a>
-                <h2>Start your journey with <?php echo html_escape($lpx_name); ?></h2>
+                <h2><span class="lpx-brand-lead">Start your journey with</span><span class="lpx-brand-name"><?php echo html_escape($lpx_name); ?></span></h2>
             </div>
         </div>
 
@@ -283,7 +282,7 @@
     };
     const base_url = '<?php echo base_url();?>';
     </script>
-    <script src="<?php echo base_url();?>assets/user/js/custom/authentication/sign-in/general.js?version=2.1"></script>
+    <script src="<?php echo base_url();?>assets/user/js/custom/authentication/sign-in/general.js?version=2.5"></script>
     <script src="<?php echo base_url();?>assets/js/otp-timer.js"></script>
     <script>
         var _tgl = document.getElementById("togglePassword");

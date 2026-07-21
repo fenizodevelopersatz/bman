@@ -1635,9 +1635,7 @@ function wallet_title_fallback($type)
                   class="ph ph-money"></i> Withdraw Now</button>
               <button class="btn-soft" type="button"
                 onclick="location.href='<?= base_url('user/transfer_wallet'); ?>'"><i
-                  class="ph ph-arrows-left-right"></i> Transfer Wallet</button>
-              <button class="btn-soft" type="button" onclick="location.href='<?= base_url('user/profit'); ?>'"><i
-                  class="ph ph-coins"></i> View Commissions</button>
+                  class="ph ph-arrows-left-right"></i> Transfer Wallet</button>              
             </div>
           </div>
 

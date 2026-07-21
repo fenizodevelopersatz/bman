@@ -231,9 +231,15 @@ class Profile extends MY_Controller
             'last_name' => $this->input->post('last_name', true),
             'contact' => $this->input->post('contact', true),
             'country' => $this->input->post('country', true),
-            'time_zone' => $this->input->post('time_zone', true),
             'updated_date' => date('Y-m-d H:i:s')
         ];
+        $timeZone = trim((string) $this->input->post('time_zone', true));
+        $normalizedTz = strtolower(str_replace([' ', '_'], '', $timeZone));
+        if ($timeZone === '' || in_array($normalizedTz, ['calcutta', 'asiakolkata', 'kolkata', 'ist'], true)) {
+            $data['time_zone'] = 'Asia/Kolkata';
+        } else {
+            $data['time_zone'] = $timeZone;
+        }
 
         // Proposal §1 profile fields (optional). Address Line 1 = address,
         // Pin Code = zipcode; State + Address Line 2 are the new columns.
