@@ -529,6 +529,7 @@ $config['csrf_exclude_uris'] = array(
     'investment-info/*',
     'transaction-list-profit',
     'list-profit-amount',
+    'member/profile/wallet_check',
     'api/image-generate'
 );
 /*
