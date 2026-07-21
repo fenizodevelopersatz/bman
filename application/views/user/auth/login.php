@@ -152,6 +152,10 @@
                         <?php echo lang('Not_a_Member_yet'); ?>
                         <a href="<?php echo base_url(); ?>user/re" class="link-primary"><?php echo lang('Sign_up'); ?></a>
                     </div>
+                    <div class="text-gray-500 text-center fw-semibold fs-7 mt-3">
+                        Locked out or account frozen?
+                        <a href="<?php echo base_url(); ?>user/contact" class="link-primary">Contact Support</a>
+                    </div>
                 </form>
                 <!--end::Form-->
             <?php } ?>

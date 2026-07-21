@@ -502,6 +502,7 @@ $config['csrf_exclude_uris'] = array(
     'network-member',
     'network-list',
     'add-user',
+    'member/profile/freeze_withdraw',
     'create-user',
     'user-genealogy/(:num)',
     'tree-data/(:num)',

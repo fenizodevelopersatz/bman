@@ -679,6 +679,14 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
             'staking'  => (float) ($bal['staking_withdrawable'] ?? 0),
             'bonus'    => (float) ($bal['bonus_withdrawable'] ?? 0),
         ];
+        // Raw totals too, so the view can label the gap when a maturity hold
+        // makes total > withdrawable (e.g. a not-yet-vested staking bonus).
+        $this->data['wallet_bman_total'] = [
+            'exchange' => (float) ($bal['exchange'] ?? 0),
+            'earning'  => (float) ($bal['earning'] ?? 0),
+            'staking'  => (float) ($bal['staking'] ?? 0),
+            'bonus'    => (float) ($bal['bonus'] ?? 0),
+        ];
 
         // On-chain custodial deposit wallet
         $wallet_row = $this->cw->ensureAddress($user_id);
