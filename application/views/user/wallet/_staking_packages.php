@@ -275,17 +275,6 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
             </div>
           </div>
 
-          <!-- Key Points -->
-          <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:10px;margin-bottom:12px;">
-            <div style="font-size:11px;font-weight:1000;color:#4338ca;margin-bottom:6px;">✓ Key Points</div>
-            <div style="font-size:11px;color:#334155;line-height:1.5;">
-              <div style="margin-bottom:4px;">• <strong>Principal is LOCKED</strong> until maturity</div>
-              <div style="margin-bottom:4px;">• <strong>ROI is LIQUID</strong> • earned hourly</div>
-              <div style="margin-bottom:4px;">• <strong>At Maturity:</strong> <span id="stkm-roi-total-value" style="font-weight:1100;color:#4338ca;">?</span></div>
-              <div>• <strong>Bonus 25% stays yours</strong> (not part of ROI)</div>
-            </div>
-          </div>
-
         </div>
 
         <!-- Original Quote Section -->
@@ -471,15 +460,12 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
       totalROI = principal * (ratePercent / 100);
       annualROI = totalROI / years;
     }
-    const totalAtMaturity = principalBack + totalROI;
-
     // Update preview tab elements
     $('stkm-roi-principal').textContent = Number(principal).toLocaleString();
     $('stkm-roi-return').textContent = Number(totalROI).toLocaleString();
     $('stkm-roi-rate').textContent = ratePercent + '%';
     $('stkm-roi-duration').textContent = years + ' Year' + (years>1?'s':'');
     $('stkm-roi-bonus').textContent = Number(principal*0.25).toLocaleString();
-    $('stkm-roi-total-value').textContent = Number(totalAtMaturity).toLocaleString() + ' BMAN';
 
   }
   function renderLive(){

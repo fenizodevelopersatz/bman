@@ -527,6 +527,7 @@ $route['user/chat'] = 'user/usersettings/genealogycontroller/chat';
 $route['user/chat/send'] = 'user/usersettings/genealogycontroller/chat_send';
 $route['user/chat/fetch'] = 'user/usersettings/genealogycontroller/chat_fetch';
 $route['user/chat/recent'] = 'user/usersettings/genealogycontroller/chat_recent';
+$route['user/heartbeat'] = 'user/usersettings/genealogycontroller/heartbeat';
 
 
 $route['user/earn_more'] = 'user/usersettings/Earnings';
