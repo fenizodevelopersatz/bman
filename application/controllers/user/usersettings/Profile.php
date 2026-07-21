@@ -231,15 +231,9 @@ class Profile extends MY_Controller
             'last_name' => $this->input->post('last_name', true),
             'contact' => $this->input->post('contact', true),
             'country' => $this->input->post('country', true),
+            'time_zone' => $this->input->post('time_zone', true),
             'updated_date' => date('Y-m-d H:i:s')
         ];
-        $timeZone = trim((string) $this->input->post('time_zone', true));
-        $normalizedTz = strtolower(str_replace([' ', '_'], '', $timeZone));
-        if ($timeZone === '' || in_array($normalizedTz, ['calcutta', 'asiakolkata', 'kolkata', 'ist'], true)) {
-            $data['time_zone'] = 'Asia/Kolkata';
-        } else {
-            $data['time_zone'] = $timeZone;
-        }
 
         // Proposal §1 profile fields (optional). Address Line 1 = address,
         // Pin Code = zipcode; State + Address Line 2 are the new columns.
@@ -308,7 +302,15 @@ class Profile extends MY_Controller
         if (!(password_verify($login, $user['password']) || md5($login) === $user['password'])) {
             return $this->_json(['status' => 'error', 'message' => 'Incorrect login password.'], 422);
         }
-        if (strlen($new) < 4) return $this->_json(['status' => 'error', 'message' => 'Transfer password must be at least 4 characters.'], 422);
+        $issues = [];
+        if (strlen($new) < 6) $issues[] = 'at least 6 characters';
+        if (!preg_match('/[a-z]/', $new)) $issues[] = 'a lowercase letter';
+        if (!preg_match('/[A-Z]/', $new)) $issues[] = 'an uppercase letter';
+        if (!preg_match('/[0-9]/', $new)) $issues[] = 'a number';
+        if (!preg_match('/[^A-Za-z0-9]/', $new)) $issues[] = 'a special character';
+        if (!empty($issues)) {
+            return $this->_json(['status' => 'error', 'message' => 'Password needs: ' . implode(', ', $issues) . '.'], 422);
+        }
         if ($new !== $conf)   return $this->_json(['status' => 'error', 'message' => 'Passwords do not match.'], 422);
 
         $this->db->where('id', $uid)->update('users', [
@@ -546,6 +548,55 @@ class Profile extends MY_Controller
     }
 
     // ----------------------------- DANGER: REQUEST DELETE -----------------------------
+    // ----------------------------- DANGER: EMAIL OWNERSHIP CHECK -----------------------------
+    // Freeze/Delete are consequential enough that they must not fire off just
+    // a live session — they require proving the requester still controls the
+    // account's registered email. Session-scoped OTP, separate from the login
+    // 2FA/email-verify flow's `sender_otp` key so the two never collide.
+    public function danger_send_otp()
+    {
+        if (!$this->input->is_ajax_request())
+            show_404();
+
+        $uid = (int) $this->session->userdata('user_userid');
+        if (!$uid)
+            return $this->_json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+
+        $user = $this->db->get_where('users', ['id' => $uid])->row();
+        if (!$user || !$user->email) {
+            return $this->_json(['status' => 'error', 'message' => 'No registered email on file for this account.'], 422);
+        }
+
+        $otp = sprintf('%06d', random_string('numeric', 6));
+        $this->session->set_userdata('danger_otp', $otp);
+        $this->session->set_userdata('danger_otp_at', time());
+
+        $this->load->model('member/Mlm_model');
+        $subject = 'Confirm your account security action';
+        $message = '<p>Your verification code is: <b>' . $otp . '</b></p>'
+            . '<p>This code expires in 10 minutes. If you did not request this, you can ignore this email.</p>';
+        $this->Mlm_model->sendmail($user->email, $subject, $message);
+
+        return $this->_json(['status' => 'success', 'message' => 'A verification code has been sent to your registered email.']);
+    }
+
+    // 10-minute expiry, single-use (callers clear the session key after checking).
+    private function _danger_otp_ok($otp)
+    {
+        $otp = trim((string) $otp);
+        if ($otp === '')
+            return false;
+
+        $expected = $this->session->userdata('danger_otp');
+        $sentAt = (int) $this->session->userdata('danger_otp_at');
+        if ($expected === null || $expected === '' || !$sentAt)
+            return false;
+        if ((time() - $sentAt) > 600)
+            return false;
+
+        return hash_equals((string) $expected, $otp);
+    }
+
     public function request_delete()
     {
         if (!$this->input->is_ajax_request())
@@ -558,6 +609,10 @@ class Profile extends MY_Controller
         if (!$uid)
             return $this->_json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
+        if (!$this->_danger_otp_ok($this->input->post('otp', true))) {
+            return $this->_json(['status' => 'error', 'message' => 'Invalid or expired verification code.'], 422);
+        }
+
         if ($this->Users_model->has_pending_action($uid, 'REQUEST_DELETE')) {
             return $this->_json(['status' => 'error', 'message' => 'Delete request already pending.'], 422);
         }
@@ -569,10 +624,17 @@ class Profile extends MY_Controller
         $this->db->where('id', $uid);
         $this->db->update('users', ['status' => 2]);
 
+        $this->session->unset_userdata('danger_otp');
+        $this->session->unset_userdata('danger_otp_at');
+
         return $this->_json(['status' => 'success', 'message' => 'Delete request submitted. Admin approval required.']);
     }
 
-    // ----------------------------- DANGER: FREEZE WITHDRAW -----------------------------
+    // ----------------------------- DANGER: FREEZE ACCOUNT -----------------------------
+    // Unlike Delete (queued for admin review), Freeze takes effect immediately:
+    // the account is restricted (login blocked, see Common_model::userloginVerify)
+    // and the acting session is destroyed right away — a self-service "lock my
+    // account now" action, not a request.
     public function freeze_withdraw()
     {
         if (!$this->input->is_ajax_request())
@@ -585,14 +647,28 @@ class Profile extends MY_Controller
         if (!$uid)
             return $this->_json(['status' => 'error', 'message' => 'Unauthorized'], 401);
 
-        if ($this->Users_model->has_pending_action($uid, 'FREEZE_WITHDRAW')) {
-            return $this->_json(['status' => 'error', 'message' => 'Freeze request already pending.'], 422);
+        if (!$this->_danger_otp_ok($this->input->post('otp', true))) {
+            return $this->_json(['status' => 'error', 'message' => 'Invalid or expired verification code.'], 422);
         }
 
         $reason = trim($this->input->post('reason', true));
         $this->Users_model->create_action($uid, 'FREEZE_WITHDRAW', $reason);
 
-        return $this->_json(['status' => 'success', 'message' => 'Withdraw freeze request submitted.']);
+        $this->db->where('id', $uid)->update('users', [
+            'account_frozen' => 1,
+            'account_frozen_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        // Immediate logout: destroy the session now, before responding, so the
+        // client's next request anywhere finds no active session.
+        $this->session->sess_destroy();
+
+        return $this->_json([
+            'status' => 'success',
+            'message' => 'Your account has been frozen and you have been logged out.',
+            'force_logout' => true,
+            'redirect' => base_url('user/in'),
+        ]);
     }
 
     // ----------------------------- 2FA: SETUP REQUEST (Generate QR Code) -----------------------------

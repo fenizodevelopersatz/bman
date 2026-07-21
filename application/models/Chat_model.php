@@ -228,22 +228,42 @@ class Chat_model extends CI_Model
         return $uplines; // includes self + uplines
     }
 
-    // union of (uplines + my downline subtree)
+    // direct parent only (one level up), not the whole upline chain
+    public function getDirectParentId($userId)
+    {
+        $userId = (int) $userId;
+        if ($userId <= 0)
+            return 0;
+
+        $row = $this->db
+            ->select('parent_id')
+            ->from('binary_placement')
+            ->where('user_id', $userId)
+            ->get()
+            ->row();
+
+        return $row ? (int) ($row->parent_id ?? 0) : 0;
+    }
+
+    // union of (my downline subtree + my single direct parent) — a member's
+    // chat contacts are their team plus the one person directly above them,
+    // not the whole upline chain up to the root.
     public function getPathChatUserIds($userId)
     {
         $userId = (int) $userId;
         if ($userId <= 0)
             return [];
 
-        $uplines = $this->getUplineUserIds($userId);   // [me, parent, root]
-        $downlines = $this->getTeamUserIds($userId);   // [me + subtree]
+        $downlines = $this->getTeamUserIds($userId);      // [me + subtree]
+        $parentId = $this->getDirectParentId($userId);    // one level up, or 0
 
         // merge unique
         $map = [];
-        foreach ($uplines as $id)
-            $map[(int) $id] = true;
         foreach ($downlines as $id)
             $map[(int) $id] = true;
+        if ($parentId > 0) {
+            $map[$parentId] = true;
+        }
 
         return array_keys($map); // unique list
     }
