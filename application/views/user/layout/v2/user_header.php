@@ -66,12 +66,6 @@ $uid = $this->session->userdata('user_userid') ?? '';
   }
 </style>
 <header>
-  <div class="search-box">
-    <i class="ph ph-magnifying-glass"></i>
-    <input autocomplete="off" aria-autocomplete="none" type="text"
-      placeholder="Search: orders, commissions, members..." />
-  </div>
-
   <div class="header-actions">
     <?php $mp_us = site_settings('member_theme','user_switch'); if ($mp_us === '' || $mp_us === null) $mp_us = '1'; ?>
     <?php if ($mp_us !== '0'): ?>
@@ -129,4 +123,9 @@ $uid = $this->session->userdata('user_userid') ?? '';
     });
   })();
 </script>
+<?php if (empty($hide_user_search)): ?>
+  <style>
+    .search-box { display: flex; }
+  </style>
+<?php endif; ?>
 <?php $this->load->view("partials/browser_controls"); ?>

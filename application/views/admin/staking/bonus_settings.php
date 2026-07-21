@@ -34,6 +34,9 @@
                                         <li class="breadcrumb-item text-muted"><?php echo $title; ?></li>
                                     </ul>
                                 </div>
+                                <div class="d-flex align-items-center gap-2 my-2">
+                                    <button type="button" class="btn btn-light btn-sm" id="bsm-audit-btn">Audit Log</button>
+                                </div>
                             </div>
                         </div>
                         <!--end::Toolbar-->
@@ -198,6 +201,21 @@
                                 </div>
                                 </form>
 
+                                <!-- Audit modal -->
+                                <div class="modal fade" id="bsm-audit-modal" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered mw-900px">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h3 class="modal-title">Bonus & Matching Settings Audit Log</h3>
+                                                <div class="btn btn-sm btn-icon" data-bs-dismiss="modal">
+                                                    <i class="ki-outline ki-cross fs-1"></i>
+                                                </div>
+                                            </div>
+                                            <div class="modal-body scroll-y mh-500px" id="bsm-audit-body">Loading…</div>
+                                        </div>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
 
@@ -276,6 +294,35 @@
             if (!confirm('Overwrite the bonus % of EVERY package with the default value? Package-level overrides will be lost.')) return;
             const r = await post('admin/staking/bonus-settings/apply-to-packages', new FormData());
             toast(r.msg, r.ok);
+        });
+
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g,
+                c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        /* audit log */
+        document.getElementById('bsm-audit-btn').addEventListener('click', async () => {
+            const m = bootstrap.Modal.getOrCreateInstance(document.getElementById('bsm-audit-modal'));
+            const body = document.getElementById('bsm-audit-body');
+            body.innerHTML = 'Loading…';
+            m.show();
+            const res = await fetch(base + 'admin/staking/bonus-settings/audit',
+                { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            const j = await res.json();
+            const rows = (j.rows || []).map(r =>
+                '<tr>' +
+                '<td>' + esc(r.field_name) + '</td>' +
+                '<td class="fs-8 text-muted mw-300px text-truncate">' + esc(r.old_value ?? '—') + '</td>' +
+                '<td class="fs-8 text-muted mw-300px text-truncate">' + esc(r.new_value ?? '—') + '</td>' +
+                '<td>' + esc(r.admin_name || ('#' + r.changed_by)) + '</td>' +
+                '<td class="text-muted fs-8">' + esc(r.created_at) + '</td>' +
+                '</tr>').join('');
+            body.innerHTML = rows
+                ? '<table class="table table-row-dashed fs-7"><thead><tr class="fw-bold text-muted">' +
+                  '<th>Field</th><th>Old</th><th>New</th><th>By</th><th>When</th>' +
+                  '</tr></thead><tbody>' + rows + '</tbody></table>'
+                : '<div class="text-muted">No changes recorded yet.</div>';
         });
     })();
     </script>

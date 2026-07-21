@@ -114,6 +114,10 @@ $route['withdraw-settings'] = 'admin/settings/Withdrawsettings';
 $route['withdraw-settings-update'] = 'admin/settings/Withdrawsettings/update';
 $route['token-withdraw-settings'] = 'admin/settings/Withdrawsettings/token_settings';
 $route['update-token-withdraw-settings'] = 'admin/settings/Withdrawsettings/update_token_settings';
+$route['withdraw-settings-audit'] = 'admin/settings/Withdrawsettings/audit';
+$route['admin/audit-log'] = 'admin/AdminAuditLog/index';
+$route['admin/audit-log/log'] = 'admin/AdminAuditLog/log';
+$route['admin/audit-log/clear'] = 'admin/AdminAuditLog/clear';
 $route['wallet-maturity-cron'] = 'WalletMaturity_cron/run';
 $route['user/bman-withdraw'] = 'user/Bmanwithdraw/index';
 $route['user/bman-withdraw/request'] = 'user/Bmanwithdraw/request';
@@ -672,6 +676,7 @@ $route['admin/staking/packages/reorder']['post'] = 'admin/staking/Packages/reord
 $route['admin/staking/plans'] = 'admin/staking/Plans';
 $route['admin/staking/plans/save/(:num)']['post'] = 'admin/staking/Plans/save/$1';
 $route['admin/staking/plans/toggle/(:num)']['post'] = 'admin/staking/Plans/toggle/$1';
+$route['admin/staking/plans/audit'] = 'admin/staking/Plans/audit';
 // ROI matrix (inline grid; versioned + audited saves; history & audit viewers)
 $route['admin/staking/roi-structure'] = 'admin/staking/Roistructure';
 $route['admin/staking/roi-structure/save']['post'] = 'admin/staking/Roistructure/save';
@@ -720,6 +725,7 @@ $route['admin/staking/rank-power/save-ceilings']['post'] = 'admin/staking/Rankpo
 $route['admin/staking/bonus-settings'] = 'admin/staking/Bonussettings';
 $route['admin/staking/bonus-settings/save']['post'] = 'admin/staking/Bonussettings/save';
 $route['admin/staking/bonus-settings/apply-to-packages']['post'] = 'admin/staking/Bonussettings/apply_to_packages';
+$route['admin/staking/bonus-settings/audit'] = 'admin/staking/Bonussettings/audit';
 // Binary Matching Bonus processor (propagate volume → pay 8% Earning + 2% Staking)
 $route['admin/staking/matching/run']['post'] = 'admin/staking/Matching/run';
 $route['admin/staking/matching/cron'] = 'admin/staking/Matching/cron';

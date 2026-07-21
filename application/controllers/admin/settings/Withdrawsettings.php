@@ -27,6 +27,13 @@ class  Withdrawsettings extends CI_Controller {
         $this->load->model('WalletMaturity_model', 'maturity');
     }
 
+    private function _adminId()
+    {
+        $id = (int)$this->session->userdata('admin_userid');
+        if (!$id) $id = (int)$this->session->userdata('user_id');
+        return $id;
+    }
+
 
    
     /*
@@ -226,6 +233,8 @@ class  Withdrawsettings extends CI_Controller {
 
     private function witdraw_update($label,$value){
 
+        $this->_auditFieldChange('withdraw_settings', $label, $value);
+
         $update_value = array(
             'settings_value' => $value
         );
@@ -238,6 +247,8 @@ class  Withdrawsettings extends CI_Controller {
 
     private function token_witdraw_update($label,$value){
 
+        $this->_auditFieldChange('token_withdraw_settings', $label, $value);
+
         $update_value = array(
             'settings_value' => $value
         );
@@ -246,6 +257,37 @@ class  Withdrawsettings extends CI_Controller {
         $this->db->where('settings_name',$label);
         $this->db->update('site_settings',$update_value);
 
+    }
+
+    private function _auditFieldChange($settings_type, $label, $value)
+    {
+        $row = $this->db->where('settings_type', $settings_type)
+                         ->where('settings_name', $label)
+                         ->get('site_settings')->row_array();
+        $old = $row ? $row['settings_value'] : null;
+        if ((string)$old === (string)$value) return;
+
+        $this->db->insert('admin_settings_audit', [
+            'module'     => $settings_type,
+            'field_name' => $label,
+            'old_value'  => $old,
+            'new_value'  => (string)$value,
+            'changed_by' => $this->_adminId(),
+        ]);
+    }
+
+    /* --------------------------- AJAX: audit log ------------------------- */
+    public function audit()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $rows = $this->db->select('a.*, adm.admin_name')
+                          ->from('admin_settings_audit a')
+                          ->join('admin_members adm', 'adm.id = a.changed_by', 'left')
+                          ->where_in('a.module', ['withdraw_settings', 'token_withdraw_settings'])
+                          ->order_by('a.created_at', 'DESC')->limit(200)
+                          ->get()->result_array();
+        echo json_encode(['status' => 'success', 'rows' => $rows]);
+        exit;
     }
 
 

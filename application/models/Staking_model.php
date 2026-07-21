@@ -95,15 +95,20 @@ class Staking_model extends CI_Model
         $plans = $this->db->order_by('sort_order','ASC')->get('staking_plans')->result_array();
         $terms = $this->db->get('staking_plan_terms')->result_array();
         foreach ($plans as &$p) {
-            $p['terms'] = array_values(array_filter($terms, function ($t) use ($p) {
-                return (int)$t['plan_id'] === (int)$p['id'];
+            $p['terms'] = array_values(array_filter($terms, function ($t) use ($p, $active_only) {
+                if ((int)$t['plan_id'] !== (int)$p['id']) return false;
+                // Respect each duration's own "offered" checkbox too, not just
+                // the plan-level toggle — a plan can be active with only some
+                // of its 2/3/5-year terms enabled.
+                if ($active_only && (int)($t['is_active'] ?? 1) !== 1) return false;
+                return true;
             }));
         }
         return $plans;
     }
 
     /** Update a plan's rule fields (withdraw rules, credit days, combo split). */
-    public function savePlan($id, $data)
+    public function savePlan($id, $data, $admin_id = 0)
     {
         $plan = $this->db->get_where('staking_plans', ['id' => (int)$id])->row_array();
         if (!$plan) return [false, 'Plan not found.'];
@@ -153,20 +158,46 @@ class Staking_model extends CI_Model
             }
         }
 
-        if ($row) $this->db->where('id', (int)$id)->update('staking_plans', $row);
+        if ($row) {
+            foreach ($row as $field => $newVal) {
+                $oldVal = $plan[$field] ?? null;
+                if ((string)$oldVal === (string)$newVal) continue;
+                $this->db->insert('admin_settings_audit', [
+                    'module'     => 'staking_plans',
+                    'field_name' => $plan['name'].' — '.$field,
+                    'old_value'  => $oldVal === null ? null : (string)$oldVal,
+                    'new_value'  => (string)$newVal,
+                    'changed_by' => (int)$admin_id,
+                ]);
+            }
+            $this->db->where('id', (int)$id)->update('staking_plans', $row);
+        }
         return [true, 'Plan updated.'];
     }
 
-    public function togglePlan($id, $active)
+    public function togglePlan($id, $active, $admin_id = 0)
     {
-        $this->db->where('id', (int)$id)->update('staking_plans', ['is_active' => (int)!!$active]);
+        $plan = $this->db->get_where('staking_plans', ['id' => (int)$id])->row_array();
+        $new  = (int)!!$active;
+        if ($plan && (int)$plan['is_active'] !== $new) {
+            $this->db->insert('admin_settings_audit', [
+                'module'     => 'staking_plans',
+                'field_name' => ($plan['name'] ?? ('#'.$id)).' — is_active',
+                'old_value'  => (string)$plan['is_active'],
+                'new_value'  => (string)$new,
+                'changed_by' => (int)$admin_id,
+            ]);
+        }
+        $this->db->where('id', (int)$id)->update('staking_plans', ['is_active' => $new]);
         return true;
     }
 
     /** Enable/disable the offered durations for a plan. $years e.g. [2,3,5]. */
-    public function savePlanTerms($plan_id, array $years)
+    public function savePlanTerms($plan_id, array $years, $admin_id = 0)
     {
         $plan_id = (int)$plan_id;
+        $plan    = $this->db->get_where('staking_plans', ['id' => $plan_id])->row_array();
+        $planName = $plan['name'] ?? ('#'.$plan_id);
         $years   = array_filter(array_map('intval', $years)); // drop empty sentinel values
         $allowed = [2, 3, 5];
         foreach ($years as $y) {
@@ -177,13 +208,39 @@ class Staking_model extends CI_Model
             $exists = $this->db->get_where('staking_plan_terms',
                         ['plan_id' => $plan_id, 'duration_years' => $y])->row_array();
             if ($exists) {
-                $this->db->where('id', $exists['id'])->update('staking_plan_terms', ['is_active' => $on]);
+                if ((int)$exists['is_active'] !== $on) {
+                    $this->db->insert('admin_settings_audit', [
+                        'module'     => 'staking_plans',
+                        'field_name' => $planName.' — '.$y.'y duration',
+                        'old_value'  => (string)$exists['is_active'],
+                        'new_value'  => (string)$on,
+                        'changed_by' => (int)$admin_id,
+                    ]);
+                    $this->db->where('id', $exists['id'])->update('staking_plan_terms', ['is_active' => $on]);
+                }
             } elseif ($on) {
+                $this->db->insert('admin_settings_audit', [
+                    'module'     => 'staking_plans',
+                    'field_name' => $planName.' — '.$y.'y duration',
+                    'old_value'  => '0',
+                    'new_value'  => '1',
+                    'changed_by' => (int)$admin_id,
+                ]);
                 $this->db->insert('staking_plan_terms',
                     ['plan_id' => $plan_id, 'duration_years' => $y, 'is_active' => 1]);
             }
         }
         return [true, 'Durations updated.'];
+    }
+
+    public function stakingPlansAuditLog($limit = 200)
+    {
+        return $this->db->select('a.*, adm.admin_name')
+                        ->from('admin_settings_audit a')
+                        ->join('admin_members adm', 'adm.id = a.changed_by', 'left')
+                        ->where('a.module', 'staking_plans')
+                        ->order_by('a.created_at', 'DESC')->limit((int)$limit)
+                        ->get()->result_array();
     }
 
     /* ============================== ROI MATRIX ============================== */
@@ -554,6 +611,7 @@ class Staking_model extends CI_Model
     public function saveBonusSettings($data, $admin_id)
     {
         $row = [];
+        $before = $this->bonusSettings(); // snapshot for the audit diff below
 
         // §7 staking bonus default %
         if (array_key_exists('bonus_percent_default', $data)) {
@@ -603,7 +661,31 @@ class Staking_model extends CI_Model
         if (!$row) return [false, 'Nothing to save.'];
         $row['updated_by'] = (int)$admin_id;
         $this->db->where('id', 1)->update('staking_bonus_settings', $row);
+
+        foreach ($row as $field => $newVal) {
+            if ($field === 'updated_by') continue;
+            $oldVal = $before[$field] ?? null;
+            if ((string)$oldVal === (string)$newVal) continue; // unchanged, skip
+            $this->db->insert('admin_settings_audit', [
+                'module' => 'bonus_settings',
+                'field_name' => $field,
+                'old_value' => $oldVal === null ? null : (string)$oldVal,
+                'new_value' => (string)$newVal,
+                'changed_by' => (int)$admin_id,
+            ]);
+        }
+
         return [true, 'Bonus & matching settings saved.'];
+    }
+
+    public function bonusAuditLog($limit = 200)
+    {
+        return $this->db->select('a.*, adm.admin_name')
+                        ->from('admin_settings_audit a')
+                        ->join('admin_members adm', 'adm.id = a.changed_by', 'left')
+                        ->where('a.module', 'bonus_settings')
+                        ->order_by('a.created_at', 'DESC')->limit((int)$limit)
+                        ->get()->result_array();
     }
 
     /** Push the global default bonus % onto every package (§7 convenience). */

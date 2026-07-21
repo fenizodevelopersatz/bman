@@ -1,4 +1,5 @@
 <?php $this->load->view('admin/Layout/common_style');?>
+<?php $hide_admin_sidebar = true; ?>
 
     <link href="<?php echo base_url();?>/assets/admin/plugins/custom/datatables/datatables.bundle.css" rel="stylesheet" type="text/css">
     <link href="<?php echo base_url();?>/assets/admin/plugins/custom/vis-timeline/vis-timeline.bundle.css" rel="stylesheet" type="text/css">
@@ -18,8 +19,8 @@
         }
     </style>
 
-    <body id="kt_app_body" data-kt-app-layout="dark-sidebar" data-kt-app-header-fixed="true" data-kt-app-sidebar-enabled="true" data-kt-app-sidebar-fixed="true" data-kt-app-sidebar-hoverable="true" data-kt-app-sidebar-push-header="true" data-kt-app-sidebar-push-toolbar="true"
-    data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class="app-default">
+    <body id="kt_app_body" data-kt-app-layout="dark-sidebar" data-kt-app-header-fixed="true" data-kt-app-sidebar-enabled="false" data-kt-app-sidebar-fixed="false" data-kt-app-sidebar-hoverable="false" data-kt-app-sidebar-push-header="false" data-kt-app-sidebar-push-toolbar="false"
+    data-kt-app-sidebar-push-footer="false" data-kt-app-toolbar-enabled="true" class="app-default">
 
         <div class="d-flex flex-column flex-root app-root" id="kt_app_root">
             <div class="app-page  flex-column flex-column-fluid " id="kt_app_page">
@@ -35,7 +36,7 @@
                     <!--begin::Wrapper-->
                     <div class="app-wrapper  flex-column flex-row-fluid " id="kt_app_wrapper">
 
-                        <?php $this->load->view('admin/Layout/admin_sidebar');?>
+                        <?php if (empty($hide_admin_sidebar)) $this->load->view('admin/Layout/admin_sidebar'); ?>
 
                             <!--begin::Main-->
                             <div class="app-main flex-column flex-row-fluid " id="kt_app_main">
@@ -215,7 +216,7 @@
 <body id="kt_app_body" class="app-default">
 <?php $this->load->view('admin/Layout/admin_topbar'); ?>
 <div class="app-wrapper flex-column flex-row-fluid" id="kt_app_wrapper">
-<?php $this->load->view('admin/Layout/admin_sidebar'); ?>
+<?php if (empty($hide_admin_sidebar)) $this->load->view('admin/Layout/admin_sidebar'); ?>
 
 <div class="app-main flex-column flex-row-fluid" id="kt_app_main">
   <div class="app-container container-xxl py-6">
