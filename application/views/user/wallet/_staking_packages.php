@@ -275,7 +275,16 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
             </div>
           </div>
 
-    
+          <!-- Key Points -->
+          <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:10px;margin-bottom:12px;">
+            <div style="font-size:11px;font-weight:1000;color:#4338ca;margin-bottom:6px;">✓ Key Points</div>
+            <div style="font-size:11px;color:#334155;line-height:1.5;">
+              <div style="margin-bottom:4px;">• <strong>Principal is LOCKED</strong> until maturity</div>
+              <div style="margin-bottom:4px;">• <strong>ROI is LIQUID</strong> • earned hourly</div>
+              <div style="margin-bottom:4px;">• <strong>At Maturity:</strong> <span id="stkm-roi-total-value" style="font-weight:1100;color:#4338ca;">?</span></div>
+              <div>• <strong>Bonus 25% stays yours</strong> (not part of ROI)</div>
+            </div>
+          </div>
 
         </div>
 
@@ -298,7 +307,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         </div>
       </div>
       <div class="stkm-nav"><button class="stkm-back" id="stkm-back" type="button">Back</button><button class="stkm-next" id="stkm-next" type="button">Next</button></div>
-      <button class="stkm-confirm" id="stkm-go" type="button" onclick="stkConfirm()" style="margin-top:10px;display:none;"> <?= $isSwap ? 'Confirm' : 'Confirm' ?></button>
+      <button class="stkm-confirm" id="stkm-go" type="button" onclick="stkConfirm()" style="margin-top:10px;display:none;"> <?= $isSwap ? 'Confirm &amp; Swap' : 'Confirm &amp; Stake' ?></button>
       </div>
 
     </div>
@@ -336,11 +345,15 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     ];
     return $carry;
   }, [])) ?> || {1:{name:'Option 1',exchange:100,earning:0,staking:0,bonus:0},2:{name:'Option 2',exchange:80,earning:10,staking:5,bonus:5},3:{name:'Option 3',exchange:70,earning:15,staking:10,bonus:5},4:{name:'Option 4',exchange:60,earning:20,staking:10,bonus:10},5:{name:'Option 5',exchange:50,earning:20,staking:20,bonus:10},6:{name:'Option 6',exchange:40,earning:30,staking:20,bonus:10},7:{name:'Option 7',exchange:70,earning:10,staking:10,bonus:10}};
-  const ROI_PLANS = [
-    {code: 'fixed', name: 'Fixed Plan', desc: 'ROI accrues as one total percentage and is credited at the end of the term (maturity). All ROI paid at once.'},
-    {code: 'regular', name: 'Regular Plan', desc: 'ROI is credited every month on days 5, 15, and 25. You receive a steady monthly percentage across the whole term.'},
-    {code: 'combo', name: 'Combo Plan', desc: 'A blend of Fixed and Regular: part of your ROI pays monthly while the rest is settled at maturity.'}
-  ];
+  // Plan descriptions only (which plans are actually offered — and what
+  // durations each one offers — comes from PLANS, server-filtered to
+  // is_active=1 so a plan the admin deactivates on Staking Plans stops
+  // appearing here immediately, with no separate hardcoded list to miss).
+  const PLAN_DESCRIPTIONS = {
+    fixed: 'ROI accrues as one total percentage and is credited at the end of the term (maturity). All ROI paid at once.',
+    regular: 'ROI is credited every month on days 5, 15, and 25. You receive a steady monthly percentage across the whole term.',
+    combo: 'A blend of Fixed and Regular: part of your ROI pays monthly while the rest is settled at maturity.'
+  };
   let cur = {pkg:null, plan:null, years:null, roi_plan:null, dist:Number(Object.keys(DISTS)[0] || 7), usdt:0, bal:0, step:1, quote:null};
   const $ = id => document.getElementById(id);
   const SWAP_ON = <?= !empty($swap_enabled) ? 'true' : 'false' ?>;
@@ -348,12 +361,13 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   function stkPickROIPlan(code){
     cur.roi_plan = code;
     document.querySelectorAll('#stkm-roi-plans button').forEach(b=>b.classList.toggle('active', b.dataset.code===code));
-    // Render term buttons for selected ROI plan
-    const plan = ROI_PLANS.find(p=>p.code===code);
+    // Render term buttons for the durations THIS plan actually offers
+    // (staking_plan_terms, via PLANS — admin's "Durations offered" checkboxes).
+    const plan = PLANS.find(p=>p.code===code);
     if(plan) {
       $('stkm-terms').innerHTML='';
-      const defaultTerms = [2, 3, 5];  // Default term options
-      defaultTerms.forEach(y=>{
+      const terms = (plan.terms && plan.terms.length) ? plan.terms : [2, 3, 5];
+      terms.forEach(y=>{
         const b=document.createElement('button');
         b.type='button';
         b.textContent=y+'Y';
@@ -361,7 +375,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         b.onclick=()=>stkPickTerm(y);
         $('stkm-terms').appendChild(b);
       });
-      stkPickTerm(defaultTerms[0]);  // Select first term by default
+      stkPickTerm(terms[0]);  // Select first offered term by default
     }
   }
   function renderStep(step){
@@ -530,16 +544,23 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
       b.onclick=()=>selectPackage(p.id);
       $('stkm-packages').appendChild(b);
     });
-    // ROI Plans (Step 2)
+    // ROI Plans (Step 2) — only plans the admin has active (Master → Staking
+    // Plans); a deactivated plan (e.g. Combo) simply isn't in PLANS.
     $('stkm-roi-plans').innerHTML='';
-    ROI_PLANS.forEach((pl)=>{
+    PLANS.forEach((pl)=>{
       const b=document.createElement('button');
       b.type='button';
       b.textContent=pl.name;
       b.dataset.code=pl.code;
+      b.title=PLAN_DESCRIPTIONS[pl.code] || '';
       b.onclick=()=>stkPickROIPlan(pl.code);
       $('stkm-roi-plans').appendChild(b);
     });
+    // Default to Fixed Plan when it's active; otherwise the first active plan.
+    if (PLANS.length) {
+      const def = PLANS.find(p => p.code === 'fixed') || PLANS[0];
+      stkPickROIPlan(def.code);
+    }
     // Terms are rendered dynamically when ROI plan is selected, so no need to populate here
     renderDistButtons();
     selectPackage(pkgId);

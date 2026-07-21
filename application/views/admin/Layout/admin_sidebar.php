@@ -672,24 +672,6 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
           </div>
 
           <!--end::Scroll wrapper-->
-          <div class="menu-item">
-            <a href="<?php echo base_url(); ?>admin/binary-business-report" class="menu-link">
-              <span class="menu-icon">
-                <i class="ki-duotone ki-category fs-3">
-                  <span class="path1"></span>
-                  <span class="path2"></span>
-                  <span class="path3"></span>
-                  <span class="path4"></span>
-                </i>
-              </span>
-              <span class="menu-title">Commission Calculator</span>
-            </a>
-          </div>
-
-
-
-
-
           <!--end::Scroll wrapper-->
           <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
             class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention">
@@ -743,6 +725,12 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 <a class="menu-link" href="<?php echo base_url(); ?>withdraw-settings">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Withdraw Settings</span>
+                </a>
+              </div>
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/audit-log">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Admin Audit Log</span>
                 </a>
               </div>
 
