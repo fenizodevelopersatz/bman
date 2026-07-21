@@ -16,6 +16,37 @@
         .verified {
         border-color: green;
         }
+        #ann-crop-stage {
+            position: relative;
+            width: 600px;
+            max-width: 100%;
+            height: 300px;
+            background: #0b0b0f;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #ann-crop-box {
+            position: absolute;
+            border: 2px dashed #fff;
+            box-shadow: 0 0 0 2000px rgba(0,0,0,.45);
+            cursor: move;
+            touch-action: none;
+        }
+        .ann-handle {
+            position: absolute;
+            right: -7px;
+            bottom: -7px;
+            width: 14px;
+            height: 14px;
+            background: #fff;
+            border: 2px solid #6E56CF;
+            border-radius: 50%;
+            cursor: nwse-resize;
+            touch-action: none;
+        }
     </style>
 
     <body id="kt_app_body" data-kt-app-layout="dark-sidebar" data-kt-app-header-fixed="true" data-kt-app-sidebar-enabled="true" data-kt-app-sidebar-fixed="true" data-kt-app-sidebar-hoverable="true" data-kt-app-sidebar-push-header="true" data-kt-app-sidebar-push-toolbar="true"
@@ -98,16 +129,84 @@
                                       
                  
                         <div class="row mb-6">
-                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Announcement<span class="text-danger"> * </span></label>
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Type<span class="text-danger"> * </span></label>
                         <div class="col-lg-8 fv-row">
-                        <div class="input-group mb-5">
-                        <span class="input-group-text border-transparent " id="basic-addon1"><i class="fa-solid fa-note-sticky "></i></span>
-                        <textarea type="text" name="announcement_content" 
-                        class="form-control form-control-lg form-control-solid" 
-                        placeholder="Enter Announcement Content" 
-                        value="<?php echo $announcement_content; ?>" required><?php echo $announcement_content; ?></textarea>
+                        <div class="d-flex gap-6">
+                            <label class="form-check form-check-custom form-check-solid">
+                                <input class="form-check-input" type="radio" name="announcement_type" value="text"
+                                    <?php echo ($announcement_type !== 'image') ? 'checked' : ''; ?>>
+                                <span class="form-check-label">Text (background color + text)</span>
+                            </label>
+                            <label class="form-check form-check-custom form-check-solid">
+                                <input class="form-check-input" type="radio" name="announcement_type" value="image"
+                                    <?php echo ($announcement_type === 'image') ? 'checked' : ''; ?>>
+                                <span class="form-check-label">Image</span>
+                            </label>
                         </div>
                         </div>
+                        </div>
+
+                        <div id="text-section">
+                            <div class="row mb-6">
+                            <label class="col-lg-4 col-form-label fw-semibold fs-6">Announcement Text<span class="text-danger"> * </span></label>
+                            <div class="col-lg-8 fv-row">
+                            <div class="input-group mb-5">
+                            <span class="input-group-text border-transparent " id="basic-addon1"><i class="fa-solid fa-note-sticky "></i></span>
+                            <textarea name="announcement_content"
+                            class="form-control form-control-lg form-control-solid"
+                            placeholder="Enter Announcement Content"><?php echo htmlspecialchars($announcement_content); ?></textarea>
+                            </div>
+                            </div>
+                            </div>
+
+                            <div class="row mb-6">
+                            <label class="col-lg-4 col-form-label fw-semibold fs-6">Background Color</label>
+                            <div class="col-lg-8 fv-row">
+                                <input type="color" name="bg_color" class="form-control form-control-lg form-control-solid w-100px"
+                                    value="<?php echo htmlspecialchars($bg_color); ?>">
+                            </div>
+                            </div>
+                        </div>
+
+                        <div id="image-section" style="display:none;" data-has-image="<?php echo !empty($image) ? '1' : '0'; ?>">
+                            <?php if (!empty($image)): ?>
+                            <div class="row mb-6">
+                                <label class="col-lg-4 col-form-label fw-semibold fs-6">Current Image</label>
+                                <div class="col-lg-8 fv-row">
+                                    <img src="<?php echo base_url($image); ?>" style="max-width:300px;border-radius:8px;border:1px solid #333;">
+                                    <div class="text-muted fs-8 mt-1">Choose a new file below to replace it.</div>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+
+                            <div class="row mb-6">
+                            <label class="col-lg-4 col-form-label fw-semibold fs-6">Image<span class="text-danger"> * </span></label>
+                            <div class="col-lg-8 fv-row">
+                                <input type="file" id="ann-file-input" accept="image/png,image/jpeg,image/webp" class="form-control form-control-lg form-control-solid mb-2">
+                                <div class="text-muted fs-8 mb-4">JPG, PNG or WEBP, max 3MB. Recommended aspect ratio 3:1 (e.g. 1200×400) — crop below.</div>
+
+                                <div id="ann-cropper-wrap" style="display:none;">
+                                    <div id="ann-crop-stage">
+                                        <canvas id="ann-src-canvas"></canvas>
+                                        <div id="ann-crop-box">
+                                            <div class="ann-handle"></div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-3 mt-3">
+                                        <label class="fs-8 text-muted mb-0">Zoom</label>
+                                        <input type="range" id="ann-zoom" min="100" max="300" value="100" class="form-range" style="width:200px">
+                                        <button type="button" class="btn btn-sm btn-primary ms-auto" id="ann-apply-crop">Apply Crop</button>
+                                    </div>
+                                </div>
+
+                                <div id="ann-crop-preview-wrap" style="display:none;" class="mt-4">
+                                    <label class="form-label fs-8">Cropped Preview</label><br>
+                                    <img id="ann-crop-preview" style="max-width:400px;border-radius:8px;border:1px solid #333;">
+                                </div>
+
+                                <input type="hidden" name="cropped_image_data" id="ann-cropped-data">
+                            </div>
+                            </div>
                         </div>
 
                         <input type="hidden" name="announcement_id" value="<?php echo $announcement_id; ?>" />
@@ -167,10 +266,8 @@
                 const base_url = '<?php echo base_url();?>';
             </script>
             <script src="<?php echo base_url();?>/assets/admin/js/custom/authentication/sign-in/announcement-edit-settings.js?ver=2.9"></script>
+            <script src="<?php echo base_url();?>/assets/admin/js/custom/authentication/sign-in/announcement-cropper.js?ver=1.0"></script>
 
-
-            <script>
-            </script>
     </body>
 
     </html>

@@ -228,11 +228,11 @@
 
       <?php $this->load->view('user/layout/v2/user_header'); ?>
 
-      <!-- ===================== ANNOUNCEMENT BANNER (ONLY TEXT SLIDES) ===================== -->
+      <!-- ===================== ANNOUNCEMENT BANNER ===================== -->
+      <?php $defaultHeroImg = base_url() . 'assets/user/media/misc/city.png'; ?>
       <div class="banner-wrapper banner-fixed">
 
-        <!-- ONE FIXED SLIDE (background + image stays static) -->
-        <div class="slide slide-hero active" style="position: relative; inset:auto; opacity:1;">
+        <div class="slide slide-hero active" id="slideHero" style="position: relative; inset:auto; opacity:1;">
           <div class="hero-grid">
 
             <!-- Left Content -->
@@ -240,14 +240,18 @@
               <div class="tag"><i class="ph ph-megaphone"></i> Announcement</div>
 
               <?php if (!empty($notification)): ?>
-                <!-- ✅ Only TEXT rotates here -->
                 <div id="announcementCarousel" class="carousel slide carousel-fade text-only-carousel"
                   data-bs-ride="carousel" data-bs-interval="3200" data-bs-pause="false" data-bs-touch="true">
 
                   <div class="carousel-inner">
                     <?php $first = true;
-                    foreach ($notification as $note): ?>
-                      <div class="carousel-item <?= $first ? 'active' : ''; ?>">
+                    foreach ($notification as $note):
+                      $isImage = ($note->announcement_type ?? 'text') === 'image';
+                      $bg = $isImage ? '' : ($note->bg_color ?: '');
+                      $img = $isImage && !empty($note->image) ? base_url($note->image) : $defaultHeroImg;
+                    ?>
+                      <div class="carousel-item <?= $first ? 'active' : ''; ?>"
+                        data-bg="<?= htmlspecialchars($bg); ?>" data-image="<?= htmlspecialchars($img); ?>">
                         <h1 class="hero-title">— <?= htmlspecialchars($note->title); ?></h1>
                       </div>
                       <?php $first = false; endforeach; ?>
@@ -277,18 +281,39 @@
               </div>
             </div>
 
-            <!-- Right Image (STATIC ALWAYS) -->
+            <!-- Right Image (swaps per active announcement's image, if any) -->
             <div class="hero-right">
-              <img class="hero-img" src="<?= base_url(); ?>assets/user/media/misc/city.png" alt="banner image">
+              <img class="hero-img" id="heroImg" src="<?= $defaultHeroImg; ?>" alt="banner image">
             </div>
 
           </div>
         </div>
 
-        <!-- ❌ REMOVE old dot slider (this is for your custom JS slide rotation) -->
         <div class="dots" id="sliderDots"></div>
 
       </div>
+
+      <?php if (!empty($notification)): ?>
+      <script>
+        (function () {
+          var carousel = document.getElementById('announcementCarousel');
+          var slideHero = document.getElementById('slideHero');
+          var heroImg = document.getElementById('heroImg');
+          if (!carousel || !slideHero || !heroImg) return;
+
+          function applySlide(item) {
+            if (!item) return;
+            slideHero.style.background = item.getAttribute('data-bg') || '';
+            heroImg.src = item.getAttribute('data-image') || '<?= $defaultHeroImg; ?>';
+          }
+
+          applySlide(carousel.querySelector('.carousel-item.active'));
+          carousel.addEventListener('slide.bs.carousel', function (e) {
+            applySlide(e.relatedTarget);
+          });
+        })();
+      </script>
+      <?php endif; ?>
 
 
       <!-- User Activity & Coin Trend chart -->

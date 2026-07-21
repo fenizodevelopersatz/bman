@@ -117,7 +117,11 @@ $route['update-token-withdraw-settings'] = 'admin/settings/Withdrawsettings/upda
 $route['withdraw-settings-audit'] = 'admin/settings/Withdrawsettings/audit';
 $route['admin/audit-log'] = 'admin/AdminAuditLog/index';
 $route['admin/audit-log/log'] = 'admin/AdminAuditLog/log';
-$route['admin/audit-log/clear'] = 'admin/AdminAuditLog/clear';
+$route['admin/all-transaction'] = 'admin/AllTransactions/index';
+$route['admin/all-transaction/options'] = 'admin/AllTransactions/options';
+$route['admin/all-transaction/list'] = 'admin/AllTransactions/list';
+$route['admin/all-transaction/detail'] = 'admin/AllTransactions/detail';
+$route['admin/all-transaction/cron-log'] = 'admin/AllTransactions/cron_log';
 $route['wallet-maturity-cron'] = 'WalletMaturity_cron/run';
 $route['user/bman-withdraw'] = 'user/Bmanwithdraw/index';
 $route['user/bman-withdraw/request'] = 'user/Bmanwithdraw/request';
@@ -523,6 +527,7 @@ $route['user/chat'] = 'user/usersettings/genealogycontroller/chat';
 $route['user/chat/send'] = 'user/usersettings/genealogycontroller/chat_send';
 $route['user/chat/fetch'] = 'user/usersettings/genealogycontroller/chat_fetch';
 $route['user/chat/recent'] = 'user/usersettings/genealogycontroller/chat_recent';
+$route['user/heartbeat'] = 'user/usersettings/genealogycontroller/heartbeat';
 
 
 $route['user/earn_more'] = 'user/usersettings/Earnings';
