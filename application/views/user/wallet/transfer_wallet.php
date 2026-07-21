@@ -15,6 +15,8 @@
   <style>
     /* ===================== WALLET TRANSFER PAGE ===================== */
     :root {
+      --primary: <?php echo isset($mp['primary']) ? $mp['primary'] : '#6D4AFF'; ?>;
+      --mp-accent: <?php echo isset($mp['accent']) ? $mp['accent'] : '#a855f7'; ?>;
       --wt-exchange: #6D4AFF;
       --wt-earning:  #0ea5e9;
       --wt-staking:  #10b981;
@@ -610,7 +612,7 @@
         <i class="ph ph-lock-key"></i> Set Transfer Password
       </button>
       <?php else: ?>
-      <button class="btn-transfer" style="width:auto;padding:10px 18px;font-size:13px;background:linear-gradient(135deg,#10b981,#0ea5e9);" onclick="openSetPinModal()">
+      <button class="btn-transfer" style="width:auto;padding:10px 18px;font-size:13px;background:linear-gradient(135deg,var(--primary),var(--mp-accent));" onclick="openSetPinModal()">
         <i class="ph ph-lock-key-open"></i> Change Transfer Password
       </button>
       <?php endif; ?>

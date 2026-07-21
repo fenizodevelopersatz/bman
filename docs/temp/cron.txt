@@ -8,6 +8,8 @@
 0 * * * * cd /var/www/html/project && php index.php rankachievementcron run
 0 2 * * * cd /var/www/html/project && php index.php rankpowercron run
 
+php index.php wallettransfersettlementcron run
+
 
 
 # Every minute - Process staking purchases
@@ -33,6 +35,9 @@
 
 # Daily at 2:00 AM - Rank power
 0 2 * * * cd /home/u214278766/domains/darkseagreen-crocodile-999780.hostingersite.com/public_html && php index.php rankpowercron run >> cronlogs/rankpowercron.log 2>&1
+
+
+https://darkseagreen-crocodile-999780.hostingersite.com/wallet-transfer-settlement-cron?token=dcron_9f27ab5c3e8140d6
 
 
 
@@ -80,3 +85,10 @@ https://darkseagreen-crocodile-999780.hostingersite.com/rank-power-cron?token=dc
 */5 * * * *   binary-matching-payout-cron
 0 * * * *     rank-achievement-cron
 0 2 * * *     rank-power-cron
+
+
+http://192.168.29.18:9000/user/profit
+Need to display the commission of binary matching bonus
+-ROI bonus
+-Instant Bonus
+-All commission to display here

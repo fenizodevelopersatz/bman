@@ -52,12 +52,38 @@ class Login extends CI_Controller
 
 				if ($result_status) {
 
-					$this->sender_otp($result_get['data']->id);
+					$uid = $result_get['data']->id;
+					$this->session->set_userdata('user_get_id', $uid);
 
-					$userarray = array(
-						"user_get_id" => $result_get['data']->id,
-					);
-					$this->session->set_userdata($userarray);
+					$user_row = $this->db->get_where('users', ['id' => (int) $uid])->row();
+
+					// Validate user_row exists before checking flags
+					if (!$user_row) {
+						echo json_encode(['status' => false, 'errors' => ['auth' => 'User not found']]);
+						exit;
+					}
+
+					$needs_2fa   = (int) $user_row->twofa_status === 1;
+					$needs_email = (int) $user_row->email_verify_status === 1;
+
+					if ($needs_2fa || $needs_email) {
+
+						$this->session->set_userdata('twofa_required', $needs_2fa ? 1 : 0);
+						$this->session->set_userdata('email_verify_required', $needs_email ? 1 : 0);
+						$this->session->set_userdata('otp_required', 1);
+						$this->session->set_userdata('otp_started_at', time()); // Track when verification started
+
+						if ($needs_email) {
+							$this->sender_otp($uid);
+						}
+
+					} else {
+
+						// Neither factor is enabled for this user — log them in immediately.
+						$this->session->set_userdata('otp_required', 0);
+						$this->_complete_login($user_row);
+
+					}
 
 					$response = [
 						'status' => true,
@@ -78,9 +104,29 @@ class Login extends CI_Controller
 			}
 		} else {
 
-			$send_otp = $this->session->userdata('sender_otp');
+			$otp_required = $this->session->userdata('otp_required');
+			$user_get_id = $this->session->userdata('user_get_id');
+			$otp_started_at = $this->session->userdata('otp_started_at');
 
-			if ($send_otp) {
+			// Session timeout: 1 hour (3600 seconds)
+			$otp_timeout = 3600;
+			$session_expired = false;
+
+			// Check if OTP session has expired
+			if ($otp_started_at && (time() - $otp_started_at) > $otp_timeout) {
+				// Clear all verification session flags
+				$this->session->unset_userdata('otp_required');
+				$this->session->unset_userdata('user_get_id');
+				$this->session->unset_userdata('twofa_required');
+				$this->session->unset_userdata('email_verify_required');
+				$this->session->unset_userdata('sender_otp');
+				$this->session->unset_userdata('otp_started_at');
+				$this->session->unset_userdata('otp_attempts');
+				$session_expired = true;
+			}
+
+			// If user is in verification process (has user_get_id or otp_required flag) AND session not expired
+			if (($otp_required || $user_get_id) && !$session_expired) {
 
 				$this->auth_verify();
 
@@ -103,9 +149,136 @@ class Login extends CI_Controller
 	*/
 	public function forgot()
 	{
+		if ($this->input->post()) {
+			$this->output->set_content_type('application/json');
+
+			$email = $this->input->post('email', TRUE);
+
+			if (!$email) {
+				echo json_encode(['status' => false, 'message' => 'Email is required']);
+				exit;
+			}
+
+			$user = $this->db->get_where('users', ['email' => $email])->row();
+
+			if (!$user) {
+				echo json_encode(['status' => true, 'message' => 'If this email exists, we will send you password reset instructions']);
+				exit;
+			}
+
+			try {
+				$reset_token = bin2hex(random_bytes(32));
+				$token_expiry = date('Y-m-d H:i:s', strtotime('+1 hour'));
+
+				$this->db->update('users', [
+					'password_reset_token' => $reset_token,
+					'password_reset_expiry' => $token_expiry
+				], ['id' => $user->id]);
+
+				$this->load->model('member/Mlm_model');
+				$reset_link = base_url('user/reset-password?token=' . $reset_token);
+
+				$subject = "Password Reset Request";
+				$message = "
+					<p>Hello " . htmlspecialchars($user->username) . ",</p>
+					<p>We received a request to reset your password. Click the link below to reset it:</p>
+					<p><a href='" . $reset_link . "' style='display: inline-block; padding: 10px 20px; background: #6366F1; color: white; text-decoration: none; border-radius: 4px;'>Reset Password</a></p>
+					<p>This link will expire in 1 hour.</p>
+					<p>If you didn't request this, you can safely ignore this email.</p>
+					<p>Best regards,<br>Nexman Team</p>
+				";
+
+				$send_result = $this->Mlm_model->sendmail($email, $subject, $message);
+				email_log($reset_token, $email, 'password_reset');
+
+				echo json_encode(['status' => true, 'message' => 'If this email exists, we will send you password reset instructions']);
+			} catch (Exception $e) {
+				log_message('error', 'Forgot password error: ' . $e->getMessage());
+				echo json_encode(['status' => false, 'message' => 'An error occurred. Please try again later.']);
+			}
+			exit;
+		}
+
 		$this->data['action'] = base_url() . "user/forgot";
 		$this->load->view('user/auth/forgot', $this->data);
 	}
+
+	public function reset_password()
+	{
+		$token = $this->input->get('token');
+
+		if (!$token) {
+			show_error('Invalid reset link. Token is missing.', 400);
+			return;
+		}
+
+		if ($this->input->post()) {
+			$this->output->set_content_type('application/json');
+
+			$password = $this->input->post('password');
+			$password_confirm = $this->input->post('password_confirm');
+
+			if (!$password || !$password_confirm) {
+				echo json_encode(['status' => false, 'message' => 'Password and confirmation are required']);
+				exit;
+			}
+
+			if ($password !== $password_confirm) {
+				echo json_encode(['status' => false, 'message' => 'Passwords do not match']);
+				exit;
+			}
+
+			if (strlen($password) < 8) {
+				echo json_encode(['status' => false, 'message' => 'Password must be at least 8 characters']);
+				exit;
+			}
+
+			try {
+				$user = $this->db->get_where('users', ['password_reset_token' => $token])->row();
+
+				if (!$user) {
+					echo json_encode(['status' => false, 'message' => 'Invalid or expired reset link']);
+					exit;
+				}
+
+				if (strtotime($user->password_reset_expiry) < time()) {
+					echo json_encode(['status' => false, 'message' => 'Reset link has expired. Please request a new one.']);
+					exit;
+				}
+
+				$hashed_password = password_hash($password, PASSWORD_BCRYPT);
+
+				$this->db->update('users', [
+					'password' => $hashed_password,
+					'password_reset_token' => NULL,
+					'password_reset_expiry' => NULL
+				], ['id' => $user->id]);
+
+				echo json_encode(['status' => true, 'message' => 'Password reset successfully. You can now login.']);
+			} catch (Exception $e) {
+				log_message('error', 'Password reset error: ' . $e->getMessage());
+				echo json_encode(['status' => false, 'message' => 'An error occurred. Please try again.']);
+			}
+			exit;
+		}
+
+		$user = $this->db->get_where('users', ['password_reset_token' => $token])->row();
+
+		if (!$user) {
+			show_error('Invalid or expired reset link', 400);
+			return;
+		}
+
+		if (strtotime($user->password_reset_expiry) < time()) {
+			show_error('Reset link has expired. Please request a new one.', 400);
+			return;
+		}
+
+		$this->data['token'] = $token;
+		$this->data['action'] = base_url() . "user/reset-password?token=" . $token;
+		$this->load->view('user/auth/reset_password', $this->data);
+	}
+
 	/*
 	|--------------------------------------------------------------------------
 	| VERIFY  OTP
@@ -131,8 +304,8 @@ class Login extends CI_Controller
 
 					if ($method == "email_otp") {
 
-						$verify = true;
-						//emailVerify($admin_id,'email_verify',$otp);
+						$expected = $this->session->userdata('sender_otp');
+						$verify = ($expected !== null && $expected !== '' && (string) $otp === (string) $expected);
 
 						if ($verify) {
 
@@ -216,62 +389,62 @@ class Login extends CI_Controller
 				$emailOTP = $this->input->post('emailOTP');
 				$twofaOTP = $this->input->post('twofaOTP');
 
-				$verify_1 = $this->twofachecker($admin_id, $twofaOTP);
-				$verify_2 = true;
+				$needs_2fa   = (int) $this->session->userdata('twofa_required') === 1;
+				$needs_email = (int) $this->session->userdata('email_verify_required') === 1;
+
+				// Track OTP verification attempts (max 2 attempts allowed)
+				$otp_attempts = (int) $this->session->userdata('otp_attempts') ?? 0;
+				$max_attempts = 2;
+
+				$expected_otp = $this->session->userdata('sender_otp');
+				$verify_1 = $needs_2fa ? $this->twofachecker($admin_id, $twofaOTP) : true;
+				$verify_2 = $needs_email
+					? ($expected_otp !== null && $expected_otp !== '' && (string) $emailOTP === (string) $expected_otp)
+					: true;
 
 				if ($verify_1 && $verify_2) {
 
 					$this->session->set_userdata('verify_payment_page', "ok");
-
 					$this->session->set_userdata('sender_otp', "");
+					$this->session->unset_userdata('otp_attempts');
 					$response = array(
 						'status' => true,
 						'message' => "Verify Successfully"
 					);
 
 					$result = $this->db->query("SELECT * FROM users where id = '" . $admin_id . "' ")->row();
-					$array = array(
-						"user_logged_in" => TRUE,
-						"user_full_name" => $result->username,
-						"user_userid" => $result->id,
-						"user_email" => $result->email,
-						"user_login" => TRUE
-					);
-
-					$userarray = array(
-						"user_userid" => $result->id,
-						"user_logindate" => date('Y-m-d H:i:s'),
-						"user_ip_address" => $_SERVER['REMOTE_ADDR']
-					);
-
-
-					$this->session->set_userdata('remember_me', true);
-
-					$cookie = array(
-						'name' => 'remember_me',
-						'value' => '1212',
-						'expire' => '1209600',
-						'domain' => base_url(),
-						'path' => base_url() . 'admin'
-					);
-					if ($result) {
-						setcookie("remember_me", md5($result->id), time() + (60 * 2), '/');
-
-						if (isset($_COOKIE['remember_me'])) {
-							$array['cookiee'] = $_COOKIE['remember_me'];
-							$condition = "cookiee=" . "'" . md5($result->id) . "'";
-						}
-
-						$this->session->set_userdata($array);
-					}
+					$this->_complete_login($result);
 
 				} else {
 
-					$this->session->set_flashdata('danger', 'Invalide OTP !');
-					$response = array(
-						'status' => false,
-						'message' => "Invalid OTP!"
-					);
+					// Increment failed attempt counter
+					$otp_attempts++;
+					$this->session->set_userdata('otp_attempts', $otp_attempts);
+
+					// After 2 failed attempts, reset login and show login form
+					if ($otp_attempts >= $max_attempts) {
+						$this->session->set_flashdata('danger', 'Maximum OTP attempts exceeded. Please login again.');
+						$this->session->unset_userdata('otp_required');
+						$this->session->unset_userdata('twofa_required');
+						$this->session->unset_userdata('email_verify_required');
+						$this->session->unset_userdata('user_get_id');
+						$this->session->unset_userdata('sender_otp');
+						$this->session->unset_userdata('otp_attempts');
+
+						$response = array(
+							'status' => false,
+							'message' => "Maximum attempts exceeded. Please login again.",
+							'redirect' => base_url('user/in'),
+							'max_attempts_exceeded' => true
+						);
+					} else {
+						$remaining_attempts = $max_attempts - $otp_attempts;
+						$this->session->set_flashdata('danger', "Invalid OTP! ({$remaining_attempts} attempts remaining)");
+						$response = array(
+							'status' => false,
+							'message' => "Invalid OTP! ({$remaining_attempts} attempts remaining)"
+						);
+					}
 				}
 
 
@@ -297,18 +470,61 @@ class Login extends CI_Controller
 	public function auth_verify()
 	{
 
+		$needs_email = (int) $this->session->userdata('email_verify_required') === 1;
 		$send_otp = $this->session->userdata('sender_otp');
 
-		if ($send_otp == "") {
-			$this->sender_otp();
+		if ($needs_email && $send_otp == "") {
+			$this->sender_otp($this->session->userdata('user_get_id'));
 		}
 
-		$admin_id = '1';
 		$this->data['verify_type'] = '0';
 		$this->data['title'] = 'Verify Page';
 		$this->data['action'] = base_url() . "user/auth/success";
+		$this->data['show_twofa_code'] = (int) $this->session->userdata('twofa_required') === 1;
+		$this->data['show_email_code'] = $needs_email;
+
+		if ($needs_email) {
+			$user_row = $this->db->get_where('users', ['id' => (int) $this->session->userdata('user_get_id')])->row();
+			$this->data['admin_mail'] = $user_row ? $user_row->email : '';
+		}
+
 		$this->load->view('user/auth/login', $this->data);
 
+	}
+
+	// Resend OTP via email
+	public function resend_otp()
+	{
+		$user_id = $this->session->userdata('user_get_id');
+
+		if (!$user_id) {
+			echo json_encode(['status' => false, 'message' => 'No active verification session']);
+			exit;
+		}
+
+		$result = $this->sender_otp($user_id);
+
+		if ($result) {
+			echo json_encode(['status' => true, 'message' => 'OTP resent to your email']);
+		} else {
+			echo json_encode(['status' => false, 'message' => 'Failed to resend OTP']);
+		}
+		exit;
+	}
+
+	// Clear verification session and go back to login
+	public function back_to_login()
+	{
+		// Clear all verification flags
+		$this->session->unset_userdata('otp_required');
+		$this->session->unset_userdata('user_get_id');
+		$this->session->unset_userdata('twofa_required');
+		$this->session->unset_userdata('email_verify_required');
+		$this->session->unset_userdata('sender_otp');
+		$this->session->unset_userdata('otp_started_at');
+		$this->session->unset_userdata('otp_attempts');
+
+		redirect('user/in');
 	}
 
 
@@ -374,20 +590,49 @@ class Login extends CI_Controller
 
 
 
+	// Finalizes a login: sets the full authenticated session (shared by the
+	// no-verification-required path in index() and the OTP success path in
+	// finelVerify()).
+	private function _complete_login($result)
+	{
+		if (!$result) return;
+
+		$array = array(
+			"user_logged_in" => TRUE,
+			"user_full_name" => $result->username,
+			"user_userid" => $result->id,
+			"user_email" => $result->email,
+			"user_login" => TRUE
+		);
+
+		$this->session->set_userdata('remember_me', true);
+
+		setcookie("remember_me", md5($result->id), time() + (60 * 2), '/');
+		if (isset($_COOKIE['remember_me'])) {
+			$array['cookiee'] = $_COOKIE['remember_me'];
+		}
+
+		$this->session->set_userdata($array);
+
+		// Clear OTP-related session flags after successful login
+		$this->session->unset_userdata('otp_required');
+		$this->session->unset_userdata('twofa_required');
+		$this->session->unset_userdata('email_verify_required');
+		$this->session->unset_userdata('user_get_id');
+		$this->session->unset_userdata('sender_otp');
+	}
+
 	private function twofachecker($admin_id, $oneCode)
 	{
+		$this->load->library('Google_authendicator');
+		$user = $this->db->query("SELECT * FROM `users` WHERE id = '" . $admin_id . "'")->row();
 
-		// $this->load->library('Google_authendicator');
-		// $admin_auth = $this->db->query("SELECT * FROM `admin_members` where  id= '".$admin_id."' ")->row()->auth_key;
-		// $ga = new Google_authendicator();	
+		if (!$user || !$user->twofa_secret) {
+			return false;
+		}
 
-		// $checkResult = $ga->verifyCode($admin_auth, $oneCode, 2);
-		// if($checkResult) {
-		// return true;
-		// } else {
-		// return false;
-		// }
-		return true;
+		$ga = new Google_authendicator();
+		return $ga->verifyCode($user->twofa_secret, $oneCode, 2);
 	}
 
 

@@ -263,23 +263,20 @@ function email_log($random_number, $useremail, $type)
 
     $check_email = $CI->db->query("select * from email_log where email = '" . $useremail . "' and type= '" . $type . "'  ")->num_rows();
 
-    if ($check_email > 0) {
-        $otp_data = array(
-            'otp' => $random_number,
-        );
-        $CI->db->where('type', $type);
-        $CI->db->where('email', $useremail);
-        $CI->db->update('email_log', $otp_data);
-    }
-
-
     $otp_data = array(
         'otp' => $random_number,
         'email' => $useremail,
         'type' => $type,
         'created_date' => date('Y-m-d H:i:s')
     );
-    $CI->db->insert('email_log', $otp_data);
+
+    if ($check_email > 0) {
+        $CI->db->where('type', $type);
+        $CI->db->where('email', $useremail);
+        $CI->db->update('email_log', $otp_data);
+    } else {
+        $CI->db->insert('email_log', $otp_data);
+    }
 
 }
 
@@ -984,6 +981,33 @@ function profile_completion_percent($user_id)
 
 
 
+if (!function_exists('default_avatar_url')) {
+    /**
+     * Canonical fallback avatar shipped with the app. Used both as the server-side
+     * default (see user_profile_image) and as the client-side onerror target, so a
+     * missing or invalid avatar file never renders as a broken image.
+     */
+    function default_avatar_url()
+    {
+        return base_url('assets/images/default-avatar.svg');
+    }
+}
+
+if (!function_exists('avatar_onerror')) {
+    /**
+     * Reusable inline onerror handler for avatar <img> tags. Swaps a broken/missing
+     * avatar to the local default exactly once (this.onerror=null prevents a loop if
+     * the default itself were ever unavailable).
+     *
+     * Usage:  <img src="..." <?= avatar_onerror() ?> alt="">
+     * In JS-built markup, use the DEFAULT_AVATAR constant instead (see the views).
+     */
+    function avatar_onerror()
+    {
+        return 'onerror="this.onerror=null;this.src=\'' . default_avatar_url() . '\';"';
+    }
+}
+
 function user_profile_image($uid)
 {
     $CI =& get_instance();
@@ -993,15 +1017,18 @@ function user_profile_image($uid)
         ->get('users')
         ->row();
 
-    // Only return an uploaded image if the file actually exists on disk,
-    // otherwise fall back to the default avatar (prevents broken-image 404s).
-    foreach ([$user->profile_img ?? '', $user->image ?? ''] as $file) {
-        if (!empty($file) && is_file(FCPATH . 'assets/images/' . $file)) {
-            return base_url('assets/images/' . $file);
-        }
+    if (!empty($user->profile_img)) {
+        return base_url('assets/images/' . $user->profile_img);
     }
 
-    return base_url('assets/images/default-avatar.svg');
+    if (!empty($user->image)) {
+        return base_url('assets/images/' . $user->image);
+    }
+
+    // Local default so avatars never depend on an external service (which fails
+    // on offline/LAN deployments). A missing per-user file is handled client-side
+    // via an img onerror fallback to this same default.
+    return default_avatar_url();
 }
 
 if (!function_exists('user_cycle_info')) {
@@ -1043,4 +1070,16 @@ if (!function_exists('user_cycle_info')) {
             'is_boundary'      => $dayInCycle === 0,
         ];
     }
+}
+
+function kyc_completion_percent($uid)
+{
+    if (!$uid) return 0;
+
+    $CI =& get_instance();
+    $user = $CI->db->select('kyc_status, kyc_verified_at')->from('users')->where('id', $uid)->get()->row();
+
+    if (!$user) return 0;
+
+    return ($user->kyc_status == 1 && !empty($user->kyc_verified_at)) ? 100 : 0;
 }

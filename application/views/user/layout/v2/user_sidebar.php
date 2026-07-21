@@ -15,13 +15,25 @@ $isPackage = ($uri === 'user/lending' || $uri === 'user/stakings');
 $isSupport = ($uri === 'user/support' || $uri === 'user/create-ticket' || $uri === 'user/support-list');
 $isSettings = ($uri === 'user/view-profile' || $uri === 'user/edit-profile');
 $isTransfer = ($uri === 'user/transfer_wallet');
+
+// Same source as every other panel (Admin -> Site Settings -> Logo), so the
+// brand is one upload away from being consistent everywhere.
+$sidebar_logo_file = site_settings('image', 'logo');
+$sidebar_logo_src = $sidebar_logo_file ? base_url('assets/images/' . rawurlencode($sidebar_logo_file)) : null;
+$sidebar_site_name = site_settings('meta-settings', 'site-name') ?: 'NEXMAN';
 ?>
 
 <button class="sidebar-toggle" id="sidebarToggleBtn" type="button" aria-label="Open menu">☰</button>
 <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
 <aside class="sidebar" style="overflow:auto">
-    <div class="logo"><i class="ph-fill ph-sparkle"></i> NEXMAN </div>
+    <div class="logo">
+        <?php if ($sidebar_logo_src): ?>
+            <img src="<?= $sidebar_logo_src; ?>" alt="<?= htmlspecialchars($sidebar_site_name); ?>" style="width:100%;max-width:180px;height:auto;max-height:110px;object-fit:contain;">
+        <?php else: ?>
+            <i class="ph-fill ph-sparkle"></i> <?= htmlspecialchars($sidebar_site_name); ?>
+        <?php endif; ?>
+    </div>
     <nav>
         <span class="nav-label">Overview</span>
         <a href="<?php echo base_url('user/main'); ?>" class="nav-item <?php echo $isDashboard ? 'active' : ''; ?>"><i

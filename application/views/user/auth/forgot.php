@@ -78,6 +78,11 @@
 
                 <div class="fv-row mb-8">
                     <input type="text" placeholder="Email" name="email" autocomplete="off" class="form-control bg-transparent" />
+                    <div id="reset_message" style="margin-top: 8px; padding: 10px 12px; border-radius: 8px; display: none; font-size: 13px; font-weight: 500;"></div>
+                </div>
+
+                <div class="text-center mb-4">
+                    <a href="<?php echo base_url(); ?>user/in" class="link-primary fw-semibold">Back to Login</a>
                 </div>
 
                 <div class="d-flex flex-wrap justify-content-center gap-3 pb-lg-0">
@@ -130,6 +135,80 @@
         });
     })();
     const base_url = '<?php echo base_url();?>';
+
+    // Handle forgot password form submission
+    document.addEventListener('DOMContentLoaded', function() {
+        const submitBtn = document.getElementById('kt_password_reset_submit');
+        if (!submitBtn) return;
+
+        submitBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const form = document.getElementById('kt_password_reset_form');
+        const email = form.querySelector('input[name="email"]').value.trim();
+        const button = this;
+        const label = button.querySelector('.indicator-label');
+        const progress = button.querySelector('.indicator-progress');
+        const msgEl = document.getElementById('reset_message');
+
+        // Clear previous message
+        msgEl.textContent = '';
+        msgEl.style.display = 'none';
+
+        if (!email) {
+            msgEl.textContent = 'Please enter your email address';
+            msgEl.style.display = 'block';
+            msgEl.style.background = '#fee2e2';
+            msgEl.style.color = '#991b1b';
+            msgEl.style.border = '1px solid #fca5a5';
+            return;
+        }
+
+        // Show loading state
+        button.disabled = true;
+        label.style.display = 'none';
+        progress.style.display = 'block';
+
+        // Send AJAX request
+        fetch(base_url + 'user/forgot', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: 'email=' + encodeURIComponent(email)
+        })
+        .then(r => r.json())
+        .then(res => {
+            button.disabled = false;
+            label.style.display = 'block';
+            progress.style.display = 'none';
+
+            msgEl.textContent = res.message || (res.status ? 'Check your email for password reset instructions' : 'Something went wrong. Please try again.');
+            msgEl.style.display = 'block';
+
+            if (res.status) {
+                msgEl.style.background = '#dcfce7';
+                msgEl.style.color = '#166534';
+                msgEl.style.border = '1px solid #86efac';
+                setTimeout(() => form.reset(), 1000);
+            } else {
+                msgEl.style.background = '#fee2e2';
+                msgEl.style.color = '#991b1b';
+                msgEl.style.border = '1px solid #fca5a5';
+            }
+        })
+        .catch(err => {
+            button.disabled = false;
+            label.style.display = 'block';
+            progress.style.display = 'none';
+            msgEl.textContent = 'Network error. Please try again.';
+            msgEl.style.display = 'block';
+            msgEl.style.background = '#fee2e2';
+            msgEl.style.color = '#991b1b';
+            msgEl.style.border = '1px solid #fca5a5';
+        });
+        });
+    });
     </script>
 
     </body>

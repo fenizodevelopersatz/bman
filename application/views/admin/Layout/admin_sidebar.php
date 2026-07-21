@@ -251,6 +251,13 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               <!-- ============ Remaining items (not part of the organized structure above) ============ -->
 
               <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/internal-transfers">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Internal Wallet Transfer</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet-monitor">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Wallet Monitor</span>

@@ -351,7 +351,11 @@ KTUtil.onDOMContentLoaded((function () {
     });
 
     function check_button() {
-        if (emailvalidestep && twovalidestep) {
+        const needEmail = !!document.querySelector('.email-code');
+        const needTwofa = !!document.querySelector('.fa-code');
+        const emailOk = !needEmail || emailvalidestep > 0;
+        const twofaOk = !needTwofa || twovalidestep > 0;
+        if (emailOk && twofaOk) {
             $('#kt_sing_in_two_factor_submit').removeAttr('disabled');
         }
     }
@@ -363,8 +367,11 @@ KTUtil.onDOMContentLoaded((function () {
         let form = e.target;
         let submitButton = $('#kt_sing_in_two_factor_submit');
 
+        const needEmail = !!document.querySelector('.email-code');
+        const needTwofa = !!document.querySelector('.fa-code');
+
         // Prevent submission if validations fail
-        if (emailvalidestep === 0 || twovalidestep === 0) {
+        if ((needEmail && emailvalidestep === 0) || (needTwofa && twovalidestep === 0)) {
             Swal.fire({
                 text: "Please complete all verification steps!",
                 icon: "warning",
@@ -402,6 +409,20 @@ KTUtil.onDOMContentLoaded((function () {
                         var redirectUrl = button.getAttribute("data-kt-redirect-url");
                         if (e.isConfirmed && typeof redirectUrl !== "undefined") {
                             location.href = redirectUrl;
+                        }
+                    });
+                } else if (response.max_attempts_exceeded) {
+                    Swal.fire({
+                        text: response.message,
+                        icon: "warning",
+                        buttonsStyling: false,
+                        confirmButtonText: "Ok, got it!",
+                        customClass: {
+                            confirmButton: "btn btn-primary"
+                        }
+                    }).then(function (e) {
+                        if (e.isConfirmed && typeof response.redirect !== "undefined") {
+                            location.href = response.redirect;
                         }
                     });
                 } else {

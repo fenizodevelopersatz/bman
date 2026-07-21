@@ -312,6 +312,40 @@ class Profile extends MY_Controller
         return $this->_json(['status' => 'success', 'message' => 'Transfer password saved.']);
     }
 
+    // ------------------ SECURITY: 2FA enable/disable ------------
+    public function twofa_toggle()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $uid = (int) $this->session->userdata('user_userid');
+        if (!$uid) return $this->_json(['status' => 'error', 'message' => 'Not logged in'], 401);
+
+        $status = $this->input->post('status', true) ? 1 : 0;
+        $this->Users_model->update_user($uid, ['twofa_status' => $status]);
+
+        return $this->_json([
+            'status' => 'success',
+            'message' => $status ? 'Two-Factor Authentication enabled.' : 'Two-Factor Authentication disabled.',
+            'twofa_status' => $status,
+        ]);
+    }
+
+    // ------------------ SECURITY: Email Verification enable/disable ------------
+    public function email_verify_toggle()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $uid = (int) $this->session->userdata('user_userid');
+        if (!$uid) return $this->_json(['status' => 'error', 'message' => 'Not logged in'], 401);
+
+        $status = $this->input->post('status', true) ? 1 : 0;
+        $this->Users_model->update_user($uid, ['email_verify_status' => $status]);
+
+        return $this->_json([
+            'status' => 'success',
+            'message' => $status ? 'Email Verification enabled.' : 'Email Verification disabled.',
+            'email_verify_status' => $status,
+        ]);
+    }
+
     // ----------------------------- KYC SUBMIT -----------------------------
     public function kyc_submit()
     {
@@ -553,5 +587,69 @@ class Profile extends MY_Controller
         $this->Users_model->create_action($uid, 'FREEZE_WITHDRAW', $reason);
 
         return $this->_json(['status' => 'success', 'message' => 'Withdraw freeze request submitted.']);
+    }
+
+    // ----------------------------- 2FA: SETUP REQUEST (Generate QR Code) -----------------------------
+    public function twofa_setup_request()
+    {
+        if (!$this->input->is_ajax_request())
+            show_404();
+
+        $uid = (int) $this->session->userdata('user_userid');
+        if (!$uid)
+            return $this->_json(['status' => 'error', 'message' => 'Not logged in'], 401);
+
+        $this->load->library('Google_authendicator');
+        $ga = new Google_authendicator();
+
+        $user = $this->Users_model->get_user($uid);
+        if (!$user)
+            return $this->_json(['status' => 'error', 'message' => 'User not found'], 404);
+
+        $secret = $ga->createSecret();
+        $otpauth = 'otpauth://totp/Nexman (' . $user['email'] . ')?secret=' . $secret . '&issuer=Nexman';
+        $qr_code = 'https://chart.googleapis.com/chart?chs=200x200&chld=M|0&cht=qr&chl=' . urlencode($otpauth);
+
+        return $this->_json([
+            'status' => 'success',
+            'message' => 'QR code generated',
+            'secret' => $secret,
+            'qr_code' => $qr_code,
+        ]);
+    }
+
+    // ----------------------------- 2FA: SETUP VERIFY (Confirm QR Code Setup) -----------------------------
+    public function twofa_setup_verify()
+    {
+        if (!$this->input->is_ajax_request())
+            show_404();
+
+        $uid = (int) $this->session->userdata('user_userid');
+        if (!$uid)
+            return $this->_json(['status' => 'error', 'message' => 'Not logged in'], 401);
+
+        $secret = trim($this->input->post('secret', true));
+        $code = trim($this->input->post('code', true));
+
+        if (!$secret || !$code)
+            return $this->_json(['status' => 'error', 'message' => 'Missing secret or code'], 422);
+
+        $this->load->library('Google_authendicator');
+        $ga = new Google_authendicator();
+
+        if (!$ga->verifyCode($secret, $code, 2)) {
+            return $this->_json(['status' => 'error', 'message' => 'Invalid code. Try again.'], 422);
+        }
+
+        $this->db->where('id', $uid)->update('users', [
+            'twofa_secret' => $secret,
+            'updated_date' => date('Y-m-d H:i:s'),
+        ]);
+
+        return $this->_json([
+            'status' => 'success',
+            'message' => '2FA setup confirmed',
+            'twofa_secret' => $secret,
+        ]);
     }
 }

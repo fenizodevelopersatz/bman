@@ -2,7 +2,7 @@
 // ===================== COMMISSIONS PAGE (USER • ADVANCED & INFORMATIVE) =====================
 // Expected vars (set from controller):
 // $wallet_balance, $pending_commission, $total_earned, $paid_out
-// $counts = ['ALL'=>0,'PAIRING'=>0,'MATCHING'=>0,'DIRECT'=>0,'RANK'=>0,'LEADERSHIP'=>0,'WITHDRAW'=>0];
+// $counts = ['ALL'=>0,'BINARY'=>0,'ROI'=>0,'INSTANT'=>0,'RANK'=>0];
 // $rows = array of commission objects:
 //   ->type, ->title, ->ref, ->created_at, ->amount, ->status, ->note, ->from_user, ->level, ->order_id
 // $paging = ['page'=>1,'pages'=>1,'total'=>0,'per_page'=>10];
@@ -996,18 +996,14 @@
             value="<?= htmlspecialchars($qv, ENT_QUOTES); ?>" />
           <select id="type" class="f-sel">
             <option value="" <?= $tv === '' ? 'selected' : ''; ?>>All Types</option>
-            <option value="PAIRING" <?= $tv === 'PAIRING' ? 'selected' : ''; ?>>Pairing Bonus</option>
-            <option value="MATCHING" <?= $tv === 'MATCHING' ? 'selected' : ''; ?>>Matching Bonus</option>
-            <option value="DIRECT" <?= $tv === 'DIRECT' ? 'selected' : ''; ?>>Direct Referral</option>
+            <option value="BINARY" <?= $tv === 'BINARY' ? 'selected' : ''; ?>>Binary Matching Bonus</option>
+            <option value="ROI" <?= $tv === 'ROI' ? 'selected' : ''; ?>>ROI</option>
+            <option value="INSTANT" <?= $tv === 'INSTANT' ? 'selected' : ''; ?>>Instant Bonus</option>
             <option value="RANK" <?= $tv === 'RANK' ? 'selected' : ''; ?>>Rank Reward</option>
-            <option value="WITHDRAW" <?= $sv === 'REJECTED' ? 'selected' : ''; ?>>Withdraw</option>
           </select>
           <select id="status" class="f-sel">
             <option value="" <?= $sv === '' ? 'selected' : ''; ?>>All Status</option>
             <option value="SUCCESS" <?= $sv === 'SUCCESS' ? 'selected' : ''; ?>>Success</option>
-            <option value="PENDING" <?= $sv === 'PENDING' ? 'selected' : ''; ?>>Pending</option>
-            <option value="REJECTED" <?= $sv === 'REJECTED' ? 'selected' : ''; ?>>Rejected</option>
-
           </select>
           <input id="from" class="f-in" type="date" value="<?= htmlspecialchars($fv, ENT_QUOTES); ?>" />
           <input id="to" class="f-in" type="date" value="<?= htmlspecialchars($tov, ENT_QUOTES); ?>" />
@@ -1021,23 +1017,21 @@
         <div class="chips" id="chips">
           <?php
           $c = $counts ?? [];
-          $def = ['ALL' => ($paging['total'] ?? 0), 'PAIRING' => 0, 'MATCHING' => 0, 'DIRECT' => 0, 'RANK' => 0, 'WITHDRAW' => 0];
+          $def = ['ALL' => ($paging['total'] ?? 0), 'BINARY' => 0, 'ROI' => 0, 'INSTANT' => 0, 'RANK' => 0];
           $c = array_merge($def, $c);
 
           $chipActive = $tv; // current selected
           ?>
           <div class="chip <?= $chipActive === '' ? 'active' : ''; ?>" data-type=""><i class="ph ph-squares-four"></i>
             All <span class="count"><?= (int) $c['ALL']; ?></span></div>
-          <div class="chip <?= $chipActive === 'PAIRING' ? 'active' : ''; ?>" data-type="PAIRING"><i
-              class="ph ph-link"></i> Pairing <span class="count"><?= (int) $c['PAIRING']; ?></span></div>
-          <div class="chip <?= $chipActive === 'MATCHING' ? 'active' : ''; ?>" data-type="MATCHING"><i
-              class="ph ph-users-three"></i> Matching <span class="count"><?= (int) $c['MATCHING']; ?></span></div>
-          <div class="chip <?= $chipActive === 'DIRECT' ? 'active' : ''; ?>" data-type="DIRECT"><i
-              class="ph ph-user-plus"></i> Direct <span class="count"><?= (int) $c['DIRECT']; ?></span></div>
+          <div class="chip <?= $chipActive === 'BINARY' ? 'active' : ''; ?>" data-type="BINARY"><i
+              class="ph ph-link"></i> Binary Matching <span class="count"><?= (int) $c['BINARY']; ?></span></div>
+          <div class="chip <?= $chipActive === 'ROI' ? 'active' : ''; ?>" data-type="ROI"><i
+              class="ph ph-chart-line-up"></i> ROI <span class="count"><?= (int) $c['ROI']; ?></span></div>
+          <div class="chip <?= $chipActive === 'INSTANT' ? 'active' : ''; ?>" data-type="INSTANT"><i
+              class="ph ph-gift"></i> Instant Bonus <span class="count"><?= (int) $c['INSTANT']; ?></span></div>
           <div class="chip <?= $chipActive === 'RANK' ? 'active' : ''; ?>" data-type="RANK"><i class="ph ph-medal"></i>
             Rank <span class="count"><?= (int) $c['RANK']; ?></span></div>
-          <div class="chip <?= $chipActive === 'WITHDRAW' ? 'active' : ''; ?>" data-type="WITHDRAW"><i
-              class="ph ph-money"></i> Withdraw <span class="count"><?= (int) $c['WITHDRAW']; ?></span></div>
           <a class="chip" href="<?= base_url('user/profit'); ?>"><i class="ph ph-x"></i> Clear </a>
         </div>
       </div>
@@ -1072,16 +1066,14 @@
                     $status = strtoupper($r->status ?? 'PENDING');
 
                     $icon = 'ph-coins';
-                    if ($type === 'PAIRING')
+                    if ($type === 'BINARY')
                       $icon = 'ph-link';
-                    else if ($type === 'MATCHING')
-                      $icon = 'ph-users-three';
-                    else if ($type === 'DIRECT')
-                      $icon = 'ph-user-plus';
+                    else if ($type === 'ROI')
+                      $icon = 'ph-chart-line-up';
+                    else if ($type === 'INSTANT')
+                      $icon = 'ph-gift';
                     else if ($type === 'RANK')
                       $icon = 'ph-medal';
-                    else if ($type === 'WITHDRAW')
-                      $icon = 'ph-money';
 
                     $stClass = 'st-pending';
                     $statusContent = 'PENDING';
@@ -1133,8 +1125,8 @@
                         <?= currency_info()->currency_symbol; ?>     <?= number_format($amt, 2); ?>
                       </td>
                       <td>
-                        <span class="status <?= ($status == 1) ? 'success' : 'pending'; ?>">
-                          <i class="ph ph-dot-outline"></i> <?= ($status == 1) ? 'Success' : 'Pending'; ?>
+                        <span class="status <?= $stClass === 'st-success' ? 'success' : 'pending'; ?>">
+                          <i class="ph ph-dot-outline"></i> <?= ucfirst(strtolower($statusContent)); ?>
                         </span>
                       </td>
                       <td>
