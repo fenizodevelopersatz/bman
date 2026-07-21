@@ -593,6 +593,7 @@ $route['member/profile/update_password'] = 'user/usersettings/profile/update_pas
 $route['member/profile/update_email_preferences'] = 'user/usersettings/profile/update_email_preferences';
 $route['member/profile/request_delete'] = 'user/usersettings/profile/request_delete';
 $route['member/profile/freeze_withdraw'] = 'user/usersettings/profile/freeze_withdraw';
+$route['member/profile/danger_send_otp'] = 'user/usersettings/profile/danger_send_otp';
 
 
 $route['switch_language/(:any)'] = 'api/api/switch_language/$1';
