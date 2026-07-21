@@ -139,7 +139,17 @@ $msRewardText = function ($l) use ($rk_n) {
             box-shadow:var(--shadow-card);
         }
         .rk-hero-col { padding:24px 22px; position:relative; z-index:1; }
-        /* .rk-hero-badge-col { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; text-align:center; border-right:1px solid rgba(255,255,255,.14); } */
+        .rk-hero-badge-col {
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            gap:12px;
+            text-align:center;
+            background:rgba(255,255,255,.06);
+            border-right:1px solid rgba(255,255,255,.14);
+            box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);
+        }
         .rk-hero-badge-col .rk-badge {
             width:360px;
             height:360px;
@@ -183,7 +193,7 @@ $msRewardText = function ($l) use ($rk_n) {
 
         @media (max-width:1100px) {
             .rk-hero { grid-template-columns:1fr; }
-            .rk-hero-badge-col, .rk-hero-progress-col { border:0; border-bottom:1px solid rgba(255,255,255,.14); }
+            .rk-hero-badge-col, .rk-hero-progress-col { border:0; border-bottom:1px solid rgba(255,255,255,.14); box-shadow:none; }
             .rk-hero-badge-col .rk-badge,
             .rk-hero-badge-col .rk-badge-dot { width:220px !important; height:220px !important; }
         }

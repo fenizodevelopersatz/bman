@@ -102,9 +102,11 @@ class Kyc extends MY_Controller
         if ($doc_number === '') $addError('doc_number', 'Document number is required.');
         elseif (mb_strlen($doc_number) < 5) $addError('doc_number', 'Document number must be at least 5 characters.');
         if ($issue_country === '') $addError('doc_issue_country', 'Issuing country is required.');
-        if ($issue_date === '') $addError('doc_issue_date', 'Issue date is required.');
-        if ($expiry_date === '') $addError('doc_expiry_date', 'Expiry date is required.');
-        elseif ($issue_date !== '' && strtotime($expiry_date) <= strtotime($issue_date)) $addError('doc_expiry_date', 'Expiry date must be after issue date.');
+        if ($issue_date !== '' && !strtotime($issue_date)) $addError('doc_issue_date', 'Issue date is invalid.');
+        if ($expiry_date !== '' && !strtotime($expiry_date)) $addError('doc_expiry_date', 'Expiry date is invalid.');
+        if ($issue_date !== '' && $expiry_date !== '' && strtotime($expiry_date) <= strtotime($issue_date)) {
+            $addError('doc_expiry_date', 'Expiry date must be after issue date.');
+        }
         if ($consent !== '1') $addError('consent', 'You must accept verification consent.');
 
         if (!in_array($doc_type, ['passport', 'national_id', 'driver_license'], true)) {

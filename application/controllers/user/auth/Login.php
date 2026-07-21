@@ -24,7 +24,6 @@ class Login extends CI_Controller
 	public function index()
 	{
 
-
 		if ($this->input->post()) {
 
 			$this->form_validation->set_rules('useremail', 'User Email', 'trim|required|callback_username_check');
@@ -74,26 +73,39 @@ class Login extends CI_Controller
 						$this->session->set_userdata('otp_started_at', time()); // Track when verification started
 
 						if ($needs_email) {
-							$this->sender_otp($uid);
+							try {
+								$this->sender_otp($uid);
+							} catch (\Throwable $e) {
+								log_message('error', 'sender_otp() threw: ' . get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+							}
 						}
+
+						// Verification required: send the user to the dedicated
+						// verification URL.
+						$redirect = base_url('user/verify');
 
 					} else {
 
 						// Neither factor is enabled for this user — log them in immediately.
 						$this->session->set_userdata('otp_required', 0);
 						$this->_complete_login($user_row);
+						$redirect = base_url('user/main');
 
 					}
 
 					$response = [
 						'status' => true,
 						'message' => 'login successfuly',
+						'redirect' => $redirect,
 					];
 
-					$this->output
-						->set_status_header(200)
-						->set_content_type('application/json')
-						->set_output(json_encode($response));
+					// NOTE: $this->output->set_output(...) only stores the string —
+					// it is echoed by $this->output->_display(), which CI3 only
+					// invokes automatically from its own top-level flow. exit; here
+					// skips that entirely, so that chain silently produced an empty
+					// response on every successful login. Plain echo (as used by
+					// every other JSON response in this file) actually sends bytes.
+					echo json_encode($response);
 					exit;
 
 				} else {
@@ -104,43 +116,46 @@ class Login extends CI_Controller
 			}
 		} else {
 
-			$otp_required = $this->session->userdata('otp_required');
-			$user_get_id = $this->session->userdata('user_get_id');
-			$otp_started_at = $this->session->userdata('otp_started_at');
-
-			// Session timeout: 1 hour (3600 seconds)
-			$otp_timeout = 3600;
-			$session_expired = false;
-
-			// Check if OTP session has expired
-			if ($otp_started_at && (time() - $otp_started_at) > $otp_timeout) {
-				// Clear all verification session flags
-				$this->session->unset_userdata('otp_required');
-				$this->session->unset_userdata('user_get_id');
-				$this->session->unset_userdata('twofa_required');
-				$this->session->unset_userdata('email_verify_required');
-				$this->session->unset_userdata('sender_otp');
-				$this->session->unset_userdata('otp_started_at');
-				$this->session->unset_userdata('otp_attempts');
-				$session_expired = true;
-			}
-
-			// If user is in verification process (has user_get_id or otp_required flag) AND session not expired
-			if (($otp_required || $user_get_id) && !$session_expired) {
-
-				$this->auth_verify();
-
-			} else {
-
-				$this->data['verify_type'] = '1';
-				$this->data['action'] = base_url() . "user/in";
-				$this->load->view('user/auth/login', $this->data);
-
-			}
-
+			// GET /user/in ALWAYS shows the username + password form (including on
+			// refresh). The Two-Factor & Email Verification step lives on its own
+			// URL — /user/verify — handled by verify() below.
+			$this->data['verify_type'] = '1';
+			$this->data['action'] = base_url() . "user/in";
+			$this->load->view('user/auth/login', $this->data);
 
 		}
 
+	}
+
+	/*
+	|--------------------------------------------------------------------------
+	| Two-Factor & Email Verification page (/user/verify)
+	|--------------------------------------------------------------------------
+	| Reached only after a successful username + password login that requires a
+	| second factor. Loading it without an active verification session (e.g.
+	| someone types the URL directly, or the session expired) bounces back to
+	| the login form.
+	*/
+	public function verify()
+	{
+		$otp_required   = $this->session->userdata('otp_required');
+		$user_get_id    = $this->session->userdata('user_get_id');
+		$otp_started_at = $this->session->userdata('otp_started_at');
+
+		// No verification in progress → nothing to verify, return to login.
+		if (!($otp_required || $user_get_id)) {
+			redirect('user/in');
+		}
+
+		// Session timeout: 1 hour (3600 seconds).
+		$otp_timeout = 3600;
+		if ($otp_started_at && (time() - $otp_started_at) > $otp_timeout) {
+			$this->_clear_verification_session();
+			$this->session->set_flashdata('danger', 'Your verification session has expired. Please sign in again.');
+			redirect('user/in');
+		}
+
+		$this->auth_verify();
 	}
 	/*
 	|--------------------------------------------------------------------------
@@ -516,13 +531,7 @@ class Login extends CI_Controller
 	public function back_to_login()
 	{
 		// Clear all verification flags
-		$this->session->unset_userdata('otp_required');
-		$this->session->unset_userdata('user_get_id');
-		$this->session->unset_userdata('twofa_required');
-		$this->session->unset_userdata('email_verify_required');
-		$this->session->unset_userdata('sender_otp');
-		$this->session->unset_userdata('otp_started_at');
-		$this->session->unset_userdata('otp_attempts');
+		$this->_clear_verification_session();
 
 		redirect('user/in');
 	}
@@ -620,6 +629,20 @@ class Login extends CI_Controller
 		$this->session->unset_userdata('email_verify_required');
 		$this->session->unset_userdata('user_get_id');
 		$this->session->unset_userdata('sender_otp');
+	}
+
+	// Clears every session flag tied to an in-progress 2FA / email verification.
+	// Shared by the OTP timeout, the "back to login" action, and the refresh
+	// guard in index() so they all reset the same set of keys.
+	private function _clear_verification_session()
+	{
+		$this->session->unset_userdata('otp_required');
+		$this->session->unset_userdata('user_get_id');
+		$this->session->unset_userdata('twofa_required');
+		$this->session->unset_userdata('email_verify_required');
+		$this->session->unset_userdata('sender_otp');
+		$this->session->unset_userdata('otp_started_at');
+		$this->session->unset_userdata('otp_attempts');
 	}
 
 	private function twofachecker($admin_id, $oneCode)

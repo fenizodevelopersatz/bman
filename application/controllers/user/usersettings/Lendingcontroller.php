@@ -57,6 +57,14 @@ class Lendingcontroller extends CI_Controller
             'bonus'    => (float) ($bal['bonus_withdrawable'] ?? 0),
             'earning'  => (float) ($bal['earning_withdrawable'] ?? 0),
         ];
+        // Raw totals too, so the view can label the gap when a maturity hold
+        // (e.g. a staking bonus that hasn't vested yet) makes total > withdrawable.
+        $this->data['wallet_bman_total'] = [
+            'exchange' => (float) ($bal['exchange'] ?? 0),
+            'staking'  => (float) ($bal['staking'] ?? 0),
+            'bonus'    => (float) ($bal['bonus'] ?? 0),
+            'earning'  => (float) ($bal['earning'] ?? 0),
+        ];
         // ≈ BMAN the USDT balance could buy, at the admin exchange rate.
         $this->load->model('Tokenmaster_model', 'tokens');
         $conv = $this->tokens->convertUsdtToBman($this->data['wallet_usdt']);
@@ -778,7 +786,8 @@ class Lendingcontroller extends CI_Controller
                 'status' => $o['status'],
                 'description' => 'Staking purchase ' . number_format((float)$o['bman_amount'], 0) . ' BMAN (' .
                                 ($o['plan_code'] ? $o['plan_code'] : 'fixed') . '/' .
-                                ($o['duration_years'] ? $o['duration_years'] : 1) . 'y) — ' . ucfirst(str_replace('_', ' ', $o['status'])),
+                                ($o['duration_years'] ? $o['duration_years'] : 1) . 'y) — ' .
+                                ($o['status'] === 'swap_completed' ? 'Completed' : ucfirst(str_replace('_', ' ', $o['status']))),
                 'hash_id' => $o['gas_tx_hash'],
                 // Additional fields for popup details
                 'order_id' => $o['id'],
