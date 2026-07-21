@@ -133,6 +133,12 @@
             color:#fff; font-weight:800; font-size:13px; letter-spacing:.3px; user-select:none;
         }
         .cx-av.sm { width:30px; height:30px; flex:0 0 30px; font-size:11px; }
+        .cx-av-wrap { position:relative; display:inline-flex; flex:0 0 auto; }
+        .cx-av-dot {
+            position:absolute; right:-1px; bottom:-1px; width:9px; height:9px; border-radius:50%;
+            background:var(--good,#22c55e); border:2px solid var(--cx-card,#fff);
+        }
+        .cx-av-dot.off { background:#9ca3af; }
 
         /* thread */
         .cx-thread { flex:1; display:flex; flex-direction:column; min-width:0; min-height:0; background:var(--cx-canvas); }
@@ -323,11 +329,18 @@
                 { key: 'personal', label: 'Direct', icon: 'ph-chat-teardrop-text' }
             ];
 
-            const Avatar = ({ id, name, sm }) =>
-                E('div', {
-                    className: 'cx-av' + (sm ? ' sm' : ''),
-                    style: { background: avColor(id) }, title: name
-                }, initials(name));
+            const Avatar = ({ id, name, sm, online }) =>
+                E('div', { className: 'cx-av-wrap' },
+                    E('div', {
+                        className: 'cx-av' + (sm ? ' sm' : ''),
+                        style: { background: avColor(id) }, title: name
+                    }, initials(name)),
+                    online === undefined ? null :
+                        E('span', {
+                            className: 'cx-av-dot' + (online ? '' : ' off'),
+                            title: online ? 'Online' : 'Offline'
+                        })
+                );
 
             /* ---------------- app ---------------- */
             function Chat() {
@@ -335,6 +348,7 @@
                 const [peer, setPeer] = useState(null);
                 const [byRoom, setByRoom] = useState({ world: [], team: [], personal: [] });
                 const [recent, setRecent] = useState([]);
+                const [onlineMap, setOnlineMap] = useState({});
                 const [text, setText] = useState('');
                 const [file, setFile] = useState(null);
                 const [sending, setSending] = useState(false);
@@ -456,7 +470,7 @@
                             const res = await fetch(CHAT_RECENT_URL + '?limit=50',
                                 { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
                             const j = await res.json();
-                            if (alive && j.ok) setRecent(j.items || []);
+                            if (alive && j.ok) { setRecent(j.items || []); setOnlineMap(j.online || {}); }
                         } catch (e) { /* transient — next tick retries */ }
                     };
                     pull();
@@ -537,17 +551,18 @@
                     const term = q.trim().toLowerCase();
                     const convs = (recent || []).map(r => ({
                         id: Number(r.peer_id), username: r.peer_name,
-                        last: r.last_message, when: r.last_message_time, type: r.last_message_type
+                        last: r.last_message, when: r.last_message_time, type: r.last_message_type,
+                        online: !!onlineMap[r.peer_id]
                     }));
                     const have = new Set(convs.map(c => c.id));
                     // Everyone else in the path, so a first message is possible
                     // without an existing thread.
                     const rest = (CHAT_PEERS || [])
                         .filter(p => !have.has(Number(p.id)))
-                        .map(p => ({ id: Number(p.id), username: p.username, last: '', when: '', type: 'text' }));
+                        .map(p => ({ id: Number(p.id), username: p.username, last: '', when: '', type: 'text', online: !!onlineMap[p.id] }));
                     return [...convs, ...rest]
                         .filter(c => !term || String(c.username || '').toLowerCase().includes(term));
-                }, [recent, q]);
+                }, [recent, q, onlineMap]);
 
                 const Rail = () => E('div', { className: 'cx-rail' + (peer ? ' hide-sm' : '') },
                     E('div', { className: 'cx-rail-h' },
@@ -569,7 +584,7 @@
                                 className: 'cx-conv' + (peer && peer.id === c.id ? ' on' : ''),
                                 onClick: () => setPeer({ id: c.id, username: c.username })
                             },
-                                E(Avatar, { id: c.id, name: c.username }),
+                                E(Avatar, { id: c.id, name: c.username, online: c.online }),
                                 E('div', { className: 'cx-conv-b' },
                                     E('div', { className: 'cx-conv-n' }, c.username),
                                     E('div', { className: 'cx-conv-m' },
@@ -677,7 +692,7 @@
                                         style: { width: '30px', height: '30px', flex: '0 0 30px', fontSize: '14px' },
                                         onClick: () => setPeer(null)
                                     }, E('i', { className: 'ph ph-arrow-left' })),
-                                    E(Avatar, { id: peer.id, name: peer.username, sm: true }),
+                                    E(Avatar, { id: peer.id, name: peer.username, sm: true, online: !!onlineMap[peer.id] }),
                                     E('div', null,
                                         E('div', { className: 'cx-peer-name' }, peer.username),
                                         E('div', { className: 'cx-peer-sub' }, 'Direct message')))

@@ -9,6 +9,37 @@ class Chat_model extends CI_Model
         return $this->db->insert($this->table, $data);
     }
 
+    /* ---------------------------
+     * PRESENCE (heartbeat-based — no websocket server in this app)
+     * --------------------------- */
+
+    /** Mark $userId active right now. Called on every chat/fetch poll (2s). */
+    public function touchActive($userId)
+    {
+        $userId = (int) $userId;
+        if ($userId <= 0) return;
+        $this->db->where('id', $userId)->update('users', ['last_active_at' => date('Y-m-d H:i:s')]);
+    }
+
+    /** [$id => bool] online (active within $windowSeconds) for the given user ids. */
+    public function onlineMap(array $userIds, $windowSeconds = 30)
+    {
+        $userIds = array_values(array_unique(array_map('intval', $userIds)));
+        if (empty($userIds)) return [];
+
+        $cutoff = date('Y-m-d H:i:s', time() - (int) $windowSeconds);
+        $rows = $this->db->select('id, last_active_at')
+                         ->from('users')
+                         ->where_in('id', $userIds)
+                         ->get()->result_array();
+
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(int) $r['id']] = !empty($r['last_active_at']) && $r['last_active_at'] >= $cutoff;
+        }
+        return $map;
+    }
+
     // ---------------------------
     // TEAM USERS (binary downline)
     // ---------------------------

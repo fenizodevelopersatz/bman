@@ -40,6 +40,8 @@ class BinaryModel extends CI_Model
         users.username,
         users.email,
         users.register_date,
+        users.profile_img,
+        users.image,
         binary_placement.parent_id as parent_id,
         binary_placement.sponsor_id as sponsor_id,
         binary_placement.position as position,
@@ -57,7 +59,9 @@ class BinaryModel extends CI_Model
             'email' => $direct_user->email,
             'register_date' => date('Y-m-d', strtotime($direct_user->register_date)),
             'position' => ucfirst($direct_user->position),
-            'placement_type' => ucfirst($direct_user->placement_type)
+            'placement_type' => ucfirst($direct_user->placement_type),
+            'profile_img' => $direct_user->profile_img,
+            'image' => $direct_user->image,
         ];
 
         $this->fetchDownline($user_id, $downline, 1, $maxDepth);
@@ -74,6 +78,8 @@ class BinaryModel extends CI_Model
             users.id,
             users.username,
             users.email,
+            users.profile_img,
+            users.image,
             binary_placement.parent_id,
             binary_placement.sponsor_id,
             binary_placement.position,
@@ -96,6 +102,8 @@ class BinaryModel extends CI_Model
                 'position' => ucfirst($member->position) . " ( " . currency_format($my_investment) . " )",
                 'placement_type' => ucfirst($member->placement_type),
                 'exchange' => $this->getTotalExchangeWallet([$member->id]), // BMAN investment
+                'profile_img' => $member->profile_img,
+                'image' => $member->image,
             ];
 
             $this->fetchDownline($member->id, $downline, $level + 1, $maxDepth);

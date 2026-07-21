@@ -129,4 +129,18 @@ $uid = $this->session->userdata('user_userid') ?? '';
     });
   })();
 </script>
+<script>
+  (function () {
+    // Site-wide presence heartbeat — Chat's own 2s poll only runs while the
+    // Chat page itself is open, so without this a member browsing anywhere
+    // else (Dashboard, Binary Tree, ...) would incorrectly show as offline.
+    var url = '<?php echo base_url('user/heartbeat'); ?>';
+    function ping() {
+      if (document.visibilityState !== 'visible') return;
+      fetch(url, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).catch(function () {});
+    }
+    ping();
+    setInterval(ping, 15000);
+  })();
+</script>
 <?php $this->load->view("partials/browser_controls"); ?>
