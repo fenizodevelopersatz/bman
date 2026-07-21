@@ -66,12 +66,16 @@ class BinaryMatchingPayoutCron extends CI_Controller
 
         $watch = is_cli() && $mode === 'watch';
 
+        $start = microtime(true);
         try {
             $result = $watch ? $this->_runUntilSettled() : $this->_runOnce();
         } catch (Exception $e) {
             log_message('error', $this->log_prefix . ' ' . $e->getMessage());
             $result = ['status' => 'error', 'message' => $e->getMessage(), 'ran_at' => date('Y-m-d H:i:s')];
         }
+
+        $this->load->model('CronLog_model', 'cronlog');
+        $this->cronlog->record('binary_matching_payout', $result['status'] ?? 'unknown', $result, (int) round((microtime(true) - $start) * 1000));
 
         echo json_encode($result) . PHP_EOL;
     }

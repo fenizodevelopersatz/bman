@@ -1001,13 +1001,24 @@
       const url = getLink(side);
       if (!url) return toastMini("Link not available");
 
-      if (navigator.share) {
+      const shareText = `Join my team using this referral link:\n${url}`;
+
+      if (window.isSecureContext && navigator.share) {
         try {
-          await navigator.share({ title: "Join my team", text: "Use my referral link to join:", url });
-        } catch (e) { }
+          await navigator.share({ title: "Join my team", text: shareText, url });
+          return;
+        } catch (e) {
+          // If the user cancels or the platform blocks sharing, fall through to web share.
+        }
+      }
+
+      const shareUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+      const opened = window.open(shareUrl, '_blank', 'noopener,noreferrer');
+      if (opened) {
+        toastMini("Opened WhatsApp share");
       } else {
         await copyText(side);
-        toastMini("Share not supported. Link copied!");
+        toastMini("Share blocked. Link copied!");
       }
     }
 
