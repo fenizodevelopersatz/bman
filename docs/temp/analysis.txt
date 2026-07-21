@@ -3605,3 +3605,27 @@ I need to completed to change the admin dashboard with calculating the chart det
 recent login auditing logs
 
 *0Mu&M]>l3B
+
+
+
+20-07-26
+=============
+1. Need to add a bman to exchange wallet from external source(Receive bman from external)
+2. Only convert the exchange wallet to usdt (no others)
+3. on the pop to recheck the At maturity(only show the EXPECTED ROI)
+4. Rename the confirm & swap -> confirm
+5. Plan deactivate
+6. ROI credited here to distribute to exchange wallet
+7. Kyc Issued date optional
+8. Remove Comm tab on left side
+9. Only show to downline 
+10. http://192.168.29.18:9000/user/rank-reward Add to pdf or image or ppt - New points
+11. Add anoncement image + text (option text(bg color + text) / image (size validate on admin panel))  - New points
+
+
+
+Rank -> based on earning wallet(8%)
+
+
+Email + setting -completed
+Client demo
