@@ -786,7 +786,8 @@ class Lendingcontroller extends CI_Controller
                 'status' => $o['status'],
                 'description' => 'Staking purchase ' . number_format((float)$o['bman_amount'], 0) . ' BMAN (' .
                                 ($o['plan_code'] ? $o['plan_code'] : 'fixed') . '/' .
-                                ($o['duration_years'] ? $o['duration_years'] : 1) . 'y) — ' . ucfirst(str_replace('_', ' ', $o['status'])),
+                                ($o['duration_years'] ? $o['duration_years'] : 1) . 'y) — ' .
+                                ($o['status'] === 'swap_completed' ? 'Completed' : ucfirst(str_replace('_', ' ', $o['status']))),
                 'hash_id' => $o['gas_tx_hash'],
                 // Additional fields for popup details
                 'order_id' => $o['id'],
@@ -3038,7 +3039,7 @@ class Lendingcontroller extends CI_Controller
             'pending_gas_fee' => 'Waiting for gas fee...',
             'pending_usdt' => 'Gas fee received! Ready to send USDT',
             'pending_bman' => 'USDT received! Waiting for BMAN transfer',
-            'swap_completed' => 'completed! Staking activated',
+            'swap_completed' => 'Swap completed! Staking activated',
             'failed' => 'Order failed: ' . ($order['error'] ?? 'Unknown error'),
         ];
 
