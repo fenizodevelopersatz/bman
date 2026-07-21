@@ -5,7 +5,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * ROI Maturity Payment CRON.
  *
  * When a staking term matures (fixed_maturity_date reached) this:
- *   - credits the fixed lump (principal × fixed%) to the EARNING wallet  [fixed + combo]
+ *   - credits the fixed lump (principal × fixed%) to the EXCHANGE wallet, on-chain [fixed + combo]
  *   - returns the PRINCIPAL to the STAKING wallet                        [all plans]
  *   - marks the ROI record completed.
  *
@@ -91,12 +91,12 @@ class RoiMaturityPayment_cron extends CI_Controller
                 $this->db->where('id', $r['id'])->update('roi_staking_management', ['fixed_tx_hash' => $tx]);
             }
 
-            list($ok, $info) = $this->L->credit($uid, 'earning', $fixedAmt, 'roi', [
+            list($ok, $info) = $this->L->credit($uid, 'exchange', $fixedAmt, 'roi', [
                 'tx_hash' => $tx, 'reference_id' => $r['ref'],
                 'description' => "Maturity ROI lump {$fixedAmt} BMAN (order {$r['staking_swap_orders_id']})" . (strpos($tx, 'DRYRUN') === 0 ? ' [DRY-RUN]' : ''),
             ]);
             if (!$ok) throw new RuntimeException('lump credit failed: ' . $info);
-            $this->_recordOnchain($r, $tx, $fixedAmt, 'roi_maturity', 'earning');
+            $this->_recordOnchain($r, $tx, $fixedAmt, 'roi_maturity', 'exchange');
             $totalPaid += $fixedAmt;
             $paidLump   = $fixedAmt;
         }
