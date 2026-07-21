@@ -5,8 +5,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * ROI Monthly Distribution CRON — monthly-for-full-term model.
  *
  * For every active regular/combo ROI record whose next_payment_date has arrived,
- * credit the monthly ROI (principal × monthly%) to the user's EARNING wallet,
- * once per month, until all duration_years×12 months are paid. Crediting goes
+ * credit the monthly ROI (principal × monthly%) to the user's EXCHANGE wallet
+ * on-chain, once per month, until all duration_years×12 months are paid. Crediting goes
  * through Walletledger_model (updates user_wallets + appends a wallet_ledger row,
  * idempotent on tx_hash+wallet_type) — never a direct balance write.
  *
@@ -95,7 +95,7 @@ class RoiMonthlyDistribution_cron extends CI_Controller
                 break;
             }
 
-            list($ok, $info) = $this->L->credit((int)$r['user_id'], 'earning', $amount, 'roi', [
+            list($ok, $info) = $this->L->credit((int)$r['user_id'], 'exchange', $amount, 'roi', [
                 'tx_hash'      => $txHash,
                 'reference_id' => $r['ref'],
                 'description'  => "Monthly ROI {$cycle}/{$count} — {$amount} BMAN (order {$r['staking_swap_orders_id']})" . (strpos($txHash, 'DRYRUN') === 0 ? ' [DRY-RUN]' : ''),
@@ -179,7 +179,7 @@ class RoiMonthlyDistribution_cron extends CI_Controller
         }
 
         $this->db->insert('onchain_transactions', [
-            'tx_hash' => $txHash, 'wallet_type' => 'earning', 'tx_type' => $txType, 'status' => 'confirmed',
+            'tx_hash' => $txHash, 'wallet_type' => 'exchange', 'tx_type' => $txType, 'status' => 'confirmed',
             'user_id' => $userId, 'amount' => $amount,
             'reference_type' => 'roi', 'reference_id' => $cycleRef,
             'created_at' => date('Y-m-d H:i:s'),

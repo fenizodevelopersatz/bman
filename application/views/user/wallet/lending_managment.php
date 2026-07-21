@@ -107,7 +107,6 @@ $hero_progress = 48;
 <html lang="en">
 
 <head>
-  <?php $hide_user_search = true; ?>
   <?php $this->load->view('user/layout/v2/user_style'); ?>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <style>
@@ -1055,8 +1054,8 @@ $hero_progress = 48;
       // [label, icon, colour, tag]
       // Order: USDT (fixed first) → Exchange → Earning → Staking → Bonus
       $wstrip = [
-        'exchange' => ['Exchange Wallet', 'ph-swap',        '#6366f1', ''],
-        'earning'  => ['Earning Wallet',  'ph-trend-up',    '#0ea5e9', 'ROI credited here'],
+        'exchange' => ['Exchange Wallet', 'ph-swap',        '#6366f1', 'ROI credited here'],
+        'earning'  => ['Earning Wallet',  'ph-trend-up',    '#0ea5e9', ''],
         'staking'  => ['Staking Wallet',  'ph-lock-key',    '#10b981', ''],
         'bonus'    => ['Bonus Wallet',    'ph-gift',        '#f59e0b', ''],
       ];
