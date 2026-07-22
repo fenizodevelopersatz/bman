@@ -58,7 +58,7 @@ $route['default_controller'] = 'Landing';
 
 
 /****************** ADMIN ROUTES ********/
-$route['admin'] = 'admin/Administrator';
+$route['admin'] = 'admin/dashboard/Dashboard/index';
 $route['admin/login'] = 'admin/Login';
 
 /********** admin login verify */
@@ -66,6 +66,23 @@ $route['login-otp-verify'] = 'admin/Login/verifyotp';
 $route['login-finel-verify'] = 'admin/Login/finelVerify';
 
 $route['balance-info-admin'] = 'admin/Administrator/balance_info';
+
+/**** Admin Dashboard v2 (real BMAN/staking/binary data) ****/
+$route['admin/dashboard'] = 'admin/dashboard/Dashboard/index';
+$route['admin/dashboard/stats'] = 'admin/dashboard/Dashboard/stats';
+$route['admin/dashboard/staking-analytics'] = 'admin/dashboard/Dashboard/staking_analytics';
+$route['admin/dashboard/package-distribution'] = 'admin/dashboard/Dashboard/package_distribution';
+$route['admin/dashboard/binary-summary'] = 'admin/dashboard/Dashboard/binary_summary';
+$route['admin/dashboard/binary-growth'] = 'admin/dashboard/Dashboard/binary_growth';
+$route['admin/dashboard/rank-summary'] = 'admin/dashboard/Dashboard/rank_summary';
+$route['admin/dashboard/withdrawal-center'] = 'admin/dashboard/Dashboard/withdrawal_center';
+$route['admin/dashboard/kyc-monitor'] = 'admin/dashboard/Dashboard/kyc_monitor';
+$route['admin/dashboard/support-center'] = 'admin/dashboard/Dashboard/support_center';
+$route['admin/dashboard/activity-feed'] = 'admin/dashboard/Dashboard/activity_feed';
+$route['admin/dashboard/system-health'] = 'admin/dashboard/Dashboard/system_health';
+$route['admin/dashboard/alerts'] = 'admin/dashboard/Dashboard/alerts';
+$route['admin/dashboard/sidebar-counts'] = 'admin/dashboard/Dashboard/sidebar_counts';
+$route['admin/all-transaction/export/(:any)'] = 'admin/AllTransactions/export/$1';
 
 /****************** CRON ROUTES ********/
 $route['staking-roi-cron'] = 'Staking_roi_cron';
@@ -285,6 +302,9 @@ $route['edit-announcement-cms/(:num)'] = 'admin/cms/Announcement/edit_section/$1
 $route['announcement-add'] = 'admin/cms/Announcement/add';
 $route['view-announceemnt-section-cms/(:num)'] = 'admin/cms/Announcement/view_section/$1';
 $route['delete-announcement-cms/(:num)'] = 'admin/cms/Announcement/delete_section/$1';
+$route['user/announcement/view/(:num)']['post'] = 'user/Announcementtrack/view/$1';
+$route['user/announcement/click/(:num)']['post'] = 'user/Announcementtrack/click/$1';
+$route['user/announcement/dismiss/(:num)']['post'] = 'user/Announcementtrack/dismiss/$1';
 
 /************** Slider ContentManagement */
 $route['slider-cms'] = 'admin/cms/Slider';

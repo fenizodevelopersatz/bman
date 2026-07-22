@@ -479,6 +479,7 @@ class WalletTracker_model extends CI_Model
             'amount'      => $oc['amount'],
             'block_number'=> $oc['block_number'] ?? null,
             'network'     => $oc['network'] ?? null,
+            'gas_fee_total' => $oc['gas_fee_total'] ?? null,
         ];
     }
 

@@ -31,3 +31,29 @@
 <script src="<?php echo base_url(); ?>/assets/admin/plugins/global/plugins.bundle.js"></script>
 <script src="<?php echo base_url(); ?>/assets/admin/js/scripts.bundle.js"></script>
 <?php $this->load->view("partials/browser_controls"); ?>
+
+<script>
+    // Site-wide sidebar "new" count badges (pending withdrawals/KYC/support) —
+    // runs on every admin page so the counts stay visible while navigating,
+    // not just on the dashboard itself.
+    (function () {
+        const badges = document.querySelectorAll('[data-dashboard-badge]');
+        if (!badges.length) return;
+        function refresh() {
+            fetch(hostUrl + 'admin/dashboard/sidebar-counts', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json())
+                .then(j => {
+                    if (!j.status) return;
+                    badges.forEach(function (el) {
+                        const key = el.getAttribute('data-dashboard-badge');
+                        const n = parseInt(j.data[key] || 0, 10);
+                        el.textContent = n;
+                        el.classList.toggle('d-none', n <= 0);
+                    });
+                })
+                .catch(function () {});
+        }
+        refresh();
+        setInterval(refresh, 60000);
+    })();
+</script>

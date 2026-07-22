@@ -130,4 +130,71 @@ class AllTransactions extends CI_Controller
 
         $this->_json(['status' => true, 'rows' => $this->cronlog->recent($limit, $name)]);
     }
+
+    /**
+     * Export the current (filtered) transaction list as CSV / Excel / PDF.
+     *   csv   — real CSV
+     *   excel — an Excel-readable HTML table sent as .xls (no PhpSpreadsheet
+     *           in this project; Excel opens this natively)
+     *   pdf   — a print-ready HTML page; use the browser print dialog to save
+     *           as PDF (no PDF library is vendored here)
+     * Same convention as admin/staking/Rankmanagement.php::export().
+     */
+    public function export($format = 'csv')
+    {
+        $filters = $this->_filters();
+        $rows = $this->tracker->list_transactions($filters, 10000, 0);
+        foreach ($rows as &$r) {
+            $r['onchain_status'] = $r['onchain']['status'] ?? '';
+            $r['gas_fee_total']  = $r['onchain']['gas_fee_total'] ?? '';
+            $r['signed_amount']  = ($r['direction'] === 'credit' ? '+' : '-') . $r['amount'];
+        }
+        unset($r);
+
+        $cols = [
+            'created_at'     => 'When',
+            'user_id'        => 'User ID',
+            'type_label'     => 'Type',
+            'signed_amount'  => 'Amount',
+            'balance_after'  => 'Balance After',
+            'description'    => 'Description',
+            'tx_hash'        => 'Tx Hash',
+            'onchain_status' => 'Chain Status',
+            'gas_fee_total'  => 'Gas Fee (BNB)',
+        ];
+        $label = 'All Transactions';
+        $stamp = date('Y-m-d_His');
+
+        if ($format === 'csv') {
+            $out = fopen('php://temp', 'r+');
+            fputcsv($out, array_values($cols));
+            foreach ($rows as $r) {
+                $line = [];
+                foreach (array_keys($cols) as $c) $line[] = isset($r[$c]) ? $r[$c] : '';
+                fputcsv($out, $line);
+            }
+            rewind($out);
+            $csv = stream_get_contents($out);
+            fclose($out);
+            return force_download($this->_slug($label) . '_' . $stamp . '.csv', $csv);
+        }
+
+        if ($format === 'excel') {
+            $html = $this->load->view('admin/all_transactions_export',
+                        ['rows' => $rows, 'cols' => $cols, 'label' => $label, 'print' => false], true);
+            return force_download($this->_slug($label) . '_' . $stamp . '.xls', $html);
+        }
+
+        if ($format === 'pdf') {
+            return $this->load->view('admin/all_transactions_export',
+                        ['rows' => $rows, 'cols' => $cols, 'label' => $label, 'print' => true]);
+        }
+
+        show_404();
+    }
+
+    private function _slug($s)
+    {
+        return strtolower(preg_replace('/[^a-z0-9]+/i', '_', trim($s)));
+    }
 }

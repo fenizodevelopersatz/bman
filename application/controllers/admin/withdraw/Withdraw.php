@@ -58,6 +58,8 @@ class Withdraw extends MY_Controller
 
         $this->data['title'] = "All Withdraw List ";
         $this->data['card_tilte'] = "Withdraw List";
+        $this->load->model('admin/DashboardStats_model', 'dashstats');
+        $this->dashstats->markSeen($this->session->userdata('admin_userid'), 'withdrawals');
         $this->load->view('admin/withdraw/list', $this->data);
     }
     /*

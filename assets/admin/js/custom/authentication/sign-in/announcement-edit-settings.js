@@ -177,7 +177,7 @@ document.addEventListener("DOMContentLoaded", function () {
                             var typeChecked = document.querySelector('input[name="announcement_type"]:checked');
                             var annType = typeChecked ? typeChecked.value : 'text';
 
-                            if (annType === 'text' && !t.elements.announcement_content.value.trim()) {
+                            if ((annType === 'text' || annType === 'text_image') && !t.elements.announcement_content.value.trim()) {
                                 Swal.fire({
                                     text: "The Announcement Content is Required",
                                     icon: "warning", buttonsStyling: false,
@@ -186,7 +186,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                 });
                                 return;
                             }
-                            if (annType === 'image' && window.annAnnouncementReadyToSubmit && !window.annAnnouncementReadyToSubmit()) {
+                            if ((annType === 'image' || annType === 'text_image') && window.annAnnouncementReadyToSubmit && !window.annAnnouncementReadyToSubmit()) {
                                 Swal.fire({
                                     text: "Please choose an image and click \"Apply Crop\" first.",
                                     icon: "warning", buttonsStyling: false,
