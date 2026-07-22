@@ -37,6 +37,8 @@ class Web3bman
     const SELECTOR_TRANSFER = '0xa9059cbb';
     /** balanceOf(address) selector */
     const SELECTOR_BALANCEOF = '0x70a08231';
+    /** totalSupply() selector */
+    const SELECTOR_TOTALSUPPLY = '0x18160ddd';
 
     public function __construct()
     {
@@ -207,6 +209,15 @@ class Web3bman
         if (!$contract) throw new RuntimeException('No token contract configured.');
         $data = self::SELECTOR_BALANCEOF.$this->pad32(strtolower(preg_replace('/^0x/', '', $address)));
         $hex  = $this->rpc('eth_call', [['to' => $contract, 'data' => $data], 'latest']);
+        return $this->fromUnits($this->hexToDec($hex), $this->decimals());
+    }
+
+    /** BEP-20 total supply (defaults to the BMAN contract) — the real, fixed on-chain figure. Human string. */
+    public function getTotalSupply($contract = null)
+    {
+        $contract = $contract ?: $this->contract();
+        if (!$contract) throw new RuntimeException('No token contract configured.');
+        $hex = $this->rpc('eth_call', [['to' => $contract, 'data' => self::SELECTOR_TOTALSUPPLY], 'latest']);
         return $this->fromUnits($this->hexToDec($hex), $this->decimals());
     }
 

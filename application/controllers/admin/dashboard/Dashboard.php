@@ -62,6 +62,18 @@ class Dashboard extends CI_Controller
         $this->_json(['status' => true, 'data' => $this->stats->roiLiability()]);
     }
 
+    public function roi_liability_periods()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->_json(['status' => true, 'data' => $this->stats->roiLiabilityByPeriod()]);
+    }
+
+    public function treasury()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->_json(['status' => true, 'data' => $this->stats->treasuryDashboard()]);
+    }
+
     public function staking_analytics()
     {
         if (!$this->input->is_ajax_request()) show_404();
