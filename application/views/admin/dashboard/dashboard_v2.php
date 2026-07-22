@@ -2,6 +2,8 @@
 
 <style>
     .chart-container{ position:relative; }
+    #dash-hotwallet-refresh.spin i{ animation: dash-spin 0.8s linear infinite; display:inline-block; }
+    @keyframes dash-spin{ to{ transform: rotate(360deg); } }
     .dash-stat-card .card-body{ padding:1.5rem; }
 
     /* Glassmorphism pass — scoped to #dash-glass-scope only, so it never
@@ -146,6 +148,7 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
     <script>
     (function () {
         const base = '<?php echo base_url(); ?>';
+        const DEFAULT_AVATAR = '<?php echo default_avatar_url(); ?>';
         const fmt = n => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
         const count = (id, value) => { try { new countUp.CountUp(id, parseFloat(value) || 0).start(); } catch (e) { const el = document.getElementById(id); if (el) el.textContent = fmt(value); } };
         const fetchJson = (url) => fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(r => r.json());
@@ -170,6 +173,9 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                 count('dash-wallet-staking', w.staking);
                 count('dash-wallet-bonus', w.bonus);
                 count('dash-wallet-total-bman', (parseFloat(w.exchange || 0) + parseFloat(w.earning || 0) + parseFloat(w.staking || 0) + parseFloat(w.bonus || 0)));
+
+                document.getElementById('dash-platform-in').textContent = fmt(h.total_deposits_usdt) + ' USDT';
+                document.getElementById('dash-platform-out').textContent = fmt(h.total_withdrawals_usdt) + ' USDT / ' + fmt(h.total_withdrawals_bman) + ' BMAN';
             });
         }
 
@@ -298,7 +304,9 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                     const amt = (r.direction === 'credit' ? '+' : '−') + fmt(r.amount) + ' ' + esc((r.wallet_type || '').toUpperCase());
                     const amtCls = r.direction === 'credit' ? 'text-success' : 'text-danger';
                     const chain = r.onchain ? '<span class="badge badge-light-info fs-8">' + esc(r.onchain.status || 'onchain') + '</span>' : '<span class="badge badge-light fs-8">internal</span>';
-                    const avatar = r.avatar ? '<img src="' + esc(r.avatar) + '" style="width:24px;height:24px;border-radius:50%;object-fit:cover;vertical-align:middle;" class="me-2">' : '';
+                    const avatarSrc = r.avatar || DEFAULT_AVATAR;
+                    const avatar = '<img src="' + esc(avatarSrc) + '" style="width:24px;height:24px;border-radius:50%;object-fit:cover;vertical-align:middle;" class="me-2" ' +
+                        'onerror="this.onerror=null;this.src=\'' + DEFAULT_AVATAR + '\';">';
                     return '<tr class="dash-tx-row" data-id="' + r.ledger_id + '" style="cursor:pointer;">' +
                         '<td class="text-muted">' + esc(r.created_at) + '</td>' +
                         '<td>' + avatar + '#' + esc(r.user_id) + '</td>' +
@@ -377,8 +385,14 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
             });
         })();
 
+        // Single load on page open only — this hits a live blockchain RPC,
+        // unlike everything else on the dashboard (cheap DB queries), so it
+        // does NOT sit on a recurring timer. Refresh button re-fetches on demand.
         function loadHotWallet() {
+            const btn = document.getElementById('dash-hotwallet-refresh');
+            if (btn) btn.classList.add('spin');
             fetchJson(base + 'admin/dashboard/hot-wallet').then(j => {
+                if (btn) btn.classList.remove('spin');
                 if (!j.status) return;
                 const d = j.data;
                 const wrap = document.getElementById('dash-hotwallet-wrap');
@@ -388,7 +402,7 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                     return;
                 }
                 if (d.treasury) {
-                    document.getElementById('dash-hotwallet-address').textContent = 'Treasury: ' + d.treasury.address;
+                    document.getElementById('dash-hotwallet-address').textContent = 'Treasury: ' + d.treasury.address + ' · updated ' + new Date().toLocaleTimeString();
                     count('dash-hotwallet-bnb', d.treasury.bnb);
                     count('dash-hotwallet-bman', d.treasury.bman);
                 }
@@ -396,24 +410,12 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                     document.getElementById('dash-hotwallet-gas-wrap').style.display = '';
                     count('dash-hotwallet-gas-bnb', d.gas.bnb);
                 }
-            });
+            }).catch(function () { if (btn) btn.classList.remove('spin'); });
         }
 
-        function loadAlerts() {
-            fetchJson(base + 'admin/dashboard/alerts').then(j => {
-                const wrap = document.getElementById('dash-alerts-wrap');
-                const body = document.getElementById('dash-alerts-body');
-                if (!j.status || !(j.alerts || []).length) { wrap.style.display = 'none'; return; }
-                wrap.style.display = '';
-                body.innerHTML = j.alerts.map(a => {
-                    const cls = a.level === 'danger' ? 'danger' : 'warning';
-                    const inner = '<i class="ki-duotone ki-information fs-2 me-2"><span class="path1"></span><span class="path2"></span><span class="path3"></span></i>' + esc(a.text);
-                    return '<div class="alert alert-' + cls + ' d-flex align-items-center py-3 mb-0">' +
-                        (a.href ? '<a href="' + esc(a.href) + '" class="text-' + cls + ' d-flex align-items-center text-decoration-none">' + inner + '</a>' : inner) +
-                        '</div>';
-                }).join('');
-            });
-        }
+        // Admin Alerts is now populated by the single site-wide poller in
+        // common_script.php (admin/dashboard/poll) — no separate fetch/timer
+        // here, see "Do not send more repeated requests" feedback.
 
         function loadActivityFeed() {
             fetchJson(base + 'admin/dashboard/activity-feed?limit=20').then(j => {
@@ -423,10 +425,12 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
             });
         }
 
-        function loadSystemHealth() {
-            fetchJson(base + 'admin/dashboard/system-health').then(j => {
-                if (!j.status) return;
-                const d = j.data;
+        // Rendered from the shared poller's dispatched event (see
+        // common_script.php) instead of its own fetch/timer — one fewer
+        // repeated request per minute.
+        window.addEventListener('dashPollSystemHealth', function (e) { renderSystemHealth(e.detail); });
+        function renderSystemHealth(d) {
+                if (!d) return;
                 document.getElementById('dash-health-db').innerHTML = d.database.ok
                     ? '<span class="badge badge-light-success">Connected</span>' : '<span class="badge badge-light-danger">Down</span>';
                 document.getElementById('dash-health-rpc').innerHTML = d.rpc.success_rate === null
@@ -441,7 +445,6 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                 cronEl.innerHTML = (d.cron || []).length
                     ? d.cron.map(c => '<div class="d-flex justify-content-between fs-8"><span>' + esc(c.name) + '</span><span class="badge badge-light-' + (c.status === 'success' || c.status === 'ok' ? 'success' : 'danger') + '">' + esc(c.status) + ' · ' + c.minutes_ago + 'm ago</span></div>').join('')
                     : '<div class="text-muted fs-8">No cron runs logged yet.</div>';
-            });
         }
 
         loadStats();
@@ -453,14 +456,15 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
         loadWithdrawalCenter();
         loadKycSupport();
         loadRecentTransactions();
-        loadAlerts();
         loadActivityFeed();
-        loadSystemHealth();
         loadHotWallet();
+        const hotWalletRefreshBtn = document.getElementById('dash-hotwallet-refresh');
+        if (hotWalletRefreshBtn) hotWalletRefreshBtn.addEventListener('click', loadHotWallet);
         setInterval(loadActivityFeed, 30000);
-        setInterval(loadSystemHealth, 60000);
-        setInterval(loadAlerts, 60000);
-        setInterval(loadHotWallet, 60000);
+        // Alerts + System Health: driven by common_script.php's single shared
+        // poll (60s), not a separate timer here.
+        // Hot Wallet: single load only — it's a live blockchain RPC call, not
+        // a cheap DB query, so it does NOT auto-poll. Use the Refresh button.
     })();
     </script>
 </body>
