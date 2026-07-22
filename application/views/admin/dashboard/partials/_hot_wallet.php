@@ -6,7 +6,12 @@
         <div class="d-flex align-items-center gap-3">
           <i class="ki-duotone ki-wallet fs-2x text-warning"><span class="path1"></span><span class="path2"></span></i>
           <div>
-            <div class="fw-bold text-gray-900">Hot Wallet — Live On-Chain Balance</div>
+            <div class="fw-bold text-gray-900">
+              Hot Wallet — Live On-Chain Balance
+              <button type="button" class="btn btn-sm btn-icon btn-light ms-2" id="dash-hotwallet-refresh" title="Refresh from blockchain">
+                <i class="ki-duotone ki-arrows-circle fs-4"><span class="path1"></span><span class="path2"></span></i>
+              </button>
+            </div>
             <div class="fs-8 text-muted" id="dash-hotwallet-address">—</div>
           </div>
         </div>

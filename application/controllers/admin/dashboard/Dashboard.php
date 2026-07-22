@@ -119,13 +119,8 @@ class Dashboard extends CI_Controller
         $this->_json(['status' => true, 'data' => $this->stats->systemHealth()]);
     }
 
-    /** Admin Alerts — derived from data already gathered elsewhere, no separate query. */
-    public function alerts()
+    private function _buildAlerts(array $counts, array $health)
     {
-        if (!$this->input->is_ajax_request()) show_404();
-        $counts = $this->stats->pendingCounts();
-        $health = $this->stats->systemHealth();
-
         $alerts = [];
         if ($counts['withdrawals'] > 0) {
             $alerts[] = ['level' => 'warning', 'text' => $counts['withdrawals'] . ' Withdrawal Request(s) Pending', 'href' => base_url('admin/bman-withdrawals')];
@@ -141,8 +136,14 @@ class Dashboard extends CI_Controller
                 $alerts[] = ['level' => 'danger', 'text' => 'Cron "' . $job['name'] . '" failed ' . $job['minutes_ago'] . ' minute(s) ago', 'href' => null];
             }
         }
+        return $alerts;
+    }
 
-        $this->_json(['status' => true, 'alerts' => $alerts]);
+    /** Admin Alerts — derived from data already gathered elsewhere, no separate query. */
+    public function alerts()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->_json(['status' => true, 'alerts' => $this->_buildAlerts($this->stats->pendingCounts(), $this->stats->systemHealth())]);
     }
 
     public function sidebar_counts()
@@ -156,5 +157,25 @@ class Dashboard extends CI_Controller
     {
         if (!$this->input->is_ajax_request()) show_404();
         $this->_json(['status' => true, 'items' => $this->stats->notificationList(10)]);
+    }
+
+    /**
+     * Combined poll — one round trip instead of four separate ones (sidebar
+     * badges, bell notifications, admin alerts, system health). Fired by a
+     * single site-wide timer in common_script.php; each piece of UI that
+     * cares about a given field just reads it off this one response.
+     */
+    public function poll()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $adminId = (int) $this->session->userdata('admin_userid');
+        $health = $this->stats->systemHealth();
+        $this->_json([
+            'status'         => true,
+            'sidebar_counts' => $this->stats->sidebarCounts($adminId),
+            'notifications'  => $this->stats->notificationList(10),
+            'alerts'         => $this->_buildAlerts($this->stats->pendingCounts(), $health),
+            'system_health'  => $health,
+        ]);
     }
 }

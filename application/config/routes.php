@@ -85,6 +85,7 @@ $route['admin/dashboard/system-health'] = 'admin/dashboard/Dashboard/system_heal
 $route['admin/dashboard/alerts'] = 'admin/dashboard/Dashboard/alerts';
 $route['admin/dashboard/sidebar-counts'] = 'admin/dashboard/Dashboard/sidebar_counts';
 $route['admin/dashboard/notifications'] = 'admin/dashboard/Dashboard/notifications';
+$route['admin/dashboard/poll'] = 'admin/dashboard/Dashboard/poll';
 $route['admin/all-transaction/export/(:any)'] = 'admin/AllTransactions/export/$1';
 
 /****************** CRON ROUTES ********/
