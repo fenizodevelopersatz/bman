@@ -40,10 +40,26 @@ class DashboardStats_model extends CI_Model
             ->where('status', 'completed')
             ->get('bman_withdraw_requests')->row()->s ?: '0');
 
-        $bonusPaid = (string) ($this->db->select_sum('credit', 's')
+        // Bonus wallet credits (e.g. the 25% instant stake-purchase bonus) —
+        // reference_type is whatever the crediting code used (currently
+        // 'stake_purchase', not a fixed 'bonus'/'rank_reward' enum), so sum
+        // every credit to the bonus wallet rather than filtering on a value
+        // that doesn't match what's actually written.
+        $bonusWalletCredits = (float) ($this->db->select_sum('credit', 's')
             ->where('wallet_type', 'bonus')
-            ->where_in('reference_type', ['bonus', 'rank_reward'])
-            ->get('wallet_ledger')->row()->s ?: '0');
+            ->get('wallet_ledger')->row()->s ?: 0);
+
+        // Binary matching payouts — tracked in their own ledger table, never
+        // touch wallet_ledger.
+        $matchingPaid = (float) ($this->db->select('COALESCE(SUM(earning_amount + staking_amount),0) AS s', false)
+            ->get('staking_matching_payouts')->row()->s ?: 0);
+
+        // Rank achievement rewards paid out in BMAN.
+        $rankRewardsPaid = (float) ($this->db->select_sum('reward_amount', 's')
+            ->where(['reward_status' => 'paid', 'reward_type' => 'bman'])
+            ->get('rank_rewards')->row()->s ?: 0);
+
+        $bonusPaid = (string) ($bonusWalletCredits + $matchingPaid + $rankRewardsPaid);
 
         return [
             'members_total'    => (int) ($members['total'] ?? 0),
@@ -161,7 +177,7 @@ class DashboardStats_model extends CI_Model
         ];
     }
 
-    /** 30-day trend: new registrations vs staking purchases, dense-bucketed by day. */
+    /** 30-day trend: new registrations vs staking purchases vs withdrawal requests, dense-bucketed by day. */
     public function binaryGrowth($days = 30)
     {
         $days = max(1, (int) $days);
@@ -175,22 +191,68 @@ class DashboardStats_model extends CI_Model
                              ->where('created_at >=', $from . ' 00:00:00')
                              ->group_by('d')->get('user_stakes')->result_array();
 
+        // Withdrawal requests — both assets combined into one "withdraw"
+        // event count per day (USDT via `withdrawals`, BMAN via
+        // `bman_withdraw_requests`), consistent with registrations/stakes
+        // being event counts rather than currency amounts.
+        $usdtWdRows = $this->db->select("DATE(created_at) AS d, COUNT(*) AS n", false)
+                             ->where('created_at >=', $from . ' 00:00:00')
+                             ->group_by('d')->get('withdrawals')->result_array();
+
+        $bmanWdRows = $this->db->select("DATE(created_at) AS d, COUNT(*) AS n", false)
+                             ->where('created_at >=', $from . ' 00:00:00')
+                             ->group_by('d')->get('bman_withdraw_requests')->result_array();
+
         $regByDay = [];
         foreach ($regRows as $r) $regByDay[$r['d']] = (int) $r['n'];
         $stakeByDay = [];
         foreach ($stakeRows as $r) $stakeByDay[$r['d']] = (int) $r['n'];
+        $wdByDay = [];
+        foreach ($usdtWdRows as $r) $wdByDay[$r['d']] = ($wdByDay[$r['d']] ?? 0) + (int) $r['n'];
+        foreach ($bmanWdRows as $r) $wdByDay[$r['d']] = ($wdByDay[$r['d']] ?? 0) + (int) $r['n'];
 
         $labels = [];
         $registrations = [];
         $stakesPurchased = [];
+        $withdrawals = [];
         for ($i = $days - 1; $i >= 0; $i--) {
             $d = date('Y-m-d', strtotime("-{$i} days"));
             $labels[] = $d;
             $registrations[] = $regByDay[$d] ?? 0;
             $stakesPurchased[] = $stakeByDay[$d] ?? 0;
+            $withdrawals[] = $wdByDay[$d] ?? 0;
         }
 
-        return ['labels' => $labels, 'registrations' => $registrations, 'stakes_purchased' => $stakesPurchased];
+        return [
+            'labels' => $labels,
+            'registrations' => $registrations,
+            'stakes_purchased' => $stakesPurchased,
+            'withdrawals' => $withdrawals,
+        ];
+    }
+
+    /** Daily-active-user trend: distinct users whose last_active_at falls on each day. */
+    public function activeUserTrend($days = 30)
+    {
+        $days = max(1, (int) $days);
+        $from = date('Y-m-d', strtotime("-{$days} days"));
+
+        $rows = $this->db->select("DATE(last_active_at) AS d, COUNT(*) AS n", false)
+                          ->where('last_active_at >=', $from . ' 00:00:00')
+                          ->group_by('d')->get('users')->result_array();
+
+        $byDay = [];
+        foreach ($rows as $r) $byDay[$r['d']] = (int) $r['n'];
+
+        $labels = [];
+        $activeUsers = [];
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $d = date('Y-m-d', strtotime("-{$i} days"));
+            $labels[] = $d;
+            $activeUsers[] = $byDay[$d] ?? 0;
+        }
+
+        return ['labels' => $labels, 'active_users' => $activeUsers];
     }
 
     /* ============================== rank achievement ============================== */
@@ -201,6 +263,12 @@ class DashboardStats_model extends CI_Model
             'distribution' => $this->rankreport->distribution(),
             'headline'     => $this->rankreport->headline(),
         ];
+    }
+
+    /** Members currently holding a given rank — powers the rank-table click-through popup. */
+    public function rankMembers($rankId)
+    {
+        return $this->rankreport->membersByRank($rankId);
     }
 
     /* ============================== withdrawal center ============================== */
