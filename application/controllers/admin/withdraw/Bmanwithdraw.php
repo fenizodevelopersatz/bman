@@ -28,6 +28,8 @@ class Bmanwithdraw extends MY_Controller
         $this->data['card_tilte'] = 'Manual BMAN Withdrawals';
         $this->data['rows'] = $this->bmanwithdraw->admin_history($filters, 100, 0);
         $this->data['filters'] = $filters;
+        $this->load->model('admin/DashboardStats_model', 'dashstats');
+        $this->dashstats->markSeen($this->session->userdata('admin_userid'), 'withdrawals');
         $this->load->view('admin/withdraw/bman_list', $this->data);
     }
 

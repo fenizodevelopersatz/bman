@@ -37,6 +37,9 @@ class Supportmanagement extends MY_Controller
         $this->data['title'] = "Support Ticket List";
         $this->data['card_tilte'] = "List Of Ticket";
 
+        $this->load->model('admin/DashboardStats_model', 'dashstats');
+        $this->dashstats->markSeen($this->session->userdata('admin_userid'), 'support');
+
         $query = $this->db->query("
         SELECT 
         COUNT(*) as all_count,

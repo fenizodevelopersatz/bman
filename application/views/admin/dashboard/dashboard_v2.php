@@ -1,0 +1,361 @@
+<?php $this->load->view('admin/Layout/common_style'); ?>
+
+<style>
+    .chart-container{ position:relative; }
+    .dash-stat-card .card-body{ padding:1.5rem; }
+
+    /* Glassmorphism pass — scoped to #dash-glass-scope only, so it never
+       affects any other admin page. No precedent existed for this style
+       anywhere else in the codebase; kept deliberately self-contained. */
+    #dash-glass-scope .card{
+        background: rgba(var(--bs-body-bg-rgb, 255,255,255), 0.72);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        border: 1px solid rgba(var(--bs-gray-500-rgb, 148,163,184), .18);
+        box-shadow: 0 8px 28px rgba(17, 24, 39, .06);
+        border-radius: 1rem;
+        position: relative;
+        overflow: hidden;
+        transition: transform .18s ease, box-shadow .18s ease;
+    }
+    #dash-glass-scope .card::before{
+        content: "";
+        position: absolute; inset: 0 0 auto 0; height: 3px;
+        background: linear-gradient(90deg, #4F46E5, #10B981);
+        opacity: .9;
+    }
+    #dash-glass-scope .card:hover{
+        transform: translateY(-2px);
+        box-shadow: 0 16px 36px rgba(17, 24, 39, .10);
+    }
+    #dash-glass-scope .dash-stat-card{
+        background: linear-gradient(160deg, rgba(79,70,229,.06), rgba(16,185,129,.05));
+    }
+    [data-bs-theme="dark"] #dash-glass-scope .card{
+        background: rgba(var(--bs-dark-rgb, 17,24,39), 0.55);
+        border-color: rgba(255,255,255,.08);
+        box-shadow: 0 8px 28px rgba(0,0,0,.35);
+    }
+    [data-bs-theme="dark"] #dash-glass-scope .dash-stat-card{
+        background: linear-gradient(160deg, rgba(79,70,229,.14), rgba(16,185,129,.10));
+    }
+</style>
+
+<body id="kt_app_body" data-kt-app-layout="dark-sidebar" data-kt-app-header-fixed="true" data-kt-app-sidebar-enabled="true" data-kt-app-sidebar-fixed="true" data-kt-app-sidebar-hoverable="true" data-kt-app-sidebar-push-header="true" data-kt-app-sidebar-push-toolbar="true"
+data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class="app-default">
+
+    <div class="d-flex flex-column flex-root app-root" id="kt_app_root">
+        <div class="app-page  flex-column flex-column-fluid " id="kt_app_page">
+
+            <?php $this->load->view('admin/Layout/admin_topbar'); ?>
+
+            <div class="app-wrapper  flex-column flex-row-fluid " id="kt_app_wrapper">
+
+                <?php $this->load->view('admin/Layout/admin_sidebar'); ?>
+
+                <div class="app-main flex-column flex-row-fluid " id="kt_app_main">
+                    <div class="d-flex flex-column flex-column-fluid">
+
+                        <div id="kt_app_toolbar" class="app-toolbar  py-3 py-lg-6 ">
+                            <div id="kt_app_toolbar_container" class="app-container  container-xxl d-flex flex-stack ">
+                                <div class="page-title d-flex flex-column justify-content-center flex-wrap me-3 ">
+                                    <h1 class="page-heading d-flex text-gray-900 fw-bold fs-3 flex-column justify-content-center my-0">
+                                        <?php echo $title; ?>
+                                    </h1>
+                                    <ul class="breadcrumb breadcrumb-separatorless fw-semibold fs-7 my-0 pt-1">
+                                        <li class="breadcrumb-item text-muted">
+                                            <a href="<?php echo base_url(); ?>" class="text-muted text-hover-primary">Admin</a>
+                                        </li>
+                                        <li class="breadcrumb-item"><span class="bullet bg-gray-500 w-5px h-2px"></span></li>
+                                        <li class="breadcrumb-item text-muted"><?php echo $title; ?></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="kt_app_content" class="app-content  flex-column-fluid mt-5">
+                            <div id="kt_app_content_container" class="app-container  container-xxl ">
+
+                                <?php $this->load->view('notification'); ?>
+
+                                <div id="dash-glass-scope">
+
+                                <?php $this->load->view('admin/dashboard/partials/_admin_alerts'); ?>
+
+                                <?php $this->load->view('admin/dashboard/partials/_stat_cards'); ?>
+
+                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
+                                    <?php $this->load->view('admin/dashboard/partials/_wallet_summary'); ?>
+                                    <?php $this->load->view('admin/dashboard/partials/_staking_analytics'); ?>
+                                </div>
+
+                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
+                                    <?php $this->load->view('admin/dashboard/partials/_package_distribution'); ?>
+                                    <?php $this->load->view('admin/dashboard/partials/_binary_summary'); ?>
+                                </div>
+
+                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
+                                    <?php $this->load->view('admin/dashboard/partials/_binary_growth_chart'); ?>
+                                </div>
+
+                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
+                                    <?php $this->load->view('admin/dashboard/partials/_rank_summary'); ?>
+                                </div>
+
+                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
+                                    <?php $this->load->view('admin/dashboard/partials/_withdrawal_center'); ?>
+                                    <?php $this->load->view('admin/dashboard/partials/_kyc_support'); ?>
+                                </div>
+
+                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
+                                    <?php $this->load->view('admin/dashboard/partials/_quick_actions'); ?>
+                                </div>
+
+                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
+                                    <?php $this->load->view('admin/dashboard/partials/_recent_transactions'); ?>
+                                </div>
+
+                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
+                                    <?php $this->load->view('admin/dashboard/partials/_activity_feed'); ?>
+                                    <?php $this->load->view('admin/dashboard/partials/_system_health'); ?>
+                                </div>
+
+                                </div><!-- /#dash-glass-scope -->
+
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <?php $this->load->view('admin/Layout/admin_footer'); ?>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="kt_scrolltop" class="scrolltop" data-kt-scrolltop="true">
+        <i class="ki-duotone ki-arrow-up"><span class="path1"></span><span class="path2"></span></i>
+    </div>
+
+    <?php $this->load->view('admin/Layout/common_script'); ?>
+
+    <script>
+    (function () {
+        const base = '<?php echo base_url(); ?>';
+        const fmt = n => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
+        const count = (id, value) => { try { new countUp.CountUp(id, parseFloat(value) || 0).start(); } catch (e) { const el = document.getElementById(id); if (el) el.textContent = fmt(value); } };
+        const fetchJson = (url) => fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(r => r.json());
+
+        function loadStats() {
+            fetchJson(base + 'admin/dashboard/stats').then(j => {
+                if (!j.status) return;
+                const h = j.header, w = j.wallets;
+                count('dash-members-total', h.members_total);
+                count('dash-members-active', h.members_active);
+                count('dash-members-inactive', h.members_inactive);
+                count('dash-total-staking', h.total_staking_bman);
+                count('dash-total-deposits', h.total_deposits_usdt);
+                count('dash-total-withdrawals-usdt', h.total_withdrawals_usdt);
+                count('dash-total-withdrawals-bman', h.total_withdrawals_bman);
+                count('dash-total-bonus', h.total_bonus_paid_bman);
+                count('dash-online-chat', j.online_in_chat);
+
+                count('dash-wallet-usdt', w.usdt);
+                count('dash-wallet-exchange', w.exchange);
+                count('dash-wallet-earning', w.earning);
+                count('dash-wallet-staking', w.staking);
+                count('dash-wallet-bonus', w.bonus);
+                count('dash-wallet-total-bman', (parseFloat(w.exchange || 0) + parseFloat(w.earning || 0) + parseFloat(w.staking || 0) + parseFloat(w.bonus || 0)));
+            });
+        }
+
+        function loadStakingAnalytics() {
+            fetchJson(base + 'admin/dashboard/staking-analytics').then(j => {
+                if (!j.status) return;
+                const d = j.data;
+                count('dash-stakes-active', d.active);
+                count('dash-stakes-reached-maturity', d.reached_maturity);
+                count('dash-stakes-withdrawn', d.withdrawn);
+                count('dash-stakes-avg', d.average_stake);
+            });
+        }
+
+        function loadPackageDonut() {
+            fetchJson(base + 'admin/dashboard/package-distribution').then(j => {
+                if (!j.status) return;
+                const rows = (j.rows || []).filter(r => +r.stakes > 0);
+                const el = document.querySelector('#dash-package-donut');
+                if (!el) return;
+                if (!rows.length) { el.innerHTML = '<div class="text-muted text-center pt-10">No stakes yet.</div>'; return; }
+                const chart = new ApexCharts(el, {
+                    chart: { type: 'donut', height: 320 },
+                    series: rows.map(r => +r.stakes),
+                    labels: rows.map(r => r.name),
+                    legend: { position: 'bottom' },
+                });
+                chart.render();
+            });
+        }
+
+        function loadBinarySummary() {
+            fetchJson(base + 'admin/dashboard/binary-summary').then(j => {
+                if (!j.status) return;
+                const d = j.data;
+                count('dash-binary-left-volume', d.left_volume);
+                count('dash-binary-right-volume', d.right_volume);
+                count('dash-binary-matching', d.total_matching);
+                count('dash-binary-carry', (parseFloat(d.left_carry || 0) + parseFloat(d.right_carry || 0)));
+                count('dash-binary-today', d.today_matching);
+                count('dash-binary-weekly', d.weekly_matching);
+            });
+        }
+
+        function loadGrowthChart() {
+            fetchJson(base + 'admin/dashboard/binary-growth?days=30').then(j => {
+                if (!j.status) return;
+                const d = j.data;
+                const el = document.querySelector('#dash-growth-chart');
+                if (!el) return;
+                const chart = new ApexCharts(el, {
+                    chart: { type: 'area', height: 340, toolbar: { show: false } },
+                    series: [
+                        { name: 'New Registrations', data: d.registrations },
+                        { name: 'Matching Payouts (BMAN)', data: d.matching_payouts },
+                    ],
+                    xaxis: { categories: d.labels, labels: { rotate: -45 } },
+                    stroke: { curve: 'smooth', width: 2 },
+                    dataLabels: { enabled: false },
+                });
+                chart.render();
+            });
+        }
+
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        }
+
+        function loadRankSummary() {
+            fetchJson(base + 'admin/dashboard/rank-summary').then(j => {
+                if (!j.status) return;
+                const h = j.data.headline, dist = j.data.distribution || [];
+                count('dash-rank-ranked-members', h.ranked_members);
+                count('dash-rank-promotions-24h', h.promotions_24h);
+                count('dash-rank-rewards-paid', h.rewards_paid);
+                count('dash-rank-rewards-failed', h.rewards_failed);
+                const body = document.getElementById('dash-rank-distribution-body');
+                body.innerHTML = dist.map(r => '<tr><td>' + esc(r.rank_name) + '</td><td>' + fmt(r.members) + '</td><td>' + fmt(r.percent) + '%</td></tr>').join('') || '<tr><td colspan="3" class="text-muted">No rank data.</td></tr>';
+            });
+        }
+
+        function loadWithdrawalCenter() {
+            fetchJson(base + 'admin/dashboard/withdrawal-center').then(j => {
+                if (!j.status) return;
+                const d = j.data;
+                count('dash-wd-bman-pending', d.bman.pending);
+                count('dash-wd-bman-completed', d.bman.completed);
+                count('dash-wd-bman-rejected', d.bman.rejected);
+                count('dash-wd-usdt-pending', d.usdt.pending);
+                count('dash-wd-usdt-approved', d.usdt.approved);
+                count('dash-wd-usdt-rejected', d.usdt.rejected);
+                count('dash-wd-today', d.today_requests);
+            });
+        }
+
+        function loadKycSupport() {
+            fetchJson(base + 'admin/dashboard/kyc-monitor').then(j => {
+                if (!j.status) return;
+                const d = j.data;
+                count('dash-kyc-pending', d.pending);
+                count('dash-kyc-approved', d.approved);
+                count('dash-kyc-rejected', d.rejected);
+                count('dash-kyc-expired', d.expired);
+            });
+            fetchJson(base + 'admin/dashboard/support-center').then(j => {
+                if (!j.status) return;
+                const d = j.data;
+                count('dash-support-pending', d.pending);
+                count('dash-support-open', d.open);
+                count('dash-support-closed', d.closed);
+                count('dash-support-today', d.today);
+            });
+        }
+
+        function loadRecentTransactions() {
+            fetchJson(base + 'admin/all-transaction/list?limit=10').then(j => {
+                const body = document.getElementById('dash-recent-tx-body');
+                if (!j.status || !(j.rows || []).length) { body.innerHTML = '<tr><td colspan="5" class="text-muted">No transactions yet.</td></tr>'; return; }
+                body.innerHTML = j.rows.map(r => {
+                    const amt = (r.direction === 'credit' ? '+' : '−') + fmt(r.amount) + ' ' + esc((r.wallet_type || '').toUpperCase());
+                    const amtCls = r.direction === 'credit' ? 'text-success' : 'text-danger';
+                    const chain = r.onchain ? '<span class="badge badge-light-info fs-8">' + esc(r.onchain.status || 'onchain') + '</span>' : '<span class="badge badge-light fs-8">internal</span>';
+                    return '<tr><td class="text-muted">' + esc(r.created_at) + '</td><td>#' + esc(r.user_id) + '</td><td>' + esc(r.type_label) + '</td><td class="fw-bold ' + amtCls + '">' + amt + '</td><td>' + chain + '</td></tr>';
+                }).join('');
+            });
+        }
+
+        function loadAlerts() {
+            fetchJson(base + 'admin/dashboard/alerts').then(j => {
+                const wrap = document.getElementById('dash-alerts-wrap');
+                const body = document.getElementById('dash-alerts-body');
+                if (!j.status || !(j.alerts || []).length) { wrap.style.display = 'none'; return; }
+                wrap.style.display = '';
+                body.innerHTML = j.alerts.map(a => {
+                    const cls = a.level === 'danger' ? 'danger' : 'warning';
+                    const inner = '<i class="ki-duotone ki-information fs-2 me-2"><span class="path1"></span><span class="path2"></span><span class="path3"></span></i>' + esc(a.text);
+                    return '<div class="alert alert-' + cls + ' d-flex align-items-center py-3 mb-0">' +
+                        (a.href ? '<a href="' + esc(a.href) + '" class="text-' + cls + ' d-flex align-items-center text-decoration-none">' + inner + '</a>' : inner) +
+                        '</div>';
+                }).join('');
+            });
+        }
+
+        function loadActivityFeed() {
+            fetchJson(base + 'admin/dashboard/activity-feed?limit=20').then(j => {
+                const el = document.getElementById('dash-activity-feed');
+                if (!j.status || !(j.rows || []).length) { el.innerHTML = '<div class="text-muted">No recent activity.</div>'; return; }
+                el.innerHTML = j.rows.map(r => '<div class="d-flex justify-content-between border-bottom border-gray-200 pb-2"><span class="fs-7">' + esc(r.text) + '</span><span class="fs-8 text-muted text-nowrap ms-2">' + esc(r.at) + '</span></div>').join('');
+            });
+        }
+
+        function loadSystemHealth() {
+            fetchJson(base + 'admin/dashboard/system-health').then(j => {
+                if (!j.status) return;
+                const d = j.data;
+                document.getElementById('dash-health-db').innerHTML = d.database.ok
+                    ? '<span class="badge badge-light-success">Connected</span>' : '<span class="badge badge-light-danger">Down</span>';
+                document.getElementById('dash-health-rpc').innerHTML = d.rpc.success_rate === null
+                    ? '<span class="badge badge-light">No data (24h)</span>'
+                    : '<span class="badge badge-light-' + (d.rpc.success_rate >= 95 ? 'success' : 'warning') + '">' + d.rpc.success_rate + '%</span>';
+                document.getElementById('dash-health-smtp').innerHTML = d.smtp.configured
+                    ? '<span class="badge badge-light-success">Configured</span>' : '<span class="badge badge-light-danger">Not Configured</span>';
+                document.getElementById('dash-health-storage').innerHTML = d.storage.used_percent === null
+                    ? '<span class="badge badge-light">Unknown</span>'
+                    : '<span class="badge badge-light-' + (d.storage.used_percent < 85 ? 'success' : 'warning') + '">' + d.storage.used_percent + '%</span>';
+                const cronEl = document.getElementById('dash-health-cron');
+                cronEl.innerHTML = (d.cron || []).length
+                    ? d.cron.map(c => '<div class="d-flex justify-content-between fs-8"><span>' + esc(c.name) + '</span><span class="badge badge-light-' + (c.status === 'success' || c.status === 'ok' ? 'success' : 'danger') + '">' + esc(c.status) + ' · ' + c.minutes_ago + 'm ago</span></div>').join('')
+                    : '<div class="text-muted fs-8">No cron runs logged yet.</div>';
+            });
+        }
+
+        loadStats();
+        loadStakingAnalytics();
+        loadPackageDonut();
+        loadBinarySummary();
+        loadGrowthChart();
+        loadRankSummary();
+        loadWithdrawalCenter();
+        loadKycSupport();
+        loadRecentTransactions();
+        loadAlerts();
+        loadActivityFeed();
+        loadSystemHealth();
+        setInterval(loadActivityFeed, 30000);
+        setInterval(loadSystemHealth, 60000);
+        setInterval(loadAlerts, 60000);
+    })();
+    </script>
+</body>
+</html>
