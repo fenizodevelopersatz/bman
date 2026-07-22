@@ -482,5 +482,65 @@ class Chat_model extends CI_Model
         return '';
     }
 
+    /* ---------------------------
+     * UNREAD COUNT (header badge) — reuses the same room/peer scoping as
+     * fetchMessagesSafe()/canChatWith() rather than re-deriving visibility.
+     * --------------------------- */
+
+    /** Advance the read cursor for a room (+ peer for personal). Never regresses it. */
+    public function markRead($userId, $room, $peerId, $lastId)
+    {
+        $userId = (int) $userId;
+        $peerId = (int) $peerId;
+        $lastId = (int) $lastId;
+        if ($userId <= 0 || $lastId <= 0) return;
+
+        $this->db->query(
+            "INSERT INTO chat_read_state (user_id, room, peer_id, last_read_id) VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE last_read_id = GREATEST(last_read_id, VALUES(last_read_id))",
+            [$userId, (string) $room, $peerId, $lastId]
+        );
+    }
+
+    private function _lastReadId($userId, $room, $peerId = 0)
+    {
+        $row = $this->db->get_where('chat_read_state', [
+            'user_id' => (int) $userId, 'room' => (string) $room, 'peer_id' => (int) $peerId,
+        ])->row_array();
+        return (int) ($row['last_read_id'] ?? 0);
+    }
+
+    /**
+     * Total unread across world (everyone), team (genealogy path), and
+     * personal (DMs addressed to this user) — same visibility rules the
+     * fetch/send authorisation already enforces, just counted instead of read.
+     */
+    public function unreadCount($userId)
+    {
+        $userId = (int) $userId;
+        if ($userId <= 0) return 0;
+
+        $worldSince = $this->_lastReadId($userId, 'world');
+        $world = (int) $this->db->where('room', 'world')->where('user_id !=', $userId)
+            ->where('id >', $worldSince)->count_all_results($this->table);
+
+        $team = 0;
+        $pathIds = $this->getPathChatUserIdsCached($userId);
+        if (!empty($pathIds)) {
+            $teamSince = $this->_lastReadId($userId, 'team');
+            $team = (int) $this->db->where('room', 'team')->where_in('user_id', $pathIds)
+                ->where('id >', $teamSince)->count_all_results($this->table);
+        }
+
+        $personal = (int) $this->db->select('COUNT(*) AS n', false)
+            ->from($this->table . ' cm')
+            ->join('chat_read_state rs', "rs.user_id = {$userId} AND rs.room = 'personal' AND rs.peer_id = cm.user_id", 'left')
+            ->where('cm.room', 'personal')
+            ->where('cm.to_user_id', $userId)
+            ->where('cm.id > COALESCE(rs.last_read_id, 0)', null, false)
+            ->get()->row()->n ?? 0;
+
+        return $world + $team + (int) $personal;
+    }
 
 }

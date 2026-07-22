@@ -17,8 +17,8 @@ document.addEventListener("DOMContentLoaded", function () {
     function updateTypeSections() {
         var checked = document.querySelector('input[name="announcement_type"]:checked');
         var type = checked ? checked.value : 'text';
-        textSection.style.display = type === 'text' ? '' : 'none';
-        imageSection.style.display = type === 'image' ? '' : 'none';
+        textSection.style.display = (type === 'text' || type === 'text_image') ? '' : 'none';
+        imageSection.style.display = (type === 'image' || type === 'text_image') ? '' : 'none';
     }
     typeRadios.forEach(function (r) { r.addEventListener('change', updateTypeSections); });
     updateTypeSections();
@@ -86,9 +86,25 @@ document.addEventListener("DOMContentLoaded", function () {
             cropperWrap.style.display = '';
             previewWrap.style.display = 'none';
             hiddenData.value = '';
+            showDimensionWarning(im.naturalWidth, im.naturalHeight);
             URL.revokeObjectURL(url);
         };
         im.src = url;
+    }
+
+    /* ---------------- soft dimension warning (non-blocking) ---------------- */
+    var MIN_W = 1200, MIN_H = 350, RECOMMENDED_W = 1600, RECOMMENDED_H = 500;
+    var dimWarning = document.getElementById('ann-dimension-warning');
+    function showDimensionWarning(w, h) {
+        if (!dimWarning) return;
+        if (w < MIN_W || h < MIN_H) {
+            dimWarning.innerHTML = '<div class="alert alert-warning py-2 px-3 mb-0">' +
+                '⚠ Image too small. Recommended: ' + RECOMMENDED_W + '×' + RECOMMENDED_H +
+                ' — Uploaded: ' + w + '×' + h + '. The crop below will still work, but may look stretched.</div>';
+            dimWarning.style.display = '';
+        } else {
+            dimWarning.style.display = 'none';
+        }
     }
 
     fileInput.addEventListener('change', function () {
@@ -184,7 +200,7 @@ document.addEventListener("DOMContentLoaded", function () {
     window.annAnnouncementReadyToSubmit = function () {
         var checked = document.querySelector('input[name="announcement_type"]:checked');
         var type = checked ? checked.value : 'text';
-        if (type !== 'image') return true;
+        if (type !== 'image' && type !== 'text_image') return true;
         return !!(hiddenData.value || imageSection.dataset.hasImage === '1');
     };
 });

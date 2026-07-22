@@ -229,7 +229,10 @@
       <?php $this->load->view('user/layout/v2/user_header'); ?>
 
       <!-- ===================== ANNOUNCEMENT BANNER ===================== -->
-      <?php $defaultHeroImg = base_url() . 'assets/user/media/misc/city.png'; ?>
+      <?php
+      $defaultHeroImg = base_url() . 'assets/user/media/misc/city.png';
+      $alertGradient = 'linear-gradient(135deg,#ef4444,#b91c1c)';
+      ?>
       <div class="banner-wrapper banner-fixed">
 
         <div class="slide slide-hero active" id="slideHero" style="position: relative; inset:auto; opacity:1;">
@@ -241,18 +244,40 @@
 
               <?php if (!empty($notification)): ?>
                 <div id="announcementCarousel" class="carousel slide carousel-fade text-only-carousel"
-                  data-bs-ride="carousel" data-bs-interval="3200" data-bs-pause="false" data-bs-touch="true">
+                  data-bs-ride="carousel" data-bs-interval="5000" data-bs-pause="false" data-bs-touch="true">
 
                   <div class="carousel-inner">
                     <?php $first = true;
                     foreach ($notification as $note):
-                      $isImage = ($note->announcement_type ?? 'text') === 'image';
-                      $bg = $isImage ? '' : ($note->bg_color ?: '');
-                      $img = $isImage && !empty($note->image) ? base_url($note->image) : $defaultHeroImg;
+                      $type = $note->announcement_type ?? 'text';
+                      $showImage = in_array($type, ['image', 'text_image'], true);
+                      $showFullText = in_array($type, ['text', 'text_image'], true);
+                      $isAlert = in_array($note->category ?? 'general', ['alert', 'maintenance'], true);
+                      $bg = $isAlert ? $alertGradient : ($showImage ? '' : ($note->bg_color ?: ''));
+                      $img = $showImage && !empty($note->image) ? base_url($note->image) : $defaultHeroImg;
+                      $textColor = htmlspecialchars($note->text_color ?: '#ffffff');
                     ?>
                       <div class="carousel-item <?= $first ? 'active' : ''; ?>"
-                        data-bg="<?= htmlspecialchars($bg); ?>" data-image="<?= htmlspecialchars($img); ?>">
-                        <h1 class="hero-title">— <?= htmlspecialchars($note->title); ?></h1>
+                        data-id="<?= (int) $note->id ?>"
+                        data-bg="<?= htmlspecialchars($bg); ?>" data-image="<?= htmlspecialchars($img); ?>"
+                        data-text-color="<?= $textColor ?>">
+                        <?php if ($isAlert): ?><div class="fs-8 fw-bold mb-1" style="color:<?= $textColor ?>;">⚠ <?= strtoupper(htmlspecialchars($note->category)) ?></div><?php endif; ?>
+                        <h1 class="hero-title" style="color:<?= $textColor ?>;">— <?= htmlspecialchars($note->title); ?></h1>
+                        <?php if ($showFullText && !empty($note->subtitle)): ?>
+                          <div class="hero-subtitle" style="color:<?= $textColor ?>;opacity:.85;font-weight:700;margin-top:4px;"><?= htmlspecialchars($note->subtitle) ?></div>
+                        <?php endif; ?>
+                        <?php if ($showFullText && !empty($note->description)): ?>
+                          <p class="hero-desc" style="color:<?= $textColor ?>;">
+                            <?= nl2br(htmlspecialchars($note->description)) ?>
+                          </p>
+                        <?php endif; ?>
+                        <?php if (!empty($note->button_text) && !empty($note->button_url)): ?>
+                          <div class="slide-actions">
+                            <a href="<?= htmlspecialchars($note->button_url) ?>" class="btn primary announcement-cta" data-id="<?= (int) $note->id ?>">
+                              <?= htmlspecialchars($note->button_text) ?> <i class="ph ph-arrow-circle-right"></i>
+                            </a>
+                          </div>
+                        <?php endif; ?>
                       </div>
                       <?php $first = false; endforeach; ?>
                   </div>
@@ -269,16 +294,6 @@
               <?php else: ?>
                 <h1 class="hero-title">— Latest announcements will appear here</h1>
               <?php endif; ?>
-
-              <p class="hero-desc">
-                Withdrawals and weekly commissions will be processed automatically. Ensure your KYC and bank details are
-                updated.
-              </p>
-
-              <div class="slide-actions">
-                <button class="btn primary">Withdraw Now <i class="ph ph-arrow-circle-right"></i></button>
-                <button class="btn ghost">View Payout Rules <i class="ph ph-info"></i></button>
-              </div>
             </div>
 
             <!-- Right Image (swaps per active announcement's image, if any) -->
@@ -293,27 +308,81 @@
 
       </div>
 
-      <?php if (!empty($notification)): ?>
+      <?php if (!empty($popup_announcement)): $pa = $popup_announcement; ?>
+      <div class="modal fade" id="announcementPopup" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content" style="background:<?= htmlspecialchars($pa->bg_color ?: '#4E2CF0') ?>;color:<?= htmlspecialchars($pa->text_color ?: '#ffffff') ?>;border:0;border-radius:16px;">
+            <div class="modal-header border-0">
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" id="announcementPopupClose"></button>
+            </div>
+            <div class="modal-body text-center pb-5">
+              <?php if (!empty($pa->image)): ?><img src="<?= base_url($pa->image) ?>" style="max-width:100%;border-radius:10px;margin-bottom:16px;"><?php endif; ?>
+              <h3 class="fw-bold" style="color:inherit;"><?= htmlspecialchars($pa->title) ?></h3>
+              <?php if (!empty($pa->subtitle)): ?><div class="fw-semibold mt-1" style="opacity:.9;"><?= htmlspecialchars($pa->subtitle) ?></div><?php endif; ?>
+              <?php if (!empty($pa->description)): ?><p class="mt-3" style="color:inherit;opacity:.9;"><?= nl2br(htmlspecialchars($pa->description)) ?></p><?php endif; ?>
+              <?php if (!empty($pa->button_text) && !empty($pa->button_url)): ?>
+                <a href="<?= htmlspecialchars($pa->button_url) ?>" class="btn btn-light fw-bold mt-3 announcement-cta" data-id="<?= (int) $pa->id ?>"><?= htmlspecialchars($pa->button_text) ?></a>
+              <?php endif; ?>
+            </div>
+          </div>
+        </div>
+      </div>
+      <?php endif; ?>
+
       <script>
         (function () {
+          var base = '<?php echo base_url(); ?>';
+          function beacon(path) {
+            fetch(base + path, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, keepalive: true }).catch(function () {});
+          }
+
+          <?php if (!empty($notification)): ?>
           var carousel = document.getElementById('announcementCarousel');
           var slideHero = document.getElementById('slideHero');
           var heroImg = document.getElementById('heroImg');
-          if (!carousel || !slideHero || !heroImg) return;
+          var seenViews = {};
 
-          function applySlide(item) {
+          function trackView(item) {
             if (!item) return;
-            slideHero.style.background = item.getAttribute('data-bg') || '';
-            heroImg.src = item.getAttribute('data-image') || '<?= $defaultHeroImg; ?>';
+            var id = item.getAttribute('data-id');
+            if (!id || seenViews[id]) return;
+            seenViews[id] = true;
+            beacon('user/announcement/view/' + id);
           }
 
-          applySlide(carousel.querySelector('.carousel-item.active'));
-          carousel.addEventListener('slide.bs.carousel', function (e) {
-            applySlide(e.relatedTarget);
+          function applySlide(item) {
+            if (!item || !slideHero || !heroImg) return;
+            slideHero.style.background = item.getAttribute('data-bg') || '';
+            heroImg.src = item.getAttribute('data-image') || '<?= $defaultHeroImg; ?>';
+            trackView(item);
+          }
+
+          if (carousel && slideHero && heroImg) {
+            applySlide(carousel.querySelector('.carousel-item.active'));
+            carousel.addEventListener('slide.bs.carousel', function (e) { applySlide(e.relatedTarget); });
+          }
+          <?php endif; ?>
+
+          document.querySelectorAll('.announcement-cta').forEach(function (a) {
+            a.addEventListener('click', function () {
+              var id = a.getAttribute('data-id');
+              if (id) beacon('user/announcement/click/' + id);
+            });
           });
+
+          <?php if (!empty($popup_announcement)): ?>
+          var popupEl = document.getElementById('announcementPopup');
+          if (popupEl && window.bootstrap) {
+            var popupModal = new bootstrap.Modal(popupEl);
+            popupModal.show();
+            beacon('user/announcement/view/<?= (int) $popup_announcement->id ?>');
+            popupEl.addEventListener('hidden.bs.modal', function () {
+              beacon('user/announcement/dismiss/<?= (int) $popup_announcement->id ?>');
+            });
+          }
+          <?php endif; ?>
         })();
       </script>
-      <?php endif; ?>
 
 
       <!-- User Activity & Coin Trend chart -->

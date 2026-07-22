@@ -1267,6 +1267,12 @@ class Genealogycontroller extends MY_Controller
             }
             unset($r);
 
+            // Viewing this room/peer clears its share of the unread badge —
+            // advance the read cursor to whatever the client has now seen.
+            $maxId = $after;
+            foreach ($rows as $r) $maxId = max($maxId, (int) $r['id']);
+            if ($maxId > 0) $this->Chat_model->markRead($userId, $room, $room === 'personal' ? $peerId : 0, $maxId);
+
             return $this->output->set_content_type('application/json')
                 ->set_output(json_encode(['ok' => true, 'room' => $room, 'messages' => $rows]));
         } catch (Throwable $e) {
@@ -1297,8 +1303,11 @@ class Genealogycontroller extends MY_Controller
         }
         $this->load->model('Chat_model');
         $this->Chat_model->touchActive($userId);
+        // Piggybacks on the same 15s sitewide poll — no separate endpoint needed
+        // for the header's chat unread badge.
+        $unread = $this->Chat_model->unreadCount($userId);
         return $this->output->set_content_type('application/json')
-            ->set_output(json_encode(['ok' => true]));
+            ->set_output(json_encode(['ok' => true, 'unread' => $unread]));
     }
 
     // GET: user/chat/recent

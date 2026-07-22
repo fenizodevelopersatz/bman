@@ -99,6 +99,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/kyc">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Members KYC</span>
+                  <span class="badge badge-circle badge-danger fs-9 ms-2 d-none" data-dashboard-badge="kyc">0</span>
                 </a>
               </div>
 
@@ -218,6 +219,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 <a class="menu-link" href="<?php echo base_url(); ?>withdraw-requests">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Withdraw Request</span>
+                  <span class="badge badge-circle badge-danger fs-9 ms-2 d-none" data-dashboard-badge="withdrawals">0</span>
                 </a>
               </div>
 
@@ -668,6 +670,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </i>
               </span>
               <span class="menu-title">Support</span>
+              <span class="badge badge-circle badge-danger fs-9 ms-2 d-none" data-dashboard-badge="support">0</span>
             </a>
           </div>
 
