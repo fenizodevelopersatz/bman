@@ -302,6 +302,9 @@ $route['edit-announcement-cms/(:num)'] = 'admin/cms/Announcement/edit_section/$1
 $route['announcement-add'] = 'admin/cms/Announcement/add';
 $route['view-announceemnt-section-cms/(:num)'] = 'admin/cms/Announcement/view_section/$1';
 $route['delete-announcement-cms/(:num)'] = 'admin/cms/Announcement/delete_section/$1';
+$route['user/announcement/view/(:num)']['post'] = 'user/Announcementtrack/view/$1';
+$route['user/announcement/click/(:num)']['post'] = 'user/Announcementtrack/click/$1';
+$route['user/announcement/dismiss/(:num)']['post'] = 'user/Announcementtrack/dismiss/$1';
 
 /************** Slider ContentManagement */
 $route['slider-cms'] = 'admin/cms/Slider';

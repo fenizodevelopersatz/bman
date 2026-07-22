@@ -58,6 +58,7 @@ class  Announcement extends CI_Controller {
         $data = array();
         $total_records = $this->Announcement_model->get_count();
         $users = $this->Announcement_model->get_info($length, $start);
+        $analytics = $this->Announcement_model->analytics();
 
         $i = 0;
         foreach ($users as $user) {
@@ -66,15 +67,17 @@ class  Announcement extends CI_Controller {
         $currency_status = $user['title_status'] ? "checked" : "";
         $change_status_url = base_url()."announcement-status-update-cms/".$user['id'];
 
-        if ($user['announcement_type'] === 'image' && !empty($user['image'])) {
+        if (in_array($user['announcement_type'], ['image', 'text_image'], true) && !empty($user['image'])) {
             $preview = '<img src="'.base_url().$user['image'].'" style="width:60px;height:24px;object-fit:cover;border-radius:4px;" class="me-2">';
         } else {
             $swatch = $user['bg_color'] ?: '#6E56CF';
             $preview = '<span class="me-2" style="display:inline-block;width:20px;height:20px;border-radius:4px;background:'.htmlspecialchars($swatch).';vertical-align:middle;"></span>';
         }
-        $type_badge = $user['announcement_type'] === 'image'
-            ? '<span class="badge badge-light-info text-uppercase">Image</span>'
-            : '<span class="badge badge-light-primary text-uppercase">Text</span>';
+        $typeLabels = ['text' => 'Text', 'image' => 'Image', 'text_image' => 'Text + Image'];
+        $type_badge = '<span class="badge badge-light-primary text-uppercase">'.($typeLabels[$user['announcement_type']] ?? 'Text').'</span>';
+
+        $a = $analytics[(int) $user['id']] ?? ['views' => 0, 'clicks' => 0, 'ctr' => 0];
+        $analyticsLine = '<div class="fs-9 text-muted mt-1">👁 '.number_format($a['views']).' views &middot; 🖱 '.number_format($a['clicks']).' clicks &middot; '.$a['ctr'].'% CTR</div>';
 
         $data[] = array(
         'RecordID' => $i,
@@ -83,6 +86,7 @@ class  Announcement extends CI_Controller {
         '.$preview.' '.$type_badge.'
         </div>
         <div class="mt-1 text-muted fs-8">'.htmlspecialchars($user['title']).'</div>
+        '.$analyticsLine.'
         </div>',
         'temp_status' => '<div class="form-check form-switch form-check-custom form-check-success form-check-solid">
         <input class="form-check-input h-30px w-50px template_status" type="checkbox" value="" name="template_status"'.
@@ -145,6 +149,20 @@ class  Announcement extends CI_Controller {
             $this->data['announcement_type'] = $template_info->announcement_type;
             $this->data['bg_color'] = $template_info->bg_color ?: '#6E56CF';
             $this->data['image'] = $template_info->image;
+            $this->data['subtitle'] = $template_info->subtitle;
+            $this->data['description'] = $template_info->description;
+            $this->data['category'] = $template_info->category ?: 'general';
+            $this->data['text_color'] = $template_info->text_color ?: '#ffffff';
+            $this->data['button_text'] = $template_info->button_text;
+            $this->data['button_url'] = $template_info->button_url;
+            $this->data['priority'] = $template_info->priority ?: 'medium';
+            $this->data['display_mode'] = $template_info->display_mode ?: 'banner';
+            $this->data['target_type'] = $template_info->target_type ?: 'all';
+            $this->data['target_value'] = $template_info->target_value;
+            $this->data['start_date'] = $template_info->start_date;
+            $this->data['end_date'] = $template_info->end_date;
+            $this->data['ranks'] = $this->db->select('id, name')->order_by('tier_level', 'ASC')->get('staking_ranks')->result();
+            $this->data['packages'] = $this->db->select('id, name')->order_by('sort_order', 'ASC')->get('staking_packages')->result();
             $this->load->view('admin/cms/add-annoucement', $this->data);
 
         }
@@ -159,27 +177,56 @@ class  Announcement extends CI_Controller {
 
             $announcement_id = (int) $this->input->post("announcement_id");
             $announcement_content = trim((string) $this->input->post("announcement_content"));
-            $announcement_type = $this->input->post("announcement_type") === 'image' ? 'image' : 'text';
+            $announcement_type = $this->input->post("announcement_type");
+            if (!in_array($announcement_type, ['text', 'image', 'text_image'], true)) $announcement_type = 'text';
             $bg_color = trim((string) $this->input->post("bg_color")) ?: '#6E56CF';
             $cropped_image_data = $this->input->post("cropped_image_data");
+            $needsText = in_array($announcement_type, ['text', 'text_image'], true);
+            $needsImage = in_array($announcement_type, ['image', 'text_image'], true);
+
+            $target_type = $this->input->post('target_type') ?: 'all';
+            $validTargets = ['all', 'active', 'inactive', 'kyc_pending', 'kyc_approved', 'rank', 'package', 'country'];
+            if (!in_array($target_type, $validTargets, true)) $target_type = 'all';
+
+            $priority = $this->input->post('priority') ?: 'medium';
+            if (!in_array($priority, ['low', 'medium', 'high', 'critical'], true)) $priority = 'medium';
+
+            $display_mode = $this->input->post('display_mode') ?: 'banner';
+            if (!in_array($display_mode, ['banner', 'popup', 'both'], true)) $display_mode = 'banner';
+
+            $category = $this->input->post('category') ?: 'general';
+            if (!in_array($category, ['general', 'alert', 'promotion', 'maintenance', 'event', 'rank_news'], true)) $category = 'general';
 
             $announcement_data = array(
                 "announcement_type" => $announcement_type,
-                "created_date" => date("y-m-d H:i:s"),
+                "category"     => $category,
+                "subtitle"     => trim((string) $this->input->post('subtitle')) ?: null,
+                "description"  => trim((string) $this->input->post('description')) ?: null,
+                "text_color"   => trim((string) $this->input->post('text_color')) ?: '#ffffff',
+                "button_text"  => trim((string) $this->input->post('button_text')) ?: null,
+                "button_url"   => trim((string) $this->input->post('button_url')) ?: null,
+                "priority"     => $priority,
+                "display_mode" => $display_mode,
+                "target_type"  => $target_type,
+                "target_value" => trim((string) $this->input->post('target_value')) ?: null,
+                "start_date"   => trim((string) $this->input->post('start_date')) ?: null,
+                "end_date"     => trim((string) $this->input->post('end_date')) ?: null,
             );
+            if ($announcement_id <= 0) $announcement_data['created_date'] = date('y-m-d H:i:s');
 
-            if ($announcement_type === 'text') {
+            if ($needsText) {
                 if ($announcement_content === '') {
                     echo json_encode(['status' => false, 'message' => "Please enter announcement text"]);
                     exit;
                 }
                 $announcement_data['title'] = $announcement_content;
                 $announcement_data['bg_color'] = $bg_color;
-                $announcement_data['image'] = null;
             } else {
                 $announcement_data['title'] = $announcement_content; // used as image alt text
                 $announcement_data['bg_color'] = null;
+            }
 
+            if ($needsImage) {
                 if (!empty($cropped_image_data)) {
                     list($ok, $result) = $this->_saveCroppedImage($cropped_image_data);
                     if (!$ok) {
@@ -198,6 +245,8 @@ class  Announcement extends CI_Controller {
                     echo json_encode(['status' => false, 'message' => "Please crop and upload an image"]);
                     exit;
                 }
+            } else {
+                $announcement_data['image'] = null;
             }
 
             if($announcement_id > 0){
@@ -225,6 +274,20 @@ class  Announcement extends CI_Controller {
             $this->data['announcement_type'] = "text";
             $this->data['bg_color'] = "#6E56CF";
             $this->data['image'] = "";
+            $this->data['subtitle'] = "";
+            $this->data['description'] = "";
+            $this->data['category'] = "general";
+            $this->data['text_color'] = "#ffffff";
+            $this->data['button_text'] = "";
+            $this->data['button_url'] = "";
+            $this->data['priority'] = "medium";
+            $this->data['display_mode'] = "banner";
+            $this->data['target_type'] = "all";
+            $this->data['target_value'] = "";
+            $this->data['start_date'] = "";
+            $this->data['end_date'] = "";
+            $this->data['ranks'] = $this->db->select('id, name')->order_by('tier_level', 'ASC')->get('staking_ranks')->result();
+            $this->data['packages'] = $this->db->select('id, name')->order_by('sort_order', 'ASC')->get('staking_packages')->result();
             $this->load->view('admin/cms/add-annoucement', $this->data);
 
             }

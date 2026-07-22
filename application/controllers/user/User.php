@@ -46,7 +46,20 @@ class User extends CI_Controller
 			$this->data['user_id'] = $userid;
 			$this->data['last_login_ip'] = "192.12.11";
 
-			$this->data['notification'] = $this->db->query("SELECT * FROM `announcement` where title_status = '1' ")->result();
+			$this->load->model('cms/Announcement_model');
+			$activeAnnouncements = $this->Announcement_model->getActiveForUser($userid);
+			$this->data['notification'] = array_map(function ($r) { return (object) $r; }, $activeAnnouncements);
+
+			// First (highest-priority) announcement flagged for popup that this
+			// user hasn't dismissed yet — null if none qualify.
+			$this->data['popup_announcement'] = null;
+			foreach ($activeAnnouncements as $row) {
+				if (in_array($row['display_mode'], ['popup', 'both'], true)
+					&& !$this->Announcement_model->isDismissed($row['id'], $userid)) {
+					$this->data['popup_announcement'] = (object) $row;
+					break;
+				}
+			}
 
 
 			$this->db->where('user_id', $userid);
