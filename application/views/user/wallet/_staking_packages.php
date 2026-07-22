@@ -12,12 +12,18 @@ $staking_packages = isset($staking_packages) && is_array($staking_packages) ? $s
 $staking_plans    = isset($staking_plans) && is_array($staking_plans) ? $staking_plans : [];
 $owned_stake_ids  = isset($owned_stake_ids) && is_array($owned_stake_ids) ? $owned_stake_ids : [];
 
-// Hide the 10,000 BMAN package from the public listing.
-$staking_packages = array_values(array_filter($staking_packages, function ($p) {
-    return (float)($p['stake_amount'] ?? 0) !== 10000.0;
-}));
-
 if (!empty($staking_packages)):
+
+// Which durations each plan type actually offers — admin's "Durations offered"
+// checkboxes (staking_plan_terms), same source the plan-explainer badge above uses.
+$hasPlanTerms = !empty($staking_plans);
+$fixedYears   = [];
+$regularYears = [];
+foreach ($staking_plans as $pl) {
+    $yrs = array_map(function ($t) { return (int)$t['duration_years']; }, $pl['terms'] ?? []);
+    if (($pl['code'] ?? '') === 'fixed')   $fixedYears   = $yrs;
+    if (($pl['code'] ?? '') === 'regular') $regularYears = $yrs;
+}
 
 // which durations actually appear across the ROI matrix (fallback 2/3/5)
 $durations = [];
@@ -28,6 +34,11 @@ foreach ($staking_packages as $p) {
     }
 }
 $durations = array_keys($durations);
+if ($hasPlanTerms) {
+    // A row only makes sense if Fixed or Regular actually offers that term.
+    $durations = array_intersect($durations, array_unique(array_merge($fixedYears, $regularYears)));
+}
+$durations = array_values($durations);
 sort($durations);
 if (empty($durations)) $durations = [2, 3, 5];
 
@@ -149,8 +160,8 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         </thead>
         <tbody>
           <?php foreach ($durations as $yr):
-            $fx = $roi['fixed_'.$yr]['roi_percent']   ?? null;
-            $rg = $roi['regular_'.$yr]['roi_percent'] ?? null;
+            $fx = (!$hasPlanTerms || in_array($yr, $fixedYears, true))   ? ($roi['fixed_'.$yr]['roi_percent']   ?? null) : null;
+            $rg = (!$hasPlanTerms || in_array($yr, $regularYears, true)) ? ($roi['regular_'.$yr]['roi_percent'] ?? null) : null;
           ?>
           <tr>
             <td><?= (int)$yr ?> Years</td>
@@ -205,6 +216,9 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   .stkm-warn{color:#c0392b;font-size:12px;font-weight:900;margin-top:6px;display:none;}
   .stkm-confirm{width:100%;border:0;border-radius:12px;padding:13px;cursor:pointer;font-weight:1100;font-size:14px;color:#fff;background:linear-gradient(135deg,#10b981,#059669);}
   .stkm-confirm:disabled{opacity:.5;cursor:not-allowed;}
+  .stkm-spinner{display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;
+    border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:stkm-spin .7s linear infinite;}
+  @keyframes stkm-spin{to{transform:rotate(360deg);}}
   .stkm-nav{display:flex;gap:10px;margin-top:12px;}
   .stkm-nav button{flex:1;border:0;border-radius:12px;padding:12px 14px;cursor:pointer;font-weight:1100;font-size:13.5px;}
   .stkm-back{background:#eef2ff;color:#4338ca;}
@@ -296,7 +310,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         </div>
       </div>
       <div class="stkm-nav"><button class="stkm-back" id="stkm-back" type="button">Back</button><button class="stkm-next" id="stkm-next" type="button">Next</button></div>
-      <button class="stkm-confirm" id="stkm-go" type="button" onclick="stkConfirm()" style="margin-top:10px;display:none;"> <?= $isSwap ? 'Confirm &amp; Swap' : 'Confirm &amp; Stake' ?></button>
+      <button class="stkm-confirm" id="stkm-go" type="button" onclick="stkConfirm()" style="margin-top:10px;display:none;"> Confirm</button>
       </div>
 
     </div>
@@ -557,10 +571,13 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   function quote(){ const fd=new FormData(); fd.append('package_id',cur.pkg.id); fetch(BASE+'user/lending/stake_quote',{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{ if(!j.status){ $('stkm-cost').textContent=j.message||'?'; return; } cur.usdt=j.usdt; cur.bal=j.usdt_balance; cur.quote=j; $('stkm-cost').textContent = Number(j.usdt).toLocaleString(undefined,{maximumFractionDigits:4})+' USDT'; $('stkm-lock').textContent = Number(j.bman).toLocaleString()+' BMAN'; $('stkm-bonus').textContent= Number(j.bonus).toLocaleString()+' BMAN'; $('stkm-bal').textContent  = Number(j.usdt_balance).toLocaleString(undefined,{maximumFractionDigits:2})+' USDT'; const bw = j.bman_wallets||{}; ['exchange','staking','bonus','earning'].forEach(function(w){ const el=$('stkm-bw-'+w); if(el) el.textContent=Number(bw[w]||0).toLocaleString()+' BMAN'; }); const short = j.usdt_balance + 1e-8 < j.usdt; $('stkm-warn').style.display = short?'block':'none'; $('stkm-go').disabled = short; renderLive(); }).catch(()=>{ $('stkm-cost').textContent='Quote failed'; }); }
   $('stkm-back').onclick = function(){ if(cur.step>1) renderStep(cur.step-1); };
   $('stkm-next').onclick = function(){ if(cur.step<4) renderStep(cur.step+1); };
+  function stkAlert(opts){
+    return Swal.fire(Object.assign({confirmButtonColor:'#28a745'}, opts));
+  }
   window.stkConfirm = function(){
     const go=$('stkm-go');
     go.disabled=true;
-    go.textContent='Processing…';
+    go.innerHTML='<span class="stkm-spinner"></span>Processing…';
     const fd=new FormData();
 
     // Append ALL required fields for backend
@@ -571,31 +588,29 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     fd.append('coin_distribution_option_id', cur.dist);  // ✅ Distribution option (1-7)
     fd.append('plan_id', 0);  // ✅ Plan ID
 
-    console.log('=== FORM SUBMISSION DATA ===');
-    console.log('package_id:', cur.pkg.id);
-    console.log('plan_code:', cur.roi_plan || 'fixed');
-    console.log('duration_years:', cur.years);
-    console.log('plan_type:', cur.roi_plan);
-    console.log('coin_distribution_option_id:', cur.dist);
-    console.log('plan_id:', 0);
-    console.log('==============================');
-
     const endpoint = SWAP_ON ? 'user/lending/swap_purchase' : 'user/lending/purchase_stake';
     fetch(BASE+endpoint,{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{
-      go.textContent='Confirm & Stake';
-      if(window.Swal){
-        Swal.fire({icon:j.status?'success':'error',text:j.message,confirmButtonText:'Ok'}).then(()=>{
-          if(j.status) location.reload();
-        });
+      if(j.status){
+        // Timer + confirm button both resolve .then() — whichever comes first,
+        // the page reloads with no extra click required (refreshes portfolio,
+        // wallet balances, active staking table and package availability, all
+        // server-rendered on load).
+        stkAlert({
+          icon: 'success',
+          title: 'Staking Successful',
+          text: 'Your staking request has been submitted successfully.',
+          timer: 1500,
+          timerProgressBar: true,
+        }).then(function(){ location.reload(); });
       } else {
-        alert(j.message);
-        if(j.status) location.reload();
+        go.disabled=false;
+        go.textContent='Confirm';
+        stkAlert({icon:'error', title:'Staking Failed', text: j.message || 'Something went wrong. Please try again.'});
       }
-      if(!j.status) go.disabled=false;
-    }).catch(()=>{
-      go.textContent='Confirm & Stake';
+    }).catch(function(){
       go.disabled=false;
-      alert('Request failed.');
+      go.textContent='Confirm';
+      stkAlert({icon:'error', title:'Request Failed', text:'Could not reach the server. Please try again.'});
     });
   };
 })();
