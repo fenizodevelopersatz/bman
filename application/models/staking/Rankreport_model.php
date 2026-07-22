@@ -91,7 +91,7 @@ class Rankreport_model extends CI_Model
     public function distribution()
     {
         $rows = $this->db->select('r.tier_level, r.name AS rank_name, r.required_group_volume,
-                                   r.group_incentive, COUNT(ur.id) AS members')
+                                   r.group_incentive, r.badge_image, r.badge_color, COUNT(ur.id) AS members')
                          ->from('staking_ranks r')
                          ->join('user_ranks ur', 'ur.highest_rank_id = r.id', 'left')
                          ->group_by('r.id')

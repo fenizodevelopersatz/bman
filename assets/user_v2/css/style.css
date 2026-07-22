@@ -212,6 +212,23 @@
     .dot{width:8px;height:8px;background:rgba(255,255,255,0.3);border-radius:50%;cursor:pointer;}
     .dot.active{background:#fff;width:24px;border-radius:10px;}
 
+    /* Bootstrap's carousel JS (bundled in plugins.bundle.js) runs on this page,
+       but no Bootstrap CSS is linked here — without these rules every
+       .carousel-item renders at once, stacked in normal flow, so multiple
+       announcements' titles/buttons visually overlap inside the clipped
+       banner box. Hand-rolled to the exact upstream Bootstrap 5 rules. */
+    #announcementCarousel .carousel-inner{position:relative;width:100%;overflow:hidden;}
+    #announcementCarousel .carousel-item{position:relative;display:none;float:left;width:100%;margin-right:-100%;backface-visibility:hidden;}
+    #announcementCarousel .carousel-item.active,
+    #announcementCarousel .carousel-item-next,
+    #announcementCarousel .carousel-item-prev{display:block;}
+    #announcementCarousel.carousel-fade .carousel-item{opacity:0;transition-property:opacity;transform:none;}
+    #announcementCarousel.carousel-fade .carousel-item-next.carousel-item-start,
+    #announcementCarousel.carousel-fade .carousel-item-prev.carousel-item-end,
+    #announcementCarousel.carousel-fade .carousel-item.active{z-index:1;opacity:1;}
+    #announcementCarousel.carousel-fade .active.carousel-item-end,
+    #announcementCarousel.carousel-fade .active.carousel-item-start{z-index:0;opacity:0;transition:opacity 0s .6s;}
+
     /* --- TOP KPI GRID --- */
     .kpi-grid{
       display:grid;
@@ -594,12 +611,36 @@
     .slide-hero { padding: 0 !important; }
 
 .hero-grid{
+  position:relative;
   height:100%;
   display:grid;
   grid-template-columns: 1.2fr 0.8fr;
   gap: 10px;
   align-items:center;
   padding: 46px;
+}
+
+/* Image / Text+Image announcements: the image fills the whole banner as a
+   full-bleed background, with a dark scrim behind the text for contrast.
+   Toggled per-slide by JS (applySlide()) based on that slide's data-has-image. */
+.hero-grid.has-image{ grid-template-columns: 1fr; }
+.hero-grid.has-image::before{
+  content:"";
+  position:absolute; inset:0;
+  background:linear-gradient(90deg, rgba(11,15,26,.75) 0%, rgba(11,15,26,.35) 55%, rgba(11,15,26,.10) 100%);
+  z-index:1;
+}
+.hero-grid.has-image .hero-left{ position:relative; z-index:2; }
+.hero-grid.has-image .hero-right{
+  position:absolute; inset:0;
+  height:100%; width:100%;
+  align-items:stretch; justify-content:stretch;
+  z-index:0;
+}
+.hero-grid.has-image .hero-img{
+  width:100%; height:100%; max-width:none;
+  object-fit:cover;
+  opacity:1; transform:none; filter:none;
 }
 
 .hero-left{ min-width:0; }
@@ -640,6 +681,9 @@
   .hero-grid{ grid-template-columns: 1fr; padding: 28px; }
   .hero-right{ display:none; }
   .hero-title{ font-size: 22px; }
+  /* Full-bleed image stays as the background even on mobile — only the
+     small floating-graphic layout (text-only slides) hides .hero-right. */
+  .hero-grid.has-image .hero-right{ display:flex; }
 }
 
 

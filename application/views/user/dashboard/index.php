@@ -236,7 +236,7 @@
       <div class="banner-wrapper banner-fixed">
 
         <div class="slide slide-hero active" id="slideHero" style="position: relative; inset:auto; opacity:1;">
-          <div class="hero-grid">
+          <div class="hero-grid" id="heroGrid">
 
             <!-- Left Content -->
             <div class="hero-left">
@@ -252,14 +252,16 @@
                       $type = $note->announcement_type ?? 'text';
                       $showImage = in_array($type, ['image', 'text_image'], true);
                       $showFullText = in_array($type, ['text', 'text_image'], true);
+                      $hasRealImage = $showImage && !empty($note->image);
                       $isAlert = in_array($note->category ?? 'general', ['alert', 'maintenance'], true);
                       $bg = $isAlert ? $alertGradient : ($showImage ? '' : ($note->bg_color ?: ''));
-                      $img = $showImage && !empty($note->image) ? base_url($note->image) : $defaultHeroImg;
+                      $img = $hasRealImage ? base_url($note->image) : $defaultHeroImg;
                       $textColor = htmlspecialchars($note->text_color ?: '#ffffff');
                     ?>
                       <div class="carousel-item <?= $first ? 'active' : ''; ?>"
                         data-id="<?= (int) $note->id ?>"
                         data-bg="<?= htmlspecialchars($bg); ?>" data-image="<?= htmlspecialchars($img); ?>"
+                        data-has-image="<?= $hasRealImage ? '1' : '0' ?>"
                         data-text-color="<?= $textColor ?>">
                         <?php if ($isAlert): ?><div class="fs-8 fw-bold mb-1" style="color:<?= $textColor ?>;">⚠ <?= strtoupper(htmlspecialchars($note->category)) ?></div><?php endif; ?>
                         <h1 class="hero-title" style="color:<?= $textColor ?>;">— <?= htmlspecialchars($note->title); ?></h1>
@@ -350,10 +352,12 @@
             beacon('user/announcement/view/' + id);
           }
 
+          var heroGrid = document.getElementById('heroGrid');
           function applySlide(item) {
             if (!item || !slideHero || !heroImg) return;
             slideHero.style.background = item.getAttribute('data-bg') || '';
             heroImg.src = item.getAttribute('data-image') || '<?= $defaultHeroImg; ?>';
+            if (heroGrid) heroGrid.classList.toggle('has-image', item.getAttribute('data-has-image') === '1');
             trackView(item);
           }
 
