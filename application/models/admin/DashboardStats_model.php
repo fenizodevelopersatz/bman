@@ -111,6 +111,23 @@ class DashboardStats_model extends CI_Model
                          ->get()->result_array();
     }
 
+    /** Package distribution broken down by duration_years too, optionally windowed to the last N months. */
+    public function packageDistributionDetailed($months = null)
+    {
+        $this->db->select('sp.id, sp.name, sp.stake_amount AS package_amount, us.duration_years,
+                            COUNT(us.id) AS stakes, COALESCE(SUM(us.stake_amount),0) AS total_staked', false)
+                  ->from('staking_packages sp')
+                  ->join('user_stakes us', 'us.package_id = sp.id', 'inner');
+        if ($months !== null && (int) $months > 0) {
+            $this->db->where('us.created_at >=', date('Y-m-d H:i:s', strtotime('-' . (int) $months . ' months')));
+        }
+        return $this->db->group_by(['sp.id', 'us.duration_years'])
+                         ->order_by('sp.sort_order', 'ASC')
+                         ->order_by('sp.stake_amount', 'ASC')
+                         ->order_by('us.duration_years', 'ASC')
+                         ->get()->result_array();
+    }
+
     /* ============================== binary mlm ============================== */
 
     public function binarySummary()
@@ -144,7 +161,7 @@ class DashboardStats_model extends CI_Model
         ];
     }
 
-    /** 30-day trend: new registrations vs matching payouts, dense-bucketed by day. */
+    /** 30-day trend: new registrations vs staking purchases, dense-bucketed by day. */
     public function binaryGrowth($days = 30)
     {
         $days = max(1, (int) $days);
@@ -154,26 +171,26 @@ class DashboardStats_model extends CI_Model
                              ->where('register_date >=', $from . ' 00:00:00')
                              ->group_by('d')->get('users')->result_array();
 
-        $payRows = $this->db->select("DATE(created_at) AS d, COALESCE(SUM(earning_amount + staking_amount),0) AS n", false)
+        $stakeRows = $this->db->select("DATE(created_at) AS d, COUNT(*) AS n", false)
                              ->where('created_at >=', $from . ' 00:00:00')
-                             ->group_by('d')->get('staking_matching_payouts')->result_array();
+                             ->group_by('d')->get('user_stakes')->result_array();
 
         $regByDay = [];
         foreach ($regRows as $r) $regByDay[$r['d']] = (int) $r['n'];
-        $payByDay = [];
-        foreach ($payRows as $r) $payByDay[$r['d']] = (float) $r['n'];
+        $stakeByDay = [];
+        foreach ($stakeRows as $r) $stakeByDay[$r['d']] = (int) $r['n'];
 
         $labels = [];
         $registrations = [];
-        $matchingPayouts = [];
+        $stakesPurchased = [];
         for ($i = $days - 1; $i >= 0; $i--) {
             $d = date('Y-m-d', strtotime("-{$i} days"));
             $labels[] = $d;
             $registrations[] = $regByDay[$d] ?? 0;
-            $matchingPayouts[] = $payByDay[$d] ?? 0;
+            $stakesPurchased[] = $stakeByDay[$d] ?? 0;
         }
 
-        return ['labels' => $labels, 'registrations' => $registrations, 'matching_payouts' => $matchingPayouts];
+        return ['labels' => $labels, 'registrations' => $registrations, 'stakes_purchased' => $stakesPurchased];
     }
 
     /* ============================== rank achievement ============================== */
@@ -405,6 +422,50 @@ class DashboardStats_model extends CI_Model
     }
 
     /**
+     * Row-level notification feed for the topbar bell dropdown — assembled
+     * from the same tables/timestamps as sidebarCounts()/pendingCounts(),
+     * since no dedicated admin-notification table exists. No socket/push
+     * infra exists anywhere in this app either; the dropdown auto-refreshes
+     * via the same polling pattern already used for sidebar badges.
+     */
+    public function notificationList($limit = 10)
+    {
+        $limit = max(1, min(50, (int) $limit));
+        $items = [];
+
+        $kyc = $this->db->select("id, status, created_at", false)
+            ->where_in('status', ['pending', 'under_review'])
+            ->order_by('created_at', 'DESC')->limit($limit)->get('kyc_applications')->result_array();
+        foreach ($kyc as $r) {
+            $items[] = ['type' => 'kyc', 'text' => 'New KYC request (#' . $r['id'] . ')', 'href' => base_url('admin/kyc'), 'at' => $r['created_at']];
+        }
+
+        $bman = $this->db->select("id, net_amount, created_at", false)
+            ->where('status', 'pending')
+            ->order_by('created_at', 'DESC')->limit($limit)->get('bman_withdraw_requests')->result_array();
+        foreach ($bman as $r) {
+            $items[] = ['type' => 'withdrawal', 'text' => 'BMAN withdrawal requested: ' . number_format((float) $r['net_amount'], 2), 'href' => base_url('admin/bman-withdrawals'), 'at' => $r['created_at']];
+        }
+
+        $usdt = $this->db->select("id, net_amount, created_at", false)
+            ->where('status', 'pending')
+            ->order_by('created_at', 'DESC')->limit($limit)->get('withdrawals')->result_array();
+        foreach ($usdt as $r) {
+            $items[] = ['type' => 'withdrawal', 'text' => 'USDT withdrawal requested: ' . number_format((float) $r['net_amount'], 2), 'href' => base_url('withdraw-requests'), 'at' => $r['created_at']];
+        }
+
+        $support = $this->db->select("id, subject, date", false)
+            ->where('status', 0)
+            ->order_by('date', 'DESC')->limit($limit)->get('support')->result_array();
+        foreach ($support as $r) {
+            $items[] = ['type' => 'support', 'text' => 'New support ticket: ' . ($r['subject'] ?: '(no subject)'), 'href' => base_url('support'), 'at' => $r['date']];
+        }
+
+        usort($items, function ($a, $b) { return strcmp($b['at'], $a['at']); });
+        return array_slice($items, 0, $limit);
+    }
+
+    /**
      * Badge count = pending items created SINCE the admin last visited that
      * section — not just a live pending count. Visiting the page (markSeen)
      * clears the badge; it only climbs again as new items arrive afterward.
@@ -429,6 +490,46 @@ class DashboardStats_model extends CI_Model
             'kyc'         => $kycPending,
             'support'     => $supportPending,
         ];
+    }
+
+    /* ============================== hot wallet (live on-chain) ============================== */
+
+    /**
+     * Live on-chain balance of the platform's own treasury/gas wallets — NOT
+     * the internal DB ledger sum (that's walletTotals(), summed across every
+     * user's user_wallets row). Reads directly from the chain via Web3bman,
+     * so a slow/unreachable RPC degrades this one widget, not the rest of
+     * the dashboard — every failure is caught, never thrown upward.
+     */
+    public function hotWalletBalance()
+    {
+        $this->load->model('Tokenmaster_model', 'tokens');
+        $cfg = $this->tokens->activeSettings();
+        if (!$cfg) {
+            return ['configured' => false, 'message' => 'No active Token Settings configuration.'];
+        }
+
+        $out = ['configured' => true, 'treasury' => null, 'gas' => null, 'error' => null];
+        try {
+            $this->load->library('web3bman');
+            if (!empty($cfg['treasury_wallet'])) {
+                $out['treasury'] = [
+                    'address' => $cfg['treasury_wallet'],
+                    'bnb'     => $this->web3bman->getBnbBalance($cfg['treasury_wallet']),
+                    'bman'    => $this->web3bman->getTokenBalance($cfg['treasury_wallet']),
+                ];
+            }
+            if (!empty($cfg['gas_wallet'])) {
+                $out['gas'] = [
+                    'address' => $cfg['gas_wallet'],
+                    'bnb'     => $this->web3bman->getBnbBalance($cfg['gas_wallet']),
+                ];
+            }
+        } catch (Exception $e) {
+            $out['error'] = 'Could not reach the blockchain RPC right now.';
+        }
+
+        return $out;
     }
 
     /* ============================== online members ============================== */

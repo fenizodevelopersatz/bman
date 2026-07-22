@@ -118,7 +118,7 @@ class AllTransactions extends CI_Controller
         if (!$row) return $this->_json(['status' => false, 'message' => 'Not found'], 404);
 
         $row['avatar'] = user_profile_image($row['user_id']);
-        $this->_json(['status' => true, 'row' => $row]);
+        $this->_json(['status' => true, 'row' => $row, 'explorer_url' => $this->_explorer()]);
     }
 
     /** Cron Run Log tab — every scheduled-job execution, most recent first. */
