@@ -34,6 +34,8 @@ class AdminKyc extends CI_Controller
         $data['title']      = 'Members KYC List';
         $data['card_tilte'] = 'Members KYC List';
         // Table will be filled by AJAX; keep page fast
+        $this->load->model('admin/DashboardStats_model', 'dashstats');
+        $this->dashstats->markSeen($this->_adminId(), 'kyc');
         $this->load->view('admin/kyc_list', $data);
     }
 

@@ -272,6 +272,9 @@
                 const onchain = r.onchain
                     ? '<span class="badge badge-light-info fs-8">' + esc(r.onchain.status || 'onchain') + '</span>'
                     : '<span class="badge badge-light fs-8">internal</span>';
+                const gasFee = (r.onchain && r.onchain.gas_fee_total != null)
+                    ? fmt(r.onchain.gas_fee_total) + ' BNB'
+                    : '<span class="text-muted">—</span>';
                 return '<tr class="at-row" data-id="' + r.ledger_id + '" style="cursor:pointer">' +
                     '<td class="fs-8 text-muted">' + esc(r.created_at) + '</td>' +
                     '<td><div class="d-flex align-items-center gap-2">' +
@@ -284,11 +287,12 @@
                     '<td class="fs-8 text-muted mw-200px text-truncate">' + esc(r.description || '—') + '</td>' +
                     '<td class="fs-8" title="' + esc(r.tx_hash || '') + '">' + hashLink(r.tx_hash) + '</td>' +
                     '<td>' + onchain + '</td>' +
+                    '<td class="fs-8 text-muted">' + gasFee + '</td>' +
                     '</tr>';
             }).join('');
             body.innerHTML = '<table class="table table-row-dashed fs-7"><thead><tr class="fw-bold text-muted">' +
                 '<th>When</th><th>User</th><th>Type</th><th>Amount</th><th>Balance After</th>' +
-                '<th>Description</th><th>Tx Hash</th><th>Chain</th>' +
+                '<th>Description</th><th>Tx Hash</th><th>Chain</th><th>Gas Fee</th>' +
                 '</tr></thead><tbody>' + trs + '</tbody></table>';
 
             body.querySelectorAll('.at-row').forEach(tr => {
@@ -335,6 +339,7 @@
                 rowsOutRaw.push(['On-chain Status', esc(r.onchain.status)]);
                 rowsOutRaw.push(['On-chain Amount', esc(fmt(r.onchain.amount) + ' (' + (r.onchain.tx_type || '') + ')')]);
                 if (r.onchain.block_number) rowsOutRaw.push(['Block', esc(r.onchain.block_number)]);
+                if (r.onchain.gas_fee_total != null) rowsOutRaw.push(['Gas Fee', esc(fmt(r.onchain.gas_fee_total) + ' BNB')]);
             }
             if (r.source && r.source.table) {
                 rowsOutRaw.push(['Source Table', esc(r.source.table + ' #' + (r.source.id || '—'))]);

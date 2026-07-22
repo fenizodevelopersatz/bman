@@ -66,12 +66,6 @@ $uid = $this->session->userdata('user_userid') ?? '';
   }
 </style>
 <header>
-  <div class="search-box">
-    <i class="ph ph-magnifying-glass"></i>
-    <input autocomplete="off" aria-autocomplete="none" type="text"
-      placeholder="Search: orders, commissions, members..." />
-  </div>
-
   <div class="header-actions">
     <?php $mp_us = site_settings('member_theme','user_switch'); if ($mp_us === '' || $mp_us === null) $mp_us = '1'; ?>
     <?php if ($mp_us !== '0'): ?>
@@ -80,8 +74,9 @@ $uid = $this->session->userdata('user_userid') ?? '';
     </button>
     <?php endif; ?>
 
-    <button class="action-btn" title="Messages" onclick="window.location.href='<?php echo base_url('user/chat'); ?>'">
+    <button class="action-btn" title="Messages" style="position:relative;" onclick="window.location.href='<?php echo base_url('user/chat'); ?>'">
       <i class="ph ph-chat-centered-text"></i>
+      <span id="chatUnreadBadge" style="display:none;position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#ef4444;color:#fff;font-size:10px;line-height:16px;text-align:center;font-weight:700;"></span>
     </button>
 
     <button class="action-btn" title="Notifications"><i class="ph ph-bell"></i></button>
@@ -135,9 +130,18 @@ $uid = $this->session->userdata('user_userid') ?? '';
     // Chat page itself is open, so without this a member browsing anywhere
     // else (Dashboard, Binary Tree, ...) would incorrectly show as offline.
     var url = '<?php echo base_url('user/heartbeat'); ?>';
+    var badge = document.getElementById('chatUnreadBadge');
     function ping() {
       if (document.visibilityState !== 'visible') return;
-      fetch(url, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } }).catch(function () {});
+      fetch(url, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!badge || !j || !j.ok) return;
+          var n = parseInt(j.unread || 0, 10);
+          if (n > 0) { badge.textContent = n > 99 ? '99+' : n; badge.style.display = 'block'; }
+          else { badge.style.display = 'none'; }
+        })
+        .catch(function () {});
     }
     ping();
     setInterval(ping, 15000);
