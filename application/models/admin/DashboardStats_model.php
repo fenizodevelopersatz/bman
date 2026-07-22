@@ -509,7 +509,13 @@ class DashboardStats_model extends CI_Model
             return ['configured' => false, 'message' => 'No active Token Settings configuration.'];
         }
 
-        $out = ['configured' => true, 'treasury' => null, 'gas' => null, 'error' => null];
+        $out = [
+            'configured'   => true,
+            'treasury'     => null,
+            'gas'          => null,
+            'error'        => null,
+            'explorer_url' => rtrim($cfg['explorer_url'] ?? 'https://bscscan.com', '/'),
+        ];
         try {
             $this->load->library('web3bman');
             if (!empty($cfg['treasury_wallet'])) {
@@ -530,6 +536,70 @@ class DashboardStats_model extends CI_Model
         }
 
         return $out;
+    }
+
+    /* ============================== ROI liability ============================== */
+
+    /**
+     * Total ROI Paid / Pending (due, not yet paid) / Future Liability (owed,
+     * not yet due) — combined across BOTH live purchase paths in this
+     * codebase: `roi_staking_management` (the staking_swap_orders/"swap"
+     * flow) and `staking_roi_payouts` (the plain user_stakes flow). Neither
+     * table alone is the full picture — both are actively written to.
+     */
+    public function roiLiability()
+    {
+        $mgmt = $this->db->select("
+            COALESCE(SUM(total_paid_amount), 0) AS paid,
+            COALESCE(SUM(CASE WHEN overall_status != 'completed' AND (next_payment_date <= NOW() OR fixed_maturity_date <= NOW()) THEN remaining_to_pay ELSE 0 END), 0) AS pending,
+            COALESCE(SUM(CASE WHEN overall_status != 'completed' AND NOT (next_payment_date <= NOW() OR fixed_maturity_date <= NOW()) THEN remaining_to_pay ELSE 0 END), 0) AS future
+        ", false)->get('roi_staking_management')->row_array();
+
+        $payouts = $this->db->select("
+            COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) AS paid,
+            COALESCE(SUM(CASE WHEN status = 'pending' AND credit_date <= CURDATE() THEN amount ELSE 0 END), 0) AS pending,
+            COALESCE(SUM(CASE WHEN status = 'pending' AND credit_date > CURDATE() THEN amount ELSE 0 END), 0) AS future
+        ", false)->get('staking_roi_payouts')->row_array();
+
+        return [
+            'paid'   => (string) ((float) $mgmt['paid'] + (float) $payouts['paid']),
+            'pending' => (string) ((float) $mgmt['pending'] + (float) $payouts['pending']),
+            'future' => (string) ((float) $mgmt['future'] + (float) $payouts['future']),
+        ];
+    }
+
+    /* ============================== bonus reduction ============================== */
+
+    /**
+     * Summary for the dashboard widget — reuses Bonusreduction_model (the same
+     * code path the cron and the admin "Run now" button use) rather than
+     * re-deriving totals. Interval/percent are read live from
+     * staking_bonus_settings, not hardcoded — this deployment currently has
+     * the interval set to 1 day, not the schema's 60-day default.
+     */
+    public function bonusReductionSummary()
+    {
+        $this->load->model('Bonusreduction_model', 'bonusReduction');
+        $wallet = $this->bonusReduction->adminWallet();
+        $totals = $this->bonusReduction->totals();
+        $settings = $this->db->get_where('staking_bonus_settings', ['id' => 1])->row_array();
+        $intervalDays = max(1, (int) ($settings['reduction_interval_days'] ?? 60));
+        $percent = (float) ($settings['reduction_percent'] ?? 50);
+
+        $recent = (string) ($this->db->select_sum('amount', 's')
+            ->where('created_at >=', date('Y-m-d H:i:s', strtotime("-{$intervalDays} days")))
+            ->get('bonus_reduction_log')->row()->s ?: '0');
+
+        return [
+            'lifetime_total'       => (string) $wallet['lifetime_bonus_reduction_total'],
+            'admin_wallet_balance' => (string) $wallet['balance'],
+            'recent_total'         => $recent,
+            'interval_days'        => $intervalDays,
+            'percent'              => $percent,
+            'reduction_count'      => (int) $totals['cnt'],
+            'onchain_sent'         => (int) $totals['onchain_sent'],
+            'onchain_failed'       => (int) $totals['onchain_failed'],
+        ];
     }
 
     /* ============================== online members ============================== */
