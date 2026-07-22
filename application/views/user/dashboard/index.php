@@ -252,19 +252,24 @@
                       $type = $note->announcement_type ?? 'text';
                       $showImage = in_array($type, ['image', 'text_image'], true);
                       $showFullText = in_array($type, ['text', 'text_image'], true);
+                      $imageOnly = ($type === 'image');
                       $hasRealImage = $showImage && !empty($note->image);
                       $isAlert = in_array($note->category ?? 'general', ['alert', 'maintenance'], true);
                       $bg = $isAlert ? $alertGradient : ($showImage ? '' : ($note->bg_color ?: ''));
                       $img = $hasRealImage ? base_url($note->image) : $defaultHeroImg;
                       $textColor = htmlspecialchars($note->text_color ?: '#ffffff');
+                      $textPos = in_array($note->text_position ?? 'middle-left', ['top-left', 'bottom-left', 'center'], true) ? $note->text_position : 'middle-left';
                     ?>
                       <div class="carousel-item <?= $first ? 'active' : ''; ?>"
                         data-id="<?= (int) $note->id ?>"
                         data-bg="<?= htmlspecialchars($bg); ?>" data-image="<?= htmlspecialchars($img); ?>"
                         data-has-image="<?= $hasRealImage ? '1' : '0' ?>"
+                        data-text-pos="<?= htmlspecialchars($textPos) ?>"
                         data-text-color="<?= $textColor ?>">
-                        <?php if ($isAlert): ?><div class="fs-8 fw-bold mb-1" style="color:<?= $textColor ?>;">⚠ <?= strtoupper(htmlspecialchars($note->category)) ?></div><?php endif; ?>
+                        <?php if ($isAlert && !$imageOnly): ?><div class="fs-8 fw-bold mb-1" style="color:<?= $textColor ?>;">⚠ <?= strtoupper(htmlspecialchars($note->category)) ?></div><?php endif; ?>
+                        <?php if (!$imageOnly): ?>
                         <h1 class="hero-title" style="color:<?= $textColor ?>;">— <?= htmlspecialchars($note->title); ?></h1>
+                        <?php endif; ?>
                         <?php if ($showFullText && !empty($note->subtitle)): ?>
                           <div class="hero-subtitle" style="color:<?= $textColor ?>;opacity:.85;font-weight:700;margin-top:4px;"><?= htmlspecialchars($note->subtitle) ?></div>
                         <?php endif; ?>
@@ -357,7 +362,12 @@
             if (!item || !slideHero || !heroImg) return;
             slideHero.style.background = item.getAttribute('data-bg') || '';
             heroImg.src = item.getAttribute('data-image') || '<?= $defaultHeroImg; ?>';
-            if (heroGrid) heroGrid.classList.toggle('has-image', item.getAttribute('data-has-image') === '1');
+            if (heroGrid) {
+              heroGrid.classList.toggle('has-image', item.getAttribute('data-has-image') === '1');
+              heroGrid.classList.remove('text-pos-top-left', 'text-pos-bottom-left', 'text-pos-center');
+              var pos = item.getAttribute('data-text-pos');
+              if (pos && pos !== 'middle-left') heroGrid.classList.add('text-pos-' + pos);
+            }
             trackView(item);
           }
 
@@ -549,7 +559,7 @@
         <a href="<?= base_url('user/withdraw'); ?>" class="qa"><i class="ph ph-money"></i> Withdraw</a>
         <a href="<?= base_url('user/transfer-wallet'); ?>" class="qa"><i class="ph ph-arrows-left-right"></i> Transfer Wallet</a>
         <a href="<?= base_url('user/binary-tree'); ?>" class="qa"><i class="ph ph-tree-structure"></i> View Binary Tree</a>
-        <a href="<?= base_url('user/profile'); ?>" class="qa"><i class="ph ph-user-plus"></i> Invite Member</a>
+        <a href="<?= base_url('user/referrals'); ?>" class="qa"><i class="ph ph-user-plus"></i> Invite Member</a>
         <a href="<?= base_url('support'); ?>" class="qa"><i class="ph ph-headset"></i> Support Ticket</a>
       </div>
 
@@ -562,16 +572,22 @@
             <span class="chip">This Week</span>
           </div>
 
+          <?php
+            $legLeft = (int) ($leg_stakes['left_count'] ?? 0);
+            $legRight = (int) ($leg_stakes['right_count'] ?? 0);
+            $legLeftStrong = $legLeft >= $legRight;
+          ?>
           <div class="binary-grid">
             <!-- Left -->
             <div class="mini">
               <div class="mini-top">
                 <span>Left Leg</span>
-                <b id="left_leg_strength" style="color:#2563eb;">STRONG</b>
+                <b style="color:#2563eb;"><?= $legLeftStrong ? 'STRONG' : 'WEAK'; ?></b>
               </div>
 
               <div class="mini-value">
-                <strong><span id="left_leg_bv">0.00</span></strong>
+                <strong><?= $legLeft; ?></strong>
+                <div style="font-size:11px;color:#8a8f99;font-weight:600;margin-top:2px;">Staking Purchases (BMAN)</div>
               </div>
 
             </div>
@@ -580,13 +596,14 @@
             <div class="mini">
               <div class="mini-top">
                 <span>Right Leg</span>
-                <b id="right_leg_strength" style="color:#f97316;">WEAK</b>
+                <b style="color:#f97316;"><?= $legLeftStrong ? 'WEAK' : 'STRONG'; ?></b>
               </div>
 
               <div class="mini-value">
-                <strong><span id="right_leg_bv">0.00</span></strong>
+                <strong><?= $legRight; ?></strong>
+                <div style="font-size:11px;color:#8a8f99;font-weight:600;margin-top:2px;">Staking Purchases (BMAN)</div>
               </div>
-              
+
             </div>
 
           </div>
@@ -638,21 +655,19 @@
           <div class="small-grid">
             <div class="small-k">
               <small>Left Team</small>
-              <!-- <strong><span id="left_leg_count">0</span></strong> -->
-              <strong><span id="left_team_count">0</span></strong>
+              <strong><?= (int) ($team_snapshot['left_team'] ?? 0); ?></strong>
             </div>
             <div class="small-k">
               <small>Right Team</small>
-              <!-- <strong><span id="right_leg_count">0</span></strong> -->
-              <strong><span id="right_team_count">0</span></strong>
+              <strong><?= (int) ($team_snapshot['right_team'] ?? 0); ?></strong>
             </div>
             <div class="small-k">
               <small>Active Members</small>
-              <strong><span id="active_members_count">0</span></strong>
+              <strong><?= (int) ($team_snapshot['active_total'] ?? 0); ?></strong>
             </div>
             <div class="small-k">
               <small>New Joins</small>
-              <strong><span id="new_joins_count">0</span></strong>
+              <strong><?= (int) ($team_snapshot['new_joins_week'] ?? 0); ?></strong>
             </div>
           </div>
 
@@ -1074,19 +1089,25 @@
       const url = getLink(side);
       if (!url) return toastMini("Link not available");
 
-      try {
-        await navigator.clipboard.writeText(url);
-        toastMini("Copied!");
-      } catch (e) {
-        // fallback
-        const tmp = document.createElement('textarea');
-        tmp.value = url;
-        document.body.appendChild(tmp);
-        tmp.select();
-        document.execCommand('copy');
-        tmp.remove();
-        toastMini("Copied!");
+      if (navigator.clipboard && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(url);
+          toastMini("Copied!");
+          return;
+        } catch (e) { /* fall through to legacy fallback below */ }
       }
+
+      // Legacy fallback — also covers plain-http/non-secure contexts, where
+      // navigator.clipboard can be entirely undefined.
+      const tmp = document.createElement('textarea');
+      tmp.value = url;
+      tmp.style.position = 'fixed';
+      tmp.style.opacity = '0';
+      document.body.appendChild(tmp);
+      tmp.select();
+      const ok = document.execCommand('copy');
+      tmp.remove();
+      toastMini(ok ? "Copied!" : "Couldn't copy — please copy the link manually");
     }
 
     function openLink(side) {
@@ -1102,11 +1123,13 @@
       if (navigator.share) {
         try {
           await navigator.share({ title: "Join my team", text: "Use my referral link to join:", url });
-        } catch (e) { }
-      } else {
-        await copyText(side);
-        toastMini("Share not supported. Link copied!");
+        } catch (e) { /* user cancelled the native share sheet — not an error */ }
+        return;
       }
+
+      // No Web Share API (e.g. desktop browsers) — copy the link instead.
+      // copyText() shows its own success/failure toast.
+      await copyText(side);
     }
 
     function copyAllRefs() {

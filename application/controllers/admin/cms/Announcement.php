@@ -153,6 +153,7 @@ class  Announcement extends CI_Controller {
             $this->data['description'] = $template_info->description;
             $this->data['category'] = $template_info->category ?: 'general';
             $this->data['text_color'] = $template_info->text_color ?: '#ffffff';
+            $this->data['text_position'] = $template_info->text_position ?: 'middle-left';
             $this->data['button_text'] = $template_info->button_text;
             $this->data['button_url'] = $template_info->button_url;
             $this->data['priority'] = $template_info->priority ?: 'medium';
@@ -197,12 +198,16 @@ class  Announcement extends CI_Controller {
             $category = $this->input->post('category') ?: 'general';
             if (!in_array($category, ['general', 'alert', 'promotion', 'maintenance', 'event', 'rank_news'], true)) $category = 'general';
 
+            $text_position = $this->input->post('text_position') ?: 'middle-left';
+            if (!in_array($text_position, ['middle-left', 'top-left', 'bottom-left', 'center'], true)) $text_position = 'middle-left';
+
             $announcement_data = array(
                 "announcement_type" => $announcement_type,
                 "category"     => $category,
                 "subtitle"     => trim((string) $this->input->post('subtitle')) ?: null,
                 "description"  => trim((string) $this->input->post('description')) ?: null,
                 "text_color"   => trim((string) $this->input->post('text_color')) ?: '#ffffff',
+                "text_position" => $text_position,
                 "button_text"  => trim((string) $this->input->post('button_text')) ?: null,
                 "button_url"   => trim((string) $this->input->post('button_url')) ?: null,
                 "priority"     => $priority,
@@ -278,6 +283,7 @@ class  Announcement extends CI_Controller {
             $this->data['description'] = "";
             $this->data['category'] = "general";
             $this->data['text_color'] = "#ffffff";
+            $this->data['text_position'] = "middle-left";
             $this->data['button_text'] = "";
             $this->data['button_url'] = "";
             $this->data['priority'] = "medium";

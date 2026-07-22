@@ -50,6 +50,18 @@ class Dashboard extends CI_Controller
         $this->_json(['status' => true, 'data' => $this->stats->hotWalletBalance()]);
     }
 
+    public function bonus_reduction()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->_json(['status' => true, 'data' => $this->stats->bonusReductionSummary()]);
+    }
+
+    public function roi_liability()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->_json(['status' => true, 'data' => $this->stats->roiLiability()]);
+    }
+
     public function staking_analytics()
     {
         if (!$this->input->is_ajax_request()) show_404();

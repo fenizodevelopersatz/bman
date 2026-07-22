@@ -12,6 +12,7 @@
           <span class="badge badge-light-success">Active <span class="counted" id="dash-members-active" data-kt-initialized="1">0</span></span>
           <span class="badge badge-light-danger">Inactive <span class="counted" id="dash-members-inactive" data-kt-initialized="1">0</span></span>
           <span class="badge badge-light-info">KYC Verified <span class="counted" id="dash-members-kyc-verified" data-kt-initialized="1">0</span></span>
+          <span class="badge badge-light-success" title="Active in chat, last 5 minutes"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#22c55e;margin-right:5px;"></span>Online Now <span class="counted" id="dash-members-online" data-kt-initialized="1">0</span></span>
         </div>
       </div>
     </div>
