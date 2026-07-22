@@ -30,11 +30,6 @@ if (php_sapi_name() === 'cli' || empty($_SERVER['HTTP_HOST'])) {
         define('BASE_URL', $__scheme . '://' . $__host);
     }
 }
-// Old fixed values (kept for reference):
-// define('BASE_URL', "http://localhost:9000");
-// define('BASE_URL', "http://192.168.29.7:9000");
-// define('BASE_URL', "https://qvft8ng3-9000.inc1.devtunnels.ms");
-
 
 define('DEFAULTAVATARIMAGE', BASE_URL . "/assets/default-user.png");
 define("DEFAULT_PROFILE", DEFAULTAVATARIMAGE);
