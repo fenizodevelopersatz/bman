@@ -6,8 +6,25 @@
         <span class="card-label fw-bold text-gray-900">Wallet Summary</span>
         <span class="text-muted mt-1 fw-semibold fs-7">Platform-wide balances, all members combined</span>
       </h3>
+      <div class="card-toolbar">
+        <a href="<?php echo base_url('admin/all-transaction'); ?>" class="btn btn-sm btn-light-primary">View All Transactions</a>
+      </div>
     </div>
     <div class="card-body pt-2">
+      <div class="row g-3 mb-5">
+        <div class="col-6">
+          <div class="border border-gray-300 border-dashed rounded p-3 text-center">
+            <div class="fs-5 fw-bold text-success" id="dash-platform-in">0</div>
+            <div class="fs-9 text-muted">Platform In (USDT deposits)</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="border border-gray-300 border-dashed rounded p-3 text-center">
+            <div class="fs-5 fw-bold text-danger" id="dash-platform-out">0 / 0</div>
+            <div class="fs-9 text-muted">Platform Out (USDT / BMAN withdrawn)</div>
+          </div>
+        </div>
+      </div>
       <div class="d-flex flex-column gap-3" id="dash-wallet-summary">
         <div class="d-flex justify-content-between align-items-center">
           <span class="fs-6 text-gray-700">USDT Wallet</span>
