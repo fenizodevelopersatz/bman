@@ -103,6 +103,11 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                                 </div>
 
                                 <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
+                                    <?php $this->load->view('admin/dashboard/partials/_roi_liability'); ?>
+                                    <?php $this->load->view('admin/dashboard/partials/_bonus_reduction'); ?>
+                                </div>
+
+                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
                                     <?php $this->load->view('admin/dashboard/partials/_rank_summary'); ?>
                                 </div>
 
@@ -166,6 +171,7 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                 count('dash-total-withdrawals-bman', h.total_withdrawals_bman);
                 count('dash-total-bonus', h.total_bonus_paid_bman);
                 count('dash-online-chat', j.online_in_chat);
+                count('dash-members-online', j.online_in_chat);
 
                 count('dash-wallet-usdt', w.usdt);
                 count('dash-wallet-exchange', w.exchange);
@@ -220,13 +226,16 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
             });
         }
 
-        function loadGrowthChart() {
-            fetchJson(base + 'admin/dashboard/binary-growth?days=30').then(j => {
+        let dashGrowthChart = null;
+        function loadGrowthChart(days) {
+            days = days || 30;
+            fetchJson(base + 'admin/dashboard/binary-growth?days=' + encodeURIComponent(days)).then(j => {
                 if (!j.status) return;
                 const d = j.data;
                 const el = document.querySelector('#dash-growth-chart');
                 if (!el) return;
-                const chart = new ApexCharts(el, {
+                if (dashGrowthChart) { dashGrowthChart.destroy(); dashGrowthChart = null; }
+                dashGrowthChart = new ApexCharts(el, {
                     chart: { type: 'area', height: 340, toolbar: { show: false } },
                     series: [
                         { name: 'New Registrations', data: d.registrations },
@@ -236,9 +245,19 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                     stroke: { curve: 'smooth', width: 2 },
                     dataLabels: { enabled: false },
                 });
-                chart.render();
+                dashGrowthChart.render();
             });
         }
+        (function () {
+            const sel = document.getElementById('dash-growth-range');
+            const label = document.getElementById('dash-growth-range-label');
+            if (!sel) return;
+            const labels = { '7': 'Last 7 Days', '30': 'Last 30 Days', '90': 'Last 90 Days', '365': 'Last Year' };
+            sel.addEventListener('change', function () {
+                if (label) label.textContent = labels[sel.value] || (sel.value + ' Days');
+                loadGrowthChart(parseInt(sel.value, 10));
+            });
+        })();
 
         function esc(s) {
             return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -388,6 +407,14 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
         // Single load on page open only — this hits a live blockchain RPC,
         // unlike everything else on the dashboard (cheap DB queries), so it
         // does NOT sit on a recurring timer. Refresh button re-fetches on demand.
+        // BNB balances are typically small (gas-scale) — the generic fmt()/count()
+        // helpers cap at 2 decimals, which would show "0.00" for real gas-wallet
+        // amounts. This keeps full floating precision (trimmed of trailing zeros).
+        function fmtFloat(n) {
+            const v = parseFloat(n);
+            if (isNaN(v)) return '0';
+            return v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 });
+        }
         function loadHotWallet() {
             const btn = document.getElementById('dash-hotwallet-refresh');
             if (btn) btn.classList.add('spin');
@@ -397,20 +424,48 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                 const d = j.data;
                 const wrap = document.getElementById('dash-hotwallet-wrap');
                 if (!d.configured) { wrap.style.display = 'none'; return; }
+                const addrEl = document.getElementById('dash-hotwallet-address');
                 if (d.error) {
-                    document.getElementById('dash-hotwallet-address').textContent = d.error;
+                    addrEl.textContent = d.error;
                     return;
                 }
                 if (d.treasury) {
-                    document.getElementById('dash-hotwallet-address').textContent = 'Treasury: ' + d.treasury.address + ' · updated ' + new Date().toLocaleTimeString();
-                    count('dash-hotwallet-bnb', d.treasury.bnb);
-                    count('dash-hotwallet-bman', d.treasury.bman);
+                    const link = d.explorer_url ? (d.explorer_url + '/address/' + d.treasury.address) : null;
+                    addrEl.innerHTML = 'Treasury: ' +
+                        (link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener" class="text-muted text-decoration-underline">' + esc(d.treasury.address) + ' ↗</a>' : esc(d.treasury.address)) +
+                        ' · updated ' + new Date().toLocaleTimeString();
+                    document.getElementById('dash-hotwallet-bnb').textContent = fmtFloat(d.treasury.bnb);
+                    document.getElementById('dash-hotwallet-bman').textContent = fmtFloat(d.treasury.bman);
                 }
                 if (d.gas) {
                     document.getElementById('dash-hotwallet-gas-wrap').style.display = '';
-                    count('dash-hotwallet-gas-bnb', d.gas.bnb);
+                    document.getElementById('dash-hotwallet-gas-bnb').textContent = fmtFloat(d.gas.bnb);
                 }
             }).catch(function () { if (btn) btn.classList.remove('spin'); });
+        }
+
+        function loadRoiLiability() {
+            fetchJson(base + 'admin/dashboard/roi-liability').then(j => {
+                if (!j.status) return;
+                const d = j.data;
+                count('dash-roi-paid', d.paid);
+                count('dash-roi-pending', d.pending);
+                count('dash-roi-future', d.future);
+            });
+        }
+
+        function loadBonusReduction() {
+            fetchJson(base + 'admin/dashboard/bonus-reduction').then(j => {
+                if (!j.status) return;
+                const d = j.data;
+                count('dash-bonus-lifetime', d.lifetime_total);
+                count('dash-bonus-recent', d.recent_total);
+                count('dash-bonus-wallet-balance', d.admin_wallet_balance);
+                count('dash-bonus-count', d.reduction_count);
+                document.getElementById('dash-bonus-percent').textContent = fmt(d.percent);
+                document.getElementById('dash-bonus-interval').textContent = fmt(d.interval_days);
+                document.getElementById('dash-bonus-interval-2').textContent = fmt(d.interval_days);
+            });
         }
 
         // Admin Alerts is now populated by the single site-wide poller in
@@ -458,6 +513,8 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
         loadRecentTransactions();
         loadActivityFeed();
         loadHotWallet();
+        loadRoiLiability();
+        loadBonusReduction();
         const hotWalletRefreshBtn = document.getElementById('dash-hotwallet-refresh');
         if (hotWalletRefreshBtn) hotWalletRefreshBtn.addEventListener('click', loadHotWallet);
         setInterval(loadActivityFeed, 30000);

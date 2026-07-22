@@ -112,6 +112,13 @@ class User extends CI_Controller
 			$this->load->model('user/Memberrank_model', 'mr');
 			$this->data['rank_summary'] = $this->mr->sidebar($userid);
 
+			// Binary Summary (staking-purchase counts per leg) + Team Snapshot
+			// (member counts per leg) — both scoped to the same "this week"
+			// window (last 7 days) so the two panels agree with each other.
+			list($ws, $we) = $this->BinaryModel->getWeekRange();
+			$this->data['leg_stakes'] = $this->BinaryModel->countLegStakePurchases($userid, $ws, $we);
+			$this->data['team_snapshot'] = $this->BinaryModel->getTeamSnapshotWeekly($userid, $ws, $we);
+
 			$this->load->view('user/dashboard/index', $this->data);
 
 		} else {
