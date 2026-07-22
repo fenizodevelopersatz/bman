@@ -44,6 +44,12 @@ class Dashboard extends CI_Controller
         ]);
     }
 
+    public function hot_wallet()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->_json(['status' => true, 'data' => $this->stats->hotWalletBalance()]);
+    }
+
     public function staking_analytics()
     {
         if (!$this->input->is_ajax_request()) show_404();
@@ -54,6 +60,13 @@ class Dashboard extends CI_Controller
     {
         if (!$this->input->is_ajax_request()) show_404();
         $this->_json(['status' => true, 'rows' => $this->stats->packageDistribution()]);
+    }
+
+    public function package_distribution_detail()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $months = $this->input->get('months', true);
+        $this->_json(['status' => true, 'rows' => $this->stats->packageDistributionDetailed($months !== '' ? (int) $months : null)]);
     }
 
     public function binary_summary()
@@ -117,9 +130,9 @@ class Dashboard extends CI_Controller
         if ($counts['withdrawals'] > 0) {
             $alerts[] = ['level' => 'warning', 'text' => $counts['withdrawals'] . ' Withdrawal Request(s) Pending', 'href' => base_url('admin/bman-withdrawals')];
         }
-        if ($counts['kyc'] > 0) {
-            $alerts[] = ['level' => 'warning', 'text' => $counts['kyc'] . ' KYC Request(s) Pending', 'href' => base_url('admin/kyc')];
-        }
+        // KYC pending count intentionally not surfaced here — already visible
+        // in the KYC Monitoring card below; kept the alerts strip focused on
+        // things needing urgent admin action rather than duplicating it.
         if ($counts['support'] > 0) {
             $alerts[] = ['level' => 'warning', 'text' => $counts['support'] . ' Support Ticket(s) Waiting', 'href' => base_url('support')];
         }
@@ -137,5 +150,11 @@ class Dashboard extends CI_Controller
         if (!$this->input->is_ajax_request()) show_404();
         $adminId = (int) $this->session->userdata('admin_userid');
         $this->_json(['status' => true, 'data' => $this->stats->sidebarCounts($adminId)]);
+    }
+
+    public function notifications()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->_json(['status' => true, 'items' => $this->stats->notificationList(10)]);
     }
 }
