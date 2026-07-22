@@ -44,6 +44,29 @@
           </thead>
           <tbody id="dash-rank-distribution-body"></tbody>
         </table>
+        <div class="text-muted fs-8">Click a rank row to see which members currently hold it.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Rank members popup -->
+<div class="modal fade" id="dashRankMembersModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="dashRankMembersTitle">Rank Members</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="table-responsive">
+          <table class="table table-row-dashed fs-7 align-middle">
+            <thead>
+              <tr class="fw-bold text-muted"><th>Member</th><th>Email</th><th>Group Volume (BMAN)</th><th>Achieved</th></tr>
+            </thead>
+            <tbody id="dash-rank-members-body"><tr><td colspan="4" class="text-muted">Loading…</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
