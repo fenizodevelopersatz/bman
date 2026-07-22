@@ -47,6 +47,55 @@
             cursor: nwse-resize;
             touch-action: none;
         }
+
+        /* Live preview — mirrors the member-dashboard banner's own markup
+           (hero-grid / has-image / hero-left) closely enough to look right,
+           but uses its own ann-preview-* classes rather than reusing those
+           class names directly, since this page's Metronic/Bootstrap theme
+           already defines .tag/.btn globally and would collide with them. */
+        #ann-preview-box {
+            position: relative;
+            height: 220px;
+            border-radius: 16px;
+            overflow: hidden;
+            margin-bottom: 8px;
+            color: #fff;
+            background: linear-gradient(135deg,#6C4CF1,#4E2CF0);
+            transition: background .2s ease;
+        }
+        #ann-preview-bg {
+            position: absolute; inset: 0;
+            background-size: cover; background-position: center;
+            display: none;
+        }
+        #ann-preview-scrim {
+            position: absolute; inset: 0;
+            background: linear-gradient(90deg, rgba(11,15,26,.75) 0%, rgba(11,15,26,.35) 55%, rgba(11,15,26,.10) 100%);
+            display: none;
+        }
+        #ann-preview-content {
+            position: relative; z-index: 2; height: 100%;
+            display: flex; flex-direction: column; padding: 24px;
+        }
+        #ann-preview-content.pos-top-left { justify-content: flex-start; align-items: flex-start; text-align: left; }
+        #ann-preview-content.pos-middle-left { justify-content: center; align-items: flex-start; text-align: left; }
+        #ann-preview-content.pos-bottom-left { justify-content: flex-end; align-items: flex-start; text-align: left; }
+        #ann-preview-content.pos-center { justify-content: center; align-items: center; text-align: center; }
+        #ann-preview-tag {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.18);
+            padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 600;
+            width: fit-content; margin-bottom: 8px;
+        }
+        #ann-preview-category { font-size: 11px; font-weight: 700; margin-bottom: 4px; }
+        #ann-preview-title { font-size: 20px; font-weight: 700; line-height: 1.2; margin: 0 0 6px; max-width: 85%; }
+        #ann-preview-subtitle { font-size: 12px; font-weight: 700; opacity: .85; margin-bottom: 4px; max-width: 85%; }
+        #ann-preview-desc { font-size: 12px; opacity: .9; max-width: 85%; line-height: 1.5; margin-bottom: 10px; }
+        #ann-preview-btn {
+            display: inline-flex; align-items: center; gap: 6px; width: fit-content;
+            background: #111; color: #fff; padding: 8px 14px; border-radius: 999px;
+            font-size: 12px; font-weight: 700; text-decoration: none;
+        }
     </style>
 
     <body id="kt_app_body" data-kt-app-layout="dark-sidebar" data-kt-app-header-fixed="true" data-kt-app-sidebar-enabled="true" data-kt-app-sidebar-fixed="true" data-kt-app-sidebar-hoverable="true" data-kt-app-sidebar-push-header="true" data-kt-app-sidebar-push-toolbar="true"
@@ -148,6 +197,25 @@
                                 <span class="form-check-label">Text + Image</span>
                             </label>
                         </div>
+                        </div>
+                        </div>
+
+                        <div class="row mb-8">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Live Preview</label>
+                        <div class="col-lg-8 fv-row">
+                            <div id="ann-preview-box">
+                                <div id="ann-preview-bg"></div>
+                                <div id="ann-preview-scrim"></div>
+                                <div id="ann-preview-content" class="pos-middle-left">
+                                    <div id="ann-preview-tag"><i class="fa-solid fa-bullhorn"></i> Announcement</div>
+                                    <div id="ann-preview-category" style="display:none;"></div>
+                                    <div id="ann-preview-title"></div>
+                                    <div id="ann-preview-subtitle" style="display:none;"></div>
+                                    <div id="ann-preview-desc" style="display:none;"></div>
+                                    <a id="ann-preview-btn" href="javascript:void(0)" style="display:none;"></a>
+                                </div>
+                            </div>
+                            <div class="text-muted fs-8">This mirrors exactly how the banner will look on the member dashboard — updates live as you edit the fields below.</div>
                         </div>
                         </div>
 
@@ -276,6 +344,20 @@
                         </div>
 
                         <div class="separator my-8"></div>
+
+                        <div class="row mb-6">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Text Position</label>
+                        <div class="col-lg-8 fv-row">
+                            <select name="text_position" id="ann-text-position" class="form-select form-select-solid">
+                                <?php $tp = $text_position ?? 'middle-left'; ?>
+                                <option value="middle-left" <?= $tp === 'middle-left' ? 'selected' : '' ?>>Middle Left (Default)</option>
+                                <option value="top-left" <?= $tp === 'top-left' ? 'selected' : '' ?>>Top Left</option>
+                                <option value="bottom-left" <?= $tp === 'bottom-left' ? 'selected' : '' ?>>Bottom Left</option>
+                                <option value="center" <?= $tp === 'center' ? 'selected' : '' ?>>Center</option>
+                            </select>
+                            <div class="text-muted fs-8 mt-1">Controls where the title/description sit over the banner — most useful for Image or Text+Image announcements.</div>
+                        </div>
+                        </div>
 
                         <div class="row mb-6">
                         <label class="col-lg-4 col-form-label fw-semibold fs-6">Button Text</label>
@@ -472,6 +554,107 @@
                     el.addEventListener('change', function () { targetValueHidden.value = el.value; });
                 });
                 refreshTargetUI();
+            });
+            </script>
+
+            <script>
+            /* ---- Live preview: mirrors application/views/user/dashboard/index.php's
+               announcement banner markup so admins see the real result while editing,
+               instead of raw form fields + literal placeholder text. ---- */
+            document.addEventListener('DOMContentLoaded', function () {
+                var els = {
+                    box: document.getElementById('ann-preview-box'),
+                    bg: document.getElementById('ann-preview-bg'),
+                    scrim: document.getElementById('ann-preview-scrim'),
+                    content: document.getElementById('ann-preview-content'),
+                    category: document.getElementById('ann-preview-category'),
+                    title: document.getElementById('ann-preview-title'),
+                    subtitle: document.getElementById('ann-preview-subtitle'),
+                    desc: document.getElementById('ann-preview-desc'),
+                    btn: document.getElementById('ann-preview-btn'),
+                };
+                var cropPreview = document.getElementById('ann-crop-preview');
+                var cropPreviewWrap = document.getElementById('ann-crop-preview-wrap');
+
+                function val(selector, fallback) {
+                    var el = document.querySelector(selector);
+                    return el ? el.value : (fallback || '');
+                }
+
+                function updateAnnPreview() {
+                    var type = val('input[name="announcement_type"]:checked', 'text');
+                    var category = val('select[name="category"]', 'general');
+                    var isAlert = category === 'alert' || category === 'maintenance';
+                    var title = val('textarea[name="announcement_content"]') || 'Your announcement title';
+                    var subtitle = val('input[name="subtitle"]');
+                    var description = val('textarea[name="description"]');
+                    var bgColor = val('#ann-bg-color') || '#6C4CF1';
+                    var textColor = val('#ann-text-color') || '#ffffff';
+                    var buttonText = val('input[name="button_text"]');
+                    var buttonUrl = val('input[name="button_url"]');
+                    var textPos = val('select[name="text_position"]', 'middle-left');
+
+                    var hasImage = ['image', 'text_image'].indexOf(type) !== -1
+                        && cropPreview && cropPreviewWrap
+                        && cropPreviewWrap.style.display !== 'none'
+                        && !!cropPreview.getAttribute('src');
+
+                    var showFullText = (type === 'text' || type === 'text_image');
+                    var imageOnly = (type === 'image');
+
+                    els.box.style.background = isAlert ? 'linear-gradient(135deg,#ef4444,#b91c1c)' : (hasImage ? '#111' : bgColor);
+                    els.bg.style.display = hasImage ? 'block' : 'none';
+                    if (hasImage) els.bg.style.backgroundImage = "url('" + cropPreview.getAttribute('src') + "')";
+                    els.scrim.style.display = hasImage ? 'block' : 'none';
+
+                    els.content.className = 'pos-' + textPos;
+                    els.content.style.color = textColor;
+
+                    els.category.style.display = (isAlert && !imageOnly) ? 'block' : 'none';
+                    els.category.textContent = '⚠ ' + category.toUpperCase();
+
+                    els.title.style.display = imageOnly ? 'none' : 'block';
+                    els.title.textContent = '— ' + title;
+
+                    els.subtitle.style.display = (showFullText && subtitle) ? 'block' : 'none';
+                    els.subtitle.textContent = subtitle;
+
+                    els.desc.style.display = (showFullText && description) ? 'block' : 'none';
+                    els.desc.textContent = description;
+
+                    els.btn.style.display = (buttonText && buttonUrl) ? 'inline-flex' : 'none';
+                    els.btn.textContent = buttonText || '';
+                }
+
+                var watchedSelectors = [
+                    'input[name="announcement_type"]', 'select[name="category"]',
+                    'textarea[name="announcement_content"]', 'input[name="subtitle"]',
+                    'textarea[name="description"]', '#ann-bg-color', '#ann-text-color-custom',
+                    '.ann-text-color-radio', 'input[name="button_text"]', 'input[name="button_url"]',
+                    'select[name="text_position"]',
+                ];
+                watchedSelectors.forEach(function (sel) {
+                    document.querySelectorAll(sel).forEach(function (el) {
+                        el.addEventListener('input', updateAnnPreview);
+                        el.addEventListener('change', updateAnnPreview);
+                    });
+                });
+                // Gradient preset buttons and the crop/apply flow update fields
+                // programmatically (not via user input events on a watched
+                // control) — cover both with a couple of extra hooks.
+                document.querySelectorAll('#ann-gradient-presets button').forEach(function (btn) {
+                    btn.addEventListener('click', function () { setTimeout(updateAnnPreview, 0); });
+                });
+                var applyCropBtn = document.getElementById('ann-apply-crop');
+                if (applyCropBtn) applyCropBtn.addEventListener('click', function () { setTimeout(updateAnnPreview, 50); });
+                if (cropPreview && window.MutationObserver) {
+                    new MutationObserver(updateAnnPreview).observe(cropPreview, { attributes: true, attributeFilter: ['src'] });
+                }
+                if (cropPreviewWrap && window.MutationObserver) {
+                    new MutationObserver(updateAnnPreview).observe(cropPreviewWrap, { attributes: true, attributeFilter: ['style'] });
+                }
+
+                updateAnnPreview();
             });
             </script>
 

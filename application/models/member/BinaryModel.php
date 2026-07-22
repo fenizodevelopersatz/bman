@@ -285,6 +285,37 @@ class BinaryModel extends CI_Model
 
 
 
+    /*
+    |--------------------------------------------------------------------------
+    | Count of staking purchases per leg (Binary Summary widget) — how many
+    | user_stakes rows the whole left/right downline placed, optionally
+    | windowed by date (e.g. "this week"). Reuses the same leg-walk as
+    | calculateLegInvestments() rather than re-deriving leg membership.
+    |--------------------------------------------------------------------------
+    */
+    public function countLegStakePurchases($user_id, $from = null, $to = null)
+    {
+        $left_users = $this->getLegUsers($user_id, 'left');
+        $right_users = $this->getLegUsers($user_id, 'right');
+
+        return [
+            'left_count' => $this->_countStakesForUsers($left_users, $from, $to),
+            'right_count' => $this->_countStakesForUsers($right_users, $from, $to),
+        ];
+    }
+
+    private function _countStakesForUsers($user_ids, $from = null, $to = null)
+    {
+        if (empty($user_ids)) return 0;
+
+        $this->db->where_in('user_id', $user_ids);
+        $this->db->where('status !=', 'cancelled');
+        if ($from) $this->db->where('created_at >=', $from);
+        if ($to) $this->db->where('created_at <=', $to);
+
+        return (int) $this->db->count_all_results('user_stakes');
+    }
+
     /* ================================
        ✅ NEW: PRODUCT BV / PV TOTALS
        ================================ */

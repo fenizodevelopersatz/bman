@@ -643,6 +643,14 @@
   opacity:1; transform:none; filter:none;
 }
 
+/* Admin-controlled text placement over the image (default is the base
+   align-items:center on .hero-grid, i.e. "middle-left" — no class needed). */
+.hero-grid.has-image.text-pos-top-left .hero-left{ align-self:flex-start; }
+.hero-grid.has-image.text-pos-bottom-left .hero-left{ align-self:flex-end; }
+.hero-grid.has-image.text-pos-center{ justify-items:center; }
+.hero-grid.has-image.text-pos-center .hero-left{ align-self:center; text-align:center; }
+.hero-grid.has-image.text-pos-center .hero-left .tag{ margin-left:auto; margin-right:auto; }
+
 .hero-left{ min-width:0; }
 
 .hero-title{
