@@ -80,6 +80,8 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
 
                                 <div id="dash-glass-scope">
 
+                                <?php $this->load->view('admin/dashboard/partials/_hot_wallet'); ?>
+
                                 <?php $this->load->view('admin/dashboard/partials/_admin_alerts'); ?>
 
                                 <?php $this->load->view('admin/dashboard/partials/_stat_cards'); ?>
@@ -222,7 +224,7 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                     chart: { type: 'area', height: 340, toolbar: { show: false } },
                     series: [
                         { name: 'New Registrations', data: d.registrations },
-                        { name: 'Matching Payouts (BMAN)', data: d.matching_payouts },
+                        { name: 'Staking Purchases', data: d.stakes_purchased },
                     ],
                     xaxis: { categories: d.labels, labels: { rotate: -45 } },
                     stroke: { curve: 'smooth', width: 2 },
@@ -245,7 +247,12 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                 count('dash-rank-rewards-paid', h.rewards_paid);
                 count('dash-rank-rewards-failed', h.rewards_failed);
                 const body = document.getElementById('dash-rank-distribution-body');
-                body.innerHTML = dist.map(r => '<tr><td>' + esc(r.rank_name) + '</td><td>' + fmt(r.members) + '</td><td>' + fmt(r.percent) + '%</td></tr>').join('') || '<tr><td colspan="3" class="text-muted">No rank data.</td></tr>';
+                body.innerHTML = dist.map(r => {
+                    var icon = r.badge_image
+                        ? '<img src="' + base + r.badge_image + '" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;" class="me-2">'
+                        : '<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:' + esc(r.badge_color || '#ccc') + ';margin-right:8px;"></span>';
+                    return '<tr><td>' + icon + esc(r.rank_name) + '</td><td>' + fmt(r.members) + '</td><td>' + fmt(r.percent) + '%</td></tr>';
+                }).join('') || '<tr><td colspan="3" class="text-muted">No rank data.</td></tr>';
             });
         }
 
@@ -271,6 +278,7 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                 count('dash-kyc-approved', d.approved);
                 count('dash-kyc-rejected', d.rejected);
                 count('dash-kyc-expired', d.expired);
+                count('dash-members-kyc-verified', d.approved);
             });
             fetchJson(base + 'admin/dashboard/support-center').then(j => {
                 if (!j.status) return;
@@ -285,13 +293,109 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
         function loadRecentTransactions() {
             fetchJson(base + 'admin/all-transaction/list?limit=10').then(j => {
                 const body = document.getElementById('dash-recent-tx-body');
-                if (!j.status || !(j.rows || []).length) { body.innerHTML = '<tr><td colspan="5" class="text-muted">No transactions yet.</td></tr>'; return; }
+                if (!j.status || !(j.rows || []).length) { body.innerHTML = '<tr><td colspan="6" class="text-muted">No transactions yet.</td></tr>'; return; }
                 body.innerHTML = j.rows.map(r => {
                     const amt = (r.direction === 'credit' ? '+' : '−') + fmt(r.amount) + ' ' + esc((r.wallet_type || '').toUpperCase());
                     const amtCls = r.direction === 'credit' ? 'text-success' : 'text-danger';
                     const chain = r.onchain ? '<span class="badge badge-light-info fs-8">' + esc(r.onchain.status || 'onchain') + '</span>' : '<span class="badge badge-light fs-8">internal</span>';
-                    return '<tr><td class="text-muted">' + esc(r.created_at) + '</td><td>#' + esc(r.user_id) + '</td><td>' + esc(r.type_label) + '</td><td class="fw-bold ' + amtCls + '">' + amt + '</td><td>' + chain + '</td></tr>';
+                    const avatar = r.avatar ? '<img src="' + esc(r.avatar) + '" style="width:24px;height:24px;border-radius:50%;object-fit:cover;vertical-align:middle;" class="me-2">' : '';
+                    return '<tr class="dash-tx-row" data-id="' + r.ledger_id + '" style="cursor:pointer;">' +
+                        '<td class="text-muted">' + esc(r.created_at) + '</td>' +
+                        '<td>' + avatar + '#' + esc(r.user_id) + '</td>' +
+                        '<td class="text-muted">#' + esc(r.ledger_id) + '</td>' +
+                        '<td>' + esc(r.type_label) + '</td>' +
+                        '<td class="fw-bold ' + amtCls + '">' + amt + '</td>' +
+                        '<td>' + chain + '</td></tr>';
                 }).join('');
+                body.querySelectorAll('.dash-tx-row').forEach(function (tr) {
+                    tr.addEventListener('click', function () { openTxDetail(tr.getAttribute('data-id')); });
+                });
+            });
+        }
+
+        let dashTxDetailModal = null;
+        function openTxDetail(id) {
+            const modalEl = document.getElementById('dashTxDetailModal');
+            const body = document.getElementById('dash-tx-detail-body');
+            if (!modalEl || !body) return;
+            if (!dashTxDetailModal && window.bootstrap) dashTxDetailModal = new bootstrap.Modal(modalEl);
+            body.innerHTML = '<tr><td class="text-muted">Loading…</td></tr>';
+            if (dashTxDetailModal) dashTxDetailModal.show();
+            fetchJson(base + 'admin/all-transaction/detail?id=' + encodeURIComponent(id)).then(j => {
+                if (!j.status) { body.innerHTML = '<tr><td class="text-danger">' + esc(j.message || 'Not found') + '</td></tr>'; return; }
+                const r = j.row;
+                const rows = [
+                    ['Ledger ID', esc(r.ledger_id)],
+                    ['User', '#' + esc(r.user_id)],
+                    ['Type', esc(r.type_label)],
+                    ['Amount', (r.direction === 'credit' ? '+' : '−') + fmt(r.amount)],
+                    ['Balance After', fmt(r.balance_after)],
+                    ['Description', esc(r.description || '—')],
+                    ['When', esc(r.created_at)],
+                ];
+                if (r.onchain) {
+                    rows.push(['Tx Hash', esc(r.onchain.tx_hash || '—')]);
+                    rows.push(['Chain Status', esc(r.onchain.status || '—')]);
+                    rows.push(['From', esc(r.onchain.from_address || '—')]);
+                    rows.push(['To', esc(r.onchain.to_address || '—')]);
+                    rows.push(['Gas Fee', r.onchain.gas_fee_total != null ? fmt(r.onchain.gas_fee_total) + ' BNB' : '—']);
+                    if (r.onchain.tx_hash && j.explorer_url) {
+                        rows.push(['Explorer', '<a href="' + esc(j.explorer_url) + '/tx/' + esc(r.onchain.tx_hash) + '" target="_blank" rel="noopener">View on explorer ↗</a>']);
+                    }
+                }
+                body.innerHTML = rows.map(function (pair) {
+                    return '<tr><td class="fw-bold text-muted" style="width:140px;">' + pair[0] + '</td><td>' + pair[1] + '</td></tr>';
+                }).join('');
+            });
+        }
+
+        let dashStakingPopup = null;
+        function loadStakingPopup(months) {
+            const body = document.getElementById('dash-staking-popup-body');
+            body.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
+            const qs = months ? ('?months=' + encodeURIComponent(months)) : '';
+            fetchJson(base + 'admin/dashboard/package-distribution-detail' + qs).then(j => {
+                if (!j.status || !(j.rows || []).length) { body.innerHTML = '<tr><td colspan="4" class="text-muted">No stakes in this period.</td></tr>'; return; }
+                body.innerHTML = j.rows.map(r => '<tr><td>' + esc(r.name) + '</td><td>' + fmt(r.duration_years) + ' yr</td><td>' + fmt(r.stakes) + '</td><td>' + fmt(r.total_staked) + '</td></tr>').join('');
+            });
+        }
+        (function () {
+            const card = document.getElementById('dash-total-staking-card');
+            const modalEl = document.getElementById('dashStakingPopup');
+            if (!card || !modalEl) return;
+            card.addEventListener('click', function () {
+                if (!dashStakingPopup && window.bootstrap) dashStakingPopup = new bootstrap.Modal(modalEl);
+                if (dashStakingPopup) dashStakingPopup.show();
+                loadStakingPopup('');
+            });
+            modalEl.querySelectorAll('[data-months]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    modalEl.querySelectorAll('[data-months]').forEach(function (b) { b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    loadStakingPopup(btn.getAttribute('data-months'));
+                });
+            });
+        })();
+
+        function loadHotWallet() {
+            fetchJson(base + 'admin/dashboard/hot-wallet').then(j => {
+                if (!j.status) return;
+                const d = j.data;
+                const wrap = document.getElementById('dash-hotwallet-wrap');
+                if (!d.configured) { wrap.style.display = 'none'; return; }
+                if (d.error) {
+                    document.getElementById('dash-hotwallet-address').textContent = d.error;
+                    return;
+                }
+                if (d.treasury) {
+                    document.getElementById('dash-hotwallet-address').textContent = 'Treasury: ' + d.treasury.address;
+                    count('dash-hotwallet-bnb', d.treasury.bnb);
+                    count('dash-hotwallet-bman', d.treasury.bman);
+                }
+                if (d.gas) {
+                    document.getElementById('dash-hotwallet-gas-wrap').style.display = '';
+                    count('dash-hotwallet-gas-bnb', d.gas.bnb);
+                }
             });
         }
 
@@ -352,9 +456,11 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
         loadAlerts();
         loadActivityFeed();
         loadSystemHealth();
+        loadHotWallet();
         setInterval(loadActivityFeed, 30000);
         setInterval(loadSystemHealth, 60000);
         setInterval(loadAlerts, 60000);
+        setInterval(loadHotWallet, 60000);
     })();
     </script>
 </body>

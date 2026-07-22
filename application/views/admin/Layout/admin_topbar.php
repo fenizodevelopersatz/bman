@@ -176,6 +176,27 @@ $admin_mobile_logo_src = $admin_mobile_logo_file ? base_url('assets/images/' . r
                 </div>
                 <!--end::Theme mode-->
 
+                <!--begin::Notifications-->
+                <div class="app-navbar-item ms-1 ms-md-4">
+                    <div class="btn btn-icon btn-custom btn-icon-muted btn-active-light btn-active-color-primary w-35px h-35px position-relative"
+                        data-kt-menu-trigger="{default:'click', lg: 'hover'}" data-kt-menu-attach="parent"
+                        data-kt-menu-placement="bottom-end">
+                        <i class="ki-duotone ki-notification fs-1"><span class="path1"></span><span class="path2"></span><span class="path3"></span></i>
+                        <span class="badge badge-circle badge-danger fs-9 d-none" id="dash-bell-count" style="position:absolute;top:2px;right:2px;">0</span>
+                    </div>
+                    <div class="menu menu-sub menu-sub-dropdown menu-column menu-rounded menu-gray-800 menu-state-bg menu-state-color fw-semibold py-4 fs-7 w-350px"
+                        data-kt-menu="true">
+                        <div class="menu-item px-3 pb-2">
+                            <span class="fw-bold fs-5">Notifications</span>
+                        </div>
+                        <div class="separator my-1"></div>
+                        <div id="dash-bell-list" style="max-height:360px; overflow-y:auto;">
+                            <div class="menu-item px-3 py-4 text-muted">Loading…</div>
+                        </div>
+                    </div>
+                </div>
+                <!--end::Notifications-->
+
                 <!--begin::User menu-->
                 <div class="app-navbar-item ms-1 ms-md-4" id="kt_header_user_menu_toggle">
                     <!--begin::Menu wrapper-->

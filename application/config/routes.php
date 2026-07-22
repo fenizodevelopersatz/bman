@@ -70,8 +70,10 @@ $route['balance-info-admin'] = 'admin/Administrator/balance_info';
 /**** Admin Dashboard v2 (real BMAN/staking/binary data) ****/
 $route['admin/dashboard'] = 'admin/dashboard/Dashboard/index';
 $route['admin/dashboard/stats'] = 'admin/dashboard/Dashboard/stats';
+$route['admin/dashboard/hot-wallet'] = 'admin/dashboard/Dashboard/hot_wallet';
 $route['admin/dashboard/staking-analytics'] = 'admin/dashboard/Dashboard/staking_analytics';
 $route['admin/dashboard/package-distribution'] = 'admin/dashboard/Dashboard/package_distribution';
+$route['admin/dashboard/package-distribution-detail'] = 'admin/dashboard/Dashboard/package_distribution_detail';
 $route['admin/dashboard/binary-summary'] = 'admin/dashboard/Dashboard/binary_summary';
 $route['admin/dashboard/binary-growth'] = 'admin/dashboard/Dashboard/binary_growth';
 $route['admin/dashboard/rank-summary'] = 'admin/dashboard/Dashboard/rank_summary';
@@ -82,6 +84,7 @@ $route['admin/dashboard/activity-feed'] = 'admin/dashboard/Dashboard/activity_fe
 $route['admin/dashboard/system-health'] = 'admin/dashboard/Dashboard/system_health';
 $route['admin/dashboard/alerts'] = 'admin/dashboard/Dashboard/alerts';
 $route['admin/dashboard/sidebar-counts'] = 'admin/dashboard/Dashboard/sidebar_counts';
+$route['admin/dashboard/notifications'] = 'admin/dashboard/Dashboard/notifications';
 $route['admin/all-transaction/export/(:any)'] = 'admin/AllTransactions/export/$1';
 
 /****************** CRON ROUTES ********/

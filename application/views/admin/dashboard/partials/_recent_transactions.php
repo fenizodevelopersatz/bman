@@ -16,9 +16,27 @@
       <div class="table-responsive">
         <table class="table table-row-dashed fs-7 align-middle">
           <thead>
-            <tr class="fw-bold text-muted"><th>When</th><th>User</th><th>Type</th><th>Amount</th><th>Chain</th></tr>
+            <tr class="fw-bold text-muted"><th>When</th><th>User</th><th>Tx ID</th><th>Type</th><th>Amount</th><th>Chain</th></tr>
           </thead>
-          <tbody id="dash-recent-tx-body"><tr><td colspan="5" class="text-muted">Loading…</td></tr></tbody>
+          <tbody id="dash-recent-tx-body"><tr><td colspan="6" class="text-muted">Loading…</td></tr></tbody>
+        </table>
+        <div class="fs-8 text-muted mt-1">Click a row for full transaction details (gas fee, from/to, explorer link).</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Transaction detail popup -->
+<div class="modal fade" id="dashTxDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Transaction Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <table class="table table-row-dashed fs-7" id="dash-tx-detail-body">
+          <tbody><tr><td class="text-muted">Loading…</td></tr></tbody>
         </table>
       </div>
     </div>
