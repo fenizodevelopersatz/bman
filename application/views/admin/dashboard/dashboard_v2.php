@@ -86,6 +86,14 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
 
                                 <?php $this->load->view('admin/dashboard/partials/_admin_alerts'); ?>
 
+                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
+                                    <?php $this->load->view('admin/dashboard/partials/_treasury_dashboard'); ?>
+                                </div>
+
+                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
+                                    <?php $this->load->view('admin/dashboard/partials/_roi_calculator'); ?>
+                                </div>
+
                                 <?php $this->load->view('admin/dashboard/partials/_stat_cards'); ?>
 
                                 <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
@@ -100,6 +108,10 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
 
                                 <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
                                     <?php $this->load->view('admin/dashboard/partials/_binary_growth_chart'); ?>
+                                </div>
+
+                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
+                                    <?php $this->load->view('admin/dashboard/partials/_active_users_chart'); ?>
                                 </div>
 
                                 <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
@@ -157,6 +169,91 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
         const fmt = n => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
         const count = (id, value) => { try { new countUp.CountUp(id, parseFloat(value) || 0).start(); } catch (e) { const el = document.getElementById(id); if (el) el.textContent = fmt(value); } };
         const fetchJson = (url) => fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } }).then(r => r.json());
+
+        function fmtBman(v) {
+            v = parseFloat(v);
+            if (isNaN(v)) return '—';
+            return v.toLocaleString(undefined, { maximumFractionDigits: 4 });
+        }
+
+        let dashAvailableTreasury = null;
+
+        function loadTreasury() {
+            fetchJson(base + 'admin/dashboard/treasury').then(j => {
+                if (!j.status) return;
+                const d = j.data;
+                dashAvailableTreasury = (d.available_treasury !== null) ? parseFloat(d.available_treasury) : null;
+
+                const warn = document.getElementById('dash-treasury-onchain-warning');
+                if (!d.onchain_configured) {
+                    warn.style.display = 'block';
+                    warn.textContent = d.onchain_error
+                        ? ('On-chain figures unavailable: ' + d.onchain_error)
+                        : 'No Token Settings / BMAN contract configured — Total Supply, Circulating Supply, Treasury Balance, and Available Treasury cannot be computed. Set these in Master → Token Settings.';
+                } else if (d.onchain_error) {
+                    warn.style.display = 'block';
+                    warn.textContent = 'On-chain figures unavailable: ' + d.onchain_error;
+                } else {
+                    warn.style.display = 'none';
+                }
+
+                document.getElementById('dash-treasury-total-supply').textContent = d.total_supply !== null ? fmtBman(d.total_supply) : '—';
+                document.getElementById('dash-treasury-circulating').textContent = d.circulating_supply !== null ? fmtBman(d.circulating_supply) : '—';
+                document.getElementById('dash-treasury-locked').textContent = fmtBman(d.locked_in_staking);
+                document.getElementById('dash-treasury-roi').textContent = fmtBman(d.roi_liability);
+                document.getElementById('dash-treasury-bonus').textContent = fmtBman(d.bonus_liability);
+                document.getElementById('dash-treasury-withdrawable').textContent = fmtBman(d.total_withdrawable);
+                document.getElementById('dash-treasury-pending-wd').textContent = fmtBman(d.pending_withdrawals);
+                document.getElementById('dash-treasury-paid-wd').textContent = fmtBman(d.paid_withdrawals);
+
+                document.getElementById('dash-treasury-wallet-balance').textContent = d.treasury_balance !== null ? fmtBman(d.treasury_balance) + ' BMAN' : '—';
+                const totalLiabilities = parseFloat(d.locked_in_staking) + parseFloat(d.roi_liability) + parseFloat(d.bonus_liability) + parseFloat(d.pending_withdrawals);
+                document.getElementById('dash-treasury-total-liabilities').textContent = fmtBman(totalLiabilities) + ' BMAN';
+
+                const availEl = document.getElementById('dash-treasury-available');
+                const badgeEl = document.getElementById('dash-treasury-risk-badge');
+                const riskMeta = {
+                    green:  { label: 'Safe',           cls: 'badge-light-success', text: 'text-success' },
+                    yellow: { label: 'Warning',        cls: 'badge-light-warning', text: 'text-warning' },
+                    red:    { label: 'Treasury Risk',  cls: 'badge-light-danger',  text: 'text-danger' },
+                    unknown:{ label: 'Not Configured', cls: 'badge-light-secondary', text: 'text-gray-500' },
+                };
+                const meta = riskMeta[d.risk_level] || riskMeta.unknown;
+                availEl.textContent = d.available_treasury !== null ? (fmtBman(d.available_treasury) + ' BMAN') : '—';
+                availEl.className = 'fs-2x fw-bold ' + meta.text;
+                badgeEl.textContent = meta.label;
+                badgeEl.className = 'badge fs-6 px-4 py-3 ' + meta.cls;
+
+                loadRoiCalculator();
+            });
+        }
+
+        function roiRiskBadgeHtml(amount) {
+            if (dashAvailableTreasury === null) {
+                return '<span class="badge badge-light-secondary">—</span>';
+            }
+            const a = parseFloat(amount);
+            if (dashAvailableTreasury <= 0 || a > dashAvailableTreasury) {
+                return '<span class="badge badge-light-danger">Treasury Risk</span>';
+            }
+            if (a > dashAvailableTreasury * 0.5) {
+                return '<span class="badge badge-light-warning">Warning</span>';
+            }
+            return '<span class="badge badge-light-success">Safe</span>';
+        }
+
+        function loadRoiCalculator() {
+            fetchJson(base + 'admin/dashboard/roi-liability-periods').then(j => {
+                if (!j.status) return;
+                const d = j.data;
+                ['d30', 'd90', 'd365', 'lifetime'].forEach(function (key) {
+                    const amountEl = document.getElementById('dash-roi-calc-' + key);
+                    const badgeEl = document.getElementById('dash-roi-calc-' + key + '-badge');
+                    if (amountEl) amountEl.textContent = fmtBman(d[key]);
+                    if (badgeEl) badgeEl.innerHTML = roiRiskBadgeHtml(d[key]);
+                });
+            });
+        }
 
         function loadStats() {
             fetchJson(base + 'admin/dashboard/stats').then(j => {
@@ -240,7 +337,9 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                     series: [
                         { name: 'New Registrations', data: d.registrations },
                         { name: 'Staking Purchases', data: d.stakes_purchased },
+                        { name: 'Withdraw Requests', data: d.withdrawals },
                     ],
+                    colors: ['#3B82F6', '#22C55E', '#EF4444'],
                     xaxis: { categories: d.labels, labels: { rotate: -45 } },
                     stroke: { curve: 'smooth', width: 2 },
                     dataLabels: { enabled: false },
@@ -256,6 +355,38 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
             sel.addEventListener('change', function () {
                 if (label) label.textContent = labels[sel.value] || (sel.value + ' Days');
                 loadGrowthChart(parseInt(sel.value, 10));
+            });
+        })();
+
+        let dashActiveUsersChart = null;
+        function loadActiveUsersChart(days) {
+            days = days || 30;
+            fetchJson(base + 'admin/dashboard/active-user-trend?days=' + encodeURIComponent(days)).then(j => {
+                if (!j.status) return;
+                const d = j.data;
+                const el = document.querySelector('#dash-activeusers-chart');
+                if (!el) return;
+                if (dashActiveUsersChart) { dashActiveUsersChart.destroy(); dashActiveUsersChart = null; }
+                dashActiveUsersChart = new ApexCharts(el, {
+                    chart: { type: 'line', height: 280, toolbar: { show: false } },
+                    series: [{ name: 'Chat-Active Users', data: d.active_users }],
+                    colors: ['#8B5CF6'],
+                    xaxis: { categories: d.labels, labels: { rotate: -45 } },
+                    stroke: { curve: 'smooth', width: 3 },
+                    markers: { size: 3 },
+                    dataLabels: { enabled: false },
+                });
+                dashActiveUsersChart.render();
+            });
+        }
+        (function () {
+            const sel = document.getElementById('dash-activeusers-range');
+            const label = document.getElementById('dash-activeusers-range-label');
+            if (!sel) return;
+            const labels = { '7': 'Last 7 Days', '30': 'Last 30 Days', '90': 'Last 90 Days', '365': 'Last Year' };
+            sel.addEventListener('change', function () {
+                if (label) label.textContent = labels[sel.value] || (sel.value + ' Days');
+                loadActiveUsersChart(parseInt(sel.value, 10));
             });
         })();
 
@@ -276,10 +407,39 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                     var icon = r.badge_image
                         ? '<img src="' + base + r.badge_image + '" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;" class="me-2">'
                         : '<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:' + esc(r.badge_color || '#ccc') + ';margin-right:8px;"></span>';
-                    return '<tr><td>' + icon + esc(r.rank_name) + '</td><td>' + fmt(r.members) + '</td><td>' + fmt(r.percent) + '%</td></tr>';
+                    var clickable = (+r.members > 0) ? ' style="cursor:pointer;" data-rank-id="' + esc(r.id) + '" data-rank-name="' + esc(r.rank_name) + '"' : '';
+                    return '<tr class="' + ((+r.members > 0) ? 'dash-rank-row' : '') + '"' + clickable + '><td>' + icon + esc(r.rank_name) + '</td><td>' + fmt(r.members) + '</td><td>' + fmt(r.percent) + '%</td></tr>';
                 }).join('') || '<tr><td colspan="3" class="text-muted">No rank data.</td></tr>';
             });
         }
+
+        function fmtDate(s) {
+            if (!s) return '—';
+            var d = new Date(s.replace(' ', 'T'));
+            return isNaN(d.getTime()) ? esc(s) : d.toLocaleDateString();
+        }
+
+        document.addEventListener('click', function (e) {
+            const row = e.target.closest('.dash-rank-row');
+            if (!row) return;
+            const rankId = row.getAttribute('data-rank-id');
+            const rankName = row.getAttribute('data-rank-name');
+            document.getElementById('dashRankMembersTitle').textContent = rankName + ' — Members';
+            const body = document.getElementById('dash-rank-members-body');
+            body.innerHTML = '<tr><td colspan="4" class="text-muted">Loading…</td></tr>';
+            const modalEl = document.getElementById('dashRankMembersModal');
+            if (modalEl && window.bootstrap) new bootstrap.Modal(modalEl).show();
+            fetchJson(base + 'admin/dashboard/rank-members/' + encodeURIComponent(rankId)).then(j => {
+                if (!j.status) return;
+                const rows = j.rows || [];
+                body.innerHTML = rows.map(m => {
+                    var avatar = m.profile_img
+                        ? '<img src="' + base + m.profile_img + '" style="width:24px;height:24px;border-radius:50%;object-fit:cover;margin-right:8px;">'
+                        : '';
+                    return '<tr><td>' + avatar + esc(m.username) + '</td><td>' + esc(m.email) + '</td><td>' + fmt(m.group_volume) + '</td><td>' + fmtDate(m.achieved_at) + '</td></tr>';
+                }).join('') || '<tr><td colspan="4" class="text-muted">No members found.</td></tr>';
+            });
+        });
 
         function loadWithdrawalCenter() {
             fetchJson(base + 'admin/dashboard/withdrawal-center').then(j => {
@@ -502,11 +662,13 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                     : '<div class="text-muted fs-8">No cron runs logged yet.</div>';
         }
 
+        loadTreasury();
         loadStats();
         loadStakingAnalytics();
         loadPackageDonut();
         loadBinarySummary();
         loadGrowthChart();
+        loadActiveUsersChart();
         loadRankSummary();
         loadWithdrawalCenter();
         loadKycSupport();

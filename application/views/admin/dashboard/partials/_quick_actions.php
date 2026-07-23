@@ -21,9 +21,21 @@
           </a>
         </div>
         <div class="col-md-2 col-6">
+          <a href="<?php echo base_url('network-member'); ?>" class="btn btn-light-primary w-100 d-flex flex-column align-items-center py-4">
+            <i class="ki-duotone ki-people fs-2x mb-2"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span><span class="path5"></span></i>
+            Network Member
+          </a>
+        </div>
+        <div class="col-md-2 col-6">
           <a href="<?php echo base_url('add-wallet'); ?>" class="btn btn-light-primary w-100 d-flex flex-column align-items-center py-4">
             <i class="ki-duotone ki-dollar fs-2x mb-2"><span class="path1"></span><span class="path2"></span><span class="path3"></span></i>
             Credit Wallet
+          </a>
+        </div>
+        <div class="col-md-2 col-6">
+          <a href="<?php echo base_url('admin/finance/internal-transfers'); ?>" class="btn btn-light-primary w-100 d-flex flex-column align-items-center py-4">
+            <i class="ki-duotone ki-arrow-right-left fs-2x mb-2"><span class="path1"></span><span class="path2"></span></i>
+            Internal Transfer
           </a>
         </div>
         <div class="col-md-2 col-6">

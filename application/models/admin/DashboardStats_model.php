@@ -40,10 +40,26 @@ class DashboardStats_model extends CI_Model
             ->where('status', 'completed')
             ->get('bman_withdraw_requests')->row()->s ?: '0');
 
-        $bonusPaid = (string) ($this->db->select_sum('credit', 's')
+        // Bonus wallet credits (e.g. the 25% instant stake-purchase bonus) —
+        // reference_type is whatever the crediting code used (currently
+        // 'stake_purchase', not a fixed 'bonus'/'rank_reward' enum), so sum
+        // every credit to the bonus wallet rather than filtering on a value
+        // that doesn't match what's actually written.
+        $bonusWalletCredits = (float) ($this->db->select_sum('credit', 's')
             ->where('wallet_type', 'bonus')
-            ->where_in('reference_type', ['bonus', 'rank_reward'])
-            ->get('wallet_ledger')->row()->s ?: '0');
+            ->get('wallet_ledger')->row()->s ?: 0);
+
+        // Binary matching payouts — tracked in their own ledger table, never
+        // touch wallet_ledger.
+        $matchingPaid = (float) ($this->db->select('COALESCE(SUM(earning_amount + staking_amount),0) AS s', false)
+            ->get('staking_matching_payouts')->row()->s ?: 0);
+
+        // Rank achievement rewards paid out in BMAN.
+        $rankRewardsPaid = (float) ($this->db->select_sum('reward_amount', 's')
+            ->where(['reward_status' => 'paid', 'reward_type' => 'bman'])
+            ->get('rank_rewards')->row()->s ?: 0);
+
+        $bonusPaid = (string) ($bonusWalletCredits + $matchingPaid + $rankRewardsPaid);
 
         return [
             'members_total'    => (int) ($members['total'] ?? 0),
@@ -161,7 +177,7 @@ class DashboardStats_model extends CI_Model
         ];
     }
 
-    /** 30-day trend: new registrations vs staking purchases, dense-bucketed by day. */
+    /** 30-day trend: new registrations vs staking purchases vs withdrawal requests, dense-bucketed by day. */
     public function binaryGrowth($days = 30)
     {
         $days = max(1, (int) $days);
@@ -175,22 +191,74 @@ class DashboardStats_model extends CI_Model
                              ->where('created_at >=', $from . ' 00:00:00')
                              ->group_by('d')->get('user_stakes')->result_array();
 
+        // Withdrawal requests — both assets combined into one "withdraw"
+        // event count per day (USDT via `withdrawals`, BMAN via
+        // `bman_withdraw_requests`), consistent with registrations/stakes
+        // being event counts rather than currency amounts.
+        $usdtWdRows = $this->db->select("DATE(created_at) AS d, COUNT(*) AS n", false)
+                             ->where('created_at >=', $from . ' 00:00:00')
+                             ->group_by('d')->get('withdrawals')->result_array();
+
+        $bmanWdRows = $this->db->select("DATE(created_at) AS d, COUNT(*) AS n", false)
+                             ->where('created_at >=', $from . ' 00:00:00')
+                             ->group_by('d')->get('bman_withdraw_requests')->result_array();
+
         $regByDay = [];
         foreach ($regRows as $r) $regByDay[$r['d']] = (int) $r['n'];
         $stakeByDay = [];
         foreach ($stakeRows as $r) $stakeByDay[$r['d']] = (int) $r['n'];
+        $wdByDay = [];
+        foreach ($usdtWdRows as $r) $wdByDay[$r['d']] = ($wdByDay[$r['d']] ?? 0) + (int) $r['n'];
+        foreach ($bmanWdRows as $r) $wdByDay[$r['d']] = ($wdByDay[$r['d']] ?? 0) + (int) $r['n'];
 
         $labels = [];
         $registrations = [];
         $stakesPurchased = [];
+        $withdrawals = [];
         for ($i = $days - 1; $i >= 0; $i--) {
             $d = date('Y-m-d', strtotime("-{$i} days"));
             $labels[] = $d;
             $registrations[] = $regByDay[$d] ?? 0;
             $stakesPurchased[] = $stakeByDay[$d] ?? 0;
+            $withdrawals[] = $wdByDay[$d] ?? 0;
         }
 
-        return ['labels' => $labels, 'registrations' => $registrations, 'stakes_purchased' => $stakesPurchased];
+        return [
+            'labels' => $labels,
+            'registrations' => $registrations,
+            'stakes_purchased' => $stakesPurchased,
+            'withdrawals' => $withdrawals,
+        ];
+    }
+
+    /**
+     * Daily chat-activity trend: distinct users whose last_active_at falls on
+     * each day. NOTE: last_active_at is a chat-poll heartbeat only (single
+     * writer: Genealogycontroller's Direct Chat tab) — this is NOT a sitewide
+     * presence signal, so the dashboard must label it as chat activity, not
+     * "active users" generally (see onlineMembers() below, same caveat).
+     */
+    public function activeUserTrend($days = 30)
+    {
+        $days = max(1, (int) $days);
+        $from = date('Y-m-d', strtotime("-{$days} days"));
+
+        $rows = $this->db->select("DATE(last_active_at) AS d, COUNT(*) AS n", false)
+                          ->where('last_active_at >=', $from . ' 00:00:00')
+                          ->group_by('d')->get('users')->result_array();
+
+        $byDay = [];
+        foreach ($rows as $r) $byDay[$r['d']] = (int) $r['n'];
+
+        $labels = [];
+        $activeUsers = [];
+        for ($i = $days - 1; $i >= 0; $i--) {
+            $d = date('Y-m-d', strtotime("-{$i} days"));
+            $labels[] = $d;
+            $activeUsers[] = $byDay[$d] ?? 0;
+        }
+
+        return ['labels' => $labels, 'active_users' => $activeUsers];
     }
 
     /* ============================== rank achievement ============================== */
@@ -201,6 +269,12 @@ class DashboardStats_model extends CI_Model
             'distribution' => $this->rankreport->distribution(),
             'headline'     => $this->rankreport->headline(),
         ];
+    }
+
+    /** Members currently holding a given rank — powers the rank-table click-through popup. */
+    public function rankMembers($rankId)
+    {
+        return $this->rankreport->membersByRank($rankId);
     }
 
     /* ============================== withdrawal center ============================== */
@@ -600,6 +674,149 @@ class DashboardStats_model extends CI_Model
             'onchain_sent'         => (int) $totals['onchain_sent'],
             'onchain_failed'       => (int) $totals['onchain_failed'],
         ];
+    }
+
+    /* ============================== treasury / financial control center ============================== */
+
+    /**
+     * Treasury solvency snapshot. "Available Treasury" is computed from the
+     * TREASURY WALLET'S REAL ON-CHAIN BALANCE, not the token's total supply —
+     * most of total supply already sits in users' own wallets/stakes and
+     * isn't the platform's to spend, so subtracting liabilities from total
+     * supply would overstate what the platform can actually cover. Total
+     * Supply / Circulating Supply are reported separately, for reference,
+     * from the real BEP-20 contract (Web3bman::getTotalSupply()) — informational
+     * tokenomics figures, not inputs to the solvency math.
+     */
+    public function treasuryDashboard()
+    {
+        $lockedInStaking = (float) ($this->db->select_sum('stake_amount', 's')
+            ->where_in('status', ['active', 'processing'])
+            ->get('user_stakes')->row()->s ?: 0);
+
+        $roi = $this->roiLiability();
+        $roiLiabilityTotal = (float) $roi['pending'] + (float) $roi['future'];
+
+        $bonusLiability = (float) ($this->db->select_sum('bonus_balance', 's')
+            ->get('user_wallets')->row()->s ?: 0);
+
+        // Total withdrawable = balances not locked in an active stake — the
+        // staking wallet balance itself is excluded since that's principal
+        // already committed, tracked separately as "Locked in Staking" above.
+        $w = $this->db->select_sum('exchange_balance', 'exch')
+            ->select_sum('earning_balance', 'earn')
+            ->select_sum('bonus_balance', 'bonus')
+            ->get('user_wallets')->row();
+        $totalWithdrawable = (float) ($w->exch ?? 0) + (float) ($w->earn ?? 0) + (float) ($w->bonus ?? 0);
+
+        $pendingWithdrawals = (float) ($this->db->select_sum('net_amount', 's')
+            ->where('status', 'pending')
+            ->get('bman_withdraw_requests')->row()->s ?: 0);
+
+        $paidWithdrawals = (float) ($this->db->select_sum('net_amount', 's')
+            ->where('status', 'completed')
+            ->get('bman_withdraw_requests')->row()->s ?: 0);
+
+        $onchainConfigured = false;
+        $totalSupply = null;
+        $treasuryBalance = null;
+        $onchainError = null;
+        try {
+            $this->load->model('Tokenmaster_model', 'tokens');
+            $cfg = $this->tokens->activeSettings();
+            if ($cfg && !empty($cfg['bman_contract'])) {
+                $this->load->library('web3bman');
+                $onchainConfigured = true;
+                $totalSupply = (float) $this->web3bman->getTotalSupply();
+                if (!empty($cfg['treasury_wallet'])) {
+                    $treasuryBalance = (float) $this->web3bman->getTokenBalance($cfg['treasury_wallet']);
+                }
+            }
+        } catch (Exception $e) {
+            $onchainError = 'Could not reach the blockchain RPC right now.';
+        }
+
+        $circulatingSupply = ($totalSupply !== null && $treasuryBalance !== null) ? ($totalSupply - $treasuryBalance) : null;
+        $availableTreasury = ($treasuryBalance !== null)
+            ? ($treasuryBalance - $lockedInStaking - $roiLiabilityTotal - $bonusLiability - $pendingWithdrawals)
+            : null;
+
+        // Risk banding for "Available Treasury": Red = already in deficit;
+        // Yellow = positive but thinner than the near-term (30-day ROI +
+        // pending withdrawals) obligation; Green = comfortably clear of it.
+        $nearTermObligation = $this->roiLiabilityByPeriod()['d30'] ?? '0';
+        $nearTermBuffer = (float) $nearTermObligation + $pendingWithdrawals;
+        $riskLevel = 'unknown';
+        if ($availableTreasury !== null) {
+            if ($availableTreasury <= 0) $riskLevel = 'red';
+            elseif ($nearTermBuffer > 0 && $availableTreasury < $nearTermBuffer) $riskLevel = 'yellow';
+            else $riskLevel = 'green';
+        }
+
+        return [
+            'onchain_configured'  => $onchainConfigured,
+            'onchain_error'       => $onchainError,
+            'total_supply'        => $totalSupply !== null ? (string) $totalSupply : null,
+            'circulating_supply'  => $circulatingSupply !== null ? (string) $circulatingSupply : null,
+            'treasury_balance'    => $treasuryBalance !== null ? (string) $treasuryBalance : null,
+            'locked_in_staking'   => (string) $lockedInStaking,
+            'roi_liability'       => (string) $roiLiabilityTotal,
+            'bonus_liability'     => (string) $bonusLiability,
+            'total_withdrawable'  => (string) $totalWithdrawable,
+            'pending_withdrawals' => (string) $pendingWithdrawals,
+            'paid_withdrawals'    => (string) $paidWithdrawals,
+            'available_treasury'  => $availableTreasury !== null ? (string) $availableTreasury : null,
+            'risk_level'          => $riskLevel,
+        ];
+    }
+
+    /**
+     * ROI liability bucketed by how soon it's actually scheduled to come due,
+     * reusing the same next_payment_date/credit_date fields roiLiability()
+     * already relies on for its pending-vs-future split — just with finer
+     * date cutoffs instead of a single "now" line.
+     *
+     * KNOWN LIMITATION: for a 'regular'/'combo' stake with multiple future
+     * monthly installments, roi_staking_management.remaining_to_pay is the
+     * TOTAL left across every future installment, not just the next one — so
+     * if that row's very next payment falls inside a window, this bucket
+     * counts its full remaining balance, which can overstate near-term (30/90
+     * day) buckets for multi-installment stakes. No live 'regular'/'combo'
+     * row exists yet to calibrate a per-installment split against; the
+     * Lifetime total is unaffected by this (it's a full, undated sum either way).
+     */
+    public function roiLiabilityByPeriod()
+    {
+        $periods = ['d30' => 30, 'd90' => 90, 'd365' => 365];
+        $out = [];
+        foreach ($periods as $key => $days) {
+            $until = date('Y-m-d H:i:s', strtotime("+{$days} days"));
+
+            $mgmt = (float) ($this->db->select("COALESCE(SUM(remaining_to_pay),0) AS s", false)
+                ->where('overall_status !=', 'completed')
+                ->group_start()
+                    ->where('next_payment_date <=', $until)
+                    ->or_where('fixed_maturity_date <=', $until)
+                ->group_end()
+                ->get('roi_staking_management')->row()->s ?: 0);
+
+            $payouts = (float) ($this->db->select_sum('amount', 's')
+                ->where('status', 'pending')
+                ->where('credit_date <=', date('Y-m-d', strtotime("+{$days} days")))
+                ->get('staking_roi_payouts')->row()->s ?: 0);
+
+            $out[$key] = (string) ($mgmt + $payouts);
+        }
+
+        $mgmtLifetime = (float) ($this->db->select_sum('remaining_to_pay', 's')
+            ->where('overall_status !=', 'completed')
+            ->get('roi_staking_management')->row()->s ?: 0);
+        $payoutsLifetime = (float) ($this->db->select_sum('amount', 's')
+            ->where('status', 'pending')
+            ->get('staking_roi_payouts')->row()->s ?: 0);
+
+        $out['lifetime'] = (string) ($mgmtLifetime + $payoutsLifetime);
+        return $out;
     }
 
     /* ============================== online members ============================== */

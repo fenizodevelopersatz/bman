@@ -62,6 +62,18 @@ class Dashboard extends CI_Controller
         $this->_json(['status' => true, 'data' => $this->stats->roiLiability()]);
     }
 
+    public function roi_liability_periods()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->_json(['status' => true, 'data' => $this->stats->roiLiabilityByPeriod()]);
+    }
+
+    public function treasury()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->_json(['status' => true, 'data' => $this->stats->treasuryDashboard()]);
+    }
+
     public function staking_analytics()
     {
         if (!$this->input->is_ajax_request()) show_404();
@@ -94,10 +106,23 @@ class Dashboard extends CI_Controller
         $this->_json(['status' => true, 'data' => $this->stats->binaryGrowth($days)]);
     }
 
+    public function active_user_trend()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $days = (int) ($this->input->get('days', true) ?: 30);
+        $this->_json(['status' => true, 'data' => $this->stats->activeUserTrend($days)]);
+    }
+
     public function rank_summary()
     {
         if (!$this->input->is_ajax_request()) show_404();
         $this->_json(['status' => true, 'data' => $this->stats->rankSummary()]);
+    }
+
+    public function rank_members($id)
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->_json(['status' => true, 'rows' => $this->stats->rankMembers((int) $id)]);
     }
 
     public function withdrawal_center()

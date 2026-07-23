@@ -91,7 +91,7 @@
           <span class="fs-6 fw-semibold text-muted">Total Bonus Paid</span>
         </div>
         <span class="fs-2x fw-bold text-gray-900 counted" id="dash-total-bonus" data-kt-initialized="1">0</span>
-        <span class="fs-7 text-muted mt-1">BMAN (staking + rank rewards)</span>
+        <span class="fs-7 text-muted mt-1">BMAN (instant bonus + matching + rank rewards)</span>
       </div>
     </div>
   </div>
