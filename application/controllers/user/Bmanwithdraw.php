@@ -45,10 +45,15 @@ class Bmanwithdraw extends CI_Controller
         $settings = $this->bmanwithdraw->settings();
         $available = $this->bmanwithdraw->available_balance($user_id);
         $open_request = $this->bmanwithdraw->open_request($user_id, null);
+        $limit_usage = $this->bmanwithdraw->limit_usage($user_id);
 
         // Validation: withdrawals enabled
         if ((int) ($settings['withdraw_status'] ?? 0) !== 1) {
             return $this->_json(['status' => false, 'message' => 'Withdrawals are currently disabled']);
+        }
+
+        if (empty($settings['withdraw_allowed_exchange'])) {
+            return $this->_json(['status' => false, 'message' => 'Exchange Wallet withdrawals are disabled by admin']);
         }
 
         // Validation: no open request in progress
@@ -68,25 +73,39 @@ class Bmanwithdraw extends CI_Controller
         // Validation: meets minimum USDT requirement
         $bman_rate = (string) (token_info()->currency_value ?? '0');
         $bman_price = Money::cmp($bman_rate, '0') > 0 ? Money::div('1', $bman_rate) : '0';
-        $gross_usdt = Money::mul($amount, $bman_price);
-        $fee = (string) (site_settings('withdraw_settings', 'withdraw_fee_usdt') ?: $settings['withdraw_fee']);
+        $gross_usdt = Money::floor6(Money::mul($amount, $bman_price));
+        $fee = (string) ($settings['withdraw_fee'] ?? 0);
         // USDT payout always rounds DOWN — never let rounding hand out dust the platform doesn't have.
         $net_usdt = Money::floorZero(Money::floor6(Money::sub($gross_usdt, $fee)));
         $min_withdraw = (string) ($settings['min_withdraw'] ?? '0');
 
         if (Money::cmp($gross_usdt, $min_withdraw) < 0) {
-            return $this->_json(['status' => false, 'message' => "Minimum withdrawal is {$min_withdraw} USDT (≈ {$amount} BMAN @ {$bman_price} rate)"]);
+            $required_bman = Money::cmp($bman_price, '0') > 0 ? Money::div($min_withdraw, $bman_price, 4) : '0';
+            return $this->_json(['status' => false, 'message' => "Minimum withdrawal is {$min_withdraw} USDT (about {$required_bman} BMAN)"]);
         }
 
-        // Validation: meets maximum
+        // Validation: meets maximum USDT request amount
         $max_withdraw = (string) ($settings['max_withdraw'] ?? '0');
-        if (Money::cmp($max_withdraw, '0') > 0 && Money::cmp($amount, $max_withdraw) > 0) {
-            return $this->_json(['status' => false, 'message' => "Maximum withdrawal is {$max_withdraw} BMAN"]);
+        if (Money::cmp($max_withdraw, '0') > 0 && Money::cmp($gross_usdt, $max_withdraw) > 0) {
+            return $this->_json(['status' => false, 'message' => "Maximum withdrawal is {$max_withdraw} USDT"]);
         }
 
         // Validation: net payout > 0
         if (Money::cmp($gross_usdt, $fee) <= 0) {
             return $this->_json(['status' => false, 'message' => 'Withdrawal amount too small. Net payout becomes zero.']);
+        }
+
+        $daily_limit = (string) ($settings['withdraw_daily_limit'] ?? '0');
+        $monthly_limit = (string) ($settings['withdraw_monthly_limit'] ?? '0');
+        $daily_used = (string) ($limit_usage['daily_usdt'] ?? '0');
+        $monthly_used = (string) ($limit_usage['monthly_usdt'] ?? '0');
+
+        if (Money::cmp($daily_limit, '0') > 0 && Money::cmp(Money::add($daily_used, $gross_usdt), $daily_limit) > 0) {
+            return $this->_json(['status' => false, 'message' => "Daily withdrawal limit reached. Used {$daily_used} USDT of {$daily_limit} USDT."]);
+        }
+
+        if (Money::cmp($monthly_limit, '0') > 0 && Money::cmp(Money::add($monthly_used, $gross_usdt), $monthly_limit) > 0) {
+            return $this->_json(['status' => false, 'message' => "Monthly withdrawal limit reached. Used {$monthly_used} USDT of {$monthly_limit} USDT."]);
         }
 
         // Validation: address format
@@ -119,6 +138,18 @@ class Bmanwithdraw extends CI_Controller
             ]);
         }
 
+        $limit_usage = $this->bmanwithdraw->limit_usage($user_id);
+        $daily_used = (string) ($limit_usage['daily_usdt'] ?? '0');
+        $monthly_used = (string) ($limit_usage['monthly_usdt'] ?? '0');
+        if (Money::cmp($daily_limit, '0') > 0 && Money::cmp(Money::add($daily_used, $gross_usdt), $daily_limit) > 0) {
+            $this->db->trans_rollback();
+            return $this->_json(['status' => false, 'message' => "Daily withdrawal limit reached. Used {$daily_used} USDT of {$daily_limit} USDT."]);
+        }
+        if (Money::cmp($monthly_limit, '0') > 0 && Money::cmp(Money::add($monthly_used, $gross_usdt), $monthly_limit) > 0) {
+            $this->db->trans_rollback();
+            return $this->_json(['status' => false, 'message' => "Monthly withdrawal limit reached. Used {$monthly_used} USDT of {$monthly_limit} USDT."]);
+        }
+
         // Create request with instant ledger lock
         $request = $this->bmanwithdraw->create_request([
             'user_id' => $user_id,
@@ -147,13 +178,16 @@ class Bmanwithdraw extends CI_Controller
         $allocations = $this->bmanwithdraw->get_allocations($request['id']);
 
         $history = $this->bmanwithdraw->user_payout_history($user_id, 100);
+        $fresh_open_request = $this->bmanwithdraw->open_request($user_id, null);
         return $this->_json([
             'status' => true,
             'message' => 'Withdrawal request submitted and sent for admin review',
             'request' => $request,
+            'open_request' => $fresh_open_request ?: $request,
             'allocations' => $allocations,
             'history' => $history,
             'available_balance' => $this->bmanwithdraw->available_balance($user_id),
+            'limit_usage' => $this->bmanwithdraw->limit_usage($user_id),
             'gross_usdt' => $gross_usdt,
             'net_usdt' => $net_usdt,
             'processing_fee_usdt' => $fee,

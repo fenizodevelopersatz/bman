@@ -822,21 +822,23 @@ class Genealogycontroller extends MY_Controller
         $user_name = $user->username ?? '';
         $first_letter = $user_name ? substr($user_name, 0, 1) : 'F';
 
-        // ===== Settings (from site_settings withdraw_settings) =====
-        $withdraw_status = (int) site_settings('withdraw_settings', 'withdraw_status'); // 1 enabled, 0 disabled
-        $min_withdraw = (float) str_replace(',', '', site_settings('withdraw_settings', 'min_withdraw'));
-        $max_withdraw = (float) str_replace(',', '', site_settings('withdraw_settings', 'max_withdraw'));
-        $withdraw_fee = (float) str_replace(',', '', site_settings('withdraw_settings', 'withdraw_fee_usdt') ?: site_settings('withdraw_settings', 'withdraw_fee'));
-        $withdraw_daily_limit = (float) str_replace(',', '', site_settings('withdraw_settings', 'withdraw_daily_limit'));
-        $withdraw_monthly_limit = (float) str_replace(',', '', site_settings('withdraw_settings', 'withdraw_monthly_limit'));
-        $withdraw_amount_type = (int) site_settings('withdraw_settings', 'withdraw_amount_type'); // 1=USD etc
-        $auto_withdraw = (int) site_settings('withdraw_settings', 'auto_withdraw');
+        // ===== Settings (from admin Withdraw Settings) =====
+        $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
+        $withdraw_settings = $this->bmanwithdraw->settings();
+        $withdraw_status = (int) ($withdraw_settings['withdraw_status'] ?? 0); // 1 enabled, 0 disabled
+        $min_withdraw = (float) ($withdraw_settings['min_withdraw'] ?? 0);
+        $max_withdraw = (float) ($withdraw_settings['max_withdraw'] ?? 0);
+        $withdraw_fee = (float) ($withdraw_settings['withdraw_fee'] ?? 0);
+        $withdraw_daily_limit = (float) ($withdraw_settings['withdraw_daily_limit'] ?? 0);
+        $withdraw_monthly_limit = (float) ($withdraw_settings['withdraw_monthly_limit'] ?? 0);
+        $withdraw_amount_type = (int) ($withdraw_settings['withdraw_amount_type'] ?? 0); // 1=USD etc
+        $auto_withdraw = (int) ($withdraw_settings['auto_withdraw'] ?? 0);
+        $withdraw_allowed_exchange = (int) ($withdraw_settings['withdraw_allowed_exchange'] ?? 1);
 
         // ===== Wallets =====
         // Withdrawal conversion is Exchange-only. Keep all BMAN wallet cards
         // visible, but the available payout balance must come from the
         // exchange withdrawable figure only.
-        $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
         $available_amount_raw = $this->bmanwithdraw->available_balance($id);
         $available_amount = (float) $available_amount_raw;
         $token_balance = (float) site_token_balance($id);
@@ -846,6 +848,19 @@ class Genealogycontroller extends MY_Controller
             $platform_wallet = $this->db->select('address as wallet_address')->where('user_id', $id)->get('custodial_wallets')->row();
         }
         $platform_address = $platform_wallet->wallet_address ?? '';
+        $bman_rate_raw = (string) (token_info()->currency_value ?? '0'); // BMAN per 1 USDT
+        $bman_price_raw = Money::cmp($bman_rate_raw, '0') > 0 ? Money::div('1', $bman_rate_raw) : '0'; // USDT per 1 BMAN
+        $bman_rate = (float) $bman_rate_raw;
+        $bman_price = (float) $bman_price_raw;
+        $processing_fee_usdt = $withdraw_fee;
+        $available_usdt_raw = Money::floor6(Money::mul($available_amount_raw, $bman_price_raw));
+        $min_bman_required = ($bman_price > 0 && $min_withdraw > 0) ? (float) Money::div((string) $min_withdraw, $bman_price_raw, 4) : 0;
+        $open_request = $this->bmanwithdraw->open_request($id, null);
+        $limit_usage = $this->bmanwithdraw->limit_usage($id);
+        $maturity_rules = $this->bmanwithdraw->maturity_rules();
+        $source_allowed = $withdraw_allowed_exchange === 1;
+        $daily_limit_reached = $withdraw_daily_limit > 0 && Money::cmp((string) ($limit_usage['daily_usdt'] ?? 0), (string) $withdraw_daily_limit) >= 0;
+        $monthly_limit_reached = $withdraw_monthly_limit > 0 && Money::cmp((string) ($limit_usage['monthly_usdt'] ?? 0), (string) $withdraw_monthly_limit) >= 0;
 
         // ===== KYC status (your code uses string 'approved' in UI) =====
         $kyc_ok = false;
@@ -870,11 +885,17 @@ class Genealogycontroller extends MY_Controller
 
         if ($withdraw_status !== 1)
             $eligible = false;
+        if (!$source_allowed)
+            $eligible = false;
+        if (!empty($open_request))
+            $eligible = false;
         if (!$kyc_ok)
             $eligible = false;
-        if (Money::cmp($available_amount_raw, (string) $min_withdraw) < 0)
+        if (Money::cmp($available_usdt_raw, (string) $min_withdraw) < 0)
             $eligible = false;
         if (!$active_ok)
+            $eligible = false;
+        if ($daily_limit_reached || $monthly_limit_reached)
             $eligible = false;
 
         // ===== Next payout time label (simple) =====
@@ -882,11 +903,6 @@ class Genealogycontroller extends MY_Controller
         $next_date_label = NEXT_PAYOUT_TIME;
 
         // ===== Build $payout object for the UI =====
-        $bman_rate = (float) (token_info()->currency_value ?? 0); // BMAN per 1 USDT
-        $bman_price = $bman_rate > 0 ? (1 / $bman_rate) : 0; // USDT per 1 BMAN
-        $processing_fee_usdt = (float) str_replace(',', '', site_settings('withdraw_settings', 'withdraw_fee_usdt') ?: site_settings('withdraw_settings', 'withdraw_fee'));
-        $min_bman_required = ($bman_price > 0) ? ($processing_fee_usdt / $bman_price) : 0;
-
         $payout = (object) [
             'next_date' => $next_date_label,
             'min_withdraw' => $min_withdraw,
@@ -903,6 +919,30 @@ class Genealogycontroller extends MY_Controller
             'monthly_limit' => $withdraw_monthly_limit,
             'amount_type' => $withdraw_amount_type,
             'auto_withdraw' => $auto_withdraw,
+            'source_allowed' => $source_allowed,
+            'available_usdt' => (float) $available_usdt_raw,
+            'daily_used' => (float) ($limit_usage['daily_usdt'] ?? 0),
+            'monthly_used' => (float) ($limit_usage['monthly_usdt'] ?? 0),
+            'has_open_request' => !empty($open_request),
+            'open_request_status' => !empty($open_request['status']) ? $open_request['status'] : null,
+        ];
+
+        $withdraw_rules = [
+            'enabled' => $withdraw_status === 1,
+            'source_allowed' => $source_allowed,
+            'source_label' => 'Exchange Wallet only',
+            'min_usdt' => $min_withdraw,
+            'min_bman' => $min_bman_required,
+            'max_usdt' => $max_withdraw,
+            'fee_usdt' => $processing_fee_usdt,
+            'daily_limit' => $withdraw_daily_limit,
+            'monthly_limit' => $withdraw_monthly_limit,
+            'daily_used' => (float) ($limit_usage['daily_usdt'] ?? 0),
+            'monthly_used' => (float) ($limit_usage['monthly_usdt'] ?? 0),
+            'available_bman' => $available_amount,
+            'available_usdt' => (float) $available_usdt_raw,
+            'maturity_enabled' => !empty($maturity_rules['enabled']),
+            'exchange_lock_days' => (int) ($maturity_rules['exchange'] ?? 0),
         ];
 
         // ===== Pass to view =====
@@ -919,6 +959,8 @@ class Genealogycontroller extends MY_Controller
         // ✅ UI variables your new page needs
         $this->data['payout'] = $payout;
         $this->data['payouts'] = $payouts;
+        $this->data['open_request'] = $open_request;
+        $this->data['withdraw_rules'] = $withdraw_rules;
 
         // if you still need these old ones
         $this->data['wallet_balance'] = $available_amount;
