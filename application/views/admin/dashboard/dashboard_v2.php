@@ -371,7 +371,11 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                 if (dashActiveUsersChart) { dashActiveUsersChart.destroy(); dashActiveUsersChart = null; }
                 dashActiveUsersChart = new ApexCharts(el, {
                     chart: { type: 'line', height: 280, toolbar: { show: false } },
+<<<<<<< HEAD
                     series: [{ name: 'Chat-Active Users', data: d.active_users }],
+=======
+                    series: [{ name: 'Active Users', data: d.active_users }],
+>>>>>>> 372c07e (Reset)
                     colors: ['#8B5CF6'],
                     xaxis: { categories: d.labels, labels: { rotate: -45 } },
                     stroke: { curve: 'smooth', width: 3 },

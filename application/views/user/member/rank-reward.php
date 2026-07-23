@@ -360,9 +360,8 @@ $msRewardText = function ($l) use ($rk_n) {
                 </div>
                 <div class="actions">
                     <button class="btn-soft" onclick="rkRules(true)"><i class="ph ph-info"></i> How ranks work</button>
-                    <button class="btn-soft" onclick="window.print()"><i class="ph ph-printer"></i> Print</button>
-                    <a class="btn-main" href="<?= base_url('user/all-rank'); ?>"><i class="ph ph-trophy"></i> Leaderboard</a>
-                    <a class="btn-dark" href="<?= base_url('user/profit'); ?>"><i class="ph ph-wallet"></i> My Earnings</a>
+                    <button class="btn-soft" onclick="window.print()"><i class="ph ph-printer"></i> Print</button>                    
+                    <a class="btn-dark" href="<?= base_url('user/wallet'); ?>"><i class="ph ph-wallet"></i> My Wallet</a>
                 </div>
             </div>
 
