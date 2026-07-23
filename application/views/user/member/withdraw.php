@@ -848,9 +848,7 @@
         <div>
           <h2><i class="ph ph-bank"></i> Payouts</h2>
         </div>
-        <div class="actions">
-          <button class="btn-soft" type="button" onclick="location.href='<?= base_url('user/profit'); ?>'"><i
-              class="ph ph-coins"></i> Commissions</button>
+        <div class="actions">          
           <button class="btn-soft" type="button" onclick="window.print()"><i class="ph ph-printer"></i> Print</button>
           <button class="btn-main" type="button" onclick="exportCsv()"><i class="ph ph-download"></i> Export</button>
           <button class="btn-dark" type="button" onclick="scrollToWithdraw()"><i class="ph ph-arrow-down"></i>

@@ -877,6 +877,7 @@ class Lendingcontroller extends CI_Controller
         ];
 
         $status = $statusMap[$o['status']] ?? ['icon'=>'question-mark','label'=>$o['status'],'color'=>'secondary'];
+        $distPct = $this->_coinDistributionPercentages((int)$o['coin_distribution_option']);
 
         echo json_encode([
             'status' => true,
@@ -894,10 +895,15 @@ class Lendingcontroller extends CI_Controller
                 ],
                 'distribution' => [
                     'option' => (int)$o['coin_distribution_option'],
+                    'exchange_pct' => $distPct['exchange'],
+                    'earning_pct' => $distPct['earning'],
+                    'staking_pct' => $distPct['staking'],
+                    'bonus_pct' => $distPct['bonus'],
                     'exchange_bman' => $dist['exchange']['amount'],
                     'earning_bman' => $dist['earning']['amount'],
                     'staking_bman' => $dist['staking']['amount'],
-                    'bonus_bman' => (float)$o['bonus_bman'],
+                    'bonus_bman' => $dist['bonus']['amount'],
+                    'instant_bonus_bman' => (float)$o['bonus_bman'],
                 ],
                 'plan' => [
                     'code' => in_array($o['plan_code'], ['fixed','regular','combo'], true)
@@ -964,6 +970,35 @@ class Lendingcontroller extends CI_Controller
                 'error' => $o['error'],
             ],
         ]);
+    }
+
+    private function _coinDistributionPercentages($optionId)
+    {
+        $fallback = [
+            1 => ['exchange' => 100.0, 'earning' => 0.0,  'staking' => 0.0,  'bonus' => 0.0],
+            2 => ['exchange' => 90.0,  'earning' => 0.0,  'staking' => 0.0,  'bonus' => 10.0],
+            3 => ['exchange' => 80.0,  'earning' => 10.0, 'staking' => 0.0,  'bonus' => 10.0],
+            4 => ['exchange' => 80.0,  'earning' => 10.0, 'staking' => 10.0, 'bonus' => 0.0],
+            5 => ['exchange' => 90.0,  'earning' => 10.0, 'staking' => 0.0,  'bonus' => 0.0],
+            6 => ['exchange' => 90.0,  'earning' => 0.0,  'staking' => 10.0, 'bonus' => 0.0],
+            7 => ['exchange' => 70.0,  'earning' => 10.0, 'staking' => 10.0, 'bonus' => 10.0],
+        ];
+
+        $row = $this->db->select('exchange_percentage, earning_percentage, staking_percentage, bonus_percentage')
+            ->where('id', (int)$optionId)
+            ->get('coin_distribution_options')
+            ->row_array();
+
+        if ($row) {
+            return [
+                'exchange' => (float)$row['exchange_percentage'],
+                'earning'  => (float)$row['earning_percentage'],
+                'staking'  => (float)$row['staking_percentage'],
+                'bonus'    => (float)$row['bonus_percentage'],
+            ];
+        }
+
+        return $fallback[(int)$optionId] ?? $fallback[1];
     }
 
     /** Build a {tx_hash,status,explorer} cell for a swap transaction step. */
