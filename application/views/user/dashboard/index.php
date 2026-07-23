@@ -240,7 +240,7 @@
 
             <!-- Left Content -->
             <div class="hero-left">
-              <div class="tag"><i class="ph ph-megaphone"></i> Announcement</div>
+              <!-- <div class="tag"><i class="ph ph-megaphone"></i> Announcement</div> -->
 
               <?php if (!empty($notification)): ?>
                 <div id="announcementCarousel" class="carousel slide carousel-fade text-only-carousel"
@@ -316,7 +316,7 @@
       </div>
 
       <?php if (!empty($popup_announcement)): $pa = $popup_announcement; ?>
-      <div class="modal fade" id="announcementPopup" tabindex="-1" aria-hidden="true">
+      <!-- <div class="modal fade" id="announcementPopup" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content" style="background:<?= htmlspecialchars($pa->bg_color ?: '#4E2CF0') ?>;color:<?= htmlspecialchars($pa->text_color ?: '#ffffff') ?>;border:0;border-radius:16px;">
             <div class="modal-header border-0">
@@ -333,7 +333,7 @@
             </div>
           </div>
         </div>
-      </div>
+      </div> -->
       <?php endif; ?>
 
       <script>
