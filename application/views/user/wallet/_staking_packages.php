@@ -214,6 +214,17 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   .stkm-row b{color:#0b1220;font-weight:1100;}
   .stkm-row.roi b{color:#4338ca;}
   .stkm-warn{color:#c0392b;font-size:12px;font-weight:900;margin-top:6px;display:none;}
+  .stkm-feedback{display:none;margin:0 0 12px;border-radius:14px;padding:12px 14px;border:1px solid;font-size:12.5px;font-weight:800;line-height:1.45;}
+  .stkm-feedback.show{display:flex;gap:10px;align-items:flex-start;}
+  .stkm-feedback strong{display:block;font-size:13px;font-weight:1100;margin-bottom:2px;}
+  .stkm-feedback span{display:block;}
+  .stkm-feedback .stkm-feedback-ico{width:24px;height:24px;border-radius:999px;display:grid;place-items:center;flex:0 0 24px;font-size:10px;font-weight:1100;}
+  .stkm-feedback.error{background:#fef2f2;border-color:#fecaca;color:#991b1b;}
+  .stkm-feedback.error .stkm-feedback-ico{background:#fee2e2;color:#b91c1c;}
+  .stkm-feedback.success{background:#ecfdf5;border-color:#bbf7d0;color:#166534;}
+  .stkm-feedback.success .stkm-feedback-ico{background:#dcfce7;color:#15803d;}
+  .stkm-feedback.info{background:#eff6ff;border-color:#bfdbfe;color:#1e40af;}
+  .stkm-feedback.info .stkm-feedback-ico{background:#dbeafe;color:#1d4ed8;}
   .stkm-confirm{width:100%;border:0;border-radius:12px;padding:13px;cursor:pointer;font-weight:1100;font-size:14px;color:#fff;background:linear-gradient(135deg,#10b981,#059669);}
   .stkm-confirm:disabled{opacity:.5;cursor:not-allowed;}
   .stkm-spinner{display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;
@@ -309,6 +320,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
           </div>
         </div>
       </div>
+      <div class="stkm-feedback" id="stkm-feedback" role="alert" aria-live="polite"></div>
       <div class="stkm-nav"><button class="stkm-back" id="stkm-back" type="button">Back</button><button class="stkm-next" id="stkm-next" type="button">Next</button></div>
       <button class="stkm-confirm" id="stkm-go" type="button" onclick="stkConfirm()" style="margin-top:10px;display:none;"> Confirm</button>
       </div>
@@ -361,6 +373,25 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   const $ = id => document.getElementById(id);
   const SWAP_ON = <?= !empty($swap_enabled) ? 'true' : 'false' ?>;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function stkMessage(type, title, text){
+    const box = $('stkm-feedback');
+    if(!box) return;
+    const tone = ['success', 'error', 'info'].includes(type) ? type : 'info';
+    const icon = tone === 'success' ? 'OK' : (tone === 'error' ? '!' : 'i');
+    box.className = 'stkm-feedback show ' + tone;
+    box.innerHTML =
+      '<div class="stkm-feedback-ico">' + icon + '</div>' +
+      '<div><strong>' + esc(title || '') + '</strong><span>' + esc(text || '') + '</span></div>';
+    requestAnimationFrame(function(){
+      box.scrollIntoView({block:'nearest', behavior:'smooth'});
+    });
+  }
+  function clearStkMessage(){
+    const box = $('stkm-feedback');
+    if(!box) return;
+    box.className = 'stkm-feedback';
+    box.innerHTML = '';
+  }
   function stkPickROIPlan(code){
     cur.roi_plan = code;
     document.querySelectorAll('#stkm-roi-plans button').forEach(b=>b.classList.toggle('active', b.dataset.code===code));
@@ -383,6 +414,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   }
   function renderStep(step){
     if(step) cur.step = step;
+    clearStkMessage();
     document.querySelectorAll('.stkm-step').forEach((el,i)=>{el.classList.toggle('active', i+1===cur.step); el.classList.toggle('done', i+1<cur.step);});
     document.querySelectorAll('.stkm-pane').forEach(p=>p.classList.toggle('active', +p.dataset.step===cur.step));
     $('stkm-back').style.display = cur.step===1 ? 'none' : 'block';
@@ -571,12 +603,10 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   function quote(){ const fd=new FormData(); fd.append('package_id',cur.pkg.id); fetch(BASE+'user/lending/stake_quote',{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{ if(!j.status){ $('stkm-cost').textContent=j.message||'?'; return; } cur.usdt=j.usdt; cur.bal=j.usdt_balance; cur.quote=j; $('stkm-cost').textContent = Number(j.usdt).toLocaleString(undefined,{maximumFractionDigits:4})+' USDT'; $('stkm-lock').textContent = Number(j.bman).toLocaleString()+' BMAN'; $('stkm-bonus').textContent= Number(j.bonus).toLocaleString()+' BMAN'; $('stkm-bal').textContent  = Number(j.usdt_balance).toLocaleString(undefined,{maximumFractionDigits:2})+' USDT'; const bw = j.bman_wallets||{}; ['exchange','staking','bonus','earning'].forEach(function(w){ const el=$('stkm-bw-'+w); if(el) el.textContent=Number(bw[w]||0).toLocaleString()+' BMAN'; }); const short = j.usdt_balance + 1e-8 < j.usdt; $('stkm-warn').style.display = short?'block':'none'; $('stkm-go').disabled = short; renderLive(); }).catch(()=>{ $('stkm-cost').textContent='Quote failed'; }); }
   $('stkm-back').onclick = function(){ if(cur.step>1) renderStep(cur.step-1); };
   $('stkm-next').onclick = function(){ if(cur.step<4) renderStep(cur.step+1); };
-  function stkAlert(opts){
-    return Swal.fire(Object.assign({confirmButtonColor:'#28a745'}, opts));
-  }
   window.stkConfirm = function(){
     const go=$('stkm-go');
     go.disabled=true;
+    clearStkMessage();
     go.innerHTML='<span class="stkm-spinner"></span>Processing…';
     const fd=new FormData();
 
@@ -595,22 +625,17 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         // the page reloads with no extra click required (refreshes portfolio,
         // wallet balances, active staking table and package availability, all
         // server-rendered on load).
-        stkAlert({
-          icon: 'success',
-          title: 'Staking Successful',
-          text: 'Your staking request has been submitted successfully.',
-          timer: 1500,
-          timerProgressBar: true,
-        }).then(function(){ location.reload(); });
+        stkMessage('success', 'Staking Successful', j.message || 'Your staking request has been submitted successfully.');
+        setTimeout(function(){ location.reload(); }, 1500);
       } else {
         go.disabled=false;
         go.textContent='Confirm';
-        stkAlert({icon:'error', title:'Staking Failed', text: j.message || 'Something went wrong. Please try again.'});
+        stkMessage('error', 'Staking Failed', j.message || 'Something went wrong. Please try again.');
       }
     }).catch(function(){
       go.disabled=false;
       go.textContent='Confirm';
-      stkAlert({icon:'error', title:'Request Failed', text:'Could not reach the server. Please try again.'});
+      stkMessage('error', 'Request Failed', 'Could not reach the server. Please try again.');
     });
   };
 })();
