@@ -281,6 +281,44 @@ class BinaryModel extends CI_Model
         ];
     }
 
+    public function getLegExchangeWalletBman($user_id, $from = null, $to = null)
+    {
+        $left_users = $this->getLegUsers($user_id, 'left');
+        $right_users = $this->getLegUsers($user_id, 'right');
+
+        if ($from || $to) {
+            return [
+                'left_bman' => $this->getExchangeWalletLedgerTotal($left_users, $from, $to),
+                'right_bman' => $this->getExchangeWalletLedgerTotal($right_users, $from, $to),
+            ];
+        }
+
+        return [
+            'left_bman' => $this->getTotalExchangeWallet($left_users),
+            'right_bman' => $this->getTotalExchangeWallet($right_users),
+        ];
+    }
+
+    private function getExchangeWalletLedgerTotal($user_ids, $from = null, $to = null)
+    {
+        if (empty($user_ids)) {
+            return 0.0;
+        }
+
+        $this->db->select('COALESCE(SUM(credit - debit),0) AS total_bman', false);
+        $this->db->where_in('user_id', $user_ids);
+        $this->db->where('wallet_type', 'exchange');
+        if ($from) {
+            $this->db->where('created_at >=', $from);
+        }
+        if ($to) {
+            $this->db->where('created_at <=', $to);
+        }
+
+        $row = $this->db->get('wallet_ledger')->row();
+        return (float) ($row->total_bman ?? 0);
+    }
+
 
 
 
@@ -349,6 +387,20 @@ class BinaryModel extends CI_Model
         $end = date('Y-m-d 23:59:59', strtotime('today'));
         $start = date('Y-m-d 00:00:00', strtotime('-7 days'));
 
+        return [$start, $end];
+    }
+
+    public function getThisWeekRange()
+    {
+        $start = date('Y-m-d 00:00:00', strtotime('monday this week'));
+        $end = date('Y-m-d 23:59:59', strtotime('sunday this week'));
+        return [$start, $end];
+    }
+
+    public function getMonthRange()
+    {
+        $start = date('Y-m-01 00:00:00');
+        $end = date('Y-m-t 23:59:59');
         return [$start, $end];
     }
 
