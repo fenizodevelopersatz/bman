@@ -11,6 +11,7 @@ class Bmanwithdraw extends MY_Controller
         $this->load->model('Admin_model');
         $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
         $this->load->model('Walletledger_model', 'ledger');
+        $this->load->model('Kyc_model', 'kyc');
 
         if (!$this->session->userdata('admin_logged_in')) {
             redirect('admin/login');
@@ -42,8 +43,135 @@ class Bmanwithdraw extends MY_Controller
 
         // Load allocations for mixed requests
         $this->data['allocations'] = $this->bmanwithdraw->get_allocations((int) $id);
+        $user_id = (int) ($this->data['row']['user_id'] ?? 0);
+        $kyc = ($user_id && $this->db->table_exists('kyc_applications')) ? $this->kyc->getByUser($user_id) : [];
+        $legacy_kyc = $this->_legacyKyc($user_id);
+
+        $this->data['user_profile'] = $this->_withdrawUserProfile($user_id);
+        $this->data['kyc_application'] = $kyc ?: [];
+        $this->data['legacy_kyc'] = $legacy_kyc ?: [];
+        $this->data['kyc_documents'] = $this->_kycDocuments($kyc ?: [], $legacy_kyc ?: []);
+        $this->data['kyc_history'] = (!empty($kyc['id']) && $this->db->table_exists('kyc_audit_logs'))
+            ? $this->kyc->history((int) $kyc['id'])
+            : [];
 
         $this->load->view('admin/withdraw/bman_view', $this->data);
+    }
+
+    private function _withdrawUserProfile($user_id)
+    {
+        $user_id = (int) $user_id;
+        if ($user_id <= 0 || !$this->db->table_exists('users')) {
+            return [];
+        }
+
+        $wanted = [
+            'id',
+            'name',
+            'first_name',
+            'last_name',
+            'username',
+            'email',
+            'contact',
+            'address',
+            'gender',
+            'image',
+            'profile_img',
+            'kyc_status',
+            'kyc_last_submitted_at',
+            'kyc_verified_at',
+            'kyc_reviewer_id',
+            'zipcode',
+            'dob',
+            'status',
+            'register_date',
+            'sponser',
+            'referral_id',
+            'country'
+        ];
+        $fields = array_intersect($wanted, $this->db->list_fields('users'));
+        if (!$fields) {
+            return [];
+        }
+
+        $user = $this->db->select(implode(',', $fields))
+            ->get_where('users', ['id' => $user_id])
+            ->row_array();
+        if (!$user) {
+            return [];
+        }
+
+        foreach ($wanted as $key) {
+            if (!array_key_exists($key, $user)) {
+                $user[$key] = '';
+            }
+        }
+
+        $full_name = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+        if ($full_name === '') {
+            $full_name = trim((string) ($user['name'] ?: $user['username']));
+        }
+
+        $user['display_name'] = $full_name;
+        $user['profile_photo'] = $this->_publicAssetUrl($user['profile_img'] ?: $user['image'], 'assets/images/');
+        if ($user['profile_photo'] === '') {
+            $user['profile_photo'] = base_url('assets/images/default-avatar.svg');
+        }
+
+        return $user;
+    }
+
+    private function _legacyKyc($user_id)
+    {
+        $user_id = (int) $user_id;
+        if ($user_id <= 0 || !$this->db->table_exists('user_kyc')) {
+            return [];
+        }
+
+        return $this->db->get_where('user_kyc', ['user_id' => $user_id])->row_array() ?: [];
+    }
+
+    private function _kycDocuments(array $kyc, array $legacy_kyc)
+    {
+        $docs = [];
+
+        $add = function ($label, $url) use (&$docs) {
+            $url = $this->_publicAssetUrl($url);
+            if ($url !== '') {
+                $docs[] = [
+                    'label' => $label,
+                    'url' => $url,
+                    'is_image' => (bool) preg_match('/\.(jpe?g|png|webp|gif|svg)(\?.*)?$/i', $url),
+                ];
+            }
+        };
+
+        $add('Document Front', $kyc['doc_front_url'] ?? '');
+        $add('Document Back', $kyc['doc_back_url'] ?? '');
+        $add('Selfie With ID', $kyc['selfie_url'] ?? '');
+        $add('Address Proof', $kyc['proof_address_url'] ?? '');
+        $add('PAN Document', $legacy_kyc['pan_doc'] ?? '');
+        $add('Aadhaar Document', $legacy_kyc['aadhaar_doc'] ?? '');
+
+        return $docs;
+    }
+
+    private function _publicAssetUrl($path, $default_prefix = '')
+    {
+        $path = trim((string) $path);
+        if ($path === '') {
+            return '';
+        }
+        if (preg_match('#^https?://#i', $path)) {
+            return $path;
+        }
+
+        $path = ltrim(str_replace('\\', '/', $path), '/');
+        if (strpos($path, 'assets/') === 0 || strpos($path, 'uploads/') === 0) {
+            return base_url($path);
+        }
+
+        return base_url($default_prefix . $path);
     }
 
     public function update($id)

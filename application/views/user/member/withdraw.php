@@ -364,6 +364,7 @@
       .row2 {
         grid-template-columns: 1fr;
       }
+
     }
 
     /* Table */
@@ -969,6 +970,14 @@
         </div>
       </div>
 
+      <?php
+        $openWithdraw = $open_request ?? null;
+        $withdrawRules = $withdraw_rules ?? [];
+        $withdrawLocked = !empty($openWithdraw);
+        $openStatus = strtolower((string) ($openWithdraw['status'] ?? 'pending'));
+        $openStatusLabel = ucfirst(str_replace('_', ' ', $openStatus));
+      ?>
+
       <div class="grid-2">
         <!-- Left: Withdraw Request + History -->
         <div>
@@ -985,6 +994,14 @@
               <span class="req <?= !empty($payout->kyc) ? 'ok' : 'warn'; ?>"><i
                   class="ph ph-identification-card"></i>
                 <?= !empty($payout->kyc) ? 'KYC Verified' : 'KYC Pending'; ?></span>
+              <span class="req <?= !empty($withdrawRules['enabled']) ? 'ok' : 'bad'; ?>"><i class="ph ph-power"></i>
+                Withdraw <?= !empty($withdrawRules['enabled']) ? 'Enabled' : 'Disabled'; ?></span>
+              <span class="req <?= !empty($withdrawRules['source_allowed']) ? 'ok' : 'bad'; ?>"><i class="ph ph-swap"></i>
+                Source <?= !empty($withdrawRules['source_allowed']) ? 'Allowed' : 'Disabled'; ?></span>
+              <?php if ($withdrawLocked): ?>
+                <span class="req warn"><i class="ph ph-hourglass"></i> Open Request:
+                  <?= htmlspecialchars($openStatusLabel); ?></span>
+              <?php endif; ?>
               <span class="req"><i class="ph ph-receipt"></i> Minimum Withdrawal:
                 <?= currency_format((float) ($payout->min_withdraw ?? 0), 2); ?></span>
               <span class="req"><i class="ph ph-coins"></i> Min BMAN:
@@ -998,7 +1015,7 @@
                 <div class="field">
                   <label>Exchange BMAN Amount *</label>
                   <input class="inp" type="number" step="0.0001" min="0" max="<?= htmlspecialchars((string) (float) ($payout->available_amount ?? $wallet_balance ?? 0)); ?>" id="bman_amount" name="withdraw_bman" placeholder="Enter Exchange BMAN amount"
-                    required>
+                    required <?= $withdrawLocked ? 'disabled' : ''; ?>>
                   <div class="hint">Exchange available:
                     <?= number_format((float) ($payout->available_amount ?? $wallet_balance ?? 0), 2); ?> BMAN
                   </div>
@@ -1006,7 +1023,7 @@
                 </div>
                 <div class="field">
                   <label>Destination Wallet Address *</label>
-                  <input class="inp" type="text" name="wallet_address" placeholder="Enter USDT Wallet Address" minlength="20" maxlength="120" required>
+                  <input class="inp" type="text" name="wallet_address" placeholder="Enter USDT Wallet Address" minlength="20" maxlength="120" required <?= $withdrawLocked ? 'disabled' : ''; ?>>
                   <div class="hint">Required. Must be different from your platform custodial address.</div>
                 </div>
               </div>
@@ -1028,15 +1045,15 @@
 
               <div class="field">
                 <label>Remark (optional)</label>
-                <input class="inp" type="text" name="remark" placeholder="e.g., Manual review withdrawal">
+                <input class="inp" type="text" name="remark" placeholder="e.g., Manual review withdrawal" <?= $withdrawLocked ? 'disabled' : ''; ?>>
                 <div class="hint">Shown in your payout history.</div>
               </div>
 
-              <button class="btn-full primary" type="submit" <?= empty($payout->eligibility) ? 'disabled style="opacity:.55;cursor:not-allowed;"' : '' ?>>
-                Submit Withdrawal <i class="ph ph-arrow-circle-right"></i>
+              <button class="btn-full primary" type="submit" <?= (empty($payout->eligibility) || $withdrawLocked) ? 'disabled style="opacity:.55;cursor:not-allowed;"' : '' ?>>
+                <?= $withdrawLocked ? 'Request ' . htmlspecialchars($openStatusLabel) : 'Submit Withdrawal'; ?> <i class="ph ph-arrow-circle-right"></i>
               </button>
 
-              <?php if (empty($payout->eligibility)): ?>
+              <?php if (empty($payout->eligibility) && !$withdrawLocked): ?>
                 <div class="hint" style="margin-top:10px;">
                   Not Eligible
                 </div>
@@ -1242,6 +1259,14 @@
     const amountHintEl = document.getElementById('withdraw_amount_hint');
     const feeWarningEl = document.getElementById('fee_warning');
     const submitBtn = document.querySelector('#withdrawForm button[type="submit"]');
+    window.withdrawHasOpenRequest = <?= json_encode(!empty($open_request)); ?>;
+    const withdrawEnabled = <?= json_encode(!empty($withdrawRules['enabled'])); ?>;
+    const sourceAllowed = <?= json_encode(!empty($withdrawRules['source_allowed'])); ?>;
+    const maxWithdraw = <?= json_encode((float) ($payout->max_withdraw ?? 0)); ?>;
+    const dailyLimit = <?= json_encode((float) ($payout->daily_limit ?? 0)); ?>;
+    const monthlyLimit = <?= json_encode((float) ($payout->monthly_limit ?? 0)); ?>;
+    let dailyUsed = <?= json_encode((float) ($payout->daily_used ?? 0)); ?>;
+    let monthlyUsed = <?= json_encode((float) ($payout->monthly_used ?? 0)); ?>;
     if (amountInput) {
       const calc = () => {
         const raw = (amountInput.value || "").trim();
@@ -1249,13 +1274,6 @@
         const gross = Math.max(0, v * bmanPrice);
         const net = Math.max(0, gross - fee);
         if (estimatedEl) estimatedEl.value = net.toFixed(8) + " USDT";
-        if (amountHintEl) {
-          if (v > 0 && gross <= fee) {            
-          } else if (v > 0) {            
-          } else {
-            amountHintEl.textContent = "";
-          }
-        }
         if (feeWarningEl) {
           feeWarningEl.textContent = (v > 0 && gross <= fee)
             ? `Below fee threshold: the converted amount must be greater than ${fee.toFixed(4)} USDT.`
@@ -1280,10 +1298,43 @@
       const amount = amountRaw === '' ? 0 : Number(amountRaw);
       const gross = typeof grossOverride === 'number' ? grossOverride : Math.max(0, amount * bmanPrice);
       const net = typeof netOverride === 'number' ? netOverride : Math.max(0, gross - fee);
-      const eligible = kycOk && activeOk && hasAddress && amount > 0 && amount <= available && gross > fee && net > 0 && gross >= minWithdraw;
+      const withinMax = maxWithdraw <= 0 || gross <= maxWithdraw;
+      const withinDaily = dailyLimit <= 0 || (dailyUsed + gross) <= dailyLimit;
+      const withinMonthly = monthlyLimit <= 0 || (monthlyUsed + gross) <= monthlyLimit;
+      const eligible = withdrawEnabled && sourceAllowed && !window.withdrawHasOpenRequest && kycOk && activeOk && hasAddress && amount > 0 && amount <= available && gross > fee && net > 0 && gross >= minWithdraw && withinMax && withinDaily && withinMonthly;
       submitBtn.disabled = !eligible;
       submitBtn.style.opacity = eligible ? "" : ".55";
       submitBtn.style.cursor = eligible ? "pointer" : "not-allowed";
+
+      if (amountHintEl) {
+        if (!withdrawEnabled) {
+          amountHintEl.textContent = "Withdrawals are disabled by admin.";
+        } else if (!sourceAllowed) {
+          amountHintEl.textContent = "Exchange Wallet withdrawals are disabled by admin.";
+        } else if (window.withdrawHasOpenRequest) {
+          amountHintEl.textContent = "You already have a pending or processing withdrawal request.";
+        } else if (!kycOk) {
+          amountHintEl.textContent = "KYC verification is required before withdrawal.";
+        } else if (!activeOk) {
+          amountHintEl.textContent = "Your account must be active before withdrawal.";
+        } else if (amount > available) {
+          amountHintEl.textContent = `Amount exceeds Exchange balance (${available.toFixed(4)} BMAN).`;
+        } else if (amount > 0 && gross < minWithdraw) {
+          amountHintEl.textContent = `Converted value is ${gross.toFixed(4)} USDT. Minimum is ${minWithdraw.toFixed(4)} USDT.`;
+        } else if (amount > 0 && !withinMax) {
+          amountHintEl.textContent = `Converted value is ${gross.toFixed(4)} USDT. Maximum is ${maxWithdraw.toFixed(4)} USDT.`;
+        } else if (amount > 0 && !withinDaily) {
+          amountHintEl.textContent = `Daily limit exceeded. Remaining today: ${Math.max(0, dailyLimit - dailyUsed).toFixed(4)} USDT.`;
+        } else if (amount > 0 && !withinMonthly) {
+          amountHintEl.textContent = `Monthly limit exceeded. Remaining this month: ${Math.max(0, monthlyLimit - monthlyUsed).toFixed(4)} USDT.`;
+        } else if (amount > 0 && gross <= fee) {
+          amountHintEl.textContent = `Converted value must be greater than the ${fee.toFixed(4)} USDT fee.`;
+        } else if (amount > 0 && !hasAddress) {
+          amountHintEl.textContent = "Enter a destination wallet address to enable withdrawal.";
+        } else {
+          amountHintEl.textContent = "";
+        }
+      }
     }
     if (addressInput) addressInput.addEventListener('input', refreshEligibility);
     refreshEligibility();
@@ -1431,6 +1482,26 @@
       const form = document.getElementById('withdrawForm');
       if (!form) return;
 
+      function normalizeStatus(status) {
+        return String(status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      }
+
+      function lockWithdrawForm(status) {
+        window.withdrawHasOpenRequest = true;
+        const statusLabel = normalizeStatus(status);
+        form.querySelectorAll('input, textarea, select').forEach(el => {
+          if (el.type !== 'hidden') el.disabled = true;
+        });
+        const btn = form.querySelector('button[type="submit"]');
+        if (btn) {
+          btn.disabled = true;
+          btn.style.opacity = ".55";
+          btn.style.cursor = "not-allowed";
+          btn.innerHTML = `Request ${escapeHtml(statusLabel)} <i class="ph ph-arrow-circle-right"></i>`;
+        }
+        if (typeof refreshEligibility === "function") refreshEligibility();
+      }
+
       form.addEventListener('submit', async function (e) {
         e.preventDefault();
 
@@ -1455,18 +1526,24 @@
           }
 
           toastMini(data.message || "Withdraw request submitted");
+          const submittedRequest = data.open_request || data.request || {};
+          if (data.limit_usage) {
+            dailyUsed = Number(data.limit_usage.daily_usdt || dailyUsed || 0);
+            monthlyUsed = Number(data.limit_usage.monthly_usdt || monthlyUsed || 0);
+          }
+          lockWithdrawForm(submittedRequest.status || 'pending');
 
           // ✅ Clear inputs
           const amountInput = form.querySelector('input[name="withdraw_bman"]');
           const remarkInput = form.querySelector('input[name="remark"]');
-          if (amountInput) {
+          if (!window.withdrawHasOpenRequest && amountInput) {
             amountInput.value = "";
             // Setting .value doesn't fire 'input', so the Estimated USDT Payout
             // calc() (bound in the script above) never re-runs on its own —
             // dispatch it manually so the stale pre-submit estimate clears too.
             amountInput.dispatchEvent(new Event('input', { bubbles: true }));
           }
-          if (remarkInput) remarkInput.value = "";
+          if (!window.withdrawHasOpenRequest && remarkInput) remarkInput.value = "";
           if (typeof applyFilters === "function") applyFilters(); // keep your filters safe
 
           // ✅ Update KPI cards if you want (optional)
@@ -1483,7 +1560,7 @@
         } catch (err) {
           toastMini(err.message || "Server error");
         } finally {
-          if (btn) { btn.disabled = false; btn.style.opacity = ""; btn.innerHTML = oldText; }
+          if (btn && !window.withdrawHasOpenRequest) { btn.disabled = false; btn.style.opacity = ""; btn.innerHTML = oldText; }
         }
       });
 

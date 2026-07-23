@@ -11,15 +11,28 @@ class Bmanwithdraw_model extends CI_Model
 
     public function settings()
     {
+        $allowed_exchange = site_settings('withdraw_settings', 'withdraw_allowed_exchange');
+        $allowed_earning = site_settings('withdraw_settings', 'withdraw_allowed_earning');
+        $allowed_staking = site_settings('withdraw_settings', 'withdraw_allowed_staking');
+        $allowed_bonus = site_settings('withdraw_settings', 'withdraw_allowed_bonus');
+        $fee = site_settings('withdraw_settings', 'withdraw_fee_usdt');
+        if ($fee === null || $fee === '' || $fee === false) {
+            $fee = site_settings('withdraw_settings', 'withdraw_fee');
+        }
+
         return [
             'withdraw_status' => (int) site_settings('withdraw_settings', 'withdraw_status'),
-            'min_withdraw' => (float) str_replace(',', '', site_settings('withdraw_settings', 'min_withdraw')),
-            'max_withdraw' => (float) str_replace(',', '', site_settings('withdraw_settings', 'max_withdraw')),
-            'withdraw_fee' => (float) str_replace(',', '', site_settings('withdraw_settings', 'withdraw_fee')),
-            'withdraw_allowed_exchange' => (int) (site_settings('withdraw_settings', 'withdraw_allowed_exchange') ?: 1),
-            'withdraw_allowed_earning' => (int) (site_settings('withdraw_settings', 'withdraw_allowed_earning') ?: 1),
-            'withdraw_allowed_staking' => (int) (site_settings('withdraw_settings', 'withdraw_allowed_staking') ?: 0),
-            'withdraw_allowed_bonus' => (int) (site_settings('withdraw_settings', 'withdraw_allowed_bonus') ?: 0),
+            'min_withdraw' => (float) str_replace(',', '', (string) site_settings('withdraw_settings', 'min_withdraw')),
+            'max_withdraw' => (float) str_replace(',', '', (string) site_settings('withdraw_settings', 'max_withdraw')),
+            'withdraw_fee' => (float) str_replace(',', '', (string) $fee),
+            'withdraw_daily_limit' => (float) str_replace(',', '', (string) site_settings('withdraw_settings', 'withdraw_daily_limit')),
+            'withdraw_monthly_limit' => (float) str_replace(',', '', (string) site_settings('withdraw_settings', 'withdraw_monthly_limit')),
+            'withdraw_amount_type' => (int) site_settings('withdraw_settings', 'withdraw_amount_type'),
+            'auto_withdraw' => (int) site_settings('withdraw_settings', 'auto_withdraw'),
+            'withdraw_allowed_exchange' => ($allowed_exchange === null || $allowed_exchange === '' || $allowed_exchange === false) ? 1 : (int) $allowed_exchange,
+            'withdraw_allowed_earning' => ($allowed_earning === null || $allowed_earning === '' || $allowed_earning === false) ? 1 : (int) $allowed_earning,
+            'withdraw_allowed_staking' => ($allowed_staking === null || $allowed_staking === '' || $allowed_staking === false) ? 0 : (int) $allowed_staking,
+            'withdraw_allowed_bonus' => ($allowed_bonus === null || $allowed_bonus === '' || $allowed_bonus === false) ? 0 : (int) $allowed_bonus,
         ];
     }
 
@@ -128,6 +141,31 @@ class Bmanwithdraw_model extends CI_Model
             'pending' => (float) ($pending_row->s ?? 0),
             'paid' => (float) ($paid_row->s ?? 0),
         ];
+    }
+
+    public function limit_usage($user_id)
+    {
+        $user_id = (int) $user_id;
+        $statuses = ['pending', 'approved', 'processing', 'under_review', 'completed'];
+
+        return [
+            'daily_usdt' => (float) $this->_sum_requested_usdt_between($user_id, date('Y-m-d 00:00:00'), date('Y-m-d 23:59:59'), $statuses),
+            'monthly_usdt' => (float) $this->_sum_requested_usdt_between($user_id, date('Y-m-01 00:00:00'), date('Y-m-t 23:59:59'), $statuses),
+        ];
+    }
+
+    private function _sum_requested_usdt_between($user_id, $from, $to, array $statuses)
+    {
+        $row = $this->db->select('IFNULL(SUM(CASE WHEN bman_usdt_rate > 0 THEN (request_amount * bman_usdt_rate) ELSE usdt_amount END),0) AS s', false)
+            ->from('bman_withdraw_requests')
+            ->where('user_id', (int) $user_id)
+            ->where('created_at >=', $from)
+            ->where('created_at <=', $to)
+            ->where_in('status', $statuses)
+            ->get()
+            ->row_array();
+
+        return (string) ($row['s'] ?? '0');
     }
 
     /**
