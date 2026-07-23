@@ -90,7 +90,7 @@ class Rankreport_model extends CI_Model
 
     public function distribution()
     {
-        $rows = $this->db->select('r.tier_level, r.name AS rank_name, r.required_group_volume,
+        $rows = $this->db->select('r.id, r.tier_level, r.name AS rank_name, r.required_group_volume,
                                    r.group_incentive, r.badge_image, r.badge_color, COUNT(ur.id) AS members')
                          ->from('staking_ranks r')
                          ->join('user_ranks ur', 'ur.highest_rank_id = r.id', 'left')
@@ -104,6 +104,18 @@ class Rankreport_model extends CI_Model
             $r['percent'] = $total > 0 ? round((int)$r['members'] * 100 / $total, 2) : 0;
         }
         return $rows;
+    }
+
+    /** Members currently holding a given rank — for the dashboard's rank-table click-through popup. */
+    public function membersByRank($rankId, $limit = 200)
+    {
+        return $this->db->select('u.id, u.username, u.email, u.profile_img, ur.group_volume, ur.achieved_at')
+                         ->from('user_ranks ur')
+                         ->join('users u', 'u.id = ur.user_id')
+                         ->where('ur.highest_rank_id', (int) $rankId)
+                         ->order_by('ur.achieved_at', 'DESC')
+                         ->limit($limit)
+                         ->get()->result_array();
     }
 
     /* -------------------------- 2. top earners ------------------------- */

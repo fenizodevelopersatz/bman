@@ -706,7 +706,7 @@
       <div class="lists">
         <div class="list">
           <div class="panel-title" style="margin-bottom:10px;">
-            <h3>Recent Commissions</h3>
+            <h3>Wallet Transaction</h3>
             <span class="chip">Latest</span>
           </div>
 
