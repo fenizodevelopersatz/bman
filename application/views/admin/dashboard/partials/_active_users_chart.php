@@ -1,22 +1,13 @@
-<<<<<<< HEAD
 <!-- Chat Activity Trend: distinct users active per day. NOTE: users.last_active_at
      is a chat-poll heartbeat only (single writer: the Direct Chat tab), not a
      sitewide presence signal — labeled accordingly rather than as general
      "active users", which no column in this codebase actually tracks. -->
-=======
-<!-- Active Users Trend: distinct users active per day (users.last_active_at) -->
->>>>>>> 372c07e (Reset)
 <div class="col-xl-12">
   <div class="card card-flush h-md-100">
     <div class="card-header pt-5">
       <h3 class="card-title align-items-start flex-column">
-<<<<<<< HEAD
         <span class="card-label fw-bold text-gray-900">Chat Activity Trend — <span id="dash-activeusers-range-label">Last 30 Days</span></span>
         <span class="text-muted mt-1 fw-semibold fs-7">Distinct members active in Direct Chat per day</span>
-=======
-        <span class="card-label fw-bold text-gray-900">Active Users Trend — <span id="dash-activeusers-range-label">Last 30 Days</span></span>
-        <span class="text-muted mt-1 fw-semibold fs-7">Distinct members active per day</span>
->>>>>>> 372c07e (Reset)
       </h3>
       <div class="card-toolbar">
         <select id="dash-activeusers-range" class="form-select form-select-sm w-150px">

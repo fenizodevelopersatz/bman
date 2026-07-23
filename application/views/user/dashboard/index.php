@@ -58,6 +58,224 @@
       opacity: .65;
     }
 
+    body.share-modal-open {
+      overflow: hidden;
+    }
+
+    .dash-share-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 100000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(15, 18, 32, .42);
+      backdrop-filter: blur(8px);
+    }
+
+    .dash-share-backdrop.show {
+      display: flex;
+    }
+
+    .dash-share-modal {
+      width: min(440px, 100%);
+      border-radius: 26px;
+      background: #fff;
+      box-shadow: 0 28px 80px rgba(26, 24, 64, .28);
+      overflow: hidden;
+      animation: dashShareIn .18s ease both;
+    }
+
+    @keyframes dashShareIn {
+      from {
+        opacity: 0;
+        transform: translateY(12px) scale(.98);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .dash-share-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 20px;
+      color: #fff;
+      background: linear-gradient(135deg, #6c4cf1, #4e37d8);
+    }
+
+    .dash-share-head b {
+      display: block;
+      font-size: 16px;
+      font-weight: 1000;
+    }
+
+    .dash-share-head small {
+      display: block;
+      margin-top: 3px;
+      color: rgba(255, 255, 255, .76);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .dash-share-close {
+      width: 36px;
+      height: 36px;
+      border: 0;
+      border-radius: 14px;
+      color: #fff;
+      background: rgba(255, 255, 255, .16);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+    }
+
+    .dash-share-body {
+      padding: 18px;
+    }
+
+    .dash-share-tabs {
+      display: flex;
+      gap: 8px;
+      padding: 5px;
+      border-radius: 16px;
+      background: #f3f0ff;
+      margin-bottom: 14px;
+    }
+
+    .dash-share-tabs button {
+      flex: 1;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      color: #5d56a8;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 900;
+      padding: 10px;
+    }
+
+    .dash-share-tabs button.active {
+      background: #fff;
+      color: var(--primary);
+      box-shadow: 0 8px 18px rgba(93, 86, 168, .12);
+    }
+
+    .dash-share-link {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid #eeecff;
+      border-radius: 18px;
+      background: #fbfaff;
+    }
+
+    .dash-share-link input {
+      min-width: 0;
+      flex: 1;
+      border: 0;
+      outline: none;
+      color: #111827;
+      background: transparent;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .dash-share-link button,
+    .dash-share-actions button {
+      border: 0;
+      border-radius: 14px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .dash-share-link button {
+      width: 42px;
+      height: 42px;
+      color: #fff;
+      background: var(--primary);
+      display: grid;
+      place-items: center;
+    }
+
+    .dash-share-qr {
+      display: grid;
+      grid-template-columns: 116px minmax(0, 1fr);
+      gap: 14px;
+      align-items: center;
+      margin-top: 14px;
+      padding: 12px;
+      border: 1px dashed #dedafc;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #ffffff 0%, #f8f6ff 100%);
+    }
+
+    .dash-share-qr-box {
+      width: 104px;
+      height: 104px;
+      display: grid;
+      place-items: center;
+      padding: 8px;
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 12px 30px rgba(93, 86, 168, .10);
+    }
+
+    .dash-share-qr-box canvas,
+    .dash-share-qr-box img {
+      width: 88px !important;
+      height: 88px !important;
+      display: block;
+    }
+
+    .dash-share-qr-text b {
+      display: block;
+      color: #111827;
+      font-size: 13px;
+      font-weight: 1000;
+    }
+
+    .dash-share-qr-text small {
+      display: block;
+      margin-top: 4px;
+      color: #8a8f99;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .dash-share-note {
+      margin: 12px 0 0;
+      color: #8a8f99;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    .dash-share-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .dash-share-actions button {
+      padding: 12px 10px;
+      color: #111827;
+      background: #f7f6ff;
+    }
+
+    .dash-share-actions button.primary {
+      color: #fff;
+      background: #111;
+    }
+
     /* ---------- Default: keep desktop as-is ---------- */
 
     /* ---------- Tablet (<= 992px) ---------- */
@@ -223,6 +441,16 @@
 
       .binary-period button {
         flex: 1;
+      }
+
+      .dash-share-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .dash-share-qr {
+        grid-template-columns: 1fr;
+        justify-items: center;
+        text-align: center;
       }
 
       /* Team snapshot -> 2 columns */
@@ -752,7 +980,7 @@
         </div>
       </div>
 
-      <!-- Recent Commissions + Recent Orders -->
+      <!-- Wallet Transactions + Recent Orders -->
       <div class="lists">
         <div class="list">
           <div class="panel-title" style="margin-bottom:10px;">
@@ -761,7 +989,7 @@
           </div>
 
           <!-- AJAX will fill here -->
-          <div id="recent_commissions_list">
+          <div id="recent_wallet_transactions_list">
             <div class="row-item">
               <div class="left">
                 <div class="bullet"><i class="ph ph-link"></i></div>
@@ -776,9 +1004,9 @@
             </div>
           </div>
 
-          <button id="btn_view_all_commissions" class="btn-full"
-            onclick="window.location.href='<?= base_url('commissions'); ?>'">
-            View All Commissions
+          <button id="btn_view_all_wallet_transactions" class="btn-full"
+            onclick="window.location.href='<?= base_url('user/wallet'); ?>'">
+            View All Wallet Transactions
           </button>
         </div>
 
@@ -817,6 +1045,55 @@
       <?php $this->load->view('user/layout/v2/user_inner_right_panle'); ?>
     </aside>
   </div>
+
+  <div class="dash-share-backdrop" id="dashShareModal" aria-hidden="true">
+    <div class="dash-share-modal" role="dialog" aria-modal="true" aria-labelledby="dashShareTitle">
+      <div class="dash-share-head">
+        <div>
+          <b id="dashShareTitle">Invite Member</b>
+          <small id="dashShareSubtitle">Share your selected referral leg</small>
+        </div>
+        <button class="dash-share-close" type="button" onclick="closeDashSharePopup()" aria-label="Close share popup">
+          <i class="ph ph-x"></i>
+        </button>
+      </div>
+      <div class="dash-share-body">
+        <div class="dash-share-tabs" role="group" aria-label="Referral leg">
+          <button type="button" id="dashShareLeftTab" class="active" onclick="setDashSharePopupSide('left')">Left Leg</button>
+          <button type="button" id="dashShareRightTab" onclick="setDashSharePopupSide('right')">Right Leg</button>
+        </div>
+
+        <div class="dash-share-link">
+          <input id="dashShareLink" type="text" readonly value="">
+          <button type="button" onclick="copyText(dashRefSide)" title="Copy referral link">
+            <i class="ph ph-copy"></i>
+          </button>
+        </div>
+
+        <div class="dash-share-qr">
+          <div class="dash-share-qr-box" id="dashShareQr" aria-label="Referral QR code"></div>
+          <div class="dash-share-qr-text">
+            <b>Scan QR to join</b>
+            <small id="dashShareQrLabel">This QR updates automatically for the selected referral leg.</small>
+          </div>
+        </div>
+
+        <p class="dash-share-note">
+          Send this link to invite a new member into the selected leg. Use Copy Link first, or open the link to preview it.
+        </p>
+
+        <div class="dash-share-actions">
+          <button class="primary" type="button" onclick="copyText(dashRefSide)">
+            <i class="ph ph-copy"></i> Copy Link
+          </button>
+          <button type="button" onclick="openLink(dashRefSide)">
+            <i class="ph ph-arrow-square-out"></i> Open Link
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- <script src="https://code.jquery.com/jquery-3.7.1.min.js"
     integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script> -->
@@ -832,6 +1109,7 @@
   <script src="<?php echo base_url(); ?>/assets/user/js/widgets.bundle.js"></script>
   <script src="<?php echo base_url(); ?>/assets/user/js/custom/widgets.js"></script>
   <!--end::Global Javascript Bundle-->
+  <script src="<?php echo base_url('assets/js/vendor/qrcode.min.js'); ?>"></script>
   <script>
     const base_url = "<?php echo base_url(); ?>";
     const agent_id = "<?php echo $this->session->userdata('user_get_id'); ?>";
@@ -1099,8 +1377,123 @@
       });
     }
 
+    function walletTransactionIcon(tx) {
+      const title = String((tx && tx.title) || '').toLowerCase();
+      const flow = String((tx && tx.flow) || '').toUpperCase();
+
+      if (flow === 'DEBIT') return 'ph-arrow-circle-up';
+      if (title.includes('deposit')) return 'ph-arrow-circle-down';
+      if (title.includes('transfer')) return 'ph-arrows-left-right';
+      if (title.includes('bonus')) return 'ph-gift';
+      if (title.includes('roi') || title.includes('earn')) return 'ph-trend-up';
+      return 'ph-wallet';
+    }
+
+    function walletFlowClass(flow) {
+      return String(flow || '').toUpperCase() === 'DEBIT' ? 'ship' : 'success';
+    }
+
+    function walletFlowLabel(flow) {
+      return String(flow || '').toUpperCase() === 'DEBIT' ? 'OUTGOING' : 'INCOMING';
+    }
+
+    function loadRecentWalletTransactions() {
+      $.ajax({
+        url: "<?= base_url('user/recentWalletTransactionsAjax'); ?>",
+        type: "GET",
+        dataType: "json",
+        data: { limit: 5 },
+        success: function (res) {
+          $('#btn_view_all_wallet_transactions').hide();
+
+          if (!res || res.status !== true) {
+            $('#recent_wallet_transactions_list').html(`
+          <div class="row-item">
+            <div class="left">
+              <div class="bullet"><i class="ph ph-warning"></i></div>
+              <div class="txt">
+                <b>No Wallet Transactions</b>
+                <small>Nothing found</small>
+              </div>
+            </div>
+            <div class="amount">
+              <small><span class="status failed">EMPTY</span></small>
+            </div>
+          </div>
+        `);
+            return;
+          }
+
+          const list = res.transactions || [];
+          if (list.length === 0) {
+            $('#recent_wallet_transactions_list').html(`
+          <div class="row-item">
+            <div class="left">
+              <div class="bullet"><i class="ph ph-wallet"></i></div>
+              <div class="txt">
+                <b>No Wallet Transactions</b>
+                <small>Try later</small>
+              </div>
+            </div>
+            <div class="amount">
+              <small><span class="status pending">NONE</span></small>
+            </div>
+          </div>
+        `);
+            return;
+          }
+
+          $('#btn_view_all_wallet_transactions').show();
+          let html = '';
+
+          list.forEach(tx => {
+            const icon = walletTransactionIcon(tx);
+            const flowLabel = walletFlowLabel(tx.flow);
+            const flowClass = walletFlowClass(tx.flow);
+            const peer = tx.address_short ? `${flowLabel === 'INCOMING' ? 'From' : 'To'}: ${escapeHtml(tx.address_short)}` : '';
+            const meta = `${escapeHtml(tx.date_text || '')}${tx.tx_short ? ' - TX: ' + escapeHtml(tx.tx_short) : ''}${peer ? ' - ' + peer : ''}`;
+
+            html += `
+          <div class="row-item">
+            <div class="left">
+              <div class="bullet"><i class="ph ${escapeHtml(icon)}"></i></div>
+              <div class="txt">
+                <b>${escapeHtml(tx.title || 'Wallet Transaction')}</b>
+                <small>${meta}</small>
+              </div>
+            </div>
+            <div class="amount">
+              ${escapeHtml(tx.token_symbol || 'USDT')} ${escapeHtml(tx.amount || '0.00')}
+              <small><span class="status ${flowClass}">${escapeHtml(flowLabel)}</span></small>
+            </div>
+          </div>
+        `;
+          });
+
+          $('#recent_wallet_transactions_list').html(html);
+        },
+        error: function () {
+          $('#btn_view_all_wallet_transactions').hide();
+          $('#recent_wallet_transactions_list').html(`
+        <div class="row-item">
+          <div class="left">
+            <div class="bullet"><i class="ph ph-warning"></i></div>
+            <div class="txt">
+              <b>Failed to load</b>
+              <small>Check wallet API</small>
+            </div>
+          </div>
+          <div class="amount">
+            <small><span class="status failed">ERROR</span></small>
+          </div>
+        </div>
+      `);
+        }
+      });
+    }
+
     $(document).ready(function () {
-      loadRecentCommissions();
+      loadRecentWalletTransactions();
     });
 
 
@@ -1127,6 +1520,11 @@
       });
       var input = document.getElementById('referral_link');
       if (input) input.value = getLink(dashRefSide);
+
+      var modal = document.getElementById('dashShareModal');
+      if (modal && modal.classList.contains('show')) {
+        renderDashSharePopup();
+      }
     }
 
     function getLink(side) {
@@ -1166,20 +1564,102 @@
       window.open(url, '_blank');
     }
 
-    async function shareLink(side) {
-      const url = getLink(side);
-      if (!url) return toastMini("Link not available");
+    function renderReferralQr(container, url, size) {
+      if (!container) return;
+      container.innerHTML = '';
 
-      if (navigator.share) {
-        try {
-          await navigator.share({ title: "Join my team", text: "Use my referral link to join:", url });
-        } catch (e) { /* user cancelled the native share sheet — not an error */ }
+      if (!url) {
+        container.innerHTML = '<i class="ph ph-qr-code" aria-hidden="true"></i>';
         return;
       }
 
-      // No Web Share API (e.g. desktop browsers) — copy the link instead.
-      // copyText() shows its own success/failure toast.
-      await copyText(side);
+      if (typeof QRCode !== 'undefined') {
+        new QRCode(container, {
+          text: url,
+          width: size,
+          height: size,
+          colorDark: '#111827',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel ? QRCode.CorrectLevel.H : 2
+        });
+        return;
+      }
+
+      const img = document.createElement('img');
+      img.alt = 'Referral QR code';
+      img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&data=' + encodeURIComponent(url);
+      container.appendChild(img);
+    }
+
+    function renderDashSharePopup() {
+      const url = getLink(dashRefSide);
+      const input = document.getElementById('dashShareLink');
+      const subtitle = document.getElementById('dashShareSubtitle');
+      const qr = document.getElementById('dashShareQr');
+      const qrLabel = document.getElementById('dashShareQrLabel');
+      const leftTab = document.getElementById('dashShareLeftTab');
+      const rightTab = document.getElementById('dashShareRightTab');
+      const isRight = dashRefSide === 'right';
+
+      if (input) input.value = url;
+      if (subtitle) subtitle.textContent = 'Sharing ' + (isRight ? 'Right Leg' : 'Left Leg') + ' referral link';
+      if (qrLabel) qrLabel.textContent = 'QR for ' + (isRight ? 'Right Leg' : 'Left Leg') + ' referral link.';
+      renderReferralQr(qr, url, 88);
+      if (leftTab) leftTab.classList.toggle('active', !isRight);
+      if (rightTab) rightTab.classList.toggle('active', isRight);
+    }
+
+    function setDashSharePopupSide(side) {
+      selectDashRefTab(side);
+      renderDashSharePopup();
+    }
+
+    function openDashSharePopup(side) {
+      const modal = document.getElementById('dashShareModal');
+      if (!modal) return;
+
+      selectDashRefTab(side);
+      renderDashSharePopup();
+      modal.classList.add('show');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('share-modal-open');
+
+      const input = document.getElementById('dashShareLink');
+      if (input) {
+        setTimeout(function () { input.focus(); input.select(); }, 50);
+      }
+    }
+
+    function closeDashSharePopup() {
+      const modal = document.getElementById('dashShareModal');
+      if (!modal) return;
+
+      modal.classList.remove('show');
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('share-modal-open');
+    }
+
+    function initDashSharePopup() {
+      const modal = document.getElementById('dashShareModal');
+      if (!modal) return;
+
+      modal.addEventListener('click', function (event) {
+        if (event.target === modal) {
+          closeDashSharePopup();
+        }
+      });
+
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && modal.classList.contains('show')) {
+          closeDashSharePopup();
+        }
+      });
+    }
+
+    function shareLink(side) {
+      const url = getLink(side);
+      if (!url) return toastMini("Link not available");
+      openDashSharePopup(side);
     }
 
     function copyAllRefs() {
@@ -1286,8 +1766,12 @@
     }
 
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initBinarySummaryFilter);
+      document.addEventListener('DOMContentLoaded', function () {
+        initDashSharePopup();
+        initBinarySummaryFilter();
+      });
     } else {
+      initDashSharePopup();
       initBinarySummaryFilter();
     }
   </script>

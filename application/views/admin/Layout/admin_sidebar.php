@@ -216,7 +216,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               </div>
 
               <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>withdraw-requests">
+                <a class="menu-link" href="<?php echo base_url('admin/bman-withdrawals'); ?>">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Withdraw Request</span>
                   <span class="badge badge-circle badge-danger fs-9 ms-2 d-none" data-dashboard-badge="withdrawals">0</span>
