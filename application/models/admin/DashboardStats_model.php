@@ -231,6 +231,7 @@ class DashboardStats_model extends CI_Model
         ];
     }
 
+<<<<<<< HEAD
     /**
      * Daily chat-activity trend: distinct users whose last_active_at falls on
      * each day. NOTE: last_active_at is a chat-poll heartbeat only (single
@@ -238,6 +239,9 @@ class DashboardStats_model extends CI_Model
      * presence signal, so the dashboard must label it as chat activity, not
      * "active users" generally (see onlineMembers() below, same caveat).
      */
+=======
+    /** Daily-active-user trend: distinct users whose last_active_at falls on each day. */
+>>>>>>> 372c07e (Reset)
     public function activeUserTrend($days = 30)
     {
         $days = max(1, (int) $days);
