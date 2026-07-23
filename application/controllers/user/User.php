@@ -112,11 +112,12 @@ class User extends CI_Controller
 			$this->load->model('user/Memberrank_model', 'mr');
 			$this->data['rank_summary'] = $this->mr->sidebar($userid);
 
-			// Binary Summary (staking-purchase counts per leg) + Team Snapshot
-			// (member counts per leg) — both scoped to the same "this week"
-			// window (last 7 days) so the two panels agree with each other.
+			// Binary Summary must match Binary Tree leg investment semantics:
+			// exchange-wallet BMAN totals by left/right downline.
+			list($bs, $be) = $this->BinaryModel->getThisWeekRange();
+			$this->data['leg_investments'] = $this->BinaryModel->getLegExchangeWalletBman($userid, $bs, $be);
+
 			list($ws, $we) = $this->BinaryModel->getWeekRange();
-			$this->data['leg_stakes'] = $this->BinaryModel->countLegStakePurchases($userid, $ws, $we);
 			$this->data['team_snapshot'] = $this->BinaryModel->getTeamSnapshotWeekly($userid, $ws, $we);
 
 			$this->load->view('user/dashboard/index', $this->data);
@@ -1165,14 +1166,76 @@ class User extends CI_Controller
 
 
 	/**
-	 * GET user/recentOrdersAjax?limit=4 — the member's recent STAKING PURCHASES.
+	 * GET user/binarySummaryAjax?period=week|month - Binary Summary BMAN totals.
+	 * Returns the same left/right leg investment totals shown on Binary Tree.
+	 */
+	public function binarySummaryAjax()
+	{
+		$user_id = (int) ($this->session->userdata('user_userid') ?? 0);
+		if ($user_id <= 0) {
+			return $this->_json([
+				'status' => false,
+				'message' => 'Unauthorized'
+			]);
+		}
+
+		$period = strtolower((string) ($this->input->get('period', true) ?? 'week'));
+		if (!in_array($period, ['week', 'month'], true)) {
+			$period = 'week';
+		}
+
+		if ($period === 'month') {
+			list($from, $to) = $this->BinaryModel->getMonthRange();
+			$label = 'This Month';
+			$progress_title = 'Monthly Pair Target Progress';
+		} else {
+			list($from, $to) = $this->BinaryModel->getThisWeekRange();
+			$label = 'This Week';
+			$progress_title = 'Weekly Pair Target Progress';
+		}
+
+		try {
+			$totals = $this->BinaryModel->getLegExchangeWalletBman($user_id, $from, $to);
+			$left = (float) ($totals['left_bman'] ?? 0);
+			$right = (float) ($totals['right_bman'] ?? 0);
+			$total = $left + $right;
+			$progress = $total > 0 ? round((min($left, $right) / $total) * 100, 2) : 0;
+			$left_strong = $left >= $right;
+
+			return $this->_json([
+				'status' => true,
+				'period' => $period,
+				'label' => $label,
+				'from' => $from,
+				'to' => $to,
+				'left_bman' => $left,
+				'right_bman' => $right,
+				'left_bman_text' => number_format($left, 2),
+				'right_bman_text' => number_format($right, 2),
+				'left_strength' => $left_strong ? 'STRONG' : 'WEAK',
+				'right_strength' => $left_strong ? 'WEAK' : 'STRONG',
+				'progress' => $progress,
+				'progress_text' => rtrim(rtrim(number_format($progress, 2), '0'), '.') . '%',
+				'progress_title' => $progress_title
+			]);
+		} catch (Throwable $e) {
+			log_message('error', 'binarySummaryAjax: ' . $e->getMessage());
+			return $this->_json([
+				'status' => false,
+				'message' => 'Could not load binary summary.'
+			]);
+		}
+	}
+
+	/**
+	 * GET user/recentOrdersAjax?limit=4 - the member's recent STAKING PURCHASES.
 	 *
 	 * Was listing e-commerce `orders` (shop products, shipment status, BV per
 	 * product). This platform's "orders" are staking purchases, so it now reads
 	 * staking_swap_orders and reports the plan, term, BMAN bought and the swap
 	 * state.
 	 *
-	 * Session key: user_userid — the same key index() and every other member
+	 * Session key: user_userid - the same key index() and every other member
 	 * endpoint uses. The old code read 'user_get_id', which is set at login but
 	 * is a second, parallel key; standardising avoids one going stale.
 	 */
