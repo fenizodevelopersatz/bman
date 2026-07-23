@@ -609,6 +609,12 @@ class Custodialwallet_model extends CI_Model
             ]);
 
             $ch = curl_init($api_url . '?' . $q);
+            
+            $full_url = $api_url . '?' . $q;
+
+            // Runtime log
+            log_message('info', '[ETHERSCANAPIFULLURL] ' . $full_url);
+
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT => 25,
@@ -630,6 +636,8 @@ class Custodialwallet_model extends CI_Model
                 continue;
             }
 
+            // log_message('info', "SATZCHECKLOG Fetched " . count($data['result']) . " transactions for " . print_r($data, true));
+            
             // Process each transaction
             foreach ($data['result'] as $tx) {
                 // Only store incoming transfers
