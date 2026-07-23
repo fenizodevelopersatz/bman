@@ -833,10 +833,9 @@ class Genealogycontroller extends MY_Controller
         $auto_withdraw = (int) site_settings('withdraw_settings', 'auto_withdraw');
 
         // ===== Wallets =====
-        // maturity_breakdown() is the hold-aware source: each wallet's
-        // "_withdrawable" figure already has active bman_wallet_ledger locks
-        // and completed-withdrawal debits subtracted, so the 4 wallet cards
-        // and the cumulative Available BMAN Balance always agree.
+        // Withdrawal conversion is Exchange-only. Keep all BMAN wallet cards
+        // visible, but the available payout balance must come from the
+        // exchange withdrawable figure only.
         $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
         $available_amount_raw = $this->bmanwithdraw->available_balance($id);
         $available_amount = (float) $available_amount_raw;
