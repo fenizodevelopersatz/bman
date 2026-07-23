@@ -133,12 +133,12 @@
                                                         </td>
                                                         <td>
                                                             <div><?= number_format((float)$row['request_amount'], 4); ?> BMAN</div>
-                                                            <small class="text-muted">Fee: <?= number_format((float)$row['fee_amount'], 4); ?></small><br>
-                                                            <small class="text-muted">Net: <?= number_format((float)$row['net_amount'], 4); ?></small>
+                                                            <small class="text-muted">Fee: <?= number_format((float)$row['fee_amount'], 4); ?> USDT</small><br>
+                                                            <small class="text-muted">Net: <?= number_format((float)$row['net_amount'], 4); ?> USDT</small>
                                                         </td>
                                                         <td>
                                                             <div><?= number_format((float)$row['usdt_amount'], 2); ?> USDT</div>
-                                                            <small class="text-muted">Rate: <?= number_format((float)$row['bman_usdt_rate'], 4); ?></small>
+                                                            <small class="text-muted">Rate: <?= number_format((float)$row['bman_usdt_rate'], 4); ?> USDT/BMAN</small>
                                                         </td>
                                                         <td>
                                                             <?php

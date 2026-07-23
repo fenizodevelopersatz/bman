@@ -91,10 +91,10 @@
                                             </div>
                                             <div class="col-md-6">
                                                 <p><strong>Amount:</strong> <?= number_format((float)$row['request_amount'], 4); ?> BMAN</p>
-                                                <p><strong>Fee:</strong> <?= number_format((float)$row['fee_amount'], 4); ?> BMAN</p>
-                                                <p><strong>Net Amount:</strong> <?= number_format((float)$row['net_amount'], 4); ?> BMAN</p>
+                                                <p><strong>Fee:</strong> <?= number_format((float)$row['fee_amount'], 4); ?> USDT</p>
+                                                <p><strong>Net Amount:</strong> <?= number_format((float)$row['net_amount'], 4); ?> USDT</p>
                                                 <p><strong>USDT Amount:</strong> <?= number_format((float)$row['usdt_amount'], 2); ?> USDT</p>
-                                                <p><strong>USDT Rate:</strong> <?= number_format((float)($row['bman_usdt_rate'] ?? 0), 8); ?></p>
+                                                <p><strong>USDT Rate:</strong> <?= number_format((float)($row['bman_usdt_rate'] ?? 0), 8); ?> USDT/BMAN</p>
                                             </div>
                                         </div>
                                     </div>

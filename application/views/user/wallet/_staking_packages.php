@@ -254,12 +254,12 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         <div class="stkm-pane active" data-step="1"><label>Select Package</label><div class="stkm-packages" id="stkm-packages"></div><div class="stkm-note">Choose a package to continue to plan selection.</div></div>
         <div class="stkm-pane" data-step="2"><label>ROI Plan Type</label><div class="stkm-seg" id="stkm-roi-plans"></div><div class="stkm-note">Choose how you want to receive your ROI returns</div><label>Term</label><div class="stkm-seg" id="stkm-terms"></div></div>
       <div class="stkm-pane" data-step="3">
-        <label>Coin Distribution</label>
+        <label>Coin Distribution Options (10%)</label>
         <div class="stkm-seg" id="stkm-distributions"></div>
         <div style="background:#f8fafc;border:1px solid rgba(15,23,42,.08);border-radius:14px;padding:14px 16px;margin:12px 0;margin-top:16px;">
           <div style="font-size:13px;font-weight:800;color:#334155;line-height:1.6;" id="stkm-distribution-desc">Select an option above</div>
         </div>
-        <div class="stkm-note">Distribution preview allocates 100% of the purchased BMAN across wallets. Instant bonus is shown separately and remains the only liquid bonus balance.</div>
+        <div class="stkm-note">Only options with a 10% Bonus Wallet distribution are shown. The 25% package bonus is separate and is shown as Instant Bonus.</div>
       </div>
       <div class="stkm-pane" data-step="4">
         <!-- ROI Details Section -->
@@ -307,7 +307,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
           <div class="stkm-row roi"><span>ROI (this plan/term)</span><b id="stkm-roi">?</b></div>
           <div class="stkm-row"><span>Cost</span><b id="stkm-cost">? USDT</b></div>
           <div class="stkm-row"><span><?= $isSwap ? 'BMAN ? Exchange Wallet' : 'Locked into Staking Wallet' ?></span><b id="stkm-lock">? BMAN</b></div>
-          <div class="stkm-row"><span>Bonus ? Bonus Wallet</span><b id="stkm-bonus">? BMAN</b></div>
+          <div class="stkm-row"><span>Distribution Bonus Wallet (10%)</span><b id="stkm-bonus">? BMAN</b></div>
           <div class="stkm-row"><span>Instant Bonus (25%)</span><b id="stkm-instant">? BMAN</b></div>
           <div class="stkm-row"><span>Your USDT Balance</span><b id="stkm-bal">? USDT</b></div>
           <div class="stkm-warn" id="stkm-warn">Insufficient USDT balance ? deposit USDT first.</div>
@@ -350,7 +350,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     if (f <= 0 || r <= 0 || Math.abs((f + r) - 100) > 0.001) return { fixed: 50, regular: 50 };
     return { fixed: f, regular: r };
   }
-  const DISTS = <?= json_encode(array_reduce($coin_distribution_options ?? [], function($carry, $opt){
+  const RAW_DISTS = <?= json_encode(array_reduce($coin_distribution_options ?? [], function($carry, $opt){
     $carry[(int)$opt['id']] = [
       'name' => $opt['option_name'],
       'exchange' => (float)$opt['exchange_percentage'],
@@ -359,7 +359,14 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
       'bonus' => (float)$opt['bonus_percentage'],
     ];
     return $carry;
-  }, [])) ?> || {1:{name:'Option 1',exchange:100,earning:0,staking:0,bonus:0},2:{name:'Option 2',exchange:80,earning:10,staking:5,bonus:5},3:{name:'Option 3',exchange:70,earning:15,staking:10,bonus:5},4:{name:'Option 4',exchange:60,earning:20,staking:10,bonus:10},5:{name:'Option 5',exchange:50,earning:20,staking:20,bonus:10},6:{name:'Option 6',exchange:40,earning:30,staking:20,bonus:10},7:{name:'Option 7',exchange:70,earning:10,staking:10,bonus:10}};
+  }, [])) ?> || {};
+  const FALLBACK_DISTS = {
+    2:{name:'Option 2',exchange:90,earning:0,staking:0,bonus:10},
+    3:{name:'Option 3',exchange:80,earning:10,staking:0,bonus:10},
+    7:{name:'Option 7',exchange:70,earning:10,staking:10,bonus:10}
+  };
+  const DISTS = Object.fromEntries(Object.entries(RAW_DISTS).filter(([, v]) => Math.abs((Number(v.bonus) || 0) - 10) < 0.001));
+  if (!Object.keys(DISTS).length) Object.assign(DISTS, FALLBACK_DISTS);
   // Plan descriptions only (which plans are actually offered — and what
   // durations each one offers — comes from PLANS, server-filtered to
   // is_active=1 so a plan the admin deactivates on Staking Plans stops
@@ -522,23 +529,25 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     if($('stkm-bw-staking')) $('stkm-bw-staking').textContent=Number(dist.staking).toLocaleString()+' BMAN';
     if($('stkm-bw-bonus')) $('stkm-bw-bonus').textContent=Number(dist.bonus).toLocaleString()+' BMAN';
     if($('stkm-bw-earning')) $('stkm-bw-earning').textContent=Number(dist.earning).toLocaleString()+' BMAN';
+    if($('stkm-bonus')) $('stkm-bonus').textContent=Number(dist.bonus).toLocaleString()+' BMAN';
     if($('stkm-instant')) $('stkm-instant').textContent=Number(dist.instant).toLocaleString()+' BMAN';
     renderROIDetails();
   }
   function getDistDescription(dist){
     const parts = [];
-    if(dist.exchange > 0) parts.push(dist.exchange.toFixed(0) + '% Exchange');
-    if(dist.earning > 0) parts.push(dist.earning.toFixed(0) + '% Earning');
-    if(dist.staking > 0) parts.push(dist.staking.toFixed(0) + '% Staking');
-    if(dist.bonus > 0) parts.push(dist.bonus.toFixed(0) + '% Bonus');
-    return parts.length > 0 ? parts.join(' + ') : 'No allocation';
+    if(Math.abs((Number(dist.exchange) || 0) - 10) < 0.001) parts.push('10% Exchange');
+    if(Math.abs((Number(dist.earning) || 0) - 10) < 0.001) parts.push('10% Earning');
+    if(Math.abs((Number(dist.staking) || 0) - 10) < 0.001) parts.push('10% Staking');
+    if(Math.abs((Number(dist.bonus) || 0) - 10) < 0.001) parts.push('10% Bonus');
+    return parts.length > 0 ? parts.join(' + ') : 'No 10% wallet allocation';
   }
   function renderDistDescription(){
     const desc=$('stkm-distribution-desc');
     if(!desc) return;
     const selected = DISTS[cur.dist];
     if(selected) {
-      desc.textContent = getDistDescription(selected);
+      desc.innerHTML = getDistDescription(selected) +
+        '<div style="font-size:11px;font-weight:800;color:#64748b;margin-top:6px;">Remaining principal stays in Exchange Wallet. Instant 25% package bonus is shown separately.</div>';
     }
   }
   function renderDistButtons(){ $('stkm-distributions').innerHTML=''; Object.entries(DISTS).forEach(([k,v])=>{ const b=document.createElement('button'); b.type='button'; b.textContent=v.name; b.dataset.dist=k; b.onclick=()=>{ cur.dist=+k; document.querySelectorAll('#stkm-distributions button').forEach(x=>x.classList.toggle('active', +x.dataset.dist===+k)); renderDistDescription(); renderLive(); renderStep(3); }; $('stkm-distributions').appendChild(b); }); document.querySelectorAll('#stkm-distributions button').forEach(b=>b.classList.toggle('active', +b.dataset.dist===cur.dist)); renderDistDescription(); }
@@ -600,7 +609,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     renderStep(1);
   };
   window.stkClose = ()=> $('stkm').classList.remove('open');
-  function quote(){ const fd=new FormData(); fd.append('package_id',cur.pkg.id); fetch(BASE+'user/lending/stake_quote',{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{ if(!j.status){ $('stkm-cost').textContent=j.message||'?'; return; } cur.usdt=j.usdt; cur.bal=j.usdt_balance; cur.quote=j; $('stkm-cost').textContent = Number(j.usdt).toLocaleString(undefined,{maximumFractionDigits:4})+' USDT'; $('stkm-lock').textContent = Number(j.bman).toLocaleString()+' BMAN'; $('stkm-bonus').textContent= Number(j.bonus).toLocaleString()+' BMAN'; $('stkm-bal').textContent  = Number(j.usdt_balance).toLocaleString(undefined,{maximumFractionDigits:2})+' USDT'; const bw = j.bman_wallets||{}; ['exchange','staking','bonus','earning'].forEach(function(w){ const el=$('stkm-bw-'+w); if(el) el.textContent=Number(bw[w]||0).toLocaleString()+' BMAN'; }); const short = j.usdt_balance + 1e-8 < j.usdt; $('stkm-warn').style.display = short?'block':'none'; $('stkm-go').disabled = short; renderLive(); }).catch(()=>{ $('stkm-cost').textContent='Quote failed'; }); }
+  function quote(){ const fd=new FormData(); fd.append('package_id',cur.pkg.id); fetch(BASE+'user/lending/stake_quote',{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{ if(!j.status){ $('stkm-cost').textContent=j.message||'?'; return; } cur.usdt=j.usdt; cur.bal=j.usdt_balance; cur.quote=j; $('stkm-cost').textContent = Number(j.usdt).toLocaleString(undefined,{maximumFractionDigits:4})+' USDT'; $('stkm-lock').textContent = Number(j.bman).toLocaleString()+' BMAN'; $('stkm-bal').textContent  = Number(j.usdt_balance).toLocaleString(undefined,{maximumFractionDigits:2})+' USDT'; const bw = j.bman_wallets||{}; ['exchange','staking','bonus','earning'].forEach(function(w){ const el=$('stkm-bw-'+w); if(el) el.textContent=Number(bw[w]||0).toLocaleString()+' BMAN'; }); const short = j.usdt_balance + 1e-8 < j.usdt; $('stkm-warn').style.display = short?'block':'none'; $('stkm-go').disabled = short; renderLive(); }).catch(()=>{ $('stkm-cost').textContent='Quote failed'; }); }
   $('stkm-back').onclick = function(){ if(cur.step>1) renderStep(cur.step-1); };
   $('stkm-next').onclick = function(){ if(cur.step<4) renderStep(cur.step+1); };
   window.stkConfirm = function(){

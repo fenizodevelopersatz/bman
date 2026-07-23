@@ -218,12 +218,19 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                             class="menu-title">External Deposit</span>
                         </a>
                       </div>
-                      <div class="menu-item">
+                      <!-- <div class="menu-item">
                         <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/treasury-send">
                           <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                             class="menu-title">Treasury Direct Send</span>
                         </a>
-                      </div>
+                      </div> -->
+
+                        <div class="menu-item">
+                          <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet-monitor">
+                            <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                              class="menu-title">Wallet Monitor</span>
+                          </a>
+                        </div>
                     </div>
                   </div>
                 </div>
@@ -271,21 +278,9 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
 
               <hr class="my-3 mx-2 opacity-25">
 
-              <!-- ============ Remaining items (not part of the organized structure above) ============ -->
+              <!-- ============ Remaining items (not part of the organized structure above) ============ -->              
 
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/internal-transfers">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Internal Wallet Transfer</span>
-                </a>
-              </div>
 
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet-monitor">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Wallet Monitor</span>
-                </a>
-              </div>
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet/admin-wallet">
