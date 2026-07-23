@@ -1374,9 +1374,7 @@ function wallet_title_fallback($type)
                 <span id="wallet-sync-state" style="font-size:12px;color:#5d56a8;font-weight:1000;"><?= $hasPending ? 'Needs review' : 'Up to date'; ?></span>
               </div>
               <div class="legend">
-                <div class="lg"><span><span class="dot"></span> On-chain USDT</span><small id="onchain-usdt"><?= htmlspecialchars((string)$onchainUsdt); ?></small></div>
-                <div class="lg"><span><span class="dot alt"></span> DB USDT</span><small id="db-usdt"><?= htmlspecialchars((string)$dbUsdt); ?></small></div>
-                <div class="lg"><span><span class="dot alt2"></span> Difference</span><small id="usdt-diff"><?= htmlspecialchars((string)$diffUsdt); ?></small></div>
+                <div class="lg"><span><span class="dot"></span> On-chain USDT</span><small id="onchain-usdt"><?= htmlspecialchars((string)$onchainUsdt); ?></small></div>                
               </div>
               <div class="legend" style="margin-top:12px;">
                 <div class="lg"><span><span class="dot"></span> BNB</span><small id="onchain-bnb"><?= htmlspecialchars((string)$onchainBnb); ?></small></div>
@@ -1624,7 +1622,7 @@ function wallet_title_fallback($type)
                   Wallet</span><small><?= $currency; ?>
                   <?= number_format($main_balance ?? 0, 2); ?></small></div>
               <div class="lg"><span><span class="dot alt"></span>
-                  Commission</span><small><?= $currency; ?>
+                  ROI</span><small><?= $currency; ?>
                   <?= number_format($commission_balance ?? 0, 2); ?></small></div>
               <div class="lg"><span><span class="dot alt2"></span>
                   Bonus</span><small><?= $currency; ?>
@@ -1640,11 +1638,14 @@ function wallet_title_fallback($type)
             <div style="display:grid;gap:10px;margin-top:10px;">
               <button class="btn-main" type="button" onclick="location.href='<?= base_url('user/withdraw'); ?>'"><i
                   class="ph ph-money"></i> Withdraw Now</button>
+                  <button class="btn-soft" type="button" onclick="location.href='<?= base_url('user/main'); ?>'"><i
+                  class="ph ph-fill ph-squares-four"></i> Dashboard</button>
               <button class="btn-soft" type="button"
                 onclick="location.href='<?= base_url('user/transfer_wallet'); ?>'"><i
                   class="ph ph-arrows-left-right"></i> Transfer Wallet</button>
-              <button class="btn-soft" type="button" onclick="location.href='<?= base_url('user/profit'); ?>'"><i
-                  class="ph ph-coins"></i> View Commissions</button>
+              <button class="btn-soft" type="button" onclick="location.href='<?= base_url('user/withdraw'); ?>'"><i
+                  class="ph ph-coins"></i> Payout</button>
+
             </div>
           </div>
 

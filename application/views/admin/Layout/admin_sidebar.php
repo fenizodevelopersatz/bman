@@ -34,6 +34,20 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
     .bman-admin-logout{margin-top:12px;border-top:1px solid rgba(255,255,255,.08);padding-top:12px}
     .bman-admin-logout .menu-link{color:#ff5a7a}
     .bman-admin-logout .menu-link:hover{background:rgba(255,90,122,.1);color:#ff8aa1}
+    #kt_app_sidebar .bman-admin-root-sub{overflow:visible!important;max-height:none!important;width:260px!important}
+    #kt_app_sidebar .bman-admin-root-sub .menu-item[data-kt-menu-trigger]{position:relative}
+    #kt_app_sidebar .bman-admin-root-sub .menu-title{white-space:normal;line-height:1.25}
+    #kt_app_sidebar .bman-admin-nested-sub{display:none!important;position:static!important;margin:4px 0 8px 20px;padding:6px 0 6px 8px!important;background:rgba(255,255,255,.035);border-left:1px solid rgba(255,255,255,.14);border-radius:0 10px 10px 0;box-shadow:none!important;transform:none!important}
+    #kt_app_sidebar .bman-admin-nested-sub .menu-link{border-radius:8px;padding-left:10px!important}
+    @media (min-width:992px){
+      #kt_app_sidebar .bman-admin-root-sub .menu-item[data-kt-menu-trigger]:hover>.bman-admin-nested-sub,
+      #kt_app_sidebar .bman-admin-root-sub .menu-item[data-kt-menu-trigger].show>.bman-admin-nested-sub,
+      #kt_app_sidebar .bman-admin-root-sub .menu-item[data-kt-menu-trigger].hover>.bman-admin-nested-sub{display:block!important}
+    }
+    @media (max-width:991.98px){
+      #kt_app_sidebar .bman-admin-root-sub .menu-item.show>.bman-admin-nested-sub,
+      #kt_app_sidebar .bman-admin-root-sub .menu-item.hover>.bman-admin-nested-sub{display:block!important}
+    }
     @media (max-width:991.98px){
       #kt_app_sidebar_logo{height:auto;min-height:76px;padding-top:14px;padding-bottom:14px}
       #kt_app_sidebar_logo a{display:flex;align-items:center}
@@ -131,7 +145,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                   <span class="path3"></span>
                 </i>
               </span><span class="menu-title">Finance Management</span><span class="menu-arrow"></span></span>
-            <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto">
+            <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto bman-admin-root-sub">
 
               <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>make-investment">
@@ -184,14 +198,14 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Deposit</span><span class="menu-arrow"></span>
                 </span>
-                <div class="menu-sub px-2 py-3">
+                <div class="menu-sub px-2 py-3 bman-admin-nested-sub">
                   <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
                     class="menu-item">
                     <span class="menu-link">
                       <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                         class="menu-title">Wallet Management</span><span class="menu-arrow"></span>
                     </span>
-                    <div class="menu-sub px-2 py-3">
+                    <div class="menu-sub px-2 py-3 bman-admin-nested-sub">
                       <div class="menu-item">
                         <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/internal-transfers">
                           <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
@@ -216,7 +230,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               </div>
 
               <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>withdraw-requests">
+                <a class="menu-link" href="<?php echo base_url('admin/bman-withdrawals'); ?>">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Withdraw Request</span>
                   <span class="badge badge-circle badge-danger fs-9 ms-2 d-none" data-dashboard-badge="withdrawals">0</span>
@@ -239,7 +253,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Binary Matching & Distribution</span><span class="menu-arrow"></span>
                 </span>
-                <div class="menu-sub px-2 py-3">
+                <div class="menu-sub px-2 py-3 bman-admin-nested-sub">
                   <div class="menu-item">
                     <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/genealogy-tree">
                       <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
