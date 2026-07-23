@@ -86,14 +86,7 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
 
                                 <?php $this->load->view('admin/dashboard/partials/_admin_alerts'); ?>
 
-                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
-                                    <?php $this->load->view('admin/dashboard/partials/_treasury_dashboard'); ?>
-                                </div>
-
-                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
-                                    <?php $this->load->view('admin/dashboard/partials/_roi_calculator'); ?>
-                                </div>
-
+                               
                                 <?php $this->load->view('admin/dashboard/partials/_stat_cards'); ?>
 
                                 <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
@@ -140,6 +133,15 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                                     <?php $this->load->view('admin/dashboard/partials/_activity_feed'); ?>
                                     <?php $this->load->view('admin/dashboard/partials/_system_health'); ?>
                                 </div>
+
+                                 <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
+                                    <?php $this->load->view('admin/dashboard/partials/_treasury_dashboard'); ?>
+                                </div>
+
+                                <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
+                                    <?php $this->load->view('admin/dashboard/partials/_roi_calculator'); ?>
+                                </div>
+
 
                                 </div><!-- /#dash-glass-scope -->
 

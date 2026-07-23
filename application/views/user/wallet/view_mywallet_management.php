@@ -1416,9 +1416,7 @@ function wallet_title_fallback($type)
         <div class="qa" onclick="location.href='<?= base_url('user/withdraw'); ?>'"><i class="ph ph-money"></i> Withdraw
         </div>
         <div class="qa" onclick="location.href='<?= base_url('user/transfer_wallet'); ?>'"><i
-            class="ph ph-arrows-left-right"></i> Transfer Wallet</div>
-        <div class="qa" onclick="location.href='<?= base_url('user/payouts'); ?>'"><i class="ph ph-bank"></i> Payouts
-        </div>        
+            class="ph ph-arrows-left-right"></i> Transfer Wallet</div>        
         <div class="qa" onclick="location.href='<?= base_url('user/support'); ?>'"><i class="ph ph-headset"></i> Support
         </div>
       </div>
@@ -1665,9 +1663,9 @@ function wallet_title_fallback($type)
             </div>
           </div>
 
-          <div class="wb" style="margin-top:12px;">
+          <!-- <div class="wb" style="margin-top:12px;">
             <div id="usdt-history-root"></div>
-          </div>
+          </div> -->
 
         </div>
 
@@ -1779,8 +1777,39 @@ function wallet_title_fallback($type)
     });
 
 
+    function copyToClipboard(text) {
+      const value = String(text || '');
+
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(value);
+      }
+
+      return new Promise((resolve, reject) => {
+        const textarea = document.createElement('textarea');
+        textarea.value = value;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.top = '-9999px';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+
+        try {
+          const ok = document.execCommand('copy');
+          document.body.removeChild(textarea);
+          ok ? resolve() : reject(new Error('Copy failed'));
+        } catch (err) {
+          document.body.removeChild(textarea);
+          reject(err);
+        }
+      });
+    }
+
     function copyPlain(txt) {
-      navigator.clipboard.writeText(txt || "").then(() => toastMini("Copied!"));
+      copyToClipboard(txt)
+        .then(() => toastMini("Copied!"))
+        .catch(() => toastMini("Copy failed. Please copy manually."));
     }
 
     async function refreshWalletState() {
@@ -2132,7 +2161,7 @@ function wallet_title_fallback($type)
       );
     }
 
-    ReactDOM.createRoot(document.getElementById('usdt-history-root')).render(<UsdtHistoryPanel />);
+    // ReactDOM.createRoot(document.getElementById('usdt-history-root')).render(<UsdtHistoryPanel />);
   </script>
 
   <!-- 📋 Transaction Details Modal - PROFESSIONAL DESIGN -->
@@ -2277,7 +2306,7 @@ function wallet_title_fallback($type)
           </small>
           <div style="font-size:12px;font-weight:900;color:#0b1220;word-break:break-all;font-family:monospace;background:#fff;padding:10px;border-radius:8px;border:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">
             <span>${tx.tx_hash}</span>
-            <button style="background:none;border:none;cursor:pointer;color:#6e56cf;font-weight:900;" onclick="copyPlain('${tx.tx_hash}'); toastMini('Copied!')">
+            <button style="background:none;border:none;cursor:pointer;color:#6e56cf;font-weight:900;" onclick="copyPlain('${tx.tx_hash}')">
               <i class="ph ph-copy"></i>
             </button>
           </div>
