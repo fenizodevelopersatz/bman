@@ -23,6 +23,41 @@
       height: auto;
     }
 
+    .binary-period {
+      display: flex;
+      gap: 6px;
+      padding: 4px;
+      border-radius: 999px;
+      background: #f3f0ff;
+    }
+
+    .binary-period button {
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: #5d56a8;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 6px 10px;
+      transition: .18s ease;
+    }
+
+    .binary-period button.active {
+      background: #fff;
+      color: var(--primary);
+      box-shadow: 0 6px 14px rgba(93, 86, 168, .12);
+    }
+
+    .binary-period button:disabled {
+      cursor: wait;
+      opacity: .65;
+    }
+
+    .binary-summary-loading .mini {
+      opacity: .65;
+    }
+
     /* ---------- Default: keep desktop as-is ---------- */
 
     /* ---------- Tablet (<= 992px) ---------- */
@@ -180,6 +215,14 @@
       .binary-grid {
         grid-template-columns: 1fr !important;
         gap: 12px !important;
+      }
+
+      .binary-period {
+        width: 100%;
+      }
+
+      .binary-period button {
+        flex: 1;
       }
 
       /* Team snapshot -> 2 columns */
@@ -566,28 +609,35 @@
       <!-- Binary + Team -->
       <div class="two-col">
 
-        <div class="panel">
+        <div class="panel" id="binarySummaryPanel">
           <div class="panel-title">
             <h3>Binary Summary</h3>
-            <span class="chip">This Week</span>
+            <div class="binary-period" id="binaryPeriodFilter" role="group" aria-label="Binary summary period">
+              <button class="active" type="button" data-period="week">This Week</button>
+              <button type="button" data-period="month">This Month</button>
+            </div>
           </div>
 
           <?php
-            $legLeft = (int) ($leg_stakes['left_count'] ?? 0);
-            $legRight = (int) ($leg_stakes['right_count'] ?? 0);
+            $legLeft = (float) ($leg_investments['left_bman'] ?? 0);
+            $legRight = (float) ($leg_investments['right_bman'] ?? 0);
             $legLeftStrong = $legLeft >= $legRight;
+            $legProgress = ($legLeft + $legRight) > 0
+              ? round((min($legLeft, $legRight) / ($legLeft + $legRight)) * 100, 2)
+              : 0;
+            $legProgressText = rtrim(rtrim(number_format($legProgress, 2), '0'), '.') . '%';
           ?>
           <div class="binary-grid">
             <!-- Left -->
             <div class="mini">
               <div class="mini-top">
                 <span>Left Leg</span>
-                <b style="color:#2563eb;"><?= $legLeftStrong ? 'STRONG' : 'WEAK'; ?></b>
+                <b id="binaryLeftStrength" style="color:#2563eb;"><?= $legLeftStrong ? 'STRONG' : 'WEAK'; ?></b>
               </div>
 
               <div class="mini-value">
-                <strong><?= $legLeft; ?></strong>
-                <div style="font-size:11px;color:#8a8f99;font-weight:600;margin-top:2px;">Staking Purchases (BMAN)</div>
+                <strong id="binaryLeftAmount"><?= number_format($legLeft, 2); ?></strong>
+                <div style="font-size:11px;color:#8a8f99;font-weight:600;margin-top:2px;">Leg Investment (BMAN)</div>
               </div>
 
             </div>
@@ -596,12 +646,12 @@
             <div class="mini">
               <div class="mini-top">
                 <span>Right Leg</span>
-                <b style="color:#f97316;"><?= $legLeftStrong ? 'WEAK' : 'STRONG'; ?></b>
+                <b id="binaryRightStrength" style="color:#f97316;"><?= $legLeftStrong ? 'WEAK' : 'STRONG'; ?></b>
               </div>
 
               <div class="mini-value">
-                <strong><?= $legRight; ?></strong>
-                <div style="font-size:11px;color:#8a8f99;font-weight:600;margin-top:2px;">Staking Purchases (BMAN)</div>
+                <strong id="binaryRightAmount"><?= number_format($legRight, 2); ?></strong>
+                <div style="font-size:11px;color:#8a8f99;font-weight:600;margin-top:2px;">Leg Investment (BMAN)</div>
               </div>
 
             </div>
@@ -610,12 +660,12 @@
 
           <div class="progress-wrap">
             <div class="row">
-              <b>Weekly Pair Target Progress</b>
-              <span id="weekly_progress" style="font-size:12px;color:#5d56a8;font-weight:800;">0%</span>
+              <b id="binaryProgressTitle">Weekly Pair Target Progress</b>
+              <span id="weekly_progress" style="font-size:12px;color:#5d56a8;font-weight:800;"><?= $legProgressText; ?></span>
             </div>
 
             <div class="bar">
-              <div id="weekly_progress_bar" style="width:0%"></div>
+              <div id="weekly_progress_bar" style="width:<?= min(100, max(0, $legProgress)); ?>%"></div>
             </div>
 
             <?php
@@ -1151,6 +1201,94 @@
       document.body.appendChild(t);
       requestAnimationFrame(() => t.style.opacity = "1");
       setTimeout(() => { t.style.opacity = "0"; setTimeout(() => t.remove(), 250); }, 1400);
+    }
+
+    function binaryToast(msg) {
+      if (typeof toastMini === 'function') {
+        toastMini(msg);
+      }
+    }
+
+    function formatBmanAmount(value) {
+      return Number(value || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
+    function setBinarySummaryLoading(loading) {
+      const panel = document.getElementById('binarySummaryPanel');
+      if (panel) panel.classList.toggle('binary-summary-loading', !!loading);
+
+      document.querySelectorAll('#binaryPeriodFilter button').forEach(function (btn) {
+        btn.disabled = !!loading;
+      });
+    }
+
+    function renderBinarySummary(data) {
+      if (!data || data.status !== true) return;
+
+      const leftAmount = document.getElementById('binaryLeftAmount');
+      const rightAmount = document.getElementById('binaryRightAmount');
+      const leftStrength = document.getElementById('binaryLeftStrength');
+      const rightStrength = document.getElementById('binaryRightStrength');
+      const progressText = document.getElementById('weekly_progress');
+      const progressBar = document.getElementById('weekly_progress_bar');
+      const progressTitle = document.getElementById('binaryProgressTitle');
+      const progress = Math.max(0, Math.min(100, Number(data.progress || 0)));
+
+      if (leftAmount) leftAmount.textContent = data.left_bman_text || formatBmanAmount(data.left_bman);
+      if (rightAmount) rightAmount.textContent = data.right_bman_text || formatBmanAmount(data.right_bman);
+      if (leftStrength) leftStrength.textContent = data.left_strength || 'WEAK';
+      if (rightStrength) rightStrength.textContent = data.right_strength || 'WEAK';
+      if (progressTitle) progressTitle.textContent = data.progress_title || 'Pair Target Progress';
+      if (progressText) progressText.textContent = data.progress_text || '0%';
+      if (progressBar) progressBar.style.width = progress + '%';
+    }
+
+    function loadBinarySummary(period) {
+      period = period === 'month' ? 'month' : 'week';
+      setBinarySummaryLoading(true);
+
+      fetch("<?= base_url('user/binarySummaryAjax'); ?>?period=" + encodeURIComponent(period), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin'
+      })
+        .then(function (response) {
+          return response.json();
+        })
+        .then(function (data) {
+          setBinarySummaryLoading(false);
+
+          if (!data || data.status !== true) {
+            binaryToast((data && data.message) || 'Binary summary could not be loaded.');
+            return;
+          }
+
+          document.querySelectorAll('#binaryPeriodFilter button').forEach(function (btn) {
+            btn.classList.toggle('active', btn.dataset.period === period);
+          });
+          renderBinarySummary(data);
+        })
+        .catch(function () {
+          setBinarySummaryLoading(false);
+          binaryToast('Binary summary could not be loaded.');
+        });
+    }
+
+    function initBinarySummaryFilter() {
+      document.querySelectorAll('#binaryPeriodFilter button').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (btn.classList.contains('active')) return;
+          loadBinarySummary(btn.dataset.period);
+        });
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initBinarySummaryFilter);
+    } else {
+      initBinarySummaryFilter();
     }
   </script>
 
