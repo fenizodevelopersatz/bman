@@ -29,24 +29,18 @@ class Bmanwithdraw_model extends CI_Model
     }
 
     /**
-     * Total withdrawable balance across all BMAN wallets: matured ledger credits
-     * minus active withdrawal locks/debits (bman_wallet_ledger). This is the
-     * source of truth for the available balance shown on the page — reuses
-     * WalletMaturity_model so it stays consistent with the per-wallet
-     * withdrawable figures used to allocate mixed withdrawal requests.
+     * Exchange Wallet withdrawable balance for BMAN-to-USDT payout conversion.
+     * It subtracts active withdrawal locks/debits through WalletMaturity_model.
+     * This is the source of truth for the available Exchange balance.
+     * Bonus, earning and staking wallets stay visible but are not valid
+     * withdrawal conversion sources.
      *
-     * Returns a numeric string (BCMath scale 8). Summing 4 wallets' floats with
-     * PHP's `+` is exactly the kind of drift that makes wallets not add up to
-     * the cumulative total — cast to float only where you display it.
+     * Returns a numeric string (BCMath scale 8). Cast to float only where you
+     * display it.
      */
     public function available_balance($user_id)
     {
-        $breakdowns = $this->maturity->all_breakdowns((int) $user_id);
-        $total = '0';
-        foreach ($breakdowns as $b) {
-            $total = Money::add($total, $b['withdrawable'] ?? '0');
-        }
-        return $total;
+        return $this->wallet_balance((int) $user_id, 'exchange');
     }
 
     /**
@@ -208,12 +202,16 @@ class Bmanwithdraw_model extends CI_Model
      */
     public function open_request($user_id, $source_wallet = 'bman')
     {
-        return $this->db->select('wr.*, u.username, u.referral_id')
+        $this->db->select('wr.*, u.username, u.referral_id')
             ->from('bman_withdraw_requests wr')
             ->join('users u', 'u.id = wr.user_id', 'left')
-            ->where('wr.user_id', (int) $user_id)
-            ->where('wr.source_wallet', $source_wallet)
-            ->where_in('wr.status', ['pending', 'processing', 'under_review', 'approved'])
+            ->where('wr.user_id', (int) $user_id);
+
+        if ($source_wallet !== null && $source_wallet !== '' && $source_wallet !== 'any') {
+            $this->db->where('wr.source_wallet', $source_wallet);
+        }
+
+        return $this->db->where_in('wr.status', ['pending', 'processing', 'under_review', 'approved'])
             ->order_by('wr.id', 'DESC')
             ->limit(1)
             ->get()
@@ -298,23 +296,32 @@ class Bmanwithdraw_model extends CI_Model
     public function create_request(array $data)
     {
         $user_id = (int) $data['user_id'];
-        $source_wallet = $data['source_wallet'];
+        $source_wallet = strtolower(trim((string) ($data['source_wallet'] ?? 'exchange')));
         $request_amount = Money::floor8($data['request_amount']);
-        $fee_amount = Money::floor8($data['fee_amount'] ?? '0');
-        $net_amount = isset($data['net_amount'])
-            ? Money::floor8($data['net_amount'])
-            : Money::floorZero(Money::sub($request_amount, $fee_amount));
         $withdraw_address = trim((string) $data['withdraw_address']);
         $bman_usdt_rate = isset($data['bman_usdt_rate'])
             ? Money::floor8($data['bman_usdt_rate'])
             : Money::div('1', (string) (token_info()->currency_value ?: '1'));
+        $fee_amount = Money::floor8($data['fee_amount'] ?? '0');
+        $gross_usdt = Money::floor6(Money::mul($request_amount, $bman_usdt_rate));
+        $net_amount = isset($data['net_amount'])
+            ? Money::floor6($data['net_amount'])
+            : Money::floorZero(Money::floor6(Money::sub($gross_usdt, $fee_amount)));
         // USDT payout always rounds DOWN to 6dp — never let a user extract dust
         // the platform never had by rounding the amount they receive upward.
-        $usdt_amount = Money::floor6(Money::mul($net_amount, $bman_usdt_rate));
+        $usdt_amount = $net_amount;
+
+        if ($source_wallet !== 'exchange') {
+            return ['error' => 'Only Exchange Wallet BMAN can be converted to USDT withdrawal.'];
+        }
 
         // Validate amount > 0
         if (Money::cmp($request_amount, '0') <= 0) {
             return ['error' => 'Amount must be greater than 0'];
+        }
+
+        if (Money::cmp($net_amount, '0') <= 0) {
+            return ['error' => 'Withdrawal amount too small. Net USDT payout becomes zero.'];
         }
 
         // Validate address format (simple check)
