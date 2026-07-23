@@ -848,9 +848,7 @@
         <div>
           <h2><i class="ph ph-bank"></i> Payouts</h2>
         </div>
-        <div class="actions">
-          <button class="btn-soft" type="button" onclick="location.href='<?= base_url('user/profit'); ?>'"><i
-              class="ph ph-coins"></i> Commissions</button>
+        <div class="actions">          
           <button class="btn-soft" type="button" onclick="window.print()"><i class="ph ph-printer"></i> Print</button>
           <button class="btn-main" type="button" onclick="exportCsv()"><i class="ph ph-download"></i> Export</button>
           <button class="btn-dark" type="button" onclick="scrollToWithdraw()"><i class="ph ph-arrow-down"></i>
@@ -863,10 +861,10 @@
         <div class="kpi">
           <div class="ic" style="background:#ecfdf3;color:#0f9d58;"><i class="ph ph-wallet"></i></div>
           <div>
-            <small>Available BMAN Balance</small>
+            <small>Available Exchange BMAN</small>
             <strong id="kpi-available">
-              <?= currency_format((float) ($payout->available_amount ?? $wallet_balance ?? 0), 2); ?></strong>
-            <span>Withdraw anytime</span>
+              <?= number_format((float) ($payout->available_amount ?? $wallet_balance ?? 0), 2); ?> BMAN</strong>
+            <span>Only Exchange Wallet converts to USDT</span>
           </div>
         </div>
 
@@ -940,7 +938,7 @@
         <div class="wtile">
           <div class="wico" style="background:#6366f11a;color:#6366f1;"><i class="ph ph-swap"></i></div>
           <div>
-            <div class="wlbl">Exchange Wallet</div>
+            <div class="wlbl">Exchange Wallet <span class="wtag">Withdraw Source</span></div>
             <div class="wval" id="wallet-exchange-val"><?= number_format((float)($wallet_bman['exchange'] ?? 0), 2); ?> <small>BMAN</small></div>
             <?php $bmanTile('exchange'); ?>
           </div>
@@ -998,10 +996,10 @@
 
               <div class="row2">
                 <div class="field">
-                  <label>BMAN Amount *</label>
-                  <input class="inp" type="number" step="0.0001" min="0" id="bman_amount" name="withdraw_bman" placeholder="Enter BMAN amount"
+                  <label>Exchange BMAN Amount *</label>
+                  <input class="inp" type="number" step="0.0001" min="0" max="<?= htmlspecialchars((string) (float) ($payout->available_amount ?? $wallet_balance ?? 0)); ?>" id="bman_amount" name="withdraw_bman" placeholder="Enter Exchange BMAN amount"
                     required>
-                  <div class="hint">Available:
+                  <div class="hint">Exchange available:
                     <?= number_format((float) ($payout->available_amount ?? $wallet_balance ?? 0), 2); ?> BMAN
                   </div>
                   <div class="hint" id="withdraw_amount_hint" style="color:#c2410c;"></div>

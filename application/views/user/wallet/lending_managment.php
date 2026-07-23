@@ -327,6 +327,123 @@ $hero_progress = 48;
       color: #334155;
     }
 
+    .staking-activity-table {
+      border-spacing: 0 8px !important;
+      min-width: 980px;
+    }
+
+    .staking-activity-table tbody tr {
+      background: #fff;
+      transition: background .18s ease, box-shadow .18s ease, transform .18s ease;
+    }
+
+    .staking-activity-table tbody tr:hover {
+      background: #f9f9fb;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, .06);
+      transform: translateY(-1px);
+    }
+
+    .staking-activity-table td {
+      padding: 12px 10px;
+      vertical-align: middle;
+    }
+
+    .staking-sno {
+      width: 54px;
+      color: var(--primary);
+      font-weight: 1100;
+    }
+
+    .stake-type-label {
+      font-weight: 1100;
+      white-space: nowrap;
+    }
+
+    .stake-status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 96px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      border: 1px solid #e7e7f3;
+      background: #f7f7fb;
+      color: #334155;
+      font-size: 11px;
+      font-weight: 1100;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .stake-status.is-processing,
+    .stake-status.is-pending {
+      border-color: #fed7aa;
+      background: #fff7ed;
+      color: #c2410c;
+    }
+
+    .stake-status.is-completed {
+      border-color: #bbf7d0;
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .stake-status.is-failed {
+      border-color: #fecaca;
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .staking-activity-pager {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #f0f0f7;
+      font-size: 12px;
+      font-weight: 1000;
+      color: var(--text-muted);
+    }
+
+    .staking-pager-controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .staking-page-btn {
+      border: 1px solid #eeecff;
+      background: #fff;
+      color: var(--primary);
+      min-width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      padding: 0 11px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 1100;
+      cursor: pointer;
+    }
+
+    .staking-page-btn.active {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+      box-shadow: 0 10px 20px rgba(110, 86, 207, .18);
+    }
+
+    .staking-page-btn:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
     .btn-mini {
       border: 1px solid #f1f1f6;
       background: #fff;
@@ -1048,13 +1165,12 @@ $hero_progress = 48;
            the other three BMAN wallets are shown for context. -->
       <?php
       $wallet_usdt = $wallet_usdt ?? 0;
-      $wallet_usdt_in_bman = $wallet_usdt_in_bman ?? null;
       $wallet_bman = $wallet_bman ?? ['exchange'=>0,'staking'=>0,'bonus'=>0,'earning'=>0];
       $wallet_bman_total = $wallet_bman_total ?? $wallet_bman;
-      // [label, icon, colour, tag]
+      // [label, icon, colour]
       // Order: USDT (fixed first) → Exchange → Earning → Staking → Bonus
       $wstrip = [
-        'exchange' => ['Exchange Wallet', 'ph-swap',        '#6366f1', 'ROI credited here'],
+        'exchange' => ['Exchange Wallet', 'ph-swap',        '#6366f1'],
         'earning'  => ['Earning Wallet',  'ph-trend-up',    '#0ea5e9', ''],
         'staking'  => ['Staking Wallet',  'ph-lock-key',    '#10b981', ''],
         'bonus'    => ['Bonus Wallet',    'ph-gift',        '#f59e0b', ''],
@@ -1070,36 +1186,24 @@ $hero_progress = 48;
           display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
         .wstrip .wval{font-size:18px;font-weight:1200;color:#0b1220;line-height:1.1;}
         .wstrip .wval small{font-size:11px;font-weight:900;color:var(--muted,#6b7280);}
-        .wstrip .wsub{font-size:11px;font-weight:800;color:var(--muted,#6b7280);margin-top:2px;}
-        .wstrip .wtag{font-size:9px;font-weight:900;letter-spacing:.2px;padding:2px 7px;border-radius:99px;
-          background:#0ea5e91a;color:#0284c7;text-transform:uppercase;}
-        .wstrip .wtag.src{background:#26a17b1a;color:#1b8f6b;}
       </style>
       <div class="wstrip">
         <!-- USDT — the wallet staking purchases are funded from -->
         <div class="wtile usdt">
           <div class="wico" style="background:#26a17b1a;color:#26a17b;"><i class="ph ph-currency-circle-dollar"></i></div>
           <div>
-            <div class="wlbl">USDT Wallet <span class="wtag src">Staking source</span></div>
+            <div class="wlbl">USDT Wallet</div>
             <div class="wval"><?= number_format((float)$wallet_usdt, 2) ?> <small>USDT</small></div>
-            <?php if ($wallet_usdt_in_bman !== null): ?>
-            <div class="wsub">≈ <?= number_format((float)$wallet_usdt_in_bman, 2) ?> BMAN at current rate</div>
-            <?php endif; ?>
           </div>
         </div>
         <?php foreach ($wstrip as $k => $m):
-          $withdrawable = (float)($wallet_bman[$k] ?? 0);
-          $total = (float)($wallet_bman_total[$k] ?? $withdrawable);
-          $locked = max(0, $total - $withdrawable);
+          $total = (float)($wallet_bman_total[$k] ?? ($wallet_bman[$k] ?? 0));
         ?>
         <div class="wtile">
           <div class="wico" style="background:<?= $m[2] ?>1a;color:<?= $m[2] ?>;"><i class="ph <?= $m[1] ?>"></i></div>
           <div>
-            <div class="wlbl"><?= $m[0] ?><?php if (!empty($m[3])): ?> <span class="wtag"><?= $m[3] ?></span><?php endif; ?></div>
-            <div class="wval"><?= number_format($withdrawable, 2) ?> <small>BMAN</small></div>
-            <?php if ($locked > 0.000001): ?>
-              <div class="wsub"><?= number_format($total, 2) ?> total &middot; <?= number_format($locked, 2) ?> locked</div>
-            <?php endif; ?>
+            <div class="wlbl"><?= $m[0] ?></div>
+            <div class="wval"><?= number_format($total, 2) ?> <small>BMAN</small></div>
           </div>
         </div>
         <?php endforeach; ?>
@@ -1161,7 +1265,7 @@ $hero_progress = 48;
                         elseif (strpos($status, 'failed') !== false) $badge_class = 'danger';
                         $status_label = ($status === 'swap_completed') ? 'Completed' : ucfirst(str_replace('_', ' ', $status));
                       ?>
-                      <span style="display:inline-block;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:900;background:var(--<?= $badge_class ?>);color:#fff;">
+                      <span class="badge" style="display:inline-block;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:900;background:var(--<?= $badge_class ?>);color:#fff;">
                         <?= $status_label ?>
                       </span>
                     </td>
@@ -1513,6 +1617,17 @@ $hero_progress = 48;
         const daysSince = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
         const roiDays = [1, 7, 30, 90, 180, 365, 730];
         const maturityDays = d.plan?.duration_years ? d.plan.duration_years * 365 : 730;
+        const distributionRows = [
+          { label: 'Exchange Wallet', pct: Number(d.distribution?.exchange_pct || 0), amount: Number(d.distribution?.exchange_bman || 0) },
+          { label: 'Earning Wallet', pct: Number(d.distribution?.earning_pct || 0), amount: Number(d.distribution?.earning_bman || 0) },
+          { label: 'Staking Wallet', pct: Number(d.distribution?.staking_pct || 0), amount: Number(d.distribution?.staking_bman || 0) },
+          { label: 'Bonus Wallet', pct: Number(d.distribution?.bonus_pct || 0), amount: Number(d.distribution?.bonus_bman || 0) },
+        ].filter(row => Math.abs(row.pct - 10) < 0.001 && row.amount > 0);
+        const distributionRowsHtml = distributionRows.length
+          ? distributionRows.map(row => `
+              <div><span style="color:#666;">${row.label}:</span> <b>${row.amount.toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b> <small style="color:#64748b;font-weight:900;">(${row.pct.toFixed(0)}%)</small></div>
+            `).join('')
+          : '<div style="grid-column:1/-1;color:#64748b;font-weight:900;">No 10% distribution wallet amount found yet.</div>';
 
         // Build HTML
         let html = `
@@ -1570,19 +1685,19 @@ $hero_progress = 48;
               <div style="font-size:9px;color:#15803d;margin-top:4px;">${d.current_status === 'swap_completed' ? 'received' : 'pending'}</div>
             </div>
             <div class="card" style="box-shadow:none;border:1px solid #e7e7f3;background:#fef3c7;">
-              <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:6px;text-transform:uppercase;">🎁 Bonus BMAN</div>
+              <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:6px;text-transform:uppercase;">Instant Bonus BMAN</div>
               <div style="font-size:18px;font-weight:1100;color:#b45309;">+ ${Number(d.amounts.bonus_bman).toLocaleString(undefined,{maximumFractionDigits:4})}</div>
               <div style="font-size:9px;color:#999;margin-top:4px;">extra</div>
             </div>
           </div>
 
           <div style="border-top:1px solid #e7e7f3;padding-top:12px;margin-bottom:16px;">
-            <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">Distribution (Option ${d.distribution.option})</h5>
+            <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">Coin Distribution Options (10%) - Option ${d.distribution.option}</h5>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
-              <div><span style="color:#666;">Exchange Wallet:</span> <b>${Number(d.distribution.exchange_bman).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b></div>
-              <div><span style="color:#666;">Earning Wallet:</span> <b>${Number(d.distribution.earning_bman).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b></div>
-              <div><span style="color:#666;">Staking Wallet:</span> <b>${Number(d.distribution.staking_bman).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b></div>
-              <div><span style="color:#666;">Bonus Wallet:</span> <b>${Number(d.distribution.bonus_bman).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b></div>
+              ${distributionRowsHtml}
+            </div>
+            <div style="font-size:11px;font-weight:800;color:#64748b;line-height:1.45;margin-top:10px;background:#f8fafc;border:1px solid #e7e7f3;border-radius:10px;padding:9px 10px;">
+              Only 10% coin distribution wallet amounts are shown here. Instant 25% package bonus is separate and appears in the Instant Bonus BMAN card above.
             </div>
           </div>
 

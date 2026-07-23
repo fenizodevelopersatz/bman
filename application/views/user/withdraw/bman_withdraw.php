@@ -3,7 +3,7 @@
     <div class="card mb-4">
         <div class="card-body">
             <h4 class="mb-3">Manual BMAN Withdrawal</h4>
-            <p class="text-muted small mb-4">Withdrawals are validated against <strong>matured ledger balance</strong> only. Locked funds unlock per wallet maturity rules below.</p>
+            <p class="text-muted small mb-4">Withdrawals convert only <strong>matured Exchange Wallet BMAN</strong> to USDT. Other wallets remain visible but cannot fund withdrawals.</p>
             <?php if (!empty($open_request)): ?>
                 <div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
                     <div>
@@ -19,6 +19,7 @@
 
             <?php
             $wallet_labels = ['exchange' => 'Exchange', 'earning' => 'Earning', 'staking' => 'Staking', 'bonus' => 'Bonus'];
+            $withdraw_wallet_labels = ['exchange' => 'Exchange'];
             $rules = $maturity_rules ?? [];
             ?>
             <div class="row g-3 mb-4">
@@ -44,7 +45,7 @@
                     <div class="col-md-4">
                         <label class="form-label">Wallet Source</label>
                         <select class="form-select" name="source_wallet" id="source_wallet">
-                            <?php foreach ($wallet_labels as $key => $label): ?>
+                            <?php foreach ($withdraw_wallet_labels as $key => $label): ?>
                             <option value="<?= $key; ?>" data-withdrawable="<?= $breakdowns[$key . '_withdrawable'] ?? 0; ?>">
                                 <?= $label; ?> (<?= number_format($breakdowns[$key . '_withdrawable'] ?? 0, 4); ?> avail.)
                             </option>
@@ -53,10 +54,10 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Amount</label>
-                        <input class="form-control" name="amount" type="number" step="0.0001" id="withdraw_amount">
+                        <input class="form-control" name="withdraw_bman" type="number" step="0.0001" id="withdraw_amount">
                         <small class="text-muted" id="avail_hint"></small>
                     </div>
-                    <div class="col-md-4"><label class="form-label">Withdraw Address</label><input class="form-control" name="withdraw_address"></div>
+                    <div class="col-md-4"><label class="form-label">Withdraw Address</label><input class="form-control" name="wallet_address"></div>
                     <div class="col-12"><label class="form-label">Remark</label><textarea class="form-control" name="remark" rows="3"></textarea></div>
                 </div>
                 <button class="btn btn-primary mt-3" type="submit" <?= !empty($open_request) ? 'disabled' : ''; ?>>

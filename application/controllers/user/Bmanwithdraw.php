@@ -25,7 +25,7 @@ class Bmanwithdraw extends CI_Controller
         $this->data['breakdowns'] = $this->bmanwithdraw->maturity_breakdown($user_id);
         $this->data['upcoming'] = $this->bmanwithdraw->upcoming_unlocks($user_id);
         $this->data['maturity_rules'] = $this->bmanwithdraw->maturity_rules();
-        $this->data['open_request'] = $this->bmanwithdraw->open_request($user_id, 'mixed');
+        $this->data['open_request'] = $this->bmanwithdraw->open_request($user_id, null);
         $this->data['history'] = $this->bmanwithdraw->user_history($user_id, 100);
         $this->load->view('user/withdraw/bman_withdraw', $this->data);
     }
@@ -37,14 +37,14 @@ class Bmanwithdraw extends CI_Controller
         $user_id = (int) $this->session->userdata('user_userid');
         if (!$user_id) return $this->_json(['status' => false, 'message' => 'Login required']);
 
-        $source_wallet = 'mixed';
+        $source_wallet = 'exchange';
         $amount_raw = trim((string) $this->input->post('withdraw_bman', true));
         $amount = is_numeric($amount_raw) ? Money::floor8($amount_raw) : '0';
         $withdraw_address = trim((string) $this->input->post('wallet_address', true));
         $remark = trim((string) $this->input->post('remark', true));
         $settings = $this->bmanwithdraw->settings();
         $available = $this->bmanwithdraw->available_balance($user_id);
-        $open_request = $this->bmanwithdraw->open_request($user_id, $source_wallet);
+        $open_request = $this->bmanwithdraw->open_request($user_id, null);
 
         // Validation: withdrawals enabled
         if ((int) ($settings['withdraw_status'] ?? 0) !== 1) {
@@ -109,7 +109,7 @@ class Bmanwithdraw extends CI_Controller
         $this->db->trans_start();
 
         // Re-check open request inside transaction (another request might have just been created)
-        $open_request = $this->bmanwithdraw->open_request($user_id, $source_wallet);
+        $open_request = $this->bmanwithdraw->open_request($user_id, null);
         if (!empty($open_request)) {
             $this->db->trans_rollback();
             return $this->_json([
