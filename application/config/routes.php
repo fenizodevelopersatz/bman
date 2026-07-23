@@ -911,6 +911,7 @@ $route['top-6-mlm-plans'] = 'Blog/top_six_mlm';
 
 $route['user/recentOrdersAjax'] = 'user/user/recentOrdersAjax';
 $route['user/recentCommissionsAjax'] = 'user/user/recentCommissionsAjax';
+$route['user/recentWalletTransactionsAjax'] = 'user/user/recentWalletTransactionsAjax';
 $route['user/binarySummaryAjax'] = 'user/user/binarySummaryAjax';
 $route['user/activityTrendAjax'] = 'user/user/activityTrendAjax';   // live data for the dashboard User Activity & Coin Trend chart (replaces the static dummy JSON)
 

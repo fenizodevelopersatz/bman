@@ -1320,6 +1320,61 @@ class User extends CI_Controller
 	}
 
 
+	public function recentWalletTransactionsAjax()
+	{
+		$user_id = (int) ($this->session->userdata('user_userid') ?? 0);
+		if ($user_id <= 0) {
+			return $this->_json(['status' => false, 'message' => 'Unauthorized']);
+		}
+
+		$limit = (int) ($this->input->get('limit') ?? 5);
+		if ($limit <= 0) {
+			$limit = 5;
+		}
+		if ($limit > 20) {
+			$limit = 20;
+		}
+
+		try {
+			$this->load->model('Custodialwallet_model', 'cw');
+			$list = $this->cw->getOnchainTransactions($user_id, ['type' => 'ALL'], 1, $limit);
+			$rows = $list['rows'] ?? [];
+
+			$out = [];
+			foreach ($rows as $r) {
+				$flow = strtoupper((string) ($r['flow'] ?? 'CREDIT'));
+				$tx_hash = (string) ($r['tx_hash'] ?? '');
+				$address = $flow === 'CREDIT'
+					? (string) ($r['from_address'] ?? '')
+					: (string) ($r['to_address'] ?? '');
+
+				$out[] = [
+					'id' => (int) ($r['id'] ?? 0),
+					'title' => (string) ($r['title'] ?? 'Wallet Transaction'),
+					'flow' => $flow === 'DEBIT' ? 'DEBIT' : 'CREDIT',
+					'amount' => number_format((float) ($r['amount'] ?? 0), 2),
+					'token_symbol' => (string) ($r['token_symbol'] ?? 'USDT'),
+					'status' => (string) ($r['status'] ?? 'SUCCESS'),
+					'date_text' => (string) ($r['created_at'] ?? ''),
+					'tx_hash' => $tx_hash,
+					'tx_short' => $tx_hash !== '' ? substr($tx_hash, 0, 14) . '...' : '',
+					'address_short' => $address !== '' ? substr($address, 0, 10) . '...' : '',
+					'confirmations' => (int) ($r['confirmation_count'] ?? 0),
+				];
+			}
+
+			return $this->_json([
+				'status' => true,
+				'transactions' => $out,
+				'counts' => $list['counts'] ?? ['ALL' => 0, 'INCOMING' => 0, 'OUTGOING' => 0],
+				'paging' => $list['paging'] ?? ['page' => 1, 'pages' => 0, 'total' => count($out)],
+			]);
+		} catch (Throwable $e) {
+			log_message('error', 'recentWalletTransactionsAjax: ' . $e->getMessage());
+			return $this->_json(['status' => false, 'message' => 'Could not load wallet transactions.']);
+		}
+	}
+
 	public function recentCommissionsAjax()
 	{
 		$user_id = (int) ($this->session->userdata('user_userid') ?? 0);
