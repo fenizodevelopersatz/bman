@@ -39,9 +39,10 @@ class Ceilingwallet_model extends CI_Model
     /** User-wise held amounts (admin overview). */
     public function heldByUser($opts = [])
     {
-        $this->db->select('cw.user_id, cw.held_balance, cw.total_held, cw.total_released, u.username, u.referral_id')
+        $this->db->select('cw.user_id, cw.held_balance, cw.total_held, cw.total_released, u.username, u.referral_id, ur.current_rank_id')
                  ->from('ceiling_wallet cw')
-                 ->join('users u', 'u.id = cw.user_id', 'left');
+                 ->join('users u', 'u.id = cw.user_id', 'left')
+                 ->join('user_ranks ur', 'ur.user_id = cw.user_id', 'left');
         if (empty($opts['include_zero'])) $this->db->where('cw.held_balance >', 0);
         $this->db->order_by('cw.held_balance', 'DESC');
         if (!empty($opts['limit'])) $this->db->limit((int)$opts['limit'], (int)($opts['offset'] ?? 0));

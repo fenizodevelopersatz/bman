@@ -114,6 +114,7 @@ $(document).ready(function(){
                     { data: 'RecordID' },
                     { data: 'UserInfo' },
                     { data: 'SponserInfo' },
+                    { data: 'Rank' },
                     { data: 'StakingTotal' },
                     { data: 'KycStatus' },
                     { data: 'WithdrawalRequest' },

@@ -1,5 +1,6 @@
 <?php $this->load->view('admin/Layout/common_style'); ?>
 <link href="<?php echo base_url(); ?>/assets/admin/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css" />
+<?php echo rank_badge_css(); ?>
 <body id="kt_app_body" data-kt-app-layout="dark-sidebar" data-kt-app-header-fixed="true"
   data-kt-app-sidebar-enabled="true" data-kt-app-sidebar-fixed="true" data-kt-app-sidebar-hoverable="true"
   data-kt-app-sidebar-push-header="true" data-kt-app-sidebar-push-toolbar="true"
@@ -53,16 +54,17 @@
                     <div class="table-responsive">
                       <table class="table align-middle table-row-dashed fs-7 gy-4">
                         <thead><tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
-                          <th>User</th><th class="text-end">Held</th><th class="text-end">Lifetime Held</th>
+                          <th>User</th><th>Current Rank</th><th class="text-end">Held</th><th class="text-end">Lifetime Held</th>
                           <th class="text-end">Released</th><th class="text-end">Actions</th>
                         </tr></thead>
                         <tbody class="text-gray-700 fw-semibold">
                         <?php if (empty($held_by_user)): ?>
-                          <tr><td colspan="5" class="text-center text-muted py-6">No ceiling-held balances yet.</td></tr>
+                          <tr><td colspan="6" class="text-center text-muted py-6">No ceiling-held balances yet.</td></tr>
                         <?php else: foreach ($held_by_user as $r): ?>
                           <tr>
                             <td><?php echo html_escape(($r['username'] ?? '') ?: ('#'.$r['user_id'])); ?>
                               <div class="text-muted fs-8"><?php echo html_escape($r['referral_id'] ?? ''); ?> · UID <?php echo (int)$r['user_id']; ?></div></td>
+                            <td><?php echo rank_cell_html($r['current_rank_id'] ?? null, 26); ?></td>
                             <td class="text-end fw-bold text-primary"><?php echo number_format((float)$r['held_balance'], 4); ?></td>
                             <td class="text-end text-muted"><?php echo number_format((float)$r['total_held'], 4); ?></td>
                             <td class="text-end text-muted"><?php echo number_format((float)$r['total_released'], 4); ?></td>

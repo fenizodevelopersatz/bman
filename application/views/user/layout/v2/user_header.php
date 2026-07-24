@@ -79,7 +79,21 @@ $uid = $this->session->userdata('user_userid') ?? '';
       <span id="chatUnreadBadge" style="display:none;position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#ef4444;color:#fff;font-size:10px;line-height:16px;text-align:center;font-weight:700;"></span>
     </button>
 
-    <button class="action-btn" title="Notifications"><i class="ph ph-bell"></i></button>
+    <div class="notif-wrap" id="notifWrap" style="position:relative;">
+      <button class="action-btn" type="button" id="notifBtn" title="Notifications" style="position:relative;">
+        <i class="ph ph-bell"></i>
+        <span id="notifBadge" style="display:none;position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#ef4444;color:#fff;font-size:10px;line-height:16px;text-align:center;font-weight:700;"></span>
+      </button>
+      <div id="notifPanel" style="display:none;position:absolute;top:48px;right:0;width:340px;max-width:92vw;background:#fff;border:1px solid rgba(15,23,42,.1);border-radius:14px;box-shadow:0 18px 44px rgba(15,23,42,.16);z-index:1200;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #f0f0f5;">
+          <b style="font-size:14px;color:#0b1220;">Notifications</b>
+          <button type="button" id="notifMarkAll" style="border:0;background:transparent;color:#6366f1;font-weight:800;font-size:11.5px;cursor:pointer;">Mark all read</button>
+        </div>
+        <div id="notifList" style="max-height:360px;overflow:auto;">
+          <div style="padding:26px 14px;text-align:center;color:#94a3b8;font-size:12.5px;font-weight:700;">Loading…</div>
+        </div>
+      </div>
+    </div>
 
     <!-- User Dropdown -->
     <div class="user-dropdown" id="userDropdown">
@@ -145,6 +159,60 @@ $uid = $this->session->userdata('user_userid') ?? '';
     }
     ping();
     setInterval(ping, 15000);
+  })();
+</script>
+<script>
+  (function () {
+    // Notification bell — count badge + dropdown fed by the user's rank
+    // notifications (api/rank/notifications from user_notifications).
+    var wrap = document.getElementById('notifWrap');
+    if (!wrap) return;
+    var btn = document.getElementById('notifBtn');
+    var badge = document.getElementById('notifBadge');
+    var panel = document.getElementById('notifPanel');
+    var list = document.getElementById('notifList');
+    var markAll = document.getElementById('notifMarkAll');
+    var url = '<?php echo base_url('api/rank/notifications'); ?>';
+    var readUrl = '<?php echo base_url('api/rank/notifications/read'); ?>';
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]); }); }
+
+    function render(items) {
+      if (!items || !items.length) { list.innerHTML = '<div style="padding:26px 14px;text-align:center;color:#94a3b8;font-size:12.5px;font-weight:700;">No notifications yet.</div>'; return; }
+      list.innerHTML = items.map(function (n) {
+        var unread = !Number(n.is_read);
+        return '<div style="display:flex;gap:10px;padding:11px 14px;border-bottom:1px solid #f5f5fa;' + (unread ? 'background:#eef2ff;' : '') + '">' +
+          '<div style="width:34px;height:34px;border-radius:10px;background:#eef2ff;color:#6366f1;display:grid;place-items:center;font-size:17px;flex:0 0 auto;"><i class="ph ph-trophy"></i></div>' +
+          '<div style="min-width:0;"><b style="display:block;font-size:12.5px;color:#0b1220;font-weight:900;">' + esc(n.title || 'Notification') + '</b>' +
+          (n.message ? '<small style="display:block;font-size:11.5px;color:#64748b;font-weight:600;margin-top:2px;">' + esc(n.message) + '</small>' : '') +
+          (n.created_at ? '<span style="display:block;font-size:10.5px;color:#94a3b8;margin-top:3px;">' + esc(n.created_at) + '</span>' : '') +
+          '</div></div>';
+      }).join('');
+    }
+
+    function load() {
+      fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || j.status !== 'success') return;
+          var n = parseInt(j.unread || 0, 10);
+          if (n > 0) { badge.textContent = n > 99 ? '99+' : n; badge.style.display = 'block'; }
+          else { badge.style.display = 'none'; }
+          render(j.notifications || []);
+        }).catch(function () {});
+    }
+
+    btn.addEventListener('click', function (e) { e.stopPropagation(); panel.style.display = (panel.style.display === 'block') ? 'none' : 'block'; });
+    document.addEventListener('click', function (e) { if (!wrap.contains(e.target)) panel.style.display = 'none'; });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') panel.style.display = 'none'; });
+
+    markAll.addEventListener('click', function () {
+      fetch(readUrl, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function () { badge.style.display = 'none'; load(); }).catch(function () {});
+    });
+
+    load();
+    setInterval(load, 30000);
   })();
 </script>
 <?php $this->load->view("partials/browser_controls"); ?>

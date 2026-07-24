@@ -146,7 +146,6 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     <?php $isSpecialPkg = !empty($p['is_special']) && !empty($p['special_roi']); ?>
     <div class="stk-card<?= $owned ? ' owned' : '' ?><?= $isSpecialPkg ? ' special' : '' ?>">
       <?php if ($owned): ?><span class="owned-rib">OWNED</span><?php endif; ?>
-      <?php if ($isSpecialPkg): ?><span class="special-rib">★ SPECIAL OFFER</span><?php endif; ?>
       <div class="amt"><?= number_format((float)$p['stake_amount']) ?> <small>BMAN</small></div>
       <div class="stk-badges">
         <span class="stk-b bonus"><i class="ph-fill ph-gift"></i> <?= rtrim(rtrim(number_format((float)$p['bonus_percent'], 2), '0'), '.') ?>% Bonus</span>
@@ -244,15 +243,19 @@ foreach ($staking_packages as $__p) {
 }
 ?>
 <style>
-  .stk-card.special{ border:1.5px solid #f5c451 !important; box-shadow:0 12px 32px rgba(245,158,11,.20) !important; }
+  .stk-card.special{ border:1.5px solid #f5c451 !important; box-shadow:0 12px 32px rgba(245,158,11,.20) !important;
+    background:linear-gradient(180deg,#fffdf6 0%,#ffffff 46%) !important; }
+  /* .special-rib kept for the Special-Offer purchase modal header (.stksp-h) */
   .special-rib{ position:absolute; top:10px; left:10px; z-index:3;
     background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; font-weight:900; font-size:10px;
     letter-spacing:.5px; padding:4px 11px; border-radius:999px; box-shadow:0 4px 12px rgba(245,158,11,.45); }
-  .stk-b.special-chip{ background:linear-gradient(135deg,#fef3c7,#fde68a); color:#92400e; }
-  .stk-viewroi{ width:100%; margin-top:10px; border:1px solid #f5c451; background:#fffbeb; color:#92400e;
-    font-weight:800; font-size:12.5px; border-radius:12px; padding:9px 12px; cursor:pointer;
-    display:flex; align-items:center; justify-content:center; gap:8px; }
-  .stk-viewroi:hover{ background:#fef3c7; }
+  .stk-b.special-chip{ background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; font-weight:900;
+    box-shadow:0 4px 12px rgba(245,158,11,.35); }
+  .stk-viewroi{ width:100%; margin-top:10px; border:1px solid #f5c451;
+    background:linear-gradient(135deg,#fffbeb,#fef3c7); color:#92400e;
+    font-weight:800; font-size:12.5px; border-radius:12px; padding:10px 12px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:8px; transition:filter .15s ease, transform .15s ease; }
+  .stk-viewroi:hover{ filter:brightness(.97); transform:translateY(-1px); }
   .stkroi-overlay{ position:fixed; inset:0; background:rgba(10,10,20,.55); z-index:100000; display:none;
     align-items:center; justify-content:center; padding:16px; }
   .stkroi-overlay.open{ display:flex; }

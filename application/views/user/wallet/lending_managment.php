@@ -1254,7 +1254,7 @@ $hero_progress = 48;
                   <tr style="cursor:pointer;transition:background 0.2s;" onclick="showSwapDetails(<?= (int)($row->order_id ?? 0) ?>)" onmouseover="this.style.background='#f9f9fb'" onmouseout="this.style.background=''">
                     <td style="font-size:12px;"><?= htmlspecialchars((string)($row->history_date ?? '—')) ?></td>
                     <td>
-                      <b><?= htmlspecialchars((string)($row->type ?? '—')) ?></b>
+                      <b><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string)($row->type ?? '—')))) ?></b>
                       <?php if (!empty($row->is_special)): ?>
                         <span style="display:inline-block;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:900;font-size:9px;letter-spacing:.3px;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:middle;">★ SPECIAL</span>
                       <?php endif; ?>

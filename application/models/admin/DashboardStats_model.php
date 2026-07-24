@@ -830,9 +830,9 @@ class DashboardStats_model extends CI_Model
             )->row_array();
 
             $avgRow = $this->db->query(
-                "SELECT COALESCE(AVG(gas_price_gwei),0) AS avg_gwei
+                "SELECT COALESCE(AVG(gas_price / 1000000000),0) AS avg_gwei
                  FROM onchain_transactions
-                 WHERE gas_price_gwei IS NOT NULL AND DATE(created_at) >= ?",
+                 WHERE gas_price IS NOT NULL AND DATE(created_at) >= ?",
                 [$monthStart]
             )->row_array();
 
