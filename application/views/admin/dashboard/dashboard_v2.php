@@ -5,6 +5,13 @@
     #dash-hotwallet-refresh.spin i{ animation: dash-spin 0.8s linear infinite; display:inline-block; }
     @keyframes dash-spin{ to{ transform: rotate(360deg); } }
     .dash-stat-card .card-body{ padding:1.5rem; }
+    #dash-members-statuses{
+        column-gap: .75rem !important;
+        row-gap: .5rem !important;
+    }
+    #dash-members-statuses .counted{
+        margin-left: .35rem;
+    }
 
     /* Glassmorphism pass — scoped to #dash-glass-scope only, so it never
        affects any other admin page. No precedent existed for this style
@@ -186,9 +193,6 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
 
                                 <?php $this->load->view('admin/dashboard/partials/_hot_wallet'); ?>
 
-                                <?php $this->load->view('admin/dashboard/partials/_admin_alerts'); ?>
-
-                               
                                 <?php $this->load->view('admin/dashboard/partials/_stat_cards'); ?>
 
                                 <div class="row g-5 g-xl-8 mb-5 mb-xl-8">

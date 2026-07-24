@@ -242,7 +242,7 @@ $admin_mobile_logo_src = $admin_mobile_logo_file ? base_url('assets/images/' . r
                             </a>
                         </div>
                         <div class="menu-item px-5">
-                            <a href="#" class="menu-link px-5 demo-block">
+                            <a href="<?php echo base_url('changepassword-settings'); ?>" class="menu-link px-5">
                                 Change Password
                             </a>
                         </div>
