@@ -154,6 +154,95 @@ class RoiStakingManagement_model extends CI_Model
     }
 
     /**
+     * Create a SPECIAL OFFER ROI record — escalating monthly ROI + a maturity
+     * bonus at term end.
+     *
+     * Money model (confirmed):
+     *   - Each month during staking-year k (k = 1..N) credits
+     *     principal × monthly_roi[k]% to the Exchange wallet.
+     *   - At maturity (end of year N): a lump of principal × maturity[N]% +
+     *     the principal is returned to the Staking wallet.
+     *   - The 25% instant package bonus is handled elsewhere and is unchanged.
+     *
+     * The per-year ramp is SNAPSHOTTED (special_schedule_json) so a later admin
+     * edit to the Special ROI structure can never re-price a live stake. It is
+     * stored as plan_type='regular' + is_special=1 so the existing monthly and
+     * maturity crons pick it up; the monthly cron reads the snapshot to vary the
+     * amount per year, and the maturity cron pays fixed_payment_amount (the
+     * maturity lump) + principal exactly as it does for a fixed/combo lump.
+     *
+     * @param array $data principal_amount, duration_years, maturity_date,
+     *                     created_at, schedule (['1'=>pct,...] year→monthly %),
+     *                     maturity_percent
+     */
+    public function createSpecialROIRecord($stakingOrderId, $userId, $orderRef, $data)
+    {
+        $principal     = (float) $data['principal_amount'];
+        $durationYears = max(1, (int) $data['duration_years']);
+        $months        = $durationYears * 12;
+        $createdAt     = $data['created_at'] ?? date('Y-m-d H:i:s');
+        $maturityDate  = $data['maturity_date'];
+        $firstMonth    = date('Y-m-d H:i:s', strtotime('+1 month', strtotime($createdAt)));
+
+        // Normalise the year→monthly-% ramp to exactly the chosen term (1..N),
+        // filling any gap with the nearest lower configured year so a month can
+        // never fall back to 0.
+        $schedule = [];
+        $lastPct = 0.0;
+        for ($y = 1; $y <= $durationYears; $y++) {
+            $pct = isset($data['schedule'][$y]) ? (float) $data['schedule'][$y]
+                 : (isset($data['schedule'][(string) $y]) ? (float) $data['schedule'][(string) $y] : $lastPct);
+            $schedule[$y] = $pct;
+            $lastPct = $pct;
+        }
+
+        // Total ROI = every month's escalating credit + the maturity lump.
+        $totalMonthly = 0.0;
+        foreach ($schedule as $pct) {
+            $totalMonthly += $principal * ($pct / 100) * 12;
+        }
+        $maturityPct = (float) ($data['maturity_percent'] ?? 0);
+        $maturityAmt = $principal * ($maturityPct / 100);
+        $totalROI    = $totalMonthly + $maturityAmt;
+
+        // Year-1 monthly (first credit + a sensible default for any legacy reader).
+        $firstMonthlyAmt = $principal * (($schedule[1] ?? 0) / 100);
+
+        $recordData = [
+            'staking_swap_orders_id'     => $stakingOrderId,
+            'user_id'                    => $userId,
+            'ref'                        => $orderRef . '-ROI',
+            'plan_type'                  => 'regular',   // monthly-driven; is_special toggles the ramp
+            'is_special'                 => 1,
+            'special_maturity_percent'   => $maturityPct,
+            'special_schedule_json'      => json_encode($schedule),
+            'principal_amount'           => $principal,
+            'regular_principal'          => $principal,
+            'principal_return_amount'    => $principal,
+            'roi_rate_percent'           => $schedule[1] ?? 0,
+            'total_roi_amount'           => $totalROI,
+            'duration_years'             => $durationYears,
+            'remaining_to_pay'           => $totalROI,
+            'total_paid_amount'          => 0,
+            'overall_status'             => 'active',
+            'regular_payment_amount'     => $firstMonthlyAmt,
+            'regular_payment_count'      => $months,
+            'regular_payments_completed' => 0,
+            'next_payment_date'          => $firstMonth,
+            // Maturity lump paid by the maturity cron once all months are done.
+            'fixed_payment_amount'       => $maturityAmt,
+            'fixed_maturity_date'        => $maturityDate,
+            'fixed_status'               => 'pending',
+            'created_at'                 => date('Y-m-d H:i:s'),
+        ];
+
+        if ($this->db->insert($this->table, $recordData)) {
+            return $this->db->insert_id();
+        }
+        return false;
+    }
+
+    /**
      * Get next payment date (5th, 15th, or 25th)
      */
     private function getNextPaymentDate($day)

@@ -1253,7 +1253,12 @@ $hero_progress = 48;
                 <?php else: foreach ($recent_staking_activity as $row): ?>
                   <tr style="cursor:pointer;transition:background 0.2s;" onclick="showSwapDetails(<?= (int)($row->order_id ?? 0) ?>)" onmouseover="this.style.background='#f9f9fb'" onmouseout="this.style.background=''">
                     <td style="font-size:12px;"><?= htmlspecialchars((string)($row->history_date ?? '—')) ?></td>
-                    <td><b><?= htmlspecialchars((string)($row->type ?? '—')) ?></b></td>
+                    <td>
+                      <b><?= htmlspecialchars((string)($row->type ?? '—')) ?></b>
+                      <?php if (!empty($row->is_special)): ?>
+                        <span style="display:inline-block;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:900;font-size:9px;letter-spacing:.3px;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:middle;">★ SPECIAL</span>
+                      <?php endif; ?>
+                    </td>
                     <td><?= number_format((float)($row->amount ?? 0), 2) ?></td>
                     <td><?= number_format((float)($row->token_amount ?? 0), 0) ?></td>
                     <td>
@@ -1632,6 +1637,10 @@ $hero_progress = 48;
             `).join('')
           : '<div style="grid-column:1/-1;color:#64748b;font-weight:900;">No distribution recorded for this order yet.</div>';
 
+        const specialBadge = d.is_special
+          ? '<span style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:900;font-size:10px;letter-spacing:.4px;padding:4px 10px;border-radius:999px;margin-left:8px;vertical-align:middle;">★ SPECIAL OFFER</span>'
+          : '';
+
         // Build HTML
         let html = `
           <div style="margin-bottom:20px;">
@@ -1640,7 +1649,7 @@ $hero_progress = 48;
                 <i class="ph ph-${s.icon || 'question-mark'}"></i>
               </div>
               <div>
-                <h4 style="margin:0;font-weight:1000;color:#111;">${s.label || d.current_status}</h4>
+                <h4 style="margin:0;font-weight:1000;color:#111;">${s.label || d.current_status}${specialBadge}</h4>
                 <p style="margin:4px 0 0;font-size:12px;color:#666;">Order: <code>${d.ref}</code></p>
               </div>
             </div>
