@@ -7,46 +7,35 @@ $this->load->view('admin/staking/_rank_head', ['title' => $title, 'card_tilte' =
 
 <style>
   .rf-drop{ border:1px dashed #c9cee0; border-radius:12px; padding:16px; background:#fafbff; }
-  .rf-prev{ margin-top:12px; display:none; }
-  .rf-prev img{ max-width:260px; max-height:180px; border-radius:8px; border:1px solid #e6e8ef; }
-  .rf-prev .rf-fileicon{ display:inline-flex; align-items:center; gap:10px; padding:12px 16px;
-    border:1px solid #e6e8ef; border-radius:10px; background:#fff; font-weight:700; color:#334155; }
+  .rf-item-row{ border:1px solid #e6e8ef; border-radius:12px; padding:12px 12px 10px; margin-bottom:12px;
+    background:#fff; position:relative; }
+  .rf-item-row .rf-row-del{ position:absolute; top:8px; right:8px; border:0; background:#fff1f2; color:#e11d48;
+    width:26px; height:26px; border-radius:8px; cursor:pointer; font-weight:900; line-height:1; font-size:15px; }
+  .rf-row-prev{ margin-top:10px; display:none; }
+  .rf-row-prev img{ max-width:220px; max-height:150px; border-radius:8px; border:1px solid #e6e8ef; }
+  .rf-row-prev .rf-fileicon{ display:inline-flex; align-items:center; gap:10px; padding:10px 14px;
+    border:1px solid #e6e8ef; border-radius:10px; background:#f8fafc; font-weight:700; color:#334155; }
   .rf-thumb{ width:54px; height:54px; object-fit:cover; border-radius:8px; border:1px solid #e6e8ef; background:#fff; }
   .rf-thumb-icon{ width:54px; height:54px; border-radius:8px; border:1px solid #e6e8ef; background:#f8fafc;
     display:flex; align-items:center; justify-content:center; font-size:22px; color:#64748b; }
 </style>
 
 <div class="row g-6 mb-8">
-  <!-- Upload form -->
+  <!-- Upload form (multiple files, add/remove rows) -->
   <div class="col-lg-5">
     <form id="rfForm" class="rf-drop" onsubmit="return false;">
-      <div class="mb-4">
-        <label class="form-label fw-semibold fs-7">Title <span class="text-danger">*</span></label>
-        <input type="text" name="title" class="form-control form-control-sm" placeholder="e.g. Gold Rank Certificate" required>
-      </div>
+      <div id="rfRows"></div>
 
-      <div class="mb-4">
-        <label class="form-label fw-semibold fs-7">Show to</label>
-        <select name="rank_id" class="form-select form-select-sm">
-          <option value="">All ranks (everyone)</option>
-          <?php foreach ($ranks as $r): ?>
-            <option value="<?php echo (int) $r['id']; ?>"><?php echo html_escape($r['name']); ?> only</option>
-          <?php endforeach; ?>
-        </select>
-      </div>
+      <button type="button" id="rfAddRow" class="btn btn-sm btn-light-primary">
+        <i class="ki-duotone ki-plus fs-6"><span class="path1"></span><span class="path2"></span></i> Add another file
+      </button>
+      <div class="text-muted fs-8 mt-2">Image, PDF, Word, Excel or PowerPoint. Max 10 MB each.</div>
 
-      <div class="mb-3">
-        <label class="form-label fw-semibold fs-7">File <span class="text-danger">*</span></label>
-        <input type="file" id="rfFile" name="file" class="form-control form-control-sm"
-               accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx,.xls,.xlsx">
-        <div class="text-muted fs-8 mt-1">Image, PDF or document. Max 10 MB.</div>
-      </div>
+      <div class="separator my-5"></div>
 
-      <div id="rfPreview" class="rf-prev"></div>
-
-      <button type="button" id="rfUploadBtn" class="btn btn-sm btn-primary mt-4">
+      <button type="button" id="rfUploadBtn" class="btn btn-sm btn-primary">
         <i class="ki-duotone ki-cloud-add fs-5"><span class="path1"></span><span class="path2"></span></i>
-        Upload
+        Upload all
       </button>
     </form>
   </div>
@@ -96,39 +85,87 @@ $this->load->view('admin/staking/_rank_head', ['title' => $title, 'card_tilte' =
 
 <script>
 (function () {
-  var fileInput = document.getElementById('rfFile');
-  var preview = document.getElementById('rfPreview');
+  // Rank <option> list, built once server-side and reused for every new row.
+  var RANK_OPTIONS = '<option value="">All ranks (everyone)</option>'
+    <?php foreach ($ranks as $r): ?>
+    + '<option value="<?php echo (int) $r['id']; ?>"><?php echo html_escape(addslashes($r['name'])); ?> only</option>'
+    <?php endforeach; ?>;
 
-  fileInput.addEventListener('change', function () {
-    var f = fileInput.files && fileInput.files[0];
-    preview.style.display = 'none';
-    preview.innerHTML = '';
+  var ACCEPT = '.jpg,.jpeg,.png,.webp,.gif,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx';
+  var rowsWrap = document.getElementById('rfRows');
+
+  function addRow() {
+    var row = document.createElement('div');
+    row.className = 'rf-item-row';
+    row.innerHTML =
+      '<button type="button" class="rf-row-del" title="Remove">&times;</button>' +
+      '<div class="mb-3"><label class="form-label fw-semibold fs-8">Title <span class="text-danger">*</span></label>' +
+        '<input type="text" name="title[]" class="form-control form-control-sm" placeholder="e.g. Gold Rank Certificate"></div>' +
+      '<div class="mb-3"><label class="form-label fw-semibold fs-8">Show to</label>' +
+        '<select name="rank_id[]" class="form-select form-select-sm">' + RANK_OPTIONS + '</select></div>' +
+      '<div><label class="form-label fw-semibold fs-8">File <span class="text-danger">*</span></label>' +
+        '<input type="file" name="file[]" class="form-control form-control-sm rf-file" accept="' + ACCEPT + '"></div>' +
+      '<div class="rf-row-prev"></div>';
+    rowsWrap.appendChild(row);
+  }
+
+  // First row on load.
+  addRow();
+  document.getElementById('rfAddRow').addEventListener('click', addRow);
+
+  // Per-row: remove + file preview (event delegation).
+  rowsWrap.addEventListener('click', function (e) {
+    var del = e.target.closest('.rf-row-del');
+    if (!del) return;
+    var rows = rowsWrap.querySelectorAll('.rf-item-row');
+    if (rows.length <= 1) { rkToast('Keep at least one row.', false); return; }
+    del.closest('.rf-item-row').remove();
+  });
+
+  rowsWrap.addEventListener('change', function (e) {
+    var input = e.target.closest('.rf-file');
+    if (!input) return;
+    var row = input.closest('.rf-item-row');
+    var prev = row.querySelector('.rf-row-prev');
+    var f = input.files && input.files[0];
+    prev.style.display = 'none';
+    prev.innerHTML = '';
     if (!f) return;
-    preview.style.display = 'block';
+    prev.style.display = 'block';
     if (f.type.indexOf('image/') === 0) {
       var reader = new FileReader();
-      reader.onload = function (e) { preview.innerHTML = '<img src="' + e.target.result + '" alt="preview">'; };
+      reader.onload = function (ev) { prev.innerHTML = '<img src="' + ev.target.result + '" alt="preview">'; };
       reader.readAsDataURL(f);
     } else {
-      var isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
-      preview.innerHTML = '<div class="rf-fileicon"><i class="ki-duotone ki-file fs-2x"><span class="path1"></span><span class="path2"></span></i> '
-        + (isPdf ? 'PDF' : 'File') + ': ' + (f.name || '') + '</div>';
+      var ext = (f.name.split('.').pop() || 'file').toUpperCase();
+      prev.innerHTML = '<div class="rf-fileicon"><i class="ki-duotone ki-file fs-2x"><span class="path1"></span><span class="path2"></span></i> '
+        + ext + ': ' + (f.name || '') + '</div>';
     }
   });
 
   document.getElementById('rfUploadBtn').addEventListener('click', async function () {
     var form = document.getElementById('rfForm');
-    var title = form.querySelector('[name="title"]').value.trim();
-    if (!title) { rkToast('Please enter a title.', false); return; }
-    if (!fileInput.files || !fileInput.files[0]) { rkToast('Please choose a file.', false); return; }
+    var rows = Array.prototype.slice.call(rowsWrap.querySelectorAll('.rf-item-row'));
+    // Validate: every row that has a file must have a title; at least one file overall.
+    var anyFile = false, bad = false;
+    rows.forEach(function (row) {
+      var file = row.querySelector('.rf-file');
+      var title = row.querySelector('[name="title[]"]');
+      var hasFile = file && file.files && file.files.length > 0;
+      if (hasFile) {
+        anyFile = true;
+        if (!title.value.trim()) bad = true;
+      }
+    });
+    if (!anyFile) { rkToast('Please choose at least one file.', false); return; }
+    if (bad) { rkToast('Every file needs a title.', false); return; }
 
     var btn = this; btn.disabled = true;
-    var fd = new FormData(form);
-    var res = await rkPost('admin/staking/rank-files/upload', fd);
+    var res = await rkPost('admin/staking/rank-files/upload', new FormData(form));
     btn.disabled = false;
     if (!res.ok) { rkToast(res.msg || 'Upload failed.', false); return; }
-    rkToast('File uploaded.', true);
-    setTimeout(function () { location.reload(); }, 700);
+    rkToast(res.msg || 'Files uploaded.', true);
+    setTimeout(function () { location.reload(); }, 800);
   });
 
   document.getElementById('rfTable').addEventListener('click', async function (e) {
