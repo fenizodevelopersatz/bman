@@ -190,7 +190,12 @@ class Rankmanagement extends CI_Controller
         $this->load->view('admin/staking/rank_files', $data);
     }
 
-    /** Handle a new file upload (AJAX). Stores a RELATIVE path only. */
+    /**
+     * Handle one OR MANY file uploads in a single request (AJAX). The form
+     * sends parallel arrays title[] / rank_id[] / file[] (one entry per "Add
+     * more" row), so we reshape $_FILES['file'] and process each row on its
+     * own. Every stored path is RELATIVE (rebuilt via media_url at display).
+     */
     public function files_upload()
     {
         if (!$this->input->is_ajax_request()) show_404();
@@ -200,42 +205,80 @@ class Rankmanagement extends CI_Controller
 
         $this->load->model('staking/Rankfiles_model', 'rankfiles');
 
-        $title = trim((string) $this->input->post('title'));
-        if ($title === '') return $this->_filesJson(false, 'Title is required.');
+        // Accept both the multi-row shape (title[]) and a single title fallback.
+        $titles  = $this->input->post('title');
+        $rankIds = $this->input->post('rank_id');
+        if (!is_array($titles))  $titles  = ($titles === null)  ? [] : [$titles];
+        if (!is_array($rankIds)) $rankIds = ($rankIds === null) ? [] : [$rankIds];
 
-        $rankId = $this->input->post('rank_id');
-        $rankId = ($rankId === '' || $rankId === null) ? null : (int) $rankId;
+        if (empty($_FILES['file']) || empty($_FILES['file']['name'])) {
+            return $this->_filesJson(false, 'Please choose at least one file.');
+        }
+
+        $names = (array) $_FILES['file']['name'];
+        $count = count($names);
 
         $dir = FCPATH . 'uploads/rank_files/';
         if (!is_dir($dir)) @mkdir($dir, 0755, true);
 
-        $this->load->library('upload', [
+        $config = [
             'upload_path'   => $dir,
-            'allowed_types' => 'jpg|jpeg|png|webp|gif|pdf|doc|docx|xls|xlsx',
-            'max_size'      => 10240, // 10 MB
+            // image + pdf + word + excel + powerpoint
+            'allowed_types' => 'jpg|jpeg|png|webp|gif|pdf|doc|docx|xls|xlsx|ppt|pptx',
+            'max_size'      => 10240, // 10 MB per file
             'encrypt_name'  => true,
-        ]);
+        ];
+        $this->load->library('upload', $config);
 
-        if (!$this->upload->do_upload('file')) {
-            return $this->_filesJson(false, strip_tags($this->upload->display_errors('', '')));
+        $saved = 0; $errors = [];
+        for ($i = 0; $i < $count; $i++) {
+            // Skip empty file slots (a blank "Add more" row).
+            if (($_FILES['file']['error'][$i] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) continue;
+
+            $title = trim((string) ($titles[$i] ?? ''));
+            if ($title === '') { $errors[] = 'Row ' . ($i + 1) . ': title is required.'; continue; }
+
+            $rankId = $rankIds[$i] ?? '';
+            $rankId = ($rankId === '' || $rankId === null) ? null : (int) $rankId;
+
+            // Reshape this row's file into the flat structure do_upload() expects.
+            $_FILES['rf_one'] = [
+                'name'     => $_FILES['file']['name'][$i],
+                'type'     => $_FILES['file']['type'][$i],
+                'tmp_name' => $_FILES['file']['tmp_name'][$i],
+                'error'    => $_FILES['file']['error'][$i],
+                'size'     => $_FILES['file']['size'][$i],
+            ];
+            $this->upload->initialize($config);
+            if (!$this->upload->do_upload('rf_one')) {
+                $errors[] = 'Row ' . ($i + 1) . ': ' . strip_tags($this->upload->display_errors('', ''));
+                continue;
+            }
+
+            $up = $this->upload->data();
+            $mime = $up['file_type'] ?? '';
+            $this->rankfiles->create([
+                'title'       => $title,
+                'rank_id'     => $rankId,
+                'file_path'   => 'uploads/rank_files/' . $up['file_name'], // relative — see model note
+                'file_name'   => $up['client_name'] ?? $up['file_name'],
+                'mime_type'   => $mime,
+                'file_size'   => (int) $up['file_size'] * 1024,            // CI reports KB
+                'is_image'    => (strpos($mime, 'image/') === 0) ? 1 : 0,
+                'status'      => 1,
+                'uploaded_by' => $this->admin_id,
+                'created_at'  => date('Y-m-d H:i:s'),
+            ]);
+            $saved++;
         }
+        unset($_FILES['rf_one']);
 
-        $up = $this->upload->data();
-        $mime = $up['file_type'] ?? '';
-        $id = $this->rankfiles->create([
-            'title'       => $title,
-            'rank_id'     => $rankId,
-            'file_path'   => 'uploads/rank_files/' . $up['file_name'], // relative — see model note
-            'file_name'   => $up['client_name'] ?? $up['file_name'],
-            'mime_type'   => $mime,
-            'file_size'   => (int) $up['file_size'] * 1024,            // CI reports KB
-            'is_image'    => (strpos($mime, 'image/') === 0) ? 1 : 0,
-            'status'      => 1,
-            'uploaded_by' => $this->admin_id,
-            'created_at'  => date('Y-m-d H:i:s'),
-        ]);
-
-        return $this->_filesJson(true, 'File uploaded.', ['id' => $id]);
+        if ($saved === 0) {
+            return $this->_filesJson(false, $errors ? implode(' ', $errors) : 'No files uploaded.');
+        }
+        $msg = $saved . ' file' . ($saved === 1 ? '' : 's') . ' uploaded.'
+             . ($errors ? ' Some rows were skipped: ' . implode(' ', $errors) : '');
+        return $this->_filesJson(true, $msg, ['saved' => $saved]);
     }
 
     /** Delete an uploaded file (AJAX). */

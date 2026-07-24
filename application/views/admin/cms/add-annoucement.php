@@ -200,25 +200,6 @@
                         </div>
                         </div>
 
-                        <div class="row mb-8">
-                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Live Preview</label>
-                        <div class="col-lg-8 fv-row">
-                            <div id="ann-preview-box">
-                                <div id="ann-preview-bg"></div>
-                                <div id="ann-preview-scrim"></div>
-                                <div id="ann-preview-content" class="pos-middle-left">
-                                    <div id="ann-preview-tag"><i class="fa-solid fa-bullhorn"></i> Announcement</div>
-                                    <div id="ann-preview-category" style="display:none;"></div>
-                                    <div id="ann-preview-title"></div>
-                                    <div id="ann-preview-subtitle" style="display:none;"></div>
-                                    <div id="ann-preview-desc" style="display:none;"></div>
-                                    <a id="ann-preview-btn" href="javascript:void(0)" style="display:none;"></a>
-                                </div>
-                            </div>
-                            <div class="text-muted fs-8">This mirrors exactly how the banner will look on the member dashboard — updates live as you edit the fields below.</div>
-                        </div>
-                        </div>
-
                         <div class="row mb-6">
                         <label class="col-lg-4 col-form-label fw-semibold fs-6">Category</label>
                         <div class="col-lg-8 fv-row">
@@ -445,7 +426,28 @@
                         </div>
 
                         <input type="hidden" name="announcement_id" value="<?php echo $announcement_id; ?>" />
-                                                
+
+                        <div class="separator my-8"></div>
+
+                        <div class="row mb-8">
+                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Live Preview</label>
+                        <div class="col-lg-8 fv-row">
+                            <div id="ann-preview-box">
+                                <div id="ann-preview-bg"></div>
+                                <div id="ann-preview-scrim"></div>
+                                <div id="ann-preview-content" class="pos-middle-left">
+                                    <div id="ann-preview-tag"><i class="fa-solid fa-bullhorn"></i> Announcement</div>
+                                    <div id="ann-preview-category" style="display:none;"></div>
+                                    <div id="ann-preview-title"></div>
+                                    <div id="ann-preview-subtitle" style="display:none;"></div>
+                                    <div id="ann-preview-desc" style="display:none;"></div>
+                                    <a id="ann-preview-btn" href="javascript:void(0)" style="display:none;"></a>
+                                </div>
+                            </div>
+                            <div class="text-muted fs-8">This mirrors exactly how the banner will look on the member dashboard — updates live as you edit the fields above.</div>
+                        </div>
+                        </div>
+
                         <div class="col-md-12">
                         <div class="form-group"><button type="submit" id="kt_account_meta_details_submit"
                         class="btn btn-lg btn-primary">Save</button>
