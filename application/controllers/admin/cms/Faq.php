@@ -10,6 +10,7 @@ class Faq extends CI_Controller
         $this->load->library('session');
         $this->load->helper('url');
         $this->load->model('Admin_model');
+        $this->ensure_page_key_column();
 
         if (!$this->session->userdata('admin_logged_in')) {
             redirect('admin/login');
@@ -29,6 +30,30 @@ class Faq extends CI_Controller
             }
         }
 
+    }
+
+    private function ensure_page_key_column()
+    {
+        if ($this->db->table_exists('faqs') && !$this->db->field_exists('page_key', 'faqs')) {
+            $this->load->dbforge();
+            $this->dbforge->add_column('faqs', [
+                'page_key' => [
+                    'type'       => 'VARCHAR',
+                    'constraint' => 50,
+                    'default'    => 'support',
+                    'null'       => false,
+                    'after'      => 'answer',
+                ],
+            ]);
+        }
+    }
+
+    private function faq_pages()
+    {
+        return [
+            'support' => 'Support',
+            'payouts' => 'Payouts',
+        ];
     }
 
 
@@ -77,6 +102,9 @@ class Faq extends CI_Controller
         <span class="me-2 badge badge-light-primary">' . $user['question'] . '</span>
         </div>
         </div>',
+                'temp_page' => '<span class="badge badge-light-info">' .
+                    html_escape($this->faq_pages()[$user['page_key'] ?? 'support'] ?? ucfirst($user['page_key'] ?? 'support')) .
+                    '</span>',
                 'temp_status' => '<div class="form-check form-switch form-check-custom form-check-success form-check-solid">
         <input class="form-check-input h-30px w-50px template_status" type="checkbox" value="" name="template_status"' .
                     $currency_status . '
@@ -140,6 +168,8 @@ class Faq extends CI_Controller
 
         $this->data['faq_question'] = $template_info->question;
         $this->data['faq_answer'] = $template_info->answer;
+        $this->data['faq_page'] = $template_info->page_key ?? 'support';
+        $this->data['faq_pages'] = $this->faq_pages();
         $this->data['faq_id'] = $template_info->id;
 
         $this->load->view('admin/cms/add-faq', $this->data);
@@ -157,6 +187,7 @@ class Faq extends CI_Controller
 
             $this->form_validation->set_rules('faq_question', 'Question', 'required');
             $this->form_validation->set_rules('faq_answer', 'Answer', 'required');
+            $this->form_validation->set_rules('faq_page', 'Display Page', 'required|in_list[' . implode(',', array_keys($this->faq_pages())) . ']');
 
             if ($this->form_validation->run() === FALSE) {
 
@@ -169,10 +200,12 @@ class Faq extends CI_Controller
                 $faq_id = $this->input->post('faq_id', true);
                 $faq_question = $this->input->post('faq_question', true);
                 $faq_answer = $this->input->post('faq_answer');
+                $faq_page = $this->input->post('faq_page', true);
 
                 $faqs_data = array(
                     'question' => $faq_question,
                     'answer' => $faq_answer,
+                    'page_key' => $faq_page,
                     'datetime' => date('Y-m-d H:i:s')
                 );
 
@@ -202,6 +235,8 @@ class Faq extends CI_Controller
             $this->data['card_title'] = "New FAQ";
             $this->data['faq_question'] = "";
             $this->data['faq_answer'] = "";
+            $this->data['faq_page'] = "support";
+            $this->data['faq_pages'] = $this->faq_pages();
             $this->data['faq_id'] = "";
             $this->load->view('admin/cms/add-faq', $this->data);
 
@@ -231,7 +266,7 @@ class Faq extends CI_Controller
                 );
 
                 $this->db->where('id', $id);
-                $this->db->update('sliders_img', $array_template);
+                $this->db->update('faqs', $array_template);
 
                 $response = array(
                     'status' => "success",

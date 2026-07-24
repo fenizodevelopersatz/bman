@@ -98,10 +98,14 @@ class Support extends MY_Controller
         ];
 
         // ✅ FAQs from DB
-        $this->data['faqs'] = $this->db
+        $faq_query = $this->db
             ->select('id, question, answer')
             ->from('faqs')
-            ->where('status', 1)
+            ->where('status', 1);
+        if ($this->db->field_exists('page_key', 'faqs')) {
+            $faq_query->where('page_key', 'support');
+        }
+        $this->data['faqs'] = $faq_query
             ->order_by('id', 'DESC')
             ->limit(10)
             ->get()

@@ -331,36 +331,6 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
           </div>
 
           <!--end::Scroll wrapper-->
-          <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
-            class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention">
-            <span class="menu-link"><span class="menu-icon">
-                <i class="ki-duotone ki-chart-pie-simple fs-2">
-                  <span class="path1"></span>
-                  <span class="path2"></span>
-                </i>
-              </span><span class="menu-title">Staking Management</span><span class="menu-arrow"></span></span>
-            <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto">
-
-              <!-- Packages / Plans / ROI / Bonus / Wallet settings moved to the
-                   Master group (single place for configuration masters). -->
-
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/ranks">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Rank Achievement</span>
-                </a>
-              </div>
-
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/rank-power">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Rank Power & Incentive</span>
-                </a>
-              </div>
-
-            </div>
-          </div>
-
           <!-- Compensation ▸ Rank Management (§10 achievement · §11 power) -->
           <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
             class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention">
