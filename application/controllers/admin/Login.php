@@ -67,13 +67,22 @@ class Login extends CI_Controller {
                 $result_status = $result_get['status'];
 
 				if ($result_status) {
+					$twofaEnabled = (bool)site_settings('user_settings', 'admin_twofa_login');
+					$emailOtpEnabled = (bool)site_settings('user_settings', 'admin_email_otp_login');
 
-					$this->sender_otp($result_get['data']->id);
-								
-					$userarray = array(
-					"user_get_id" => $result_get['data']->id,
-					);
-					$this->session->set_userdata($userarray);
+					if (!$twofaEnabled && !$emailOtpEnabled) {
+						$this->_completeLogin($result_get['data']);
+					} else {
+						$this->session->set_userdata([
+							'user_get_id' => (int)$result_get['data']->id,
+							'pending_admin_verification' => true,
+							'admin_twofa_required' => $twofaEnabled,
+							'admin_email_otp_required' => $emailOtpEnabled,
+						]);
+						if ($emailOtpEnabled) {
+							$this->sender_otp($result_get['data']->id);
+						}
+					}
 
                     echo json_encode(['status' => true, 'message' => "login successfuly"]);
                     exit;
@@ -87,9 +96,7 @@ class Login extends CI_Controller {
 		}
 		else {
 			
-			  $send_otp = $this->session->userdata('sender_otp');
-
-			  if($send_otp){
+			  if($this->session->userdata('pending_admin_verification')){
 
 				$this->auth_verify();
 
@@ -130,8 +137,7 @@ class Login extends CI_Controller {
 
                     if($method == "email_otp"){
 
-                        $verify = true;
-						//emailVerify($admin_id,'email_verify',$otp);
+                        $verify = emailVerify($admin_id,'email_verify',$otp);
                         
                     if($verify){
 
@@ -216,9 +222,10 @@ class Login extends CI_Controller {
 				$emailOTP = $this->input->post('emailOTP');
 				$twofaOTP = $this->input->post('twofaOTP');
 		
-                $verify_1 = $this->twofachecker($admin_id,$twofaOTP);
-                $verify_2 = true;
-				//emailVerify($admin_id,'email_verify',$emailOTP);
+                $verify_1 = !$this->session->userdata('admin_twofa_required')
+					|| $this->twofachecker($admin_id,$twofaOTP);
+                $verify_2 = !$this->session->userdata('admin_email_otp_required')
+					|| emailVerify($admin_id,'email_verify',$emailOTP);
 
 				if($verify_1 && $verify_2){
 
@@ -230,41 +237,8 @@ class Login extends CI_Controller {
 						'message' => "Verify Successfully"
 					);
 
-					$result = $this->db->query("SELECT * FROM admin_members where id = '".$admin_id."' ")->row();
-					$array = array(
-					"admin_logged_in" => TRUE,
-					"admin_full_name" => $result->admin_name,
-					"admin_userid" => $result->id,
-					"admin_email" => $result->admin_email,
-					"admin_userlevel" => $result->admin_roll,
-					"admin_login" => TRUE
-					);
-
-					$userarray = array(
-					"admin_userid" => $result->id,
-					"admin_logindate" => date('Y-m-d H:i:s'),
-					"admin_ip_address"=>$_SERVER['REMOTE_ADDR']
-					);
-
-
-					$this->session->set_userdata('remember_me', true);
-
-					$cookie = array(
-					'name'   => 'remember_me',
-					'value'  => '1212',
-					'expire' => '1209600', 
-					'domain' => base_url(),
-					'path'   => base_url().'admin'
-					);
-
-					setcookie("remember_me", md5($result->id.''.$result->admin_name), time() + (60 * 2), '/');
-
-					if(isset($_COOKIE['remember_me'])) {
-						$array['cookiee'] = $_COOKIE['remember_me'];
-						$condition="cookiee=". "'".md5($result->id.''.$result->admin_name)."'";
-					}
-
-					$this->session->set_userdata($array);
+					$result = $this->db->get_where('admin_members', ['id' => (int)$admin_id])->row();
+					$this->_completeLogin($result);
 
 				} else {
 
@@ -298,15 +272,12 @@ class Login extends CI_Controller {
 
 	public function auth_verify(){
 			
-		$send_otp = $this->session->userdata('sender_otp');
-
-		if($send_otp == ""){
-		$this->sender_otp();
-		}
-
-		$admin_id = '1';
+		$admin_id = (int)$this->session->userdata('user_get_id');
 		$this->data['verify_type'] = '0';
 		$this->data['title'] = 'Verify Page';
+		$this->data['admin_mail'] = $this->db->get_where('admin_members', ['id' => $admin_id])->row()->admin_email;
+		$this->data['twofa_required'] = (bool)$this->session->userdata('admin_twofa_required');
+		$this->data['email_otp_required'] = (bool)$this->session->userdata('admin_email_otp_required');
 		$this->data['action'] = base_url()."admin/login/success";
 		$this->load->view('admin/login',$this->data);
 		
@@ -380,17 +351,32 @@ public function sender_otp($userid){
 
 
 	private function twofachecker($admin_id,$oneCode){
+		$this->load->library('Google_authendicator');
+		$admin = $this->db->get_where('admin_members', ['id' => (int)$admin_id])->row();
+		if (!$admin || empty($admin->auth_key)) return false;
+		$ga = new Google_authendicator();
+		return (bool)$ga->verifyCode($admin->auth_key, $oneCode, 2);
+	}
 
-		// $this->load->library('Google_authendicator');
-		// $admin_auth = $this->db->query("SELECT * FROM `admin_members` where  id= '".$admin_id."' ")->row()->auth_key;
-		// $ga = new Google_authendicator();	
-		
-		// $checkResult = $ga->verifyCode($admin_auth, $oneCode, 2);
-		// if($checkResult) {
-		// return true;
-		// } else {
-		// return false;
-		// }
+	private function _completeLogin($result)
+	{
+		if (!$result) return false;
+		$this->session->set_userdata([
+			'admin_logged_in' => true,
+			'admin_full_name' => $result->admin_name,
+			'admin_userid' => $result->id,
+			'admin_email' => $result->admin_email,
+			'admin_userlevel' => $result->admin_roll,
+			'admin_login' => true,
+			'admin_logindate' => date('Y-m-d H:i:s'),
+			'admin_ip_address' => $_SERVER['REMOTE_ADDR'] ?? '',
+			'remember_me' => true,
+		]);
+		$this->session->unset_userdata([
+			'pending_admin_verification', 'admin_twofa_required',
+			'admin_email_otp_required', 'sender_otp', 'user_get_id'
+		]);
+		setcookie('remember_me', md5($result->id.$result->admin_name), time() + 120, '/');
 		return true;
 	}
 		
