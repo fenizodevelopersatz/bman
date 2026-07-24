@@ -31,29 +31,15 @@ class Profilesettings extends CI_Controller {
     |--------------------------------------------------------------------------
     */
     public function index() {
-     $verify_session = $this->session->userdata('verify_payment_page');
-   // $verify_session = "ok";
-    if($verify_session =="ok"){    
-    $this->data['title'] = 'Profile Settings';
-    $this->data['card_title'] = 'Profile Settings';
-    $this->data['verify_type'] = '1';
-    $this->data['admininfo'] = $this->db->query("SELECT * FROM admin_members")->row();
-    $this->load->view('admin/settings/profile-edit-settings', $this->data);
+        $admin_id = (int)$this->session->userdata('admin_userid');
+        $this->data['title'] = 'Profile Settings';
+        $this->data['card_title'] = 'Profile Settings';
+        $this->data['verify_type'] = '1';
+        $this->data['admininfo'] = $this->db
+            ->get_where('admin_members', ['id' => $admin_id])
+            ->row();
+        $this->load->view('admin/settings/profile-edit-settings', $this->data);
     }
-    else{
-        $send_otp = $this->session->userdata('sender_otp');
-                
-        if($send_otp == ""){
-        $this->sender_otp();
-        }
-
-        $admin_id = $this->session->userdata('admin_userid');
-        $this->data['verify_type'] = '0';
-        $this->data['title'] = 'Profile Edit Verify Page';
-        $this->data['admin_mail'] = $this->db->query("SELECT * FROM `admin_members` WHERE id = '".$admin_id."' ")->row()->admin_email;
-        $this->load->view('admin/settings/profile-edit-settings',$this->data);
-    }
-}
 
 public function sender_otp(){
 

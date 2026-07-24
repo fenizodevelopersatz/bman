@@ -8,7 +8,7 @@
           <span class="fs-6 fw-semibold text-muted">Total Members</span>
         </div>
         <span class="fs-2x fw-bold text-gray-900 counted" id="dash-members-total" data-kt-initialized="1">0</span>
-        <div class="d-flex gap-4 mt-2 flex-wrap">
+        <div class="d-flex mt-2 flex-wrap" id="dash-members-statuses">
           <span class="badge badge-light-success">Active <span class="counted" id="dash-members-active" data-kt-initialized="1">0</span></span>
           <span class="badge badge-light-danger">Inactive <span class="counted" id="dash-members-inactive" data-kt-initialized="1">0</span></span>
           <span class="badge badge-light-info">KYC Verified <span class="counted" id="dash-members-kyc-verified" data-kt-initialized="1">0</span></span>

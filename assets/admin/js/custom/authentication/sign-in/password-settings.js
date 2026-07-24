@@ -8,6 +8,7 @@ var KTSigninGeneral = function() {
         init: function() {
             t = document.querySelector("#kt_account_meta_details_form");
             e = document.querySelector("#kt_account_meta_details_submit");
+            var redirectUrl = t.getAttribute("data-kt-redirect-url");
 
             r = FormValidation.formValidation(t, {
                 fields: {
@@ -206,7 +207,7 @@ KTUtil.onDOMContentLoaded(function() {
             loader.classList.remove("d-none");
             messageBox.textContent = "";
         
-            fetch(base_url+"/payment-email-verify", {  
+            fetch(base_url + "payment-email-verify", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded" 
@@ -314,7 +315,7 @@ KTUtil.onDOMContentLoaded(function() {
             loader.classList.remove("d-none");
             messageBox.textContent = "";
         
-            fetch(base_url+"/payment-email-verify", {  
+            fetch(base_url + "payment-email-verify", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded" 

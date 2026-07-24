@@ -5,6 +5,13 @@
     #dash-hotwallet-refresh.spin i{ animation: dash-spin 0.8s linear infinite; display:inline-block; }
     @keyframes dash-spin{ to{ transform: rotate(360deg); } }
     .dash-stat-card .card-body{ padding:1.5rem; }
+    #dash-members-statuses{
+        column-gap: .75rem !important;
+        row-gap: .5rem !important;
+    }
+    #dash-members-statuses .counted{
+        margin-left: .35rem;
+    }
 
     /* Glassmorphism pass — scoped to #dash-glass-scope only, so it never
        affects any other admin page. No precedent existed for this style
@@ -40,6 +47,108 @@
     }
     [data-bs-theme="dark"] #dash-glass-scope .dash-stat-card{
         background: linear-gradient(160deg, rgba(79,70,229,.14), rgba(16,185,129,.10));
+    }
+
+    /* Transaction detail modal: blockchain hashes/addresses must never make the
+       table wider than the dialog. */
+    #dashTxDetailModal .modal-dialog{
+        width: min(720px, calc(100vw - 2rem));
+        max-width: 720px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    #dashTxDetailModal .modal-content{
+        overflow: hidden;
+        border: 0;
+        border-radius: 1rem;
+        box-shadow: 0 24px 70px rgba(15, 23, 42, .22);
+    }
+    #dashTxDetailModal .modal-header{
+        padding: 1.5rem 1.75rem;
+        border-bottom: 1px solid var(--bs-gray-200);
+    }
+    #dashTxDetailModal .modal-body{
+        max-height: min(72vh, 720px);
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: .75rem 1.75rem 1.5rem;
+    }
+    #dash-tx-detail-body{
+        width: 100%;
+        max-width: 100%;
+        table-layout: fixed;
+        margin-bottom: 0;
+    }
+    #dash-tx-detail-body td{
+        padding: .85rem 0;
+        vertical-align: top;
+    }
+    #dash-tx-detail-body .dash-tx-detail-label{
+        width: 132px;
+        padding-right: 1.25rem;
+        color: var(--bs-gray-600);
+    }
+    #dash-tx-detail-body .dash-tx-detail-value{
+        min-width: 0;
+        color: var(--bs-gray-900);
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+    #dash-tx-detail-body .dash-tx-detail-value a{
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+    }
+    #dash-tx-detail-body .dash-tx-user{ display:flex; align-items:center; gap:.8rem; }
+    #dash-tx-detail-body .dash-tx-user img{
+        width:46px; height:46px; flex:0 0 46px; border-radius:50%;
+        object-fit:cover; border:2px solid var(--bs-gray-200);
+    }
+    #dash-tx-detail-body .dash-tx-user-name{ font-weight:700; }
+    #dash-tx-detail-body .dash-tx-user-meta{
+        color:var(--bs-gray-600); font-size:.8rem; font-weight:500;
+    }
+    #dash-recent-tx-body .dash-gas-total{ font-weight:700; white-space:nowrap; }
+    #dash-recent-tx-body .dash-gas-meta{
+        color:var(--bs-gray-600); font-size:.72rem; white-space:nowrap;
+    }
+    [data-bs-theme="dark"] #dashTxDetailModal .modal-header{
+        border-bottom-color: rgba(255,255,255,.08);
+    }
+    [data-bs-theme="dark"] #dash-tx-detail-body .dash-tx-detail-value{
+        color: var(--bs-gray-100);
+    }
+    @media (max-width: 575.98px){
+        #dashTxDetailModal .modal-dialog{
+            width: calc(100vw - 1rem);
+            margin: .5rem auto;
+        }
+        #dashTxDetailModal .modal-header{
+            padding: 1.1rem 1.25rem;
+        }
+        #dashTxDetailModal .modal-body{
+            max-height: calc(100vh - 5rem);
+            padding: .5rem 1.25rem 1.25rem;
+        }
+        #dash-tx-detail-body tr{
+            display: grid;
+            grid-template-columns: 1fr;
+            padding: .65rem 0;
+            border-bottom: 1px dashed var(--bs-gray-300);
+        }
+        #dash-tx-detail-body tr:last-child{
+            border-bottom: 0;
+        }
+        #dash-tx-detail-body td{
+            display: block;
+            width: 100% !important;
+            padding: .15rem 0;
+            border: 0;
+        }
+        #dash-tx-detail-body .dash-tx-detail-label{
+            padding-right: 0;
+            font-size: .78rem;
+        }
     }
 </style>
 
@@ -84,9 +193,6 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
 
                                 <?php $this->load->view('admin/dashboard/partials/_hot_wallet'); ?>
 
-                                <?php $this->load->view('admin/dashboard/partials/_admin_alerts'); ?>
-
-                               
                                 <?php $this->load->view('admin/dashboard/partials/_stat_cards'); ?>
 
                                 <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
@@ -502,11 +608,19 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
         function loadRecentTransactions() {
             fetchJson(base + 'admin/all-transaction/list?limit=10').then(j => {
                 const body = document.getElementById('dash-recent-tx-body');
-                if (!j.status || !(j.rows || []).length) { body.innerHTML = '<tr><td colspan="6" class="text-muted">No transactions yet.</td></tr>'; return; }
+                if (!j.status || !(j.rows || []).length) { body.innerHTML = '<tr><td colspan="7" class="text-muted">No transactions yet.</td></tr>'; return; }
                 body.innerHTML = j.rows.map(r => {
                     const amt = (r.direction === 'credit' ? '+' : '−') + fmt(r.amount) + ' ' + esc((r.wallet_type || '').toUpperCase());
                     const amtCls = r.direction === 'credit' ? 'text-success' : 'text-danger';
                     const chain = r.onchain ? '<span class="badge badge-light-info fs-8">' + esc(r.onchain.status || 'onchain') + '</span>' : '<span class="badge badge-light fs-8">internal</span>';
+                    let gas = '<span class="text-muted">—</span>';
+                    if (r.onchain && r.onchain.gas_fee_total != null) {
+                        gas = '<div class="dash-gas-total">' + fmt(r.onchain.gas_fee_total) + ' BNB</div>';
+                        const gasMeta = [];
+                        if (r.onchain.gas_used != null) gasMeta.push(fmt(r.onchain.gas_used) + ' gas');
+                        if (r.onchain.gas_price_gwei != null) gasMeta.push(fmt(r.onchain.gas_price_gwei) + ' Gwei');
+                        if (gasMeta.length) gas += '<div class="dash-gas-meta">' + gasMeta.join(' · ') + '</div>';
+                    }
                     const avatarSrc = r.avatar || DEFAULT_AVATAR;
                     const avatar = '<img src="' + esc(avatarSrc) + '" style="width:24px;height:24px;border-radius:50%;object-fit:cover;vertical-align:middle;" class="me-2" ' +
                         'onerror="this.onerror=null;this.src=\'' + DEFAULT_AVATAR + '\';">';
@@ -516,6 +630,7 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                         '<td class="text-muted">#' + esc(r.ledger_id) + '</td>' +
                         '<td>' + esc(r.type_label) + '</td>' +
                         '<td class="fw-bold ' + amtCls + '">' + amt + '</td>' +
+                        '<td>' + gas + '</td>' +
                         '<td>' + chain + '</td></tr>';
                 }).join('');
                 body.querySelectorAll('.dash-tx-row').forEach(function (tr) {
@@ -535,9 +650,19 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
             fetchJson(base + 'admin/all-transaction/detail?id=' + encodeURIComponent(id)).then(j => {
                 if (!j.status) { body.innerHTML = '<tr><td class="text-danger">' + esc(j.message || 'Not found') + '</td></tr>'; return; }
                 const r = j.row;
+                const user = r.user || {};
+                let userName = (user.name || '').trim();
+                if (!userName) userName = ((user.first_name || '') + ' ' + (user.last_name || '')).trim();
+                if (!userName) userName = user.username || ('User #' + r.user_id);
+                const userMeta = [user.email, user.referral_id].filter(Boolean).map(esc).join(' · ');
+                const userHtml = '<div class="dash-tx-user">' +
+                    '<img src="' + esc(r.avatar || DEFAULT_AVATAR) + '" alt="" onerror="this.onerror=null;this.src=\'' + DEFAULT_AVATAR + '\';">' +
+                    '<div><div class="dash-tx-user-name">' + esc(userName) + '</div>' +
+                    (userMeta ? '<div class="dash-tx-user-meta">' + userMeta + '</div>' : '') +
+                    '<div class="dash-tx-user-meta">User ID: #' + esc(r.user_id) + '</div></div></div>';
                 const rows = [
                     ['Ledger ID', esc(r.ledger_id)],
-                    ['User', '#' + esc(r.user_id)],
+                    ['User', userHtml],
                     ['Type', esc(r.type_label)],
                     ['Amount', (r.direction === 'credit' ? '+' : '−') + fmt(r.amount)],
                     ['Balance After', fmt(r.balance_after)],
@@ -549,13 +674,16 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                     rows.push(['Chain Status', esc(r.onchain.status || '—')]);
                     rows.push(['From', esc(r.onchain.from_address || '—')]);
                     rows.push(['To', esc(r.onchain.to_address || '—')]);
-                    rows.push(['Gas Fee', r.onchain.gas_fee_total != null ? fmt(r.onchain.gas_fee_total) + ' BNB' : '—']);
+                    rows.push(['Gas Used', r.onchain.gas_used != null ? fmt(r.onchain.gas_used) : '—']);
+                    rows.push(['Gas Price', r.onchain.gas_price_gwei != null ? fmt(r.onchain.gas_price_gwei) + ' Gwei' : '—']);
+                    rows.push(['Gas Fee Total', r.onchain.gas_fee_total != null ? fmt(r.onchain.gas_fee_total) + ' BNB' : '—']);
                     if (r.onchain.tx_hash && j.explorer_url) {
                         rows.push(['Explorer', '<a href="' + esc(j.explorer_url) + '/tx/' + esc(r.onchain.tx_hash) + '" target="_blank" rel="noopener">View on explorer ↗</a>']);
                     }
                 }
                 body.innerHTML = rows.map(function (pair) {
-                    return '<tr><td class="fw-bold text-muted" style="width:140px;">' + pair[0] + '</td><td>' + pair[1] + '</td></tr>';
+                    return '<tr><td class="fw-bold dash-tx-detail-label">' + pair[0] +
+                        '</td><td class="fw-semibold dash-tx-detail-value">' + pair[1] + '</td></tr>';
                 }).join('');
             });
         }

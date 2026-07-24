@@ -244,14 +244,6 @@
                                </div>
                                </div>
 
-                               
-
-                                <?php 
-                                $level = explode(',', $commissioninfo->level_commission);
-                                ?>
-
-                              
-
                                </div>
                                <div class="card-footer d-flex justify-content-end py-6 px-9">
                                <button type="submit" class="btn btn-primary" id="kt_account_meta_details_submit">Save Changes</button>
