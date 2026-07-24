@@ -717,6 +717,8 @@ $route['admin/staking/roi-structure'] = 'admin/staking/Roistructure';
 $route['admin/staking/roi-structure/save']['post'] = 'admin/staking/Roistructure/save';
 $route['admin/staking/roi-structure/history']['get'] = 'admin/staking/Roistructure/history';
 $route['admin/staking/roi-structure/audit']['get'] = 'admin/staking/Roistructure/audit';
+$route['admin/staking/special-roi'] = 'admin/staking/Specialroi/index';
+$route['admin/staking/special-roi/save']['post'] = 'admin/staking/Specialroi/save';
 // Rank Achievement (11 permanent ranks, incentives, qualification matrix)
 $route['admin/staking/ranks'] = 'admin/staking/Ranks';
 $route['admin/staking/ranks/save/(:num)']['post'] = 'admin/staking/Ranks/save/$1';
