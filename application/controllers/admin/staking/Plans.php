@@ -46,9 +46,20 @@ class Plans extends CI_Controller
     /* ------------------------------- page ------------------------------- */
     public function index()
     {
-        $data['title']      = 'Staking Plans';
-        $data['card_tilte'] = 'Staking Plans';
-        $data['plans']      = $this->staking->plans();
+        // Special Offer packages + their offered year-terms, for the read-only
+        // "Special Offer Plan" summary card (per-year ROI is edited on the
+        // dedicated admin/staking/special-roi page).
+        $this->load->model('staking/Specialroi_model', 'specialroi');
+        $specialPackages = [];
+        foreach ($this->specialroi->specialPackages() as $p) {
+            $p['offered'] = $this->specialroi->offeredYears((int) $p['id']);
+            $specialPackages[] = $p;
+        }
+
+        $data['title']            = 'Staking Plans';
+        $data['card_tilte']       = 'Staking Plans';
+        $data['plans']            = $this->staking->plans();
+        $data['special_packages'] = $specialPackages;
         $this->load->view('admin/staking/plans', $data);
     }
 
