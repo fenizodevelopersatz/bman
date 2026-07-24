@@ -156,11 +156,12 @@ class Users_model extends CI_Model
         $this->memberListQuery($client_filter, $from_date, $to_date, $search);
         $this->db->select('
             u.id, u.name, u.first_name, u.last_name, u.username, u.referral_id,
-            u.email, u.profile_img, u.image, u.register_date, u.status, u.kyc_status,
+            u.email, u.profile_img, u.image, u.register_date, u.status, u.kyc_status, u.account_frozen,
             s.referral_id AS sponsor_referral, s.email AS sponsor_email,
             COALESCE((SELECT SUM(sso.bman_amount) FROM staking_swap_orders sso WHERE sso.user_id = u.id AND sso.status = "swap_completed"), 0) AS purchased_staking,
             COALESCE((SELECT COUNT(*) FROM bman_withdraw_requests bwr WHERE bwr.user_id = u.id AND bwr.status IN ("pending","approved","processing")), 0) AS pending_withdraw_count,
-            COALESCE((SELECT SUM(bwr.request_amount) FROM bman_withdraw_requests bwr WHERE bwr.user_id = u.id AND bwr.status IN ("pending","approved","processing")), 0) AS pending_withdraw_amount
+            COALESCE((SELECT SUM(bwr.request_amount) FROM bman_withdraw_requests bwr WHERE bwr.user_id = u.id AND bwr.status IN ("pending","approved","processing")), 0) AS pending_withdraw_amount,
+            (SELECT bwr.id FROM bman_withdraw_requests bwr WHERE bwr.user_id = u.id AND bwr.status IN ("pending","approved","processing") ORDER BY bwr.id DESC LIMIT 1) AS pending_withdraw_id
         ', false);
         return $this->db->order_by('u.id', 'DESC')
             ->limit((int) $limit, (int) $start)
