@@ -4,7 +4,8 @@ var KTSigninGeneral = function() {
     return {
         init: function() {
             t = document.querySelector("#kt_sign_in_form"), 
-            e = document.querySelector("#kt_sign_in_submit"), 
+            e = document.querySelector("#kt_sign_in_submit");
+            if (!t || !e) return;
             r = FormValidation.formValidation(t, {
                 fields: {
                     username: {
@@ -139,6 +140,9 @@ KTUtil.onDOMContentLoaded((function() {
 
     let emailOTP = 0;
     let twofaOTP = 0;
+    const verificationButton = document.getElementById('kt_sing_in_two_factor_submit');
+    const twofaRequired = verificationButton && verificationButton.dataset.twofaRequired === '1';
+    const emailOtpRequired = verificationButton && verificationButton.dataset.emailOtpRequired === '1';
     
     document.querySelectorAll(".otp-container").forEach((otpContainer) => {
         const inputs = otpContainer.querySelectorAll(".fa-code");
@@ -351,7 +355,9 @@ KTUtil.onDOMContentLoaded((function() {
     });
 
     function check_button(){
-        if(emailvalidestep && twovalidestep){
+        const twofaComplete = !twofaRequired || twovalidestep > 0;
+        const emailComplete = !emailOtpRequired || emailvalidestep > 0;
+        if(twofaComplete && emailComplete){
                 $('#kt_sing_in_two_factor_submit').removeAttr('disabled');
         }
     }
@@ -364,7 +370,7 @@ KTUtil.onDOMContentLoaded((function() {
         let submitButton = $('#kt_sing_in_two_factor_submit');
     
         // Prevent submission if validations fail
-        if (emailvalidestep === 0 || twovalidestep === 0) {
+        if ((emailOtpRequired && emailvalidestep === 0) || (twofaRequired && twovalidestep === 0)) {
             Swal.fire({
                 text: "Please complete all verification steps!",
                 icon: "warning",

@@ -201,6 +201,8 @@ $route['token-status/(:num)'] = 'admin/settings/Advancesettings/token_status/$1'
 /****************** USER SETTINS ********/
 $route['user-settings'] = 'admin/settings/Advancesettings/user_settings_update';
 $route['user-settings-update'] = 'admin/settings/Advancesettings/user_settings_update';
+$route['admin/settings/twofa/setup-request']['post'] = 'admin/settings/Advancesettings/admin_twofa_setup_request';
+$route['admin/settings/twofa/setup-verify']['post'] = 'admin/settings/Advancesettings/admin_twofa_setup_verify';
 
 /****************** CAPTCHA SETTINS ********/
 $route['captcha-settings'] = 'admin/settings/Advancesettings/captcha_settings_update';

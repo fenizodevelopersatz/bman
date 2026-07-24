@@ -131,11 +131,27 @@ aria-expanded="true" aria-controls="kt_account_addagent_form_details">
         <div class="col-lg-4 fv-row">
         <div class="input-group mb-5">
         <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
-        <input class="form-check-input  h-30px w-50px" type="checkbox" value="1" name="twofa_login" 
-        <?php echo $twofa_login ? "checked": ""; ?> 
-        id="twofa_login"/>
-        <label class="form-check-label" for="twofa_login">
+        <input class="form-check-input  h-30px w-50px" type="checkbox" value="1" name="admin_twofa_login"
+        <?php echo !empty($admin_twofa_login) ? "checked": ""; ?>
+        id="admin_twofa_login"/>
+        <label class="form-check-label" for="admin_twofa_login">
         </label>
+        </div>
+        </div>
+        </div>
+        </div>
+        </div>
+
+        <div class="col-lg-6">
+        <div class="row mb-6">
+        <label class="col-lg-8 col-form-label fw-semibold fs-6">Email OTP enable for admin login</label>
+        <div class="col-lg-4 fv-row">
+        <div class="input-group mb-5">
+        <div class="form-check form-switch form-check-custom form-check-success form-check-solid">
+        <input class="form-check-input h-30px w-50px" type="checkbox" value="1" name="admin_email_otp_login"
+        <?php echo !empty($admin_email_otp_login) ? "checked" : ""; ?>
+        id="admin_email_otp_login"/>
+        <label class="form-check-label" for="admin_email_otp_login"></label>
         </div>
         </div>
         </div>
@@ -262,6 +278,36 @@ aria-expanded="true" aria-controls="kt_account_addagent_form_details">
 </div>
 <!--end::App-->
 
+<div class="modal fade" id="adminTwofaSetupModal" tabindex="-1" aria-hidden="true">
+<div class="modal-dialog modal-dialog-centered">
+<div class="modal-content">
+<div class="modal-header">
+<h5 class="modal-title">Set Up Admin Two-Factor Authentication</h5>
+<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body text-center">
+<div id="admin-twofa-loading" class="py-10">Generating secure key…</div>
+<div id="admin-twofa-setup" class="d-none">
+<p class="text-muted">Scan this QR code using Google Authenticator, Microsoft Authenticator, or another TOTP application.</p>
+<div id="admin-twofa-qr" class="d-flex justify-content-center my-5"></div>
+<div class="text-muted fs-8">Manual setup key</div>
+<code id="admin-twofa-secret" class="d-inline-block fs-5 my-2 user-select-all"></code>
+<div class="fv-row mt-6">
+<label class="form-label">Enter the 6-digit code from your app</label>
+<input type="text" id="admin-twofa-code" maxlength="6" inputmode="numeric"
+class="form-control form-control-lg text-center" autocomplete="one-time-code" placeholder="000000">
+</div>
+<div id="admin-twofa-message" class="mt-3"></div>
+</div>
+</div>
+<div class="modal-footer">
+<button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+<button type="button" class="btn btn-primary" id="admin-twofa-confirm" disabled>Verify and Enable</button>
+</div>
+</div>
+</div>
+</div>
+
 <div id="kt_scrolltop" class="scrolltop" data-kt-scrolltop="true">
 <i class="ki-duotone ki-arrow-up">
 <span class="path1"></span>
@@ -285,7 +331,8 @@ aria-expanded="true" aria-controls="kt_account_addagent_form_details">
 <script>
 const base_url = '<?php echo base_url();?>';
 </script>
-<script src="<?php echo base_url();?>/assets/admin/js/custom/authentication/sign-in/user-settings.js?ver=2.9"></script>
+<script src="<?php echo base_url();?>assets/js/vendor/qrcode.min.js"></script>
+<script src="<?php echo base_url();?>assets/admin/js/custom/authentication/sign-in/user-settings.js?ver=3.1"></script>
 
 <script>
 </script>
