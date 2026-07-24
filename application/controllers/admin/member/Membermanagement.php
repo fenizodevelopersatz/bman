@@ -28,6 +28,44 @@ class  Membermanagement extends CI_Controller {
     $this->load->model('member/BinaryModel');
 
     }
+    public function export_members()
+    {
+        $clients = $this->input->get('client_filter');
+        $fromDate = $this->input->get('from_date') ? date('Y-m-d', strtotime($this->input->get('from_date'))) : '';
+        $toDate = $this->input->get('to_date') ? date('Y-m-d', strtotime($this->input->get('to_date'))) : '';
+        $search = trim((string) $this->input->get('search', true));
+        $rows = $this->Users_model->get_export($clients, $fromDate, $toDate, $search);
+
+        $filename = 'members-' . date('Y-m-d-His') . '.csv';
+        $this->output
+            ->set_header('Content-Type: text/csv; charset=UTF-8')
+            ->set_header('Content-Disposition: attachment; filename="' . $filename . '"')
+            ->set_header('Cache-Control: no-store, no-cache, must-revalidate');
+
+        $stream = fopen('php://output', 'w');
+        fputs($stream, "\xEF\xBB\xBF");
+        fputcsv($stream, ['Member ID', 'Name', 'Referral ID', 'Email', 'Sponsor ID', 'Sponsor Email', 'Purchased Staking (BMAN)', 'KYC Status', 'Pending Withdrawals', 'Pending Withdrawal Amount (BMAN)', 'Status', 'Registered']);
+        foreach ($rows as $row) {
+            $name = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')) ?: ($row['name'] ?: $row['username']);
+            fputcsv($stream, [
+                $row['id'],
+                $name,
+                $row['referral_id'],
+                $row['email'],
+                $row['sponsor_referral'] ?: 'Main - Admin',
+                $row['sponsor_email'] ?: 'Main - Admin',
+                number_format((float) $row['purchased_staking'], 8, '.', ''),
+                strtoupper((string) $row['kyc_status']),
+                (int) $row['pending_withdraw_count'],
+                number_format((float) $row['pending_withdraw_amount'], 8, '.', ''),
+                (int) $row['status'] === 1 ? 'Active' : 'Inactive',
+                $row['register_date'],
+            ]);
+        }
+        fclose($stream);
+        exit;
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Index Page
@@ -131,7 +169,61 @@ class  Membermanagement extends CI_Controller {
     |--------------------------------------------------------------------------
     */
     public function list(){
-      
+    $draw = (int) $this->input->get('draw');
+    $start = max(0, (int) $this->input->get('start'));
+    $length = min(100, max(10, (int) ($this->input->get('length') ?: 10)));
+    $clients = $this->input->get('client_filter');
+    $from_date = $this->input->get('from_date') ? date('Y-m-d', strtotime($this->input->get('from_date'))) : '';
+    $to_date = $this->input->get('to_date') ? date('Y-m-d', strtotime($this->input->get('to_date'))) : '';
+    $searchInput = $this->input->get('search');
+    $search = is_array($searchInput) ? trim((string) ($searchInput['value'] ?? '')) : trim((string) $searchInput);
+
+    $total_records = $this->Users_model->get_count($clients, $from_date, $to_date, $search);
+    $users = $this->Users_model->get_info($length, $start, $clients, $from_date, $to_date, $search);
+    $data = [];
+
+    foreach ($users as $index => $user) {
+        $fullName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+        if ($fullName === '') $fullName = trim((string) ($user['name'] ?? ''));
+        if ($fullName === '') $fullName = (string) ($user['username'] ?? 'Member');
+
+        $profileImage = $user['profile_img'] ?: $user['image'];
+        $avatar = $profileImage ? media_url($profileImage) : default_avatar_url();
+        $avatarHtml = '<img src="' . html_escape($avatar) . '" alt="" class="rounded-circle" width="44" height="44" style="object-fit:cover" onerror="this.onerror=null;this.src=\'' . html_escape(default_avatar_url()) . '\'">';
+
+        $sponsorReferral = $user['sponsor_referral'] ?: 'Main - Admin';
+        $sponsorEmail = $user['sponsor_email'] ?: 'Main - Admin';
+        $kyc = strtolower((string) ($user['kyc_status'] ?: 'none'));
+        $kycClass = $kyc === 'approved' ? 'success' : (in_array($kyc, ['pending', 'under_review', 'resubmitted'], true) ? 'warning' : ($kyc === 'rejected' ? 'danger' : 'secondary'));
+        $pendingCount = (int) $user['pending_withdraw_count'];
+        $pendingAmount = (float) $user['pending_withdraw_amount'];
+        $statusTitle = (int) $user['status'] === 1 ? 'Active' : 'Inactive';
+        $statusColor = (int) $user['status'] === 1 ? '#17c964' : '#d1d5db';
+
+        $data[] = [
+            'RecordID' => $start + $index + 1,
+            'UserInfo' => '<div class="d-flex align-items-center gap-3">' . $avatarHtml .
+                '<div class="d-flex flex-column"><a class="text-gray-900 fw-bold text-hover-primary" href="' . base_url('view-user/' . (int) $user['id']) . '">' . html_escape($fullName) . '</a>' .
+                '<span class="text-gray-600 fw-semibold fs-7">' . html_escape($user['referral_id']) . ' · ' . html_escape($user['email']) . '</span>' .
+                '<span class="text-muted fs-8">' . html_escape($user['register_date']) . '</span></div></div>',
+            'SponserInfo' => '<div class="fw-bold text-gray-800">' . html_escape($sponsorReferral) . '</div><div class="text-muted fs-7">' . html_escape($sponsorEmail) . '</div>',
+            'StakingTotal' => '<div class="fw-bolder text-gray-900">' . number_format((float) $user['purchased_staking'], 4) . ' BMAN</div><div class="text-muted fs-8">Completed purchases</div>',
+            'KycStatus' => '<span class="badge badge-light-' . $kycClass . '">' . html_escape(strtoupper(str_replace('_', ' ', $kyc))) . '</span>',
+            'WithdrawalRequest' => $pendingCount > 0
+                ? '<div class="fw-bold text-warning">' . $pendingCount . ' pending</div><div class="text-muted fs-7">' . number_format($pendingAmount, 4) . ' BMAN</div>'
+                : '<span class="text-muted">None</span>',
+            'Status' => '<span title="' . $statusTitle . '" aria-label="' . $statusTitle . '" style="display:inline-block;width:12px;height:12px;border-radius:50%;background:' . $statusColor . ';box-shadow:0 0 0 4px ' . $statusColor . '22"></span>',
+            'Action' => '<a class="btn btn-success btn-sm" href="' . base_url('view-user/' . (int) $user['id']) . '"><i class="fa fa-eye"></i> View</a>',
+        ];
+    }
+
+    return $this->output->set_content_type('application/json')->set_output(json_encode([
+        'draw' => $draw,
+        'recordsTotal' => $total_records,
+        'recordsFiltered' => $total_records,
+        'data' => $data,
+    ]));
+
     $draw = $this->input->get('draw');
     $start = $this->input->get('start');
     $length = $this->input->get('length');
@@ -355,6 +447,18 @@ class  Membermanagement extends CI_Controller {
     |--------------------------------------------------------------------------
     */
     public function viewuser($id){
+    $id = (int) $id;
+    $snapshot = $this->_profileSnapshot($id);
+    if (!$snapshot) {
+        show_404();
+        return;
+    }
+    $this->data['title'] = "View User Profile";
+    $this->data['card_tilte'] = "Member Control Center";
+    $this->data['user_id'] = $id;
+    $this->data['snapshot'] = $snapshot;
+    $this->load->view('admin/member/profile', $this->data);
+    return;
     $this->data['title'] = "View User Profile";
     $this->data['card_tilte'] = "User Profile";
     $this->data['user_id'] = $id;
@@ -401,6 +505,245 @@ class  Membermanagement extends CI_Controller {
     $this->data['direct_commission']  = $direct_commission;
 
     $this->load->view('admin/member/profile',$this->data);
+    }
+
+    public function profile_summary($id)
+    {
+        $snapshot = $this->_profileSnapshot((int) $id);
+        $this->_profileJson($snapshot
+            ? ['status' => true, 'data' => $snapshot]
+            : ['status' => false, 'message' => 'Member not found'], $snapshot ? 200 : 404);
+    }
+
+    public function profile_transactions($id)
+    {
+        $id = (int) $id;
+        if (!$this->db->get_where('users', ['id' => $id])->row()) {
+            return $this->_profileJson(['status' => false, 'message' => 'Member not found'], 404);
+        }
+
+        $page = max(1, (int) $this->input->get('page'));
+        $limit = min(100, max(5, (int) ($this->input->get('limit') ?: 10)));
+        $offset = ($page - 1) * $limit;
+        $type = trim((string) $this->input->get('type', true));
+        $from = trim((string) $this->input->get('from', true));
+        $to = trim((string) $this->input->get('to', true));
+        $search = trim((string) $this->input->get('q', true));
+
+        $applyFilters = function () use ($id, $type, $from, $to, $search) {
+            $this->db->where('user_id', $id);
+            if ($type !== '') $this->db->where('wallet_type', $type);
+            if ($from !== '') $this->db->where('created_at >=', $from . ' 00:00:00');
+            if ($to !== '') $this->db->where('created_at <=', $to . ' 23:59:59');
+            if ($search !== '') {
+                $this->db->group_start()
+                    ->like('reference_type', $search)
+                    ->or_like('reference_id', $search)
+                    ->or_like('description', $search)
+                    ->or_like('tx_hash', $search)
+                    ->group_end();
+            }
+        };
+
+        $this->db->from('wallet_ledger');
+        $applyFilters();
+        $total = (int) $this->db->count_all_results();
+
+        $this->db->select('id, wallet_type, credit, debit, balance_after, reference_type, reference_id, description, tx_hash, maturity_date, is_matured, created_at')
+            ->from('wallet_ledger');
+        $applyFilters();
+        $rows = $this->db->order_by('id', 'DESC')->limit($limit, $offset)->get()->result_array();
+
+        $this->_profileJson([
+            'status' => true,
+            'data' => $rows,
+            'pagination' => [
+                'page' => $page,
+                'limit' => $limit,
+                'total' => $total,
+                'pages' => max(1, (int) ceil($total / $limit)),
+            ],
+        ]);
+    }
+
+    public function profile_tree($id)
+    {
+        $profileId = (int) $id;
+        $rootId = (int) ($this->input->get('root_id') ?: $profileId);
+        $depth = min(3, max(1, (int) ($this->input->get('depth') ?: 2)));
+
+        if ($rootId !== $profileId && !$this->BinaryModel->isDescendantOf($rootId, $profileId)) {
+            return $this->_profileJson(['status' => false, 'message' => 'Tree member is outside this profile'], 403);
+        }
+
+        $root = $this->db
+            ->select('u.id, u.username, u.email, u.referral_id, u.status, u.profile_img, u.image, bp.parent_id, bp.position')
+            ->from('users u')
+            ->join('binary_placement bp', 'bp.user_id = u.id', 'left')
+            ->where('u.id', $rootId)
+            ->get()->row_array();
+        if (!$root) {
+            return $this->_profileJson(['status' => false, 'message' => 'Member not found'], 404);
+        }
+
+        $nodes = [$rootId => $root];
+        $parents = [$rootId];
+        for ($level = 1; $level <= $depth && $parents; $level++) {
+            $children = $this->db
+                ->select('u.id, u.username, u.email, u.referral_id, u.status, u.profile_img, u.image, bp.parent_id, bp.position')
+                ->from('binary_placement bp')
+                ->join('users u', 'u.id = bp.user_id', 'inner')
+                ->where_in('bp.parent_id', $parents)
+                ->order_by('bp.parent_id', 'ASC')
+                ->order_by('bp.position', 'ASC')
+                ->get()->result_array();
+            $parents = [];
+            foreach ($children as $child) {
+                $cid = (int) $child['id'];
+                $nodes[$cid] = $child;
+                $parents[] = $cid;
+            }
+        }
+
+        $nodeIds = array_keys($nodes);
+        $wallets = [];
+        if ($nodeIds) {
+            foreach ($this->db->select('user_id, exchange_balance, earning_balance, staking_balance, bonus_balance')
+                ->where_in('user_id', $nodeIds)->get('user_wallets')->result_array() as $wallet) {
+                $wallets[(int) $wallet['user_id']] = $wallet;
+            }
+        }
+
+        $out = [];
+        foreach ($nodes as $node) {
+            $nid = (int) $node['id'];
+            $wallet = $wallets[$nid] ?? [];
+            $image = $node['profile_img'] ?: $node['image'];
+            $out[] = [
+                'id' => $nid,
+                'parent_id' => $nid === $rootId ? null : (int) $node['parent_id'],
+                'position' => strtolower((string) ($node['position'] ?? '')),
+                'name' => $node['username'] ?: ('User #' . $nid),
+                'email' => $node['email'],
+                'referral_id' => $node['referral_id'] ?: ('#' . $nid),
+                'status' => (int) $node['status'] === 1 ? 'active' : 'inactive',
+                'avatar' => $image ? media_url($image) : default_avatar_url(),
+                'wallet_total' => (float) ($wallet['exchange_balance'] ?? 0)
+                    + (float) ($wallet['earning_balance'] ?? 0)
+                    + (float) ($wallet['staking_balance'] ?? 0)
+                    + (float) ($wallet['bonus_balance'] ?? 0),
+            ];
+        }
+
+        $this->_profileJson(['status' => true, 'root_id' => $rootId, 'depth' => $depth, 'data' => $out]);
+    }
+
+    private function _profileSnapshot($id)
+    {
+        $user = $this->db
+            ->select('u.*, s.username AS sponsor_name, s.referral_id AS sponsor_referral, r.name AS rank_name, r.tier_level, r.required_group_volume, ur.group_volume, p.name AS package_name')
+            ->from('users u')
+            ->join('users s', 's.id = u.sponser', 'left')
+            ->join('user_ranks ur', 'ur.user_id = u.id', 'left')
+            ->join('staking_ranks r', 'r.id = ur.current_rank_id', 'left')
+            ->join('staking_packages p', 'p.id = u.package_id', 'left')
+            ->where('u.id', (int) $id)
+            ->get()->row_array();
+        if (!$user) return null;
+
+        $wallet = $this->db->get_where('user_wallets', ['user_id' => (int) $id])->row_array() ?: [];
+        $wallets = [
+            'usdt' => (float) ($wallet['usd_balance'] ?? 0),
+            'exchange' => (float) ($wallet['exchange_balance'] ?? 0),
+            'earning' => (float) ($wallet['earning_balance'] ?? 0),
+            'bonus' => (float) ($wallet['bonus_balance'] ?? 0),
+            'staking' => (float) ($wallet['staking_balance'] ?? 0),
+            'pending_usdt' => (float) ($wallet['usd_pending'] ?? 0),
+        ];
+        $wallets['bman_total'] = $wallets['exchange'] + $wallets['earning'] + $wallets['bonus'] + $wallets['staking'];
+
+        $stake = $this->db
+            ->select('COALESCE(SUM(principal_amount),0) total, COALESCE(SUM(CASE WHEN overall_status IN ("active","in_progress") THEN principal_amount ELSE 0 END),0) active', false)
+            ->where('user_id', (int) $id)->get('roi_staking_management')->row_array() ?: [];
+        $withdraw = $this->db
+            ->select('COALESCE(SUM(CASE WHEN status = "completed" THEN request_amount ELSE 0 END),0) withdrawn, COALESCE(SUM(CASE WHEN status IN ("pending","approved","processing") THEN request_amount ELSE 0 END),0) pending', false)
+            ->where('user_id', (int) $id)->get('bman_withdraw_requests')->row_array() ?: [];
+        $deposit = $this->db->select('COALESCE(SUM(amount_usdt),0) total', false)
+            ->where('user_id', (int) $id)->where('status', 'credited')->get('wallet_deposits')->row_array() ?: [];
+        $incomeRows = $this->db
+            ->select('type, COALESCE(SUM(CAST(REPLACE(amount, ",", "") AS DECIMAL(30,8))),0) total', false)
+            ->where('user_id', (int) $id)
+            ->where_in('type', ['profit', 'direct_commission', 'binary_commission', 'level_commission', 'rank_reward'])
+            ->group_by('type')->get('history')->result_array();
+        $income = [];
+        foreach ($incomeRows as $row) $income[$row['type']] = (float) $row['total'];
+
+        $lastLogin = $this->db->select_max('timestamp', 'last_login')
+            ->where('user_id', (int) $id)->where('status', 'logged in')->get('user_activity_logs')->row_array();
+        $nextRank = null;
+        if ($user['tier_level'] !== null) {
+            $nextRank = $this->db->select('name, required_group_volume')
+                ->where('tier_level >', (int) $user['tier_level'])
+                ->where('is_active', 1)->order_by('tier_level', 'ASC')->limit(1)
+                ->get('staking_ranks')->row_array();
+        }
+        $image = $user['profile_img'] ?: $user['image'];
+
+        return [
+            'member' => [
+                'id' => (int) $user['id'],
+                'name' => trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: ($user['name'] ?: $user['username']),
+                'username' => $user['username'],
+                'referral_id' => $user['referral_id'],
+                'email' => $user['email'],
+                'mobile' => $user['contact'],
+                'country' => $user['country'],
+                'state' => $user['state'],
+                'address' => trim(($user['address'] ?? '') . ' ' . ($user['address_line2'] ?? '')),
+                'zipcode' => $user['zipcode'],
+                'gender' => $user['gender'],
+                'dob' => $user['dob'],
+                'status' => (int) $user['status'] === 1 ? 'active' : 'inactive',
+                'frozen' => !empty($user['account_frozen']),
+                'kyc_status' => $user['kyc_status'] ?: 'none',
+                'sponsor' => $user['sponsor_name'] ?: 'Main - Admin',
+                'sponsor_referral' => $user['sponsor_referral'],
+                'rank' => $user['rank_name'] ?: 'UN RANK',
+                'package' => $user['package_name'] ?: 'No package',
+                'registered_at' => $user['register_date'],
+                'last_login' => $lastLogin['last_login'] ?? null,
+                'last_active' => $user['last_active_at'],
+                'avatar' => $image ? media_url($image) : default_avatar_url(),
+            ],
+            'wallets' => $wallets,
+            'stats' => [
+                'total_investment' => (float) ($stake['total'] ?? 0),
+                'active_staking' => (float) ($stake['active'] ?? 0),
+                'total_withdrawn' => (float) ($withdraw['withdrawn'] ?? 0),
+                'pending_withdraw' => (float) ($withdraw['pending'] ?? 0),
+                'total_deposits' => (float) ($deposit['total'] ?? 0),
+                'roi_earned' => (float) ($income['profit'] ?? 0),
+                'direct_income' => (float) ($income['direct_commission'] ?? 0),
+                'binary_income' => (float) ($income['binary_commission'] ?? 0),
+                'level_income' => (float) ($income['level_commission'] ?? 0),
+                'rank_reward' => (float) ($income['rank_reward'] ?? 0),
+            ],
+            'rank' => [
+                'current' => $user['rank_name'] ?: 'UN RANK',
+                'group_volume' => (float) ($user['group_volume'] ?? 0),
+                'required_volume' => (float) ($user['required_group_volume'] ?? 0),
+                'next' => $nextRank['name'] ?? null,
+                'next_required_volume' => (float) ($nextRank['required_group_volume'] ?? 0),
+            ],
+            'refreshed_at' => date('Y-m-d H:i:s'),
+        ];
+    }
+
+    private function _profileJson($payload, $status = 200)
+    {
+        $this->output->set_status_header($status)
+            ->set_content_type('application/json')
+            ->set_output(json_encode($payload, JSON_UNESCAPED_SLASHES));
     }
 
     public function viewuserinfo($id){

@@ -398,12 +398,16 @@ $route['update-support-status/(:any)'] = 'admin/support/Supportmanagement/update
 $route['network-member'] = 'admin/member/Membermanagement';
 $route['network-member-search']['get'] = 'admin/member/Membermanagement/member_search';
 $route['network-list'] = 'admin/member/Membermanagement/list';
+$route['network-member-export'] = 'admin/member/Membermanagement/export_members';
 $route['add-user'] = 'admin/member/Membermanagement/add_user';
 $route['create-user'] = 'admin/member/Membermanagement/create_user';
 $route['user-genealogy/(:num)'] = 'admin/member/Membermanagement/genealogy/$1';
 $route['tree-data/(:num)'] = 'admin/member/Membermanagement/getTreeData/$1';
 $route['view-user/(:num)'] = 'admin/member/Membermanagement/viewuser/$1';
 $route['view-user-info/(:num)'] = 'admin/member/Membermanagement/viewuserinfo/$1';
+$route['admin/member/profile-summary/(:num)'] = 'admin/member/Membermanagement/profile_summary/$1';
+$route['admin/member/profile-transactions/(:num)'] = 'admin/member/Membermanagement/profile_transactions/$1';
+$route['admin/member/profile-tree/(:num)'] = 'admin/member/Membermanagement/profile_tree/$1';
 $route['user-status-update/(:num)'] = 'admin/member/Membermanagement/statusupdate/$1';
 $route['user-delete/(:num)'] = 'admin/member/Membermanagement/deleteuser/$1';
 

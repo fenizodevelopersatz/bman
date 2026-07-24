@@ -95,10 +95,11 @@ $(document).ready(function(){
         var initDatatable = function () {
             const tableRows = table.querySelectorAll('tbody tr');
             datatable = $(table).DataTable({
-                searchDelay: 500,
+                searchDelay: 250,
                 processing: true,
                 serverSide: true,
-                order: [[5, 'desc']],
+                deferRender: true,
+                order: [[1, 'asc']],
                 stateSave: true,
                 ajax: {
                 url: base_url + "network-list",
@@ -111,12 +112,16 @@ $(document).ready(function(){
                },
                 columns: [
                     { data: 'RecordID' },
-                    { data: 'SponserInfo' },
                     { data: 'UserInfo' },
-                    { data : 'BinaryInfo'},
-                    { data: 'DateInfo' },
+                    { data: 'SponserInfo' },
+                    { data: 'StakingTotal' },
+                    { data: 'KycStatus' },
+                    { data: 'WithdrawalRequest' },
                     { data: 'Status' },
                     { data: 'Action' },
+                ],
+                columnDefs: [
+                    { targets: [0, 3, 4, 5, 6, 7], orderable: false }
                 ]
             });
             
@@ -308,6 +313,29 @@ $(document).ready(function(){
             });
         }
 
+        var handleSearchAndExport = function () {
+            var searchInput = document.querySelector('[data-kt-docs-table-filter="search"]');
+            var timer = null;
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    clearTimeout(timer);
+                    timer = setTimeout(function () {
+                        datatable.search(searchInput.value || '').draw();
+                    }, 250);
+                });
+            }
+
+            $('#network_export').on('click', function () {
+                var params = new URLSearchParams();
+                var selected = memberFilter.val() || [];
+                selected.forEach(function (id) { params.append('client_filter[]', id); });
+                params.set('from_date', $('#cl_from_date').val() || '');
+                params.set('to_date', $('#cl_to_date').val() || '');
+                params.set('search', searchInput ? searchInput.value : '');
+                window.location.href = base_url + 'network-member-export?' + params.toString();
+            });
+        }
+
         return {
             init: function () {
                 table = document.querySelector('#kt-client-follow-table');
@@ -323,6 +351,7 @@ $(document).ready(function(){
                 initDatatable();
                 handleFilterChange();
                 handleTableRefresh();
+                handleSearchAndExport();
             }
         };
     }();
