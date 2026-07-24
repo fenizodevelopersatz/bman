@@ -207,7 +207,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
       </div>
       <?php endif; ?>
 
-      <button type="button" class="stk-buy" onclick="stkOpen(<?= (int)$p['id'] ?>)">
+      <button type="button" class="stk-buy" onclick="<?= $isSpecialPkg ? 'stkSpecialOpen' : 'stkOpen' ?>(<?= (int)$p['id'] ?>)">
         <i class="ph ph-lock-key"></i> SELECT
       </button>
     </div>
@@ -217,20 +217,29 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
 
 <!-- ===================== SPECIAL OFFER styling + ROI popup ===================== -->
 <?php
-$specialRoiMap = [];
-$specialRoiName = [];
+$specialRoiMap = [];   // offered (selectable) years: id => [{year, monthly, maturity}]
+$specialRoiName = [];  // id => package name
+$specialRoiMeta = [];  // id => {stake, bonus}
+$specialRoiFull = [];  // id => {year => monthly% (float)} for every configured year
 foreach ($staking_packages as $__p) {
   if (!empty($__p['is_special']) && !empty($__p['special_roi'])) {
+    $__id = (int) $__p['id'];
     $__rows = [];
     foreach ($__p['special_roi'] as $__yr => $__sr) {
       $__rows[] = [
         'year'     => (int) $__yr,
-        'monthly'  => rtrim(rtrim(number_format((float) $__sr['monthly_roi_percent'], 3), '0'), '.'),
-        'maturity' => rtrim(rtrim(number_format((float) $__sr['maturity_percent'], 3), '0'), '.'),
+        'monthly'  => (float) $__sr['monthly_roi_percent'],
+        'maturity' => (float) $__sr['maturity_percent'],
       ];
     }
-    $specialRoiMap[(int) $__p['id']]  = $__rows;
-    $specialRoiName[(int) $__p['id']] = $__p['name'];
+    $specialRoiMap[$__id]  = $__rows;
+    $specialRoiName[$__id] = $__p['name'];
+    $specialRoiMeta[$__id] = ['stake' => (float) $__p['stake_amount'], 'bonus' => (float) $__p['bonus_percent']];
+    $__full = [];
+    foreach (($__p['special_roi_full'] ?? []) as $__y => $__r) {
+      if ((float) $__r['monthly_roi_percent'] > 0) $__full[(int) $__y] = (float) $__r['monthly_roi_percent'];
+    }
+    $specialRoiFull[$__id] = $__full;
   }
 }
 ?>
@@ -258,6 +267,35 @@ foreach ($staking_packages as $__p) {
   .stkroi-note{ margin-top:12px; font-size:11.5px; color:#64748b; font-weight:600; line-height:1.5;
     background:#f8fafc; border:1px solid #eef0f4; border-radius:12px; padding:10px 12px; }
 </style>
+<style>
+  .stksp-overlay{ position:fixed; inset:0; background:rgba(10,10,20,.6); z-index:100001; display:none;
+    align-items:center; justify-content:center; padding:16px; }
+  .stksp-overlay.open{ display:flex; }
+  .stksp-box{ width:min(520px,95vw); max-height:90vh; overflow:auto; background:#fff; border-radius:20px; padding:0; }
+  .stksp-h{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:18px 20px;
+    background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
+  .stksp-h .special-rib{ position:static; background:rgba(255,255,255,.22); }
+  .stksp-h button{ border:0; background:rgba(255,255,255,.2); color:#fff; width:30px; height:30px; border-radius:9px; cursor:pointer; font-size:20px; line-height:1; flex:0 0 auto; }
+  .stksp-body{ padding:18px 20px; }
+  .stksp-label{ display:block; font-size:12px; font-weight:1000; color:#334155; margin:4px 0 8px; }
+  .stksp-years{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+  .stksp-year{ border:1px solid #e6e8ef; background:#fff; color:#334155; font-weight:900; font-size:12.5px;
+    border-radius:12px; padding:9px 14px; cursor:pointer; }
+  .stksp-year.active{ border-color:#d97706; background:#fffbeb; color:#92400e; }
+  .stksp-sched-title{ font-size:12px; font-weight:1000; color:#0b1220; margin:6px 0 8px; }
+  .stksp-table{ width:100%; border-collapse:collapse; font-size:12.5px; margin-bottom:12px; }
+  .stksp-table th{ text-align:left; color:#64748b; font-weight:800; font-size:10.5px; text-transform:uppercase; padding:6px; border-bottom:1px solid #eef0f4; }
+  .stksp-table td{ padding:7px 6px; border-bottom:1px dashed #eef0f4; font-weight:700; color:#0b1220; }
+  .stksp-table td.rg{ color:#15803d; }
+  .stksp-summary{ background:#f8fafc; border:1px solid #eef0f4; border-radius:12px; padding:10px 12px; margin-bottom:12px; }
+  .stksp-sum-row{ display:flex; justify-content:space-between; font-size:12.5px; font-weight:800; color:#334155; padding:3px 0; }
+  .stksp-sum-row.total{ border-top:1px dashed #cbd5e1; margin-top:5px; padding-top:7px; color:#0b1220; font-size:14px; }
+  .stksp-sum-row.total b{ color:#15803d; }
+  .stksp-feedback{ font-size:12.5px; font-weight:800; min-height:18px; margin-bottom:10px; }
+  .stksp-confirm{ width:100%; border:0; border-radius:14px; padding:13px; cursor:pointer; font-weight:1100; font-size:14px;
+    color:#fff; background:linear-gradient(135deg,#f59e0b,#d97706); }
+  .stksp-confirm:disabled{ opacity:.7; cursor:progress; }
+</style>
 <div class="stkroi-overlay" id="stkRoiPop" onclick="if(event.target===this)stkRoiClose()">
   <div class="stkroi-box">
     <div class="stkroi-h"><b id="stkRoiTitle">ROI Structure</b><button type="button" onclick="stkRoiClose()">&times;</button></div>
@@ -268,20 +306,116 @@ foreach ($staking_packages as $__p) {
     <div class="stkroi-note">Earn the Monthly ROI each month for your chosen term, and receive the Maturity % as a bonus at the end. The 25% instant package bonus is separate.</div>
   </div>
 </div>
+
+<!-- Dedicated SPECIAL OFFER purchase modal (escalating year-wise ROI) -->
+<div class="stksp-overlay" id="stkSpecialPop" onclick="if(event.target===this)stkSpecialClose()">
+  <div class="stksp-box">
+    <div class="stksp-h">
+      <div>
+        <span class="special-rib" style="display:inline-block;">★ SPECIAL OFFER</span>
+        <div id="stkSpTitle" style="font-size:18px;font-weight:1200;margin-top:8px;"></div>
+        <div id="stkSpSub" style="font-size:12px;font-weight:800;opacity:.92;"></div>
+      </div>
+      <button type="button" onclick="stkSpecialClose()">&times;</button>
+    </div>
+    <div class="stksp-body">
+      <label class="stksp-label">Select Term</label>
+      <div class="stksp-years" id="stkSpYears"></div>
+      <div id="stkSpSchedule"></div>
+      <div class="stksp-summary" id="stkSpSummary"></div>
+      <div class="stksp-feedback" id="stkSpFeedback"></div>
+      <button type="button" class="stksp-confirm" id="stkSpConfirm" onclick="stkSpecialConfirm()">Confirm Special Stake</button>
+    </div>
+  </div>
+</div>
+<?php $spDefaultDist = 1; foreach (($coin_distribution_options ?? []) as $__o) { if (!empty($__o['is_default'])) { $spDefaultDist = (int) $__o['id']; break; } } ?>
 <script>
   var SPECIAL_ROI = <?= json_encode($specialRoiMap) ?>;
   var SPECIAL_ROI_NAME = <?= json_encode($specialRoiName) ?>;
+  var SPECIAL_META = <?= json_encode($specialRoiMeta) ?>;
+  var SPECIAL_FULL = <?= json_encode($specialRoiFull) ?>;
+  var SP_BASE = '<?= base_url() ?>';
+  var SP_SWAP_ON = <?= !empty($swap_enabled) ? 'true' : 'false' ?>;
+  var SP_DEFAULT_DIST = <?= (int) $spDefaultDist ?>;
+  function spFmt(v){ v = Math.round((Number(v) || 0) * 1000) / 1000; return String(v); }
+
   function stkViewRoi(pid) {
     var rows = SPECIAL_ROI[pid] || [];
     var body = document.getElementById('stkRoiBody');
     body.innerHTML = rows.length
-      ? rows.map(function (r) { return '<tr><td>' + r.year + ' Year' + (r.year > 1 ? 's' : '') + '</td><td class="rg">' + r.monthly + '% /mo</td><td class="fx">' + r.maturity + '%</td></tr>'; }).join('')
+      ? rows.map(function (r) { return '<tr><td>' + r.year + ' Year' + (r.year > 1 ? 's' : '') + '</td><td class="rg">' + spFmt(r.monthly) + '% /mo</td><td class="fx">' + spFmt(r.maturity) + '%</td></tr>'; }).join('')
       : '<tr><td colspan="3" style="color:#94a3b8;">No structure configured yet.</td></tr>';
     document.getElementById('stkRoiTitle').textContent = (SPECIAL_ROI_NAME[pid] || 'Special Offer') + ' — ROI Structure';
     document.getElementById('stkRoiPop').classList.add('open');
   }
   function stkRoiClose() { document.getElementById('stkRoiPop').classList.remove('open'); }
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') stkRoiClose(); });
+
+  var spCur = { pid: null, year: null };
+  function stkSpecialOpen(pid) {
+    spCur.pid = pid; spCur.year = null;
+    var meta = SPECIAL_META[pid] || { stake: 0, bonus: 25 };
+    document.getElementById('stkSpTitle').textContent = (SPECIAL_ROI_NAME[pid] || 'Special Offer');
+    document.getElementById('stkSpSub').textContent = Number(meta.stake).toLocaleString() + ' BMAN · ' + spFmt(meta.bonus) + '% instant bonus';
+    var years = (SPECIAL_ROI[pid] || []).map(function (r) { return r.year; });
+    document.getElementById('stkSpYears').innerHTML = years.map(function (y) {
+      return '<button type="button" class="stksp-year" data-y="' + y + '" onclick="stkSpecialPickYear(' + y + ')">' + y + ' Year' + (y > 1 ? 's' : '') + '</button>';
+    }).join('');
+    document.getElementById('stkSpSchedule').innerHTML = '';
+    document.getElementById('stkSpSummary').innerHTML = '';
+    var fb = document.getElementById('stkSpFeedback'); fb.textContent = ''; fb.style.color = '';
+    document.getElementById('stkSpConfirm').disabled = false;
+    document.getElementById('stkSpConfirm').textContent = 'Confirm Special Stake';
+    document.getElementById('stkSpecialPop').classList.add('open');
+    if (years.length) stkSpecialPickYear(years[0]);
+  }
+  function stkSpecialPickYear(y) {
+    spCur.year = y;
+    document.querySelectorAll('#stkSpYears .stksp-year').forEach(function (b) { b.classList.toggle('active', +b.dataset.y === +y); });
+    var pid = spCur.pid;
+    var principal = Number((SPECIAL_META[pid] || {}).stake) || 0;
+    var full = SPECIAL_FULL[pid] || {};
+    // Ramp years 1..y with gap-fill (nearest lower) — mirrors the backend engine.
+    var rows = ''; var totalMonthly = 0; var last = 0;
+    for (var k = 1; k <= y; k++) {
+      var pct = (full[k] !== undefined) ? Number(full[k]) : last; last = pct;
+      var amt = principal * pct / 100;
+      totalMonthly += amt * 12;
+      rows += '<tr><td>Year ' + k + '</td><td class="rg">' + spFmt(pct) + '% /mo</td><td>' + Math.round(amt).toLocaleString() + ' BMAN/mo</td></tr>';
+    }
+    var offered = (SPECIAL_ROI[pid] || []).find(function (r) { return r.year === y; });
+    var matPct = offered ? Number(offered.maturity) : 0;
+    var matAmt = principal * matPct / 100;
+    document.getElementById('stkSpSchedule').innerHTML =
+      '<div class="stksp-sched-title">Escalating monthly ROI over ' + y + ' year' + (y > 1 ? 's' : '') + '</div>' +
+      '<table class="stksp-table"><thead><tr><th>Year</th><th>Rate</th><th>Monthly credit</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    document.getElementById('stkSpSummary').innerHTML =
+      '<div class="stksp-sum-row"><span>Total monthly ROI over term</span><b>' + Math.round(totalMonthly).toLocaleString() + ' BMAN</b></div>' +
+      '<div class="stksp-sum-row"><span>Maturity bonus (' + spFmt(matPct) + '%)</span><b>' + Math.round(matAmt).toLocaleString() + ' BMAN</b></div>' +
+      '<div class="stksp-sum-row"><span>Principal returned at maturity</span><b>' + Math.round(principal).toLocaleString() + ' BMAN</b></div>' +
+      '<div class="stksp-sum-row total"><span>Total return</span><b>' + Math.round(totalMonthly + matAmt + principal).toLocaleString() + ' BMAN</b></div>';
+  }
+  function stkSpecialClose() { document.getElementById('stkSpecialPop').classList.remove('open'); }
+  function stkSpecialConfirm() {
+    var fb = document.getElementById('stkSpFeedback');
+    if (!spCur.pid || !spCur.year) { fb.style.color = '#dc2626'; fb.textContent = 'Please pick a term.'; return; }
+    var btn = document.getElementById('stkSpConfirm'); btn.disabled = true; btn.textContent = 'Processing…';
+    var fd = new FormData();
+    fd.append('package_id', spCur.pid);
+    fd.append('plan_code', 'regular');
+    fd.append('plan_type', 'regular');
+    fd.append('duration_years', spCur.year);
+    fd.append('coin_distribution_option_id', SP_DEFAULT_DIST);
+    fd.append('plan_id', 0);
+    var endpoint = SP_SWAP_ON ? 'user/lending/swap_purchase' : 'user/lending/purchase_stake';
+    fetch(SP_BASE + endpoint, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (j.status) { fb.style.color = '#15803d'; fb.textContent = j.message || 'Special stake submitted.'; setTimeout(function () { location.reload(); }, 1400); }
+        else { btn.disabled = false; btn.textContent = 'Confirm Special Stake'; fb.style.color = '#dc2626'; fb.textContent = j.message || 'Failed.'; }
+      })
+      .catch(function () { btn.disabled = false; btn.textContent = 'Confirm Special Stake'; fb.style.color = '#dc2626'; fb.textContent = 'Could not reach the server.'; });
+  }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { stkRoiClose(); stkSpecialClose(); } });
 </script>
 
 <!-- ===================== STAKING PURCHASE MODAL ===================== -->

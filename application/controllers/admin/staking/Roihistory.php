@@ -201,6 +201,7 @@ class Roihistory extends CI_Controller
                 r.principal_amount, r.total_roi_amount, r.total_paid_amount, r.remaining_to_pay,
                 r.regular_payments_completed, r.regular_payment_count,
                 r.fixed_status, r.fixed_payment_amount, r.fixed_maturity_date,
+                r.is_special, r.duration_years,
                 r.next_payment_date, r.error_message, r.created_at, u.username, u.email', false)
             ->order_by('r.created_at', 'DESC')->limit($limit, $offset)->get()->result_array();
 
