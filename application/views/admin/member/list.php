@@ -131,33 +131,9 @@
                                                                         </i>
                                                                         Refresh
                                                                     </button>
-                                                                    <button type="button" class="btn btn-light-primary" data-kt-menu-trigger="click" data-kt-menu-placement="bottom-end">
+                                                                    <button type="button" id="network_export" class="btn btn-light-primary">
                                                                         <i class="ki-duotone ki-exit-down fs-2"><span class="path1"></span><span class="path2"></span></i> Export Report
                                                                     </button>
-
-                                                                    <div id="kt_datatable_example_export_menu" class="menu menu-sub menu-sub-dropdown menu-column menu-rounded menu-gray-600 menu-state-bg-light-primary fw-semibold fs-7 w-200px py-4" data-kt-menu="true">
-                                                                        <div class="menu-item px-3">
-                                                                            <a href="#" class="menu-link px-3" data-kt-export="copy">
-                                                                            Copy to clipboard
-                                                                            </a>
-                                                                        </div>
-                                                                        <div class="menu-item px-3">
-                                                                            <a href="#" class="menu-link px-3" data-kt-export="excel">
-                                                                                    Export as Excel
-                                                                                    </a>
-                                                                        </div>
-                                                                        <div class="menu-item px-3">
-                                                                            <a href="#" class="menu-link px-3" data-kt-export="csv">
-                                                                            Export as CSV
-                                                                            </a>
-                                                                        </div>
-                                                                        <div class="menu-item px-3">
-                                                                            <a href="#" class="menu-link px-3" data-kt-export="pdf">
-                                                                                    Export as PDF
-                                                                                    </a>
-                                                                        </div>
-                                                                        <div id="kt_datatable_example_buttons" class="d-none"></div>
-                                                                    </div>
                                                                 </div>
                                                             </div>
 
@@ -165,10 +141,11 @@
                                                                 <thead>
                                                                     <tr class="text-start text-gray-500 fw-bold fs-7 text-uppercase gs-0">
                                                                     <th>S/No</th>
-                                                                    <th>Sponser Info</th>
-                                                                    <th>User Info</th>
-                                                                    <th>Network Info</th>
-                                                                    <th>My Investment</th>
+                                                                    <th>Member</th>
+                                                                    <th>Sponsor</th>
+                                                                    <th>Purchased Staking</th>
+                                                                    <th>KYC</th>
+                                                                    <th>Withdrawal Request</th>
                                                                     <th>Status</th>
                                                                     <th>Action</th>
                                                                     </tr>
@@ -247,7 +224,7 @@
             <script>
             const base_url = '<?php echo base_url();?>';
             </script>
-            <script src="<?php echo base_url();?>/assets/admin/js/custom/authentication/sign-in/network-list.js?ver=3.3"></script>
+            <script src="<?php echo base_url();?>/assets/admin/js/custom/authentication/sign-in/network-list.js?ver=3.4"></script>
             <script>
             </script>
     </body>
