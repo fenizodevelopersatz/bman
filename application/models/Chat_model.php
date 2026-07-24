@@ -437,7 +437,10 @@ class Chat_model extends CI_Model
             $r['peer_id'] = (int) ($r['peer_id'] ?? 0);
             $r['peer_username'] = (string) ($r['peer_username'] ?? 'User');
             $r['is_me'] = ((int) $r['user_id'] === $userId) ? 1 : 0;
+            // Domain-agnostic image URL (handles legacy rows with a baked-in host).
+            if (!empty($r['file_url'])) $r['file_url'] = media_url($r['file_url']);
         }
+        unset($r);
 
         return $rows;
     }

@@ -148,8 +148,11 @@ function profileUploadUrl($path, $fallbackDir = '')
   if ($path === '') {
     return '';
   }
-  if (preg_match('#^https?://#i', $path)) {
-    return $path;
+  // Full URL (possibly with a stale, pre-domain-change host) OR a known
+  // uploads/assets path: re-root onto the CURRENT base_url via media_url()
+  // so images never break after a domain change.
+  if (preg_match('#^https?://#i', $path) || strpos($path, 'uploads/') !== false || strpos($path, 'assets/') !== false) {
+    return media_url($path);
   }
   return base_url(ltrim($fallbackDir . $path, '/'));
 }
@@ -1887,7 +1890,9 @@ function renderExistingPreview($url, $title)
                 $fw = isset($five_wallets) ? $five_wallets : ['usdt'=>0,'exchange'=>0,'earning'=>0,'staking'=>0,'bonus'=>0];
                 $fmt = function ($v) { return number_format((float) $v, 2, '.', ','); };
                 $waddr = (!empty($wallet['wallet_address'])) ? $wallet['wallet_address'] : '';
-                $wqr = (!empty($wallet['wallet_qrimage'])) ? $wallet['wallet_qrimage'] : '';
+                // Re-root stored QR URL onto the current domain (base_url baked
+                // in at creation time breaks after a domain change).
+                $wqr = qr_public_url($wallet['wallet_qrimage'] ?? '');
                 ?>
                 <style>
                   .wl-wrap{margin-top:26px}

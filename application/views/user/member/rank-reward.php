@@ -359,8 +359,12 @@ $msRewardText = function ($l) use ($rk_n) {
                     <p>Earn your rank on team volume. Once you reach it, it is yours permanently.</p>
                 </div>
                 <div class="actions">
+                    <button class="btn-soft" onclick="rkFiles(true)">
+                        <i class="ph ph-download-simple"></i> Download
+                        <?php if (!empty($rank_files)): ?><span style="background:var(--color-primary,#6D4AFF);color:#fff;border-radius:999px;font-size:11px;font-weight:800;padding:1px 7px;margin-left:4px;"><?= count($rank_files); ?></span><?php endif; ?>
+                    </button>
                     <button class="btn-soft" onclick="rkRules(true)"><i class="ph ph-info"></i> How ranks work</button>
-                    <button class="btn-soft" onclick="window.print()"><i class="ph ph-printer"></i> Print</button>                    
+                    <button class="btn-soft" onclick="window.print()"><i class="ph ph-printer"></i> Print</button>
                     <a class="btn-dark" href="<?= base_url('user/wallet'); ?>"><i class="ph ph-wallet"></i> My Wallet</a>
                 </div>
             </div>
@@ -870,14 +874,56 @@ $msRewardText = function ($l) use ($rk_n) {
         </div>
     </div>
 
+    <!-- ================= DOWNLOADS MODAL ================= -->
+    <div class="modal-backdrop" id="rkFilesBack" onclick="rkFiles(false)"></div>
+    <div class="modal" id="rkFilesModal" role="dialog" aria-modal="true" aria-labelledby="rkFilesT">
+        <div class="modal-h">
+            <h3 id="rkFilesT"><i class="ph ph-download-simple"></i> Downloads</h3>
+            <button class="xbtn" onclick="rkFiles(false)" aria-label="Close"><i class="ph ph-x"></i></button>
+        </div>
+        <div>
+            <?php if (empty($rank_files)): ?>
+                <div style="text-align:center;color:#8a8f99;padding:26px 0;font-weight:600;">No downloads available yet.</div>
+            <?php else: foreach ($rank_files as $rf):
+                $rfUrl = media_url($rf['file_path']);
+                $rfImg = (int) $rf['is_image'] === 1;
+            ?>
+                <div style="display:flex;align-items:center;gap:14px;padding:12px;border:1px solid var(--color-border);border-radius:14px;margin-bottom:10px;">
+                    <div style="flex:0 0 auto;">
+                        <?php if ($rfImg): ?>
+                            <img src="<?= html_escape($rfUrl) ?>" alt="" style="width:54px;height:54px;object-fit:cover;border-radius:10px;border:1px solid var(--color-border);">
+                        <?php else: ?>
+                            <div style="width:54px;height:54px;border-radius:10px;border:1px solid var(--color-border);display:flex;align-items:center;justify-content:center;background:#f6f7fb;color:#64748b;font-size:24px;"><i class="ph ph-file-text"></i></div>
+                        <?php endif; ?>
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:800;color:var(--text-primary,#111);"><?= html_escape($rf['title']) ?></div>
+                        <div style="font-size:12px;color:#8a8f99;word-break:break-all;"><?= html_escape($rf['file_name']) ?><?= $rf['file_size'] ? ' &middot; ' . number_format($rf['file_size'] / 1024, 0) . ' KB' : '' ?></div>
+                    </div>
+                    <div style="display:flex;gap:8px;flex:0 0 auto;">
+                        <a class="btn-soft" href="<?= html_escape($rfUrl) ?>" target="_blank" title="View"><i class="ph ph-eye"></i></a>
+                        <a class="btn-dark" href="<?= html_escape($rfUrl) ?>" download="<?= html_escape($rf['file_name']) ?>"><i class="ph ph-download-simple"></i></a>
+                    </div>
+                </div>
+            <?php endforeach; endif; ?>
+        </div>
+    </div>
+
     <script>
+        /* Downloads modal */
+        function rkFiles(open) {
+            document.getElementById('rkFilesModal').style.display = open ? 'block' : 'none';
+            document.getElementById('rkFilesBack').style.display = open ? 'block' : 'none';
+            document.body.style.overflow = open ? 'hidden' : '';
+        }
+
         /* Rules modal */
         function rkRules(open) {
             document.getElementById('rkModal').style.display = open ? 'block' : 'none';
             document.getElementById('rkBack').style.display = open ? 'block' : 'none';
             document.body.style.overflow = open ? 'hidden' : '';
         }
-        document.addEventListener('keydown', e => { if (e.key === 'Escape') rkRules(false); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') { rkRules(false); rkFiles(false); } });
 
         /* Rewards filters — client-side over the rendered reward cards */
         (function () {

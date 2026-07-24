@@ -152,7 +152,10 @@ class Kyc extends MY_Controller
                 return [false, strip_tags($this->upload->display_errors('', ''))];
             }
             $data = $this->upload->data();
-            return [true, base_url('uploads/kyc/' . (int) $uid . '/' . $data['file_name'])];
+            // Store the RELATIVE path only — never bake the domain in. It is
+            // rebuilt against the current base_url() at display time (admin
+            // review / profile) via media_url(), so KYC docs survive a domain change.
+            return [true, 'uploads/kyc/' . (int) $uid . '/' . $data['file_name']];
         };
 
         list($ok, $url_front) = $uploadOne('doc_front');
@@ -251,9 +254,11 @@ class Kyc extends MY_Controller
             return $this->_json(['status' => 'error', 'message' => $this->upload->display_errors('', '')], 422);
         }
         $data = $this->upload->data();
-        $url = base_url('uploads/kyc/' . $uid . '/' . $data['file_name']);
+        // Store relative; display re-roots via media_url(). Return an absolute
+        // URL to the caller for immediate preview convenience only.
+        $rel = 'uploads/kyc/' . $uid . '/' . $data['file_name'];
 
-        return $this->_json(['status' => 'success', 'url' => $url]);
+        return $this->_json(['status' => 'success', 'url' => base_url($rel), 'path' => $rel]);
     }
 
     private function _countries()

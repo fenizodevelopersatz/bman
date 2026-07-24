@@ -162,15 +162,14 @@ class Bmanwithdraw extends MY_Controller
         if ($path === '') {
             return '';
         }
-        if (preg_match('#^https?://#i', $path)) {
-            return $path;
+        // Full URL (possibly a stale pre-domain-change host) OR a known
+        // uploads/assets path: re-root onto the CURRENT base_url via media_url()
+        // so KYC/proof images never break after a domain change.
+        if (preg_match('#^https?://#i', $path) || strpos($path, 'uploads/') !== false || strpos($path, 'assets/') !== false) {
+            return media_url($path);
         }
 
         $path = ltrim(str_replace('\\', '/', $path), '/');
-        if (strpos($path, 'assets/') === 0 || strpos($path, 'uploads/') === 0) {
-            return base_url($path);
-        }
-
         return base_url($default_prefix . $path);
     }
 

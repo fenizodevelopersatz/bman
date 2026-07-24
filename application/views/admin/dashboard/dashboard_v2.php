@@ -104,7 +104,7 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                                 </div>
 
                                 <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
-                                    <?php $this->load->view('admin/dashboard/partials/_active_users_chart'); ?>
+                                    <?php $this->load->view('admin/dashboard/partials/_activity_coin_trend'); ?>
                                 </div>
 
                                 <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
@@ -360,36 +360,56 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
             });
         })();
 
-        let dashActiveUsersChart = null;
-        function loadActiveUsersChart(days) {
-            days = days || 30;
-            fetchJson(base + 'admin/dashboard/active-user-trend?days=' + encodeURIComponent(days)).then(j => {
+        let dashActivityTrendChart = null;
+        const ACTIVITYTREND_RANGE_LABEL = { daily: 'Days', monthly: 'Months', yearly: 'Yearly' };
+        function loadActivityTrend(range) {
+            range = range || 'monthly';
+            fetchJson(base + 'admin/dashboard/activity-trend?range=' + encodeURIComponent(range)).then(j => {
                 if (!j.status) return;
-                const d = j.data;
-                const el = document.querySelector('#dash-activeusers-chart');
+                const points = j.points || [];
+                const s = j.summary || {};
+                const labelEl = document.getElementById('dash-activitytrend-label');
+                if (labelEl) labelEl.textContent = ACTIVITYTREND_RANGE_LABEL[j.range] || j.label || '';
+
+                count('dash-activitytrend-active', s.active_users);
+                count('dash-activitytrend-bonus', s.bonus_used);
+                count('dash-activitytrend-staking', s.staking_done);
+                count('dash-activitytrend-earning', s.earning_coin);
+                count('dash-activitytrend-withdraw', s.coin_withdrawal);
+
+                const el = document.querySelector('#dash-activitytrend-chart');
                 if (!el) return;
-                if (dashActiveUsersChart) { dashActiveUsersChart.destroy(); dashActiveUsersChart = null; }
-                dashActiveUsersChart = new ApexCharts(el, {
-                    chart: { type: 'line', height: 280, toolbar: { show: false } },
-                    series: [{ name: 'Chat-Active Users', data: d.active_users }],
-                    colors: ['#8B5CF6'],
-                    xaxis: { categories: d.labels, labels: { rotate: -45 } },
-                    stroke: { curve: 'smooth', width: 3 },
-                    markers: { size: 3 },
+                if (dashActivityTrendChart) { dashActivityTrendChart.destroy(); dashActivityTrendChart = null; }
+                const labels = points.map(p => p.date);
+                dashActivityTrendChart = new ApexCharts(el, {
+                    chart: { height: 340, toolbar: { show: false }, stacked: false },
+                    series: [
+                        { name: 'Earning Coin', type: 'bar', data: points.map(p => p.earning_coin) },
+                        { name: 'Coin Withdrawal', type: 'bar', data: points.map(p => p.coin_withdrawal) },
+                        { name: 'Bonus Used', type: 'line', data: points.map(p => p.bonus_used) },
+                        { name: 'Staking Done', type: 'line', data: points.map(p => p.staking_done) },
+                        { name: 'Active Users', type: 'line', data: points.map(p => p.active_users) },
+                    ],
+                    colors: ['#2563EB', '#22C55E', '#F59E0B', '#8B5CF6', '#94A3B8'],
+                    xaxis: { categories: labels, labels: { rotate: -45 } },
+                    stroke: { curve: 'smooth', width: [0, 0, 3, 2, 2] },
                     dataLabels: { enabled: false },
+                    yaxis: [
+                        { seriesName: 'Earning Coin', title: { text: 'BMAN' } },
+                        { seriesName: 'Earning Coin', show: false },
+                        { seriesName: 'Earning Coin', show: false },
+                        { seriesName: 'Staking Done', opposite: true, title: { text: 'Count' }, forceNiceScale: true },
+                        { seriesName: 'Staking Done', show: false, opposite: true },
+                    ],
+                    legend: { position: 'top' },
                 });
-                dashActiveUsersChart.render();
+                dashActivityTrendChart.render();
             });
         }
         (function () {
-            const sel = document.getElementById('dash-activeusers-range');
-            const label = document.getElementById('dash-activeusers-range-label');
+            const sel = document.getElementById('dash-activitytrend-range');
             if (!sel) return;
-            const labels = { '7': 'Last 7 Days', '30': 'Last 30 Days', '90': 'Last 90 Days', '365': 'Last Year' };
-            sel.addEventListener('change', function () {
-                if (label) label.textContent = labels[sel.value] || (sel.value + ' Days');
-                loadActiveUsersChart(parseInt(sel.value, 10));
-            });
+            sel.addEventListener('change', function () { loadActivityTrend(sel.value); });
         })();
 
         function esc(s) {
@@ -670,7 +690,7 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
         loadPackageDonut();
         loadBinarySummary();
         loadGrowthChart();
-        loadActiveUsersChart();
+        loadActivityTrend();
         loadRankSummary();
         loadWithdrawalCenter();
         loadKycSupport();

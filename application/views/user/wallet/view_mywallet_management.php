@@ -1326,7 +1326,10 @@ function wallet_title_fallback($type)
         $depositWallet = $deposit_wallet ?? [];
         $walletMonitor = $wallet_monitor ?? null;
         $walletAddress = $depositWallet['wallet_address'] ?? '';
-        $walletQr = $depositWallet['wallet_qrimage'] ?? '';
+        // Re-root the stored QR URL onto the CURRENT domain — the DB value has
+        // the base_url baked in from when the wallet was created, so it breaks
+        // after a domain change. qr_public_url() rebuilds it from base_url().
+        $walletQr = qr_public_url($depositWallet['wallet_qrimage'] ?? '');
         $onchainUsdt = is_array($walletMonitor) ? ($walletMonitor['onchain_usdt'] ?? '0') : '0';
         $onchainBnb  = is_array($walletMonitor) ? ($walletMonitor['onchain_bnb'] ?? '0') : '0';
         $onchainBman = is_array($walletMonitor) ? ($walletMonitor['onchain_bman'] ?? '0') : '0';
