@@ -57,6 +57,7 @@ class Packages extends CI_Controller
             'bonus_percent' => $this->input->post('bonus_percent', true),
             'group_ceiling' => $this->input->post('group_ceiling', true),
             'sort_order'    => $this->input->post('sort_order', true),
+            'is_special'    => $this->input->post('is_special', true) ? 1 : 0,
         ], $id);
         if (!$ok) return $this->_json(['status' => 'error', 'message' => $res], 422);
         return $this->_json(['status' => 'success', 'message' => $id ? 'Package updated.' : 'Package added.', 'id' => $res]);
