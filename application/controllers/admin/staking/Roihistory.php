@@ -182,10 +182,14 @@ class Roihistory extends CI_Controller
         $page  = max(1, (int)$this->input->post('page'));
         $limit = 25;
         $offset = ($page - 1) * $limit;
-        $status = $this->input->post('status', true); // active | in_progress | completed | failed
+        $status    = $this->input->post('status', true); // active | in_progress | completed | failed
+        $isSpecial = (int)$this->input->post('is_special'); // 1 → only Special Offer records
 
-        $applyFilters = function () use ($status) {
+        $applyFilters = function () use ($status, $isSpecial) {
             $this->db->from('roi_staking_management r')->join('users u', 'u.id = r.user_id', 'left');
+            if ($isSpecial) {
+                $this->db->where('r.is_special', 1);
+            }
             if ($status === 'failed') {
                 $this->db->where('r.error_message IS NOT NULL', null, false);
             } elseif ($status) {
@@ -201,9 +205,56 @@ class Roihistory extends CI_Controller
                 r.principal_amount, r.total_roi_amount, r.total_paid_amount, r.remaining_to_pay,
                 r.regular_payments_completed, r.regular_payment_count,
                 r.fixed_status, r.fixed_payment_amount, r.fixed_maturity_date,
-                r.is_special, r.duration_years,
+                r.is_special, r.duration_years, r.special_schedule_json, r.special_maturity_percent,
                 r.next_payment_date, r.error_message, r.created_at, u.username, u.email', false)
             ->order_by('r.created_at', 'DESC')->limit($limit, $offset)->get()->result_array();
+
+        return $this->_json(['status' => 'success', 'rows' => $rows, 'total' => $total, 'page' => $page, 'limit' => $limit]);
+    }
+
+    /**
+     * AJAX: on-chain ROI credits (monthly / maturity / principal) for Special
+     * Offer records only. Special ROI records are keyed by ref = 'ORDER-{n}-ROI';
+     * their on-chain rows use reference_id = that ref (maturity/principal) or
+     * '{ref}-M{cycle}' (monthly), so a prefix match on reference_id captures
+     * every distribution for the special records. Client-paginated like list().
+     */
+    public function special_distributions()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $page  = max(1, (int)$this->input->post('page'));
+        $limit = 25;
+        $offset = ($page - 1) * $limit;
+
+        $refRows = $this->db->select('ref')->where('is_special', 1)
+            ->get('roi_staking_management')->result_array();
+        $refs = array_values(array_filter(array_map(function ($r) {
+            return trim((string)$r['ref']);
+        }, $refRows), function ($ref) { return $ref !== ''; }));
+
+        if (empty($refs)) {
+            return $this->_json(['status' => 'success', 'rows' => [], 'total' => 0, 'page' => $page, 'limit' => $limit]);
+        }
+
+        $applyFilters = function () use ($refs) {
+            $this->db->from('onchain_transactions o')
+                ->join('users u', 'u.id = o.user_id', 'left')
+                ->where('o.reference_type', 'roi');
+            $this->db->group_start();
+            foreach ($refs as $i => $ref) {
+                if ($i === 0) $this->db->like('o.reference_id', $ref, 'after');
+                else          $this->db->or_like('o.reference_id', $ref, 'after');
+            }
+            $this->db->group_end();
+        };
+
+        $applyFilters();
+        $total = $this->db->count_all_results();
+
+        $applyFilters();
+        $rows = $this->db->select('o.id, o.user_id, o.tx_type, o.amount, o.wallet_type, o.status,
+                o.tx_hash, o.reference_id, o.gas_fee_total, o.created_at, u.username, u.email', false)
+            ->order_by('o.created_at', 'DESC')->limit($limit, $offset)->get()->result_array();
 
         return $this->_json(['status' => 'success', 'rows' => $rows, 'total' => $total, 'page' => $page, 'limit' => $limit]);
     }
