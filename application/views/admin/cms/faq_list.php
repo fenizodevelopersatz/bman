@@ -154,6 +154,7 @@
                                                             class="text-start text-gray-500 fw-bold fs-7 text-uppercase gs-0">
                                                             <th>S/No</th>
                                                             <th>FAQ Question</th>
+                                                            <th>Display Page</th>
                                                             <th>FAQ Status</th>
                                                             <th>Action</th>
                                                         </tr>

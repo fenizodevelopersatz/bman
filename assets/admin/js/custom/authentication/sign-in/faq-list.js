@@ -252,7 +252,7 @@ $(document).ready(function () {
                 searchDelay: 500,
                 processing: true,
                 serverSide: true,
-                order: [[5, "desc"]],
+                order: [[0, "desc"]],
                 stateSave: true,
                 ajax: {
                     url: base_url + "faq-list-cms",
@@ -261,6 +261,7 @@ $(document).ready(function () {
                 columns: [
                     { data: "RecordID" },
                     { data: "temp_name" },
+                    { data: "temp_page" },
                     { data: "temp_status" },
                     { data: "temp_content" },
                 ],
