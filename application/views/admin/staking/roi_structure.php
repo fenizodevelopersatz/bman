@@ -151,6 +151,76 @@
                                     </div>
                                 </div>
 
+                                <!-- ===================== SPECIAL OFFER — RECORDS & CRON EXECUTIONS ===================== -->
+                                <div class="card mt-8">
+                                    <div class="card-header border-transparent pt-5">
+                                        <h3 class="card-title fw-bold">Special Offer — Records &amp; Cron Executions
+                                            <span class="badge badge-light-warning ms-2 text-uppercase">Escalating ROI</span>
+                                        </h3>
+                                        <div class="card-toolbar">
+                                            <button type="button" class="btn btn-sm btn-light" id="so-refresh">Refresh</button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body pt-2">
+
+                                        <!-- A. Special Offer stake records -->
+                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                            <h4 class="fs-6 fw-bold text-gray-800 mb-0">Special Offer Records</h4>
+                                            <span class="text-muted fs-8">Showing <b id="so-rec-showing">0</b> of <b id="so-rec-total">0</b></span>
+                                        </div>
+                                        <div class="table-responsive mb-3">
+                                            <table class="table table-row-bordered align-middle fs-7 gy-2">
+                                                <thead>
+                                                    <tr class="text-gray-500 fw-bold fs-8 text-uppercase">
+                                                        <th>User</th><th>Ref</th><th class="text-end">Principal</th><th>Term</th>
+                                                        <th>Yearly schedule</th><th class="text-end">Total ROI</th>
+                                                        <th class="text-end">Paid / Remaining</th><th>Progress</th>
+                                                        <th>Next due</th><th>Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="so-rec-body" class="text-gray-800 fw-semibold">
+                                                    <tr><td colspan="10" class="text-center text-muted py-6">Loading…</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div class="d-flex justify-content-end gap-2 mb-6">
+                                            <button class="btn btn-sm btn-light" id="so-rec-prev" disabled>Prev</button>
+                                            <span class="badge badge-light align-self-center">Page <span id="so-rec-page">1</span></span>
+                                            <button class="btn btn-sm btn-light" id="so-rec-next" disabled>Next</button>
+                                        </div>
+
+                                        <div class="separator my-4"></div>
+
+                                        <!-- B. On-chain cron executions for special records -->
+                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                            <h4 class="fs-6 fw-bold text-gray-800 mb-0">Cron Executions
+                                                <span class="text-muted fs-8 fw-normal">— on-chain ROI credits</span>
+                                            </h4>
+                                            <span class="text-muted fs-8">Showing <b id="so-cron-showing">0</b> of <b id="so-cron-total">0</b></span>
+                                        </div>
+                                        <div class="table-responsive">
+                                            <table class="table table-row-bordered align-middle fs-7 gy-2">
+                                                <thead>
+                                                    <tr class="text-gray-500 fw-bold fs-8 text-uppercase">
+                                                        <th>Date</th><th>User</th><th>Reference</th><th>Type</th>
+                                                        <th class="text-end">Amount</th><th class="text-end">Gas (BNB)</th>
+                                                        <th>Tx hash</th><th>Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="so-cron-body" class="text-gray-800 fw-semibold">
+                                                    <tr><td colspan="8" class="text-center text-muted py-6">Loading…</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div class="d-flex justify-content-end gap-2">
+                                            <button class="btn btn-sm btn-light" id="so-cron-prev" disabled>Prev</button>
+                                            <span class="badge badge-light align-self-center">Page <span id="so-cron-page">1</span></span>
+                                            <button class="btn btn-sm btn-light" id="so-cron-next" disabled>Next</button>
+                                        </div>
+
+                                    </div>
+                                </div>
+
                                 <!-- History modal -->
                                 <div class="modal fade" id="stk-hist-modal" tabindex="-1" aria-hidden="true">
                                     <div class="modal-dialog modal-dialog-centered mw-750px">
