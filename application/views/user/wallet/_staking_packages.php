@@ -254,12 +254,12 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         <div class="stkm-pane active" data-step="1"><label>Select Package</label><div class="stkm-packages" id="stkm-packages"></div><div class="stkm-note">Choose a package to continue to plan selection.</div></div>
         <div class="stkm-pane" data-step="2"><label>ROI Plan Type</label><div class="stkm-seg" id="stkm-roi-plans"></div><div class="stkm-note">Choose how you want to receive your ROI returns</div><label>Term</label><div class="stkm-seg" id="stkm-terms"></div></div>
       <div class="stkm-pane" data-step="3">
-        <label>Coin Distribution Options (10%)</label>
+        <label>Coin Distribution Options</label>
         <div class="stkm-seg" id="stkm-distributions"></div>
         <div style="background:#f8fafc;border:1px solid rgba(15,23,42,.08);border-radius:14px;padding:14px 16px;margin:12px 0;margin-top:16px;">
           <div style="font-size:13px;font-weight:800;color:#334155;line-height:1.6;" id="stkm-distribution-desc">Select an option above</div>
         </div>
-        <div class="stkm-note">Only options with a 10% Bonus Wallet distribution are shown. The 25% package bonus is separate and is shown as Instant Bonus.</div>
+        <div class="stkm-note">Choose how your principal is split across wallets. The 25% package bonus is separate and is shown as Instant Bonus.</div>
       </div>
       <div class="stkm-pane" data-step="4">
         <!-- ROI Details Section -->
@@ -307,7 +307,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
           <div class="stkm-row roi"><span>ROI (this plan/term)</span><b id="stkm-roi">?</b></div>
           <div class="stkm-row"><span>Cost</span><b id="stkm-cost">? USDT</b></div>
           <div class="stkm-row"><span><?= $isSwap ? 'BMAN ? Exchange Wallet' : 'Locked into Staking Wallet' ?></span><b id="stkm-lock">? BMAN</b></div>
-          <div class="stkm-row"><span>Distribution Bonus Wallet (10%)</span><b id="stkm-bonus">? BMAN</b></div>
+          <div class="stkm-row"><span>Distribution Bonus Wallet (<span id="stkm-bonus-pct">0</span>%)</span><b id="stkm-bonus">? BMAN</b></div>
           <div class="stkm-row"><span>Instant Bonus (25%)</span><b id="stkm-instant">? BMAN</b></div>
           <div class="stkm-row"><span>Your USDT Balance</span><b id="stkm-bal">? USDT</b></div>
           <div class="stkm-warn" id="stkm-warn">Insufficient USDT balance ? deposit USDT first.</div>
@@ -357,16 +357,27 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
       'earning' => (float)$opt['earning_percentage'],
       'staking' => (float)$opt['staking_percentage'],
       'bonus' => (float)$opt['bonus_percentage'],
+      'is_default' => (int)($opt['is_default'] ?? 0),
     ];
     return $carry;
   }, [])) ?> || {};
   const FALLBACK_DISTS = {
-    2:{name:'Option 2',exchange:90,earning:0,staking:0,bonus:10},
-    3:{name:'Option 3',exchange:80,earning:10,staking:0,bonus:10},
-    7:{name:'Option 7',exchange:70,earning:10,staking:10,bonus:10}
+    1:{name:'Option 1',exchange:100,earning:0,staking:0,bonus:0,is_default:1},
+    2:{name:'Option 2',exchange:90,earning:0,staking:0,bonus:10,is_default:0},
+    3:{name:'Option 3',exchange:80,earning:10,staking:0,bonus:10,is_default:0},
+    7:{name:'Option 7',exchange:70,earning:10,staking:10,bonus:10,is_default:0}
   };
-  const DISTS = Object.fromEntries(Object.entries(RAW_DISTS).filter(([, v]) => Math.abs((Number(v.bonus) || 0) - 10) < 0.001));
-  if (!Object.keys(DISTS).length) Object.assign(DISTS, FALLBACK_DISTS);
+  // Every active option the admin has configured is selectable here — this
+  // flow used to hide anything without exactly 10% Bonus Wallet, which
+  // silently dropped Options 1/4/5/6 even though nothing server-side
+  // restricts them (Lendingcontroller::swap_purchase() only range-checks
+  // 1-7 and reads each option's real percentages, never assumes 10%).
+  const DISTS = Object.keys(RAW_DISTS).length ? RAW_DISTS : FALLBACK_DISTS;
+  function distDefaultKey(){
+    const entries = Object.entries(DISTS);
+    const def = entries.find(([, v]) => v.is_default);
+    return Number((def || entries[0] || [7])[0]);
+  }
   // Plan descriptions only (which plans are actually offered — and what
   // durations each one offers — comes from PLANS, server-filtered to
   // is_active=1 so a plan the admin deactivates on Staking Plans stops
@@ -376,7 +387,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     regular: 'ROI is credited every month on days 5, 15, and 25. You receive a steady monthly percentage across the whole term.',
     combo: 'A blend of Fixed and Regular: part of your ROI pays monthly while the rest is settled at maturity.'
   };
-  let cur = {pkg:null, plan:null, years:null, roi_plan:null, dist:Number(Object.keys(DISTS)[0] || 7), usdt:0, bal:0, step:1, quote:null};
+  let cur = {pkg:null, plan:null, years:null, roi_plan:null, dist:distDefaultKey(), usdt:0, bal:0, step:1, quote:null};
   const $ = id => document.getElementById(id);
   const SWAP_ON = <?= !empty($swap_enabled) ? 'true' : 'false' ?>;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -530,16 +541,18 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     if($('stkm-bw-bonus')) $('stkm-bw-bonus').textContent=Number(dist.bonus).toLocaleString()+' BMAN';
     if($('stkm-bw-earning')) $('stkm-bw-earning').textContent=Number(dist.earning).toLocaleString()+' BMAN';
     if($('stkm-bonus')) $('stkm-bonus').textContent=Number(dist.bonus).toLocaleString()+' BMAN';
+    if($('stkm-bonus-pct')) $('stkm-bonus-pct').textContent=fmtPct(dist.m.bonus);
     if($('stkm-instant')) $('stkm-instant').textContent=Number(dist.instant).toLocaleString()+' BMAN';
     renderROIDetails();
   }
+  function fmtPct(v){ v = Math.round((Number(v)||0) * 100) / 100; return String(v); }
   function getDistDescription(dist){
     const parts = [];
-    if(Math.abs((Number(dist.exchange) || 0) - 10) < 0.001) parts.push('10% Exchange');
-    if(Math.abs((Number(dist.earning) || 0) - 10) < 0.001) parts.push('10% Earning');
-    if(Math.abs((Number(dist.staking) || 0) - 10) < 0.001) parts.push('10% Staking');
-    if(Math.abs((Number(dist.bonus) || 0) - 10) < 0.001) parts.push('10% Bonus');
-    return parts.length > 0 ? parts.join(' + ') : 'No 10% wallet allocation';
+    if((Number(dist.exchange) || 0) > 0) parts.push(fmtPct(dist.exchange) + '% Exchange');
+    if((Number(dist.earning) || 0) > 0) parts.push(fmtPct(dist.earning) + '% Earning');
+    if((Number(dist.staking) || 0) > 0) parts.push(fmtPct(dist.staking) + '% Staking');
+    if((Number(dist.bonus) || 0) > 0) parts.push(fmtPct(dist.bonus) + '% Bonus');
+    return parts.length > 0 ? parts.join(' + ') : 'No wallet allocation';
   }
   function renderDistDescription(){
     const desc=$('stkm-distribution-desc');
@@ -570,7 +583,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     cur.plan=null;
     cur.years=null;
     cur.roi_plan=null;
-    cur.dist=Number(Object.keys(DISTS)[0] || 7);
+    cur.dist=distDefaultKey();
     cur.quote=null;
     cur.pkg=PKGS.find(p=>p.id===pkgId);
     if(!cur.pkg) return;

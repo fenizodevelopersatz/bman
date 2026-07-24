@@ -500,90 +500,143 @@
       <?php $this->load->view('user/layout/v2/user_header'); ?>
 
       <!-- ===================== ANNOUNCEMENT BANNER ===================== -->
-      <?php
-      $defaultHeroImg = base_url() . 'assets/user/media/misc/city.png';
-      $alertGradient = 'linear-gradient(135deg,#ef4444,#b91c1c)';
-      ?>
-      <div class="banner-wrapper banner-fixed">
+      <?php $alertGradient = 'linear-gradient(135deg,#ef4444,#b91c1c)'; ?>
+      <style>
+        /* Self-contained announcement banner. Each carousel slide owns its
+           OWN background/image/scrim/text so the carousel animates the whole
+           slide atomically — the previous design rotated only the text while
+           swapping a separate <img> and background via JS, which desynced and
+           left placeholder text floating over the image. Scoped .ann-* classes
+           so nothing here collides with the shared theme in style.css. */
+        .ann-banner{ position:relative; border-radius:22px; overflow:hidden; margin-bottom:22px;
+          border:1px solid #eceafe; box-shadow:0 12px 34px rgba(76,60,241,.10); }
+        .ann-carousel, .ann-carousel .carousel-inner{ position:relative; width:100%; }
+        .ann-carousel .carousel-inner{ overflow:hidden; }
+        .ann-carousel .carousel-item{ position:relative; display:none; float:left; width:100%;
+          margin-right:-100%; backface-visibility:hidden; }
+        .ann-carousel .carousel-item.active,
+        .ann-carousel .carousel-item-next,
+        .ann-carousel .carousel-item-prev{ display:block; }
+        .ann-carousel.carousel-fade .carousel-item{ opacity:0; transition:opacity .6s ease; transform:none; }
+        .ann-carousel.carousel-fade .carousel-item.active{ opacity:1; }
+        .ann-carousel.carousel-fade .active.carousel-item-start,
+        .ann-carousel.carousel-fade .active.carousel-item-end{ opacity:0; }
 
-        <div class="slide slide-hero active" id="slideHero" style="position: relative; inset:auto; opacity:1;">
-          <div class="hero-grid" id="heroGrid">
+        .ann-slide{ position:relative; min-height:236px; display:flex; overflow:hidden;
+          background:linear-gradient(120deg,#6C4CF1 0%,#4E2CF0 100%); }
+        .ann-slide__img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
+        .ann-slide__scrim{ position:absolute; inset:0; z-index:1;
+          background:linear-gradient(90deg, rgba(11,15,26,.82) 0%, rgba(11,15,26,.46) 48%, rgba(11,15,26,.05) 100%); }
+        .ann-slide.pos-center .ann-slide__scrim{
+          background:linear-gradient(180deg, rgba(11,15,26,.30) 0%, rgba(11,15,26,.62) 100%); }
+        .ann-slide__content{ position:relative; z-index:2; display:flex; flex-direction:column;
+          justify-content:center; gap:9px; padding:32px 42px; max-width:640px; width:100%; }
+        .ann-slide.pos-top-left .ann-slide__content{ justify-content:flex-start; }
+        .ann-slide.pos-bottom-left .ann-slide__content{ justify-content:flex-end; }
+        .ann-slide.pos-center .ann-slide__content{ justify-content:center; align-items:center;
+          text-align:center; max-width:760px; margin:0 auto; }
+        .ann-slide.pos-center .ann-slide__tag{ margin-left:auto; margin-right:auto; }
 
-            <!-- Left Content -->
-            <div class="hero-left">
-              <!-- <div class="tag"><i class="ph ph-megaphone"></i> Announcement</div> -->
+        .ann-slide__tag{ display:inline-flex; align-items:center; gap:7px; width:fit-content;
+          background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.28);
+          padding:5px 12px; border-radius:999px; font-size:11px; font-weight:800;
+          letter-spacing:.03em; text-transform:uppercase; margin-bottom:2px; }
+        .ann-slide__alert{ font-size:12px; font-weight:900; letter-spacing:.06em; margin-bottom:2px; }
+        .ann-slide__title{ margin:0; font-size:27px; line-height:1.16; font-weight:900; letter-spacing:-.5px; }
+        .ann-slide__subtitle{ margin:0; font-size:14px; font-weight:800; opacity:.92; }
+        .ann-slide__desc{ margin:2px 0 0; font-size:13px; line-height:1.55; opacity:.9; max-width:560px; }
+        .ann-slide__btn{ display:inline-flex; align-items:center; gap:8px; width:fit-content; margin-top:12px;
+          padding:11px 20px; border-radius:999px; font-size:13px; font-weight:900; background:#111827;
+          color:#fff; text-decoration:none; transition:transform .15s ease, box-shadow .15s ease; }
+        .ann-slide__btn:hover{ transform:translateY(-1px); box-shadow:0 8px 22px rgba(0,0,0,.28); color:#fff; }
 
-              <?php if (!empty($notification)): ?>
-                <div id="announcementCarousel" class="carousel slide carousel-fade text-only-carousel"
-                  data-bs-ride="carousel" data-bs-interval="5000" data-bs-pause="false" data-bs-touch="true">
+        .ann-dots{ position:absolute; bottom:14px; left:50%; transform:translateX(-50%);
+          display:flex; gap:7px; z-index:3; }
+        .ann-dots button{ width:8px; height:8px; padding:0; border:0; border-radius:999px;
+          background:rgba(255,255,255,.5); cursor:pointer; transition:.2s; }
+        .ann-dots button.active{ width:22px; background:#fff; }
 
-                  <div class="carousel-inner">
-                    <?php $first = true;
-                    foreach ($notification as $note):
-                      $type = $note->announcement_type ?? 'text';
-                      $showImage = in_array($type, ['image', 'text_image'], true);
-                      $showFullText = in_array($type, ['text', 'text_image'], true);
-                      $imageOnly = ($type === 'image');
-                      $hasRealImage = $showImage && !empty($note->image);
-                      $isAlert = in_array($note->category ?? 'general', ['alert', 'maintenance'], true);
-                      $bg = $isAlert ? $alertGradient : ($showImage ? '' : ($note->bg_color ?: ''));
-                      $img = $hasRealImage ? base_url($note->image) : $defaultHeroImg;
-                      $textColor = htmlspecialchars($note->text_color ?: '#ffffff');
-                      $textPos = in_array($note->text_position ?? 'middle-left', ['top-left', 'bottom-left', 'center'], true) ? $note->text_position : 'middle-left';
-                    ?>
-                      <div class="carousel-item <?= $first ? 'active' : ''; ?>"
-                        data-id="<?= (int) $note->id ?>"
-                        data-bg="<?= htmlspecialchars($bg); ?>" data-image="<?= htmlspecialchars($img); ?>"
-                        data-has-image="<?= $hasRealImage ? '1' : '0' ?>"
-                        data-text-pos="<?= htmlspecialchars($textPos) ?>"
-                        data-text-color="<?= $textColor ?>">
-                        <?php if ($isAlert && !$imageOnly): ?><div class="fs-8 fw-bold mb-1" style="color:<?= $textColor ?>;">⚠ <?= strtoupper(htmlspecialchars($note->category)) ?></div><?php endif; ?>
-                        <?php if (!$imageOnly): ?>
-                        <h1 class="hero-title" style="color:<?= $textColor ?>;">— <?= htmlspecialchars($note->title); ?></h1>
-                        <?php endif; ?>
-                        <?php if ($showFullText && !empty($note->subtitle)): ?>
-                          <div class="hero-subtitle" style="color:<?= $textColor ?>;opacity:.85;font-weight:700;margin-top:4px;"><?= htmlspecialchars($note->subtitle) ?></div>
-                        <?php endif; ?>
-                        <?php if ($showFullText && !empty($note->description)): ?>
-                          <p class="hero-desc" style="color:<?= $textColor ?>;">
-                            <?= nl2br(htmlspecialchars($note->description)) ?>
-                          </p>
-                        <?php endif; ?>
-                        <?php if (!empty($note->button_text) && !empty($note->button_url)): ?>
-                          <div class="slide-actions">
-                            <a href="<?= htmlspecialchars($note->button_url) ?>" class="btn primary announcement-cta" data-id="<?= (int) $note->id ?>">
-                              <?= htmlspecialchars($note->button_text) ?> <i class="ph ph-arrow-circle-right"></i>
-                            </a>
-                          </div>
-                        <?php endif; ?>
-                      </div>
-                      <?php $first = false; endforeach; ?>
+        .ann-empty{ min-height:150px; display:flex; align-items:center; padding:30px 42px;
+          background:linear-gradient(120deg,#6C4CF1,#4E2CF0); color:#fff; }
+        .ann-empty h2{ margin:0; font-size:19px; font-weight:800; opacity:.94; }
+
+        @media (max-width:640px){
+          .ann-slide{ min-height:200px; }
+          .ann-slide__content{ padding:22px 22px; max-width:100%; }
+          .ann-slide__title{ font-size:20px; }
+          .ann-slide__desc{ font-size:12.5px; }
+        }
+      </style>
+
+      <div class="ann-banner">
+        <?php if (!empty($notification)): ?>
+        <div id="announcementCarousel" class="carousel slide carousel-fade ann-carousel"
+          data-bs-ride="carousel" data-bs-interval="6000" data-bs-pause="hover" data-bs-touch="true">
+          <div class="carousel-inner">
+            <?php $first = true;
+            foreach ($notification as $note):
+              $type = $note->announcement_type ?? 'text';
+              $showFullText = in_array($type, ['text', 'text_image'], true);
+              $imageOnly = ($type === 'image');
+              $hasRealImage = in_array($type, ['image', 'text_image'], true) && !empty($note->image);
+              $isAlert = in_array($note->category ?? 'general', ['alert', 'maintenance'], true);
+              $img = $hasRealImage ? base_url($note->image) : '';
+              $textColor = htmlspecialchars($note->text_color ?: '#ffffff');
+              $textPos = in_array($note->text_position ?? 'middle-left', ['top-left', 'bottom-left', 'center'], true) ? $note->text_position : 'middle-left';
+              // Alert => red gradient. No image => bg_color / gradient. With image => image itself is the background.
+              $slideBg = $isAlert ? $alertGradient : ($hasRealImage ? '' : ($note->bg_color ?: 'linear-gradient(120deg,#6C4CF1,#4E2CF0)'));
+              $catLabel = ucfirst(str_replace('_', ' ', $note->category ?? 'general'));
+              $slideClasses = 'pos-' . $textPos;
+              if ($imageOnly)  $slideClasses .= ' is-image-only';
+              if ($isAlert)    $slideClasses .= ' is-alert';
+            ?>
+              <div class="carousel-item <?= $first ? 'active' : '' ?>" data-id="<?= (int) $note->id ?>">
+                <div class="ann-slide <?= $slideClasses ?>"<?= $slideBg ? ' style="background:' . htmlspecialchars($slideBg) . ';"' : '' ?>>
+                  <?php if ($hasRealImage): ?>
+                    <img class="ann-slide__img" src="<?= htmlspecialchars($img) ?>" alt="<?= htmlspecialchars($note->title ?: 'Announcement') ?>">
+                    <?php if (!$imageOnly): ?><div class="ann-slide__scrim"></div><?php endif; ?>
+                  <?php endif; ?>
+
+                  <?php if (!$imageOnly): ?>
+                  <div class="ann-slide__content" style="color:<?= $textColor ?>;">
+                    <?php if ($isAlert): ?>
+                      <div class="ann-slide__alert">⚠ <?= strtoupper(htmlspecialchars($catLabel)) ?></div>
+                    <?php else: ?>
+                      <span class="ann-slide__tag"><i class="ph ph-megaphone"></i> <?= htmlspecialchars($catLabel) ?></span>
+                    <?php endif; ?>
+                    <?php if (!empty($note->title)): ?>
+                      <h2 class="ann-slide__title"><?= htmlspecialchars($note->title) ?></h2>
+                    <?php endif; ?>
+                    <?php if ($showFullText && !empty($note->subtitle)): ?>
+                      <p class="ann-slide__subtitle"><?= htmlspecialchars($note->subtitle) ?></p>
+                    <?php endif; ?>
+                    <?php if ($showFullText && !empty($note->description)): ?>
+                      <p class="ann-slide__desc"><?= nl2br(htmlspecialchars($note->description)) ?></p>
+                    <?php endif; ?>
+                    <?php if (!empty($note->button_text) && !empty($note->button_url)): ?>
+                      <a href="<?= htmlspecialchars($note->button_url) ?>" class="ann-slide__btn announcement-cta" data-id="<?= (int) $note->id ?>">
+                        <?= htmlspecialchars($note->button_text) ?> <i class="ph ph-arrow-right"></i>
+                      </a>
+                    <?php endif; ?>
                   </div>
-
-                  <!-- OPTIONAL: tiny dots for text only (remove if you don't want) -->
-                  <div class="text-dots">
-                    <?php for ($i = 0; $i < count($notification); $i++): ?>
-                      <button type="button" data-bs-target="#announcementCarousel" data-bs-slide-to="<?= $i ?>"
-                        class="<?= $i === 0 ? 'active' : '' ?>" aria-label="Slide <?= $i + 1 ?>"></button>
-                    <?php endfor; ?>
-                  </div>
-
+                  <?php endif; ?>
                 </div>
-              <?php else: ?>
-                <h1 class="hero-title">— Latest announcements will appear here</h1>
-              <?php endif; ?>
-            </div>
-
-            <!-- Right Image (swaps per active announcement's image, if any) -->
-            <div class="hero-right">
-              <img class="hero-img" id="heroImg" src="<?= $defaultHeroImg; ?>" alt="banner image">
-            </div>
-
+              </div>
+              <?php $first = false; endforeach; ?>
           </div>
+
+          <?php if (count($notification) > 1): ?>
+          <div class="ann-dots">
+            <?php for ($i = 0; $i < count($notification); $i++): ?>
+              <button type="button" data-bs-target="#announcementCarousel" data-bs-slide-to="<?= $i ?>"
+                class="<?= $i === 0 ? 'active' : '' ?>" aria-label="Slide <?= $i + 1 ?>"></button>
+            <?php endfor; ?>
+          </div>
+          <?php endif; ?>
         </div>
-
-        <div class="dots" id="sliderDots"></div>
-
+        <?php else: ?>
+        <div class="ann-empty"><h2>Latest announcements will appear here</h2></div>
+        <?php endif; ?>
       </div>
 
       <?php if (!empty($popup_announcement)): $pa = $popup_announcement; ?>
@@ -615,11 +668,10 @@
           }
 
           <?php if (!empty($notification)): ?>
+          // Each slide is self-contained now, so JS only tracks views — no more
+          // background/image swapping (the carousel animates the whole slide).
           var carousel = document.getElementById('announcementCarousel');
-          var slideHero = document.getElementById('slideHero');
-          var heroImg = document.getElementById('heroImg');
           var seenViews = {};
-
           function trackView(item) {
             if (!item) return;
             var id = item.getAttribute('data-id');
@@ -627,24 +679,11 @@
             seenViews[id] = true;
             beacon('user/announcement/view/' + id);
           }
-
-          var heroGrid = document.getElementById('heroGrid');
-          function applySlide(item) {
-            if (!item || !slideHero || !heroImg) return;
-            slideHero.style.background = item.getAttribute('data-bg') || '';
-            heroImg.src = item.getAttribute('data-image') || '<?= $defaultHeroImg; ?>';
-            if (heroGrid) {
-              heroGrid.classList.toggle('has-image', item.getAttribute('data-has-image') === '1');
-              heroGrid.classList.remove('text-pos-top-left', 'text-pos-bottom-left', 'text-pos-center');
-              var pos = item.getAttribute('data-text-pos');
-              if (pos && pos !== 'middle-left') heroGrid.classList.add('text-pos-' + pos);
-            }
-            trackView(item);
-          }
-
-          if (carousel && slideHero && heroImg) {
-            applySlide(carousel.querySelector('.carousel-item.active'));
-            carousel.addEventListener('slide.bs.carousel', function (e) { applySlide(e.relatedTarget); });
+          if (carousel) {
+            trackView(carousel.querySelector('.carousel-item.active'));
+            carousel.addEventListener('slid.bs.carousel', function () {
+              trackView(carousel.querySelector('.carousel-item.active'));
+            });
           }
           <?php endif; ?>
 

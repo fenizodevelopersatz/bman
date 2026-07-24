@@ -144,6 +144,40 @@ class Dashboardchart_model extends CI_Model
         }
     }
 
+    /**
+     * Platform-wide version of trend() — same five series, summed across
+     * EVERY user rather than one member's downline. Powers the admin
+     * dashboard's "User Activity & Coin Trend" section.
+     *
+     * Reuses the exact same bucket/aggregation helpers as trend() with $ids
+     * forced to null (no user filter), bypassing TEAM_SCOPE entirely rather
+     * than repurposing it — flipping that const would also change the
+     * member-facing chart's scope, which must stay team-only.
+     */
+    public function platformTrend($range = 'monthly')
+    {
+        if (!isset($this->ranges[$range])) $range = 'monthly';
+
+        $key = 'dash_trend_platform_' . $range;
+        $hit = $this->cache->get($key);
+        if (is_array($hit)) {
+            $hit['cached'] = true;
+            return $hit;
+        }
+
+        $buckets = $this->_buckets($range);
+        $from = $this->_since($range);
+        $this->_applyLedger($buckets, $range, $from, null);
+        $this->_applyStaking($buckets, $range, $from, null);
+        $this->_applyWithdrawals($buckets, $range, $from, null);
+
+        $out = $this->_shape($range, $buckets);
+        $out['scope'] = 'platform';
+        $this->cache->save($key, $out, self::CACHE_TTL);
+        $out['cached'] = false;
+        return $out;
+    }
+
     /* ============================ team scope =========================== */
 
     /**
