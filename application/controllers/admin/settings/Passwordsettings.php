@@ -31,28 +31,14 @@ class Passwordsettings extends CI_Controller {
     |--------------------------------------------------------------------------
     */
     public function index() {
-        $verify_session = $this->session->userdata('verify_payment_page');
-        // $verify_session = "ok";
-        if($verify_session =="ok"){     
+        $admin_id = (int)$this->session->userdata('admin_userid');
         $this->data['title'] = 'Password Settings';
         $this->data['card_title'] = 'Password Settings';
         $this->data['verify_type'] = '1';
-        $this->data['admininfo'] = $this->db->query("SELECT * FROM admin_members")->row();
+        $this->data['admininfo'] = $this->db
+            ->get_where('admin_members', ['id' => $admin_id])
+            ->row();
         $this->load->view('admin/settings/change-password-settings', $this->data);
-        }
-        else{
-            $send_otp = $this->session->userdata('sender_otp');
-                    
-            if($send_otp == ""){
-            $this->sender_otp();
-            }
-    
-            $admin_id = $this->session->userdata('admin_userid');
-            $this->data['verify_type'] = '0';
-            $this->data['title'] = 'Change Password Verify Page';
-            $this->data['admin_mail'] = $this->db->query("SELECT * FROM `admin_members` WHERE id = '".$admin_id."' ")->row()->admin_email;
-            $this->load->view('admin/settings/change-password-settings',$this->data);
-        }
     }
 
 
@@ -144,7 +130,7 @@ public function finelVerify() {
     public function update()
     {
         $this->form_validation->set_rules('old_password', 'Old Password', 'required|trim');
-        $this->form_validation->set_rules('new_password', 'New Password', 'required|trim');
+        $this->form_validation->set_rules('new_password', 'New Password', 'required|trim|min_length[8]');
         $this->form_validation->set_rules('confirm_new_password', 'Confirm New Password', 'required|trim|matches[new_password]');
     
         if ($this->form_validation->run() == FALSE) {
@@ -160,7 +146,7 @@ public function finelVerify() {
             $new_password = $this->input->post('new_password');
             $admin_id = $this->session->userdata('admin_userid');
     
-            $admin = $this->db->get_where('admin_members', ['id' => 1])->row();
+            $admin = $this->db->get_where('admin_members', ['id' => $admin_id])->row();
     
             if (!$admin || !password_verify($old_password, $admin->admin_password)) {
                 $response = array(

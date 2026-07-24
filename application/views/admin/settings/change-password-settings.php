@@ -259,14 +259,6 @@
                                </div>
                                </div>
 
-                               
-
-                                <?php 
-                                $level = explode(',', $commissioninfo->level_commission);
-                                ?>
-
-                              
-
                                </div>
                                <div class="card-footer d-flex justify-content-end py-6 px-9">
                                <button type="submit" class="btn btn-primary" id="kt_account_meta_details_submit">Save Changes</button>
@@ -315,7 +307,7 @@
             <script>
                 const base_url = '<?php echo base_url();?>';
             </script>
-            <script src="<?php echo base_url();?>/assets/admin/js/custom/authentication/sign-in/password-settings.js?ver=2.9"></script>
+            <script src="<?php echo base_url();?>assets/admin/js/custom/authentication/sign-in/password-settings.js?ver=3.1"></script>
 
 
             <script>
