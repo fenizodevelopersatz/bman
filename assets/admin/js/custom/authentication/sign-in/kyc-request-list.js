@@ -17,6 +17,10 @@
   const statusEl = document.getElementById('kyc-filter-status');
   const docTypeEl = document.getElementById('kyc-filter-doctype');
   const searchEl = document.querySelector('[data-kt-docs-table-filter="search"]');
+  const pageParams = new URLSearchParams(window.location.search);
+  const requestedUserId = pageParams.get('user_id') || '';
+  const autoOpen = pageParams.get('open') === '1';
+  let didAutoOpen = false;
 
   // DataTable
   const dt = $(tableEl).DataTable({
@@ -27,6 +31,7 @@
         d.status = statusEl ? statusEl.value : '';
         d.doc_type = docTypeEl ? docTypeEl.value : '';
         d.q = searchEl ? searchEl.value.trim() : '';
+        d.user_id = requestedUserId;
       },
       dataSrc: function (json) { setCSRF(json); return json.data || []; }
     },
@@ -41,6 +46,14 @@
     responsive: true,
     searching: false, // NEW: searching is server-side via the q parameter
     language: { emptyTable: 'No KYC requests found.' }
+  });
+  dt.on('draw', function () {
+    if (!autoOpen || didAutoOpen) return;
+    const review = tableEl.querySelector('.btn-view');
+    if (review) {
+      didAutoOpen = true;
+      review.click();
+    }
   });
 
   // NEW: reload from server when filters change or the user types (debounced)

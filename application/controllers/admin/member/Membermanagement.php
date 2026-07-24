@@ -187,9 +187,9 @@ class  Membermanagement extends CI_Controller {
         if ($fullName === '') $fullName = trim((string) ($user['name'] ?? ''));
         if ($fullName === '') $fullName = (string) ($user['username'] ?? 'Member');
 
-        $profileImage = $user['profile_img'] ?: $user['image'];
-        $avatar = $profileImage ? media_url($profileImage) : default_avatar_url();
-        $avatarHtml = '<img src="' . html_escape($avatar) . '" alt="" class="rounded-circle" width="44" height="44" style="object-fit:cover" onerror="this.onerror=null;this.src=\'' . html_escape(default_avatar_url()) . '\'">';
+        $avatar = $this->_profileAvatar($user['profile_img'] ?? '', $user['image'] ?? '');
+        $profileUrl = base_url('view-user/' . (int) $user['id']);
+        $avatarHtml = '<a href="' . $profileUrl . '" title="View member profile"><img src="' . html_escape($avatar) . '" alt="' . html_escape($fullName) . '" class="rounded-circle" width="44" height="44" style="object-fit:cover" onerror="this.onerror=null;this.src=\'' . html_escape(default_avatar_url()) . '\'"></a>';
 
         $sponsorReferral = $user['sponsor_referral'] ?: 'Main - Admin';
         $sponsorEmail = $user['sponsor_email'] ?: 'Main - Admin';
@@ -197,20 +197,26 @@ class  Membermanagement extends CI_Controller {
         $kycClass = $kyc === 'approved' ? 'success' : (in_array($kyc, ['pending', 'under_review', 'resubmitted'], true) ? 'warning' : ($kyc === 'rejected' ? 'danger' : 'secondary'));
         $pendingCount = (int) $user['pending_withdraw_count'];
         $pendingAmount = (float) $user['pending_withdraw_amount'];
-        $statusTitle = (int) $user['status'] === 1 ? 'Active' : 'Inactive';
-        $statusColor = (int) $user['status'] === 1 ? '#17c964' : '#d1d5db';
+        $isFrozen = !empty($user['account_frozen']);
+        $statusTitle = $isFrozen ? 'Frozen Account' : ((int) $user['status'] === 1 ? 'Active Account' : 'Inactive Account');
+        $statusColor = $isFrozen ? '#ef4444' : ((int) $user['status'] === 1 ? '#17c964' : '#d1d5db');
+        $frozenBadge = $isFrozen ? '<span class="badge badge-light-danger mt-1" title="Frozen Account">Frozen Account</span>' : '';
+        $kycUrl = base_url('admin/kyc?user_id=' . (int) $user['id'] . '&open=1');
+        $withdrawUrl = !empty($user['pending_withdraw_id'])
+            ? base_url('admin/bman-withdrawals/view/' . (int) $user['pending_withdraw_id'])
+            : '';
 
         $data[] = [
             'RecordID' => $start + $index + 1,
             'UserInfo' => '<div class="d-flex align-items-center gap-3">' . $avatarHtml .
-                '<div class="d-flex flex-column"><a class="text-gray-900 fw-bold text-hover-primary" href="' . base_url('view-user/' . (int) $user['id']) . '">' . html_escape($fullName) . '</a>' .
+                '<div class="d-flex flex-column"><a class="text-gray-900 fw-bold text-hover-primary" href="' . $profileUrl . '">' . html_escape($fullName) . '</a>' .
                 '<span class="text-gray-600 fw-semibold fs-7">' . html_escape($user['referral_id']) . ' · ' . html_escape($user['email']) . '</span>' .
-                '<span class="text-muted fs-8">' . html_escape($user['register_date']) . '</span></div></div>',
+                '<span class="text-muted fs-8">' . html_escape($user['register_date']) . '</span>' . $frozenBadge . '</div></div>',
             'SponserInfo' => '<div class="fw-bold text-gray-800">' . html_escape($sponsorReferral) . '</div><div class="text-muted fs-7">' . html_escape($sponsorEmail) . '</div>',
             'StakingTotal' => '<div class="fw-bolder text-gray-900">' . number_format((float) $user['purchased_staking'], 4) . ' BMAN</div><div class="text-muted fs-8">Completed purchases</div>',
-            'KycStatus' => '<span class="badge badge-light-' . $kycClass . '">' . html_escape(strtoupper(str_replace('_', ' ', $kyc))) . '</span>',
+            'KycStatus' => '<a href="' . $kycUrl . '" class="badge badge-light-' . $kycClass . ' text-hover-primary" title="Open KYC review">' . html_escape(strtoupper(str_replace('_', ' ', $kyc))) . '</a>',
             'WithdrawalRequest' => $pendingCount > 0
-                ? '<div class="fw-bold text-warning">' . $pendingCount . ' pending</div><div class="text-muted fs-7">' . number_format($pendingAmount, 4) . ' BMAN</div>'
+                ? '<a href="' . $withdrawUrl . '" class="d-block text-decoration-none" title="Open withdrawal request"><div class="fw-bold text-warning">' . $pendingCount . ' pending</div><div class="text-muted fs-7">' . number_format($pendingAmount, 4) . ' BMAN</div></a>'
                 : '<span class="text-muted">None</span>',
             'Status' => '<span title="' . $statusTitle . '" aria-label="' . $statusTitle . '" style="display:inline-block;width:12px;height:12px;border-radius:50%;background:' . $statusColor . ';box-shadow:0 0 0 4px ' . $statusColor . '22"></span>',
             'Action' => '<a class="btn btn-success btn-sm" href="' . base_url('view-user/' . (int) $user['id']) . '"><i class="fa fa-eye"></i> View</a>',
@@ -618,7 +624,6 @@ class  Membermanagement extends CI_Controller {
         foreach ($nodes as $node) {
             $nid = (int) $node['id'];
             $wallet = $wallets[$nid] ?? [];
-            $image = $node['profile_img'] ?: $node['image'];
             $out[] = [
                 'id' => $nid,
                 'parent_id' => $nid === $rootId ? null : (int) $node['parent_id'],
@@ -627,15 +632,193 @@ class  Membermanagement extends CI_Controller {
                 'email' => $node['email'],
                 'referral_id' => $node['referral_id'] ?: ('#' . $nid),
                 'status' => (int) $node['status'] === 1 ? 'active' : 'inactive',
-                'avatar' => $image ? media_url($image) : default_avatar_url(),
+                'avatar' => $this->_profileAvatar($node['profile_img'] ?? '', $node['image'] ?? ''),
                 'wallet_total' => (float) ($wallet['exchange_balance'] ?? 0)
                     + (float) ($wallet['earning_balance'] ?? 0)
                     + (float) ($wallet['staking_balance'] ?? 0)
                     + (float) ($wallet['bonus_balance'] ?? 0),
+                'exchange_balance' => (float) ($wallet['exchange_balance'] ?? 0),
+                'earning_balance' => (float) ($wallet['earning_balance'] ?? 0),
+                'staking_balance' => (float) ($wallet['staking_balance'] ?? 0),
+                'bonus_balance' => (float) ($wallet['bonus_balance'] ?? 0),
             ];
         }
 
         $this->_profileJson(['status' => true, 'root_id' => $rootId, 'depth' => $depth, 'data' => $out]);
+    }
+
+    public function profile_roi($id)
+    {
+        $id = (int) $id;
+        $page = max(1, (int) ($this->input->get('page') ?: 1));
+        $limit = min(50, max(5, (int) ($this->input->get('limit') ?: 10)));
+        $offset = ($page - 1) * $limit;
+        $q = trim((string) $this->input->get('q', true));
+        $status = trim((string) $this->input->get('status', true));
+
+        $stake = $this->db->select(
+            'COALESCE(SUM(principal_amount),0) investment,
+             COALESCE(SUM(total_paid_amount),0) lifetime,
+             COALESCE(SUM(remaining_to_pay),0) pending,
+             MIN(CASE WHEN next_payment_date >= NOW() AND overall_status IN ("active","in_progress") THEN next_payment_date END) next_date,
+             MIN(CASE WHEN fixed_maturity_date >= NOW() THEN fixed_maturity_date END) maturity_date,
+             SUM(CASE WHEN overall_status IN ("active","in_progress") THEN 1 ELSE 0 END) running,
+             SUM(CASE WHEN overall_status = "completed" THEN 1 ELSE 0 END) completed', false)
+            ->where('user_id', $id)->get('roi_staking_management')->row_array() ?: [];
+        $today = $this->db->select('COALESCE(SUM(amount),0) amount', false)->where('user_id', $id)
+            ->where('status', 'paid')->where('credit_date', date('Y-m-d'))->get('staking_roi_payouts')->row_array();
+        $month = $this->db->select('COALESCE(SUM(amount),0) amount', false)->where('user_id', $id)
+            ->where('status', 'paid')->where('credit_date >=', date('Y-m-01'))->where('credit_date <=', date('Y-m-t'))
+            ->get('staking_roi_payouts')->row_array();
+        $next = $this->db->select('regular_payment_amount, fixed_payment_amount')->where('user_id', $id)
+            ->where_in('overall_status', ['active', 'in_progress'])->where('next_payment_date >=', date('Y-m-d H:i:s'))
+            ->order_by('next_payment_date', 'ASC')->limit(1)->get('roi_staking_management')->row_array() ?: [];
+
+        $apply = function () use ($id, $q, $status) {
+            $this->db->where('rp.user_id', $id);
+            if ($status !== '') $this->db->where('rp.status', $status);
+            if ($q !== '') $this->db->group_start()->like('sp.name', $q)->or_like('rp.tx_hash', $q)->or_like('us.plan_code', $q)->group_end();
+        };
+        $this->db->from('staking_roi_payouts rp')->join('user_stakes us', 'us.id=rp.stake_id', 'left')
+            ->join('staking_packages sp', 'sp.id=us.package_id', 'left');
+        $apply();
+        $total = (int) $this->db->count_all_results();
+        $this->db->select('rp.id,rp.amount,rp.credit_date,rp.wallet,rp.status,rp.tx_hash,rp.transfer_status,rp.network,us.plan_code,us.is_special,us.roi_percent,us.stake_amount,us.maturity_date,sp.name package_name')
+            ->from('staking_roi_payouts rp')->join('user_stakes us', 'us.id=rp.stake_id', 'left')
+            ->join('staking_packages sp', 'sp.id=us.package_id', 'left');
+        $apply();
+        $rows = $this->db->order_by('rp.id', 'DESC')->limit($limit, $offset)->get()->result_array();
+
+        $investment = (float) ($stake['investment'] ?? 0);
+        $lifetime = (float) ($stake['lifetime'] ?? 0);
+        $maturity = $stake['maturity_date'] ?? null;
+        $remainingDays = $maturity ? max(0, (int) floor((strtotime($maturity) - time()) / 86400)) : null;
+        $this->_profileJson(['status' => true, 'summary' => [
+            'total_roi_earned' => $lifetime, 'pending_roi' => (float) ($stake['pending'] ?? 0),
+            'today_roi' => (float) ($today['amount'] ?? 0), 'monthly_roi' => (float) ($month['amount'] ?? 0),
+            'lifetime_roi' => $lifetime, 'next_roi_date' => $stake['next_date'] ?? null,
+            'next_roi_amount' => (float) (($next['regular_payment_amount'] ?? 0) ?: ($next['fixed_payment_amount'] ?? 0)),
+            'maturity_date' => $maturity, 'remaining_days' => $remainingDays,
+            'completion_percent' => $investment > 0 ? min(100, ($lifetime / $investment) * 100) : 0,
+            'roi_status' => (int) ($stake['running'] ?? 0) > 0 ? 'Running' : ((int) ($stake['completed'] ?? 0) > 0 ? 'Completed' : 'Not started'),
+        ], 'data' => $rows, 'pagination' => ['page' => $page, 'limit' => $limit, 'total' => $total, 'pages' => max(1, (int) ceil($total / $limit))]]);
+    }
+
+    public function profile_staking($id)
+    {
+        $rows = $this->db->select('us.id,sp.name package_name,us.stake_amount,us.plan_code,us.duration_years,us.is_special,us.start_date,us.maturity_date,us.status,us.tx_hash,us.block_number,us.confirmations,us.gas_fee,us.network,us.roi_percent,COALESCE(SUM(rp.amount),0) roi_earned', false)
+            ->from('user_stakes us')->join('staking_packages sp', 'sp.id=us.package_id', 'left')
+            ->join('staking_roi_payouts rp', 'rp.stake_id=us.id AND rp.status="paid"', 'left')
+            ->where('us.user_id', (int) $id)->group_by('us.id')->order_by('us.id', 'DESC')->limit(100)->get()->result_array();
+        foreach ($rows as &$row) {
+            $row['certificate_pdf'] = null; // No staking-certificate source exists; do not expose an unrelated rank certificate.
+            $row['remaining_days'] = $row['maturity_date'] ? max(0, (int) floor((strtotime($row['maturity_date']) - time()) / 86400)) : null;
+            $duration = max(1, strtotime($row['maturity_date']) - strtotime($row['start_date']));
+            $row['maturity_percent'] = min(100, max(0, ((time() - strtotime($row['start_date'])) / $duration) * 100));
+        }
+        $this->_profileJson(['status' => true, 'data' => $rows]);
+    }
+
+    public function profile_matching($id)
+    {
+        $id = (int) $id;
+        $rows = $this->db->where('user_id', $id)->order_by('id', 'DESC')->limit(100)
+            ->get('staking_matching_payouts')->result_array();
+        $sum = ['today' => 0, 'weekly' => 0, 'monthly' => 0, 'lifetime' => 0];
+        foreach ($rows as $row) {
+            $amount = (float) $row['earning_amount'] + (float) $row['staking_amount'];
+            $sum['lifetime'] += $amount;
+            $ts = strtotime($row['created_at']);
+            if (date('Y-m-d', $ts) === date('Y-m-d')) $sum['today'] += $amount;
+            if ($ts >= strtotime('monday this week')) $sum['weekly'] += $amount;
+            if (date('Y-m', $ts) === date('Y-m')) $sum['monthly'] += $amount;
+        }
+        $carry = $this->db->get_where('binary_carry', ['user_id' => $id])->row_array() ?: [];
+        $pending = $this->db->select('COALESCE(SUM(bonus_amount_total),0) amount', false)->where('bonus_recipient_id', $id)
+            ->where_in('status', ['CALCULATED', 'HELD_CEILING'])->get('binary_matching_bonus_ledger')->row_array();
+        $this->_profileJson(['status' => true, 'summary' => [
+            'total_matching_income' => $sum['lifetime'], 'today_matching' => $sum['today'],
+            'weekly_matching' => $sum['weekly'], 'monthly_matching' => $sum['monthly'],
+            'lifetime_matching' => $sum['lifetime'], 'pending_matching' => (float) ($pending['amount'] ?? 0),
+            'carry_forward_left' => (float) ($carry['left_carry'] ?? 0),
+            'carry_forward_right' => (float) ($carry['right_carry'] ?? 0),
+        ], 'data' => $rows]);
+    }
+
+    public function profile_ranks($id)
+    {
+        $rows = $this->db->select('h.*,old.name previous_rank,new.name current_rank,new.badge_image,rr.reward_amount,rr.reward_status,rc.certificate_pdf')
+            ->from('user_rank_history h')->join('staking_ranks old', 'old.id=h.old_rank_id', 'left')
+            ->join('staking_ranks new', 'new.id=h.new_rank_id', 'left')
+            ->join('rank_rewards rr', 'rr.user_id=h.user_id AND rr.rank_id=h.new_rank_id', 'left')
+            ->join('rank_certificates rc', 'rc.user_id=h.user_id AND rc.rank_id=h.new_rank_id', 'left')
+            ->where('h.user_id', (int) $id)->order_by('h.achieved_at', 'ASC')->get()->result_array();
+        foreach ($rows as &$row) {
+            if (!empty($row['badge_image'])) $row['badge_image'] = media_url($row['badge_image']);
+            if (!empty($row['certificate_pdf'])) $row['certificate_pdf'] = media_url($row['certificate_pdf']);
+        }
+        $this->_profileJson(['status' => true, 'data' => $rows]);
+    }
+
+    public function profile_wallet_history($id)
+    {
+        $type = trim((string) ($this->input->get('type', true) ?: 'all'));
+        $map = [
+            'roi' => ['roi', 'profit'], 'binary' => ['binary'], 'direct' => ['direct'],
+            'rank' => ['rank'], 'leadership' => ['leadership'], 'generation' => ['generation', 'level'],
+            'withdrawals' => ['withdraw'], 'transfers' => ['transfer'],
+        ];
+        $this->db->select('id,wallet_type,credit,debit,balance_after,reference_type,reference_id,description,tx_hash,created_at')
+            ->where('user_id', (int) $id);
+        if ($type !== 'all' && isset($map[$type])) {
+            $this->db->group_start();
+            foreach ($map[$type] as $i => $term) $i ? $this->db->or_like('reference_type', $term) : $this->db->like('reference_type', $term);
+            $this->db->group_end();
+        }
+        $rows = $this->db->order_by('id', 'DESC')->limit(100)->get('wallet_ledger')->result_array();
+        $monthly = $this->db->select('DATE_FORMAT(created_at,"%Y-%m") month, SUM(credit-debit) net', false)
+            ->where('user_id', (int) $id)->where('created_at >=', date('Y-m-01', strtotime('-11 months')))
+            ->group_by('DATE_FORMAT(created_at,"%Y-%m")')->order_by('month', 'ASC')->get('wallet_ledger')->result_array();
+        $roiMonthly = $this->db->select('DATE_FORMAT(credit_date,"%Y-%m") month, SUM(amount) total', false)
+            ->where('user_id', (int) $id)->where('status', 'paid')->where('credit_date >=', date('Y-m-01', strtotime('-11 months')))
+            ->group_by('DATE_FORMAT(credit_date,"%Y-%m")')->order_by('month', 'ASC')->get('staking_roi_payouts')->result_array();
+        $matchingMonthly = $this->db->select('DATE_FORMAT(created_at,"%Y-%m") month, SUM(earning_amount+staking_amount) total', false)
+            ->where('user_id', (int) $id)->where('created_at >=', date('Y-m-01', strtotime('-11 months')))
+            ->group_by('DATE_FORMAT(created_at,"%Y-%m")')->order_by('month', 'ASC')->get('staking_matching_payouts')->result_array();
+        $investmentMonthly = $this->db->select('DATE_FORMAT(start_date,"%Y-%m") month, SUM(stake_amount) total', false)
+            ->where('user_id', (int) $id)->group_by('DATE_FORMAT(start_date,"%Y-%m")')->order_by('month', 'ASC')->get('user_stakes')->result_array();
+        $rankProgress = $this->db->select('achieved_at, achieved_volume')->where('user_id', (int) $id)
+            ->order_by('achieved_at', 'ASC')->get('user_rank_history')->result_array();
+        $this->_profileJson(['status' => true, 'data' => $rows, 'charts' => [
+            'wallet_growth' => $monthly, 'monthly_roi' => $roiMonthly,
+            'matching_trend' => $matchingMonthly, 'investment' => $investmentMonthly,
+            'rank_progress' => $rankProgress,
+        ]]);
+    }
+
+    public function profile_transaction_detail($id, $ledgerId)
+    {
+        $ledger = $this->db->where(['id' => (int) $ledgerId, 'user_id' => (int) $id])->get('wallet_ledger')->row_array();
+        if (!$ledger) return $this->_profileJson(['status' => false, 'message' => 'Transaction not found'], 404);
+        $this->db->group_start()->where('wallet_ledger_id', (int) $ledgerId);
+        if (!empty($ledger['tx_hash'])) $this->db->or_where('tx_hash', $ledger['tx_hash']);
+        if (!empty($ledger['reference_id'])) $this->db->or_where('reference_id', $ledger['reference_id']);
+        $this->db->group_end()->where('user_id', (int) $id);
+        $chain = $this->db->order_by('id', 'DESC')->limit(1)->get('onchain_transactions')->row_array() ?: [];
+        $user = $this->db->select('username,referral_id,profile_img,image')->get_where('users', ['id' => (int) $id])->row_array() ?: [];
+        $this->_profileJson(['status' => true, 'member' => [
+            'name' => $user['username'] ?? ('User #' . (int) $id), 'referral_id' => $user['referral_id'] ?? '',
+            'avatar' => $this->_profileAvatar($user['profile_img'] ?? '', $user['image'] ?? ''),
+        ], 'ledger' => $ledger, 'chain' => $chain]);
+    }
+
+    private function _profileAvatar($profileImg, $image)
+    {
+        $file = trim((string) ($profileImg ?: $image));
+        if ($file === '') return default_avatar_url();
+        if (preg_match('~^https?://~i', $file)) return $file;
+        $relative = preg_match('~^(assets|uploads)/~i', $file) ? ltrim($file, '/') : 'assets/images/' . ltrim($file, '/');
+        return is_file(FCPATH . str_replace('/', DIRECTORY_SEPARATOR, $relative)) ? base_url($relative) : default_avatar_url();
     }
 
     private function _profileSnapshot($id)
@@ -687,8 +870,6 @@ class  Membermanagement extends CI_Controller {
                 ->where('is_active', 1)->order_by('tier_level', 'ASC')->limit(1)
                 ->get('staking_ranks')->row_array();
         }
-        $image = $user['profile_img'] ?: $user['image'];
-
         return [
             'member' => [
                 'id' => (int) $user['id'],
@@ -713,7 +894,7 @@ class  Membermanagement extends CI_Controller {
                 'registered_at' => $user['register_date'],
                 'last_login' => $lastLogin['last_login'] ?? null,
                 'last_active' => $user['last_active_at'],
-                'avatar' => $image ? media_url($image) : default_avatar_url(),
+                'avatar' => $this->_profileAvatar($user['profile_img'] ?? '', $user['image'] ?? ''),
             ],
             'wallets' => $wallets,
             'stats' => [
