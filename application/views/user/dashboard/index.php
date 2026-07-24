@@ -502,27 +502,21 @@
       <!-- ===================== ANNOUNCEMENT BANNER ===================== -->
       <?php $alertGradient = 'linear-gradient(135deg,#ef4444,#b91c1c)'; ?>
       <style>
-        /* Self-contained announcement banner. Each carousel slide owns its
-           OWN background/image/scrim/text so the carousel animates the whole
-           slide atomically — the previous design rotated only the text while
-           swapping a separate <img> and background via JS, which desynced and
-           left placeholder text floating over the image. Scoped .ann-* classes
-           so nothing here collides with the shared theme in style.css. */
+        /* Self-contained announcement banner + fade rotator — deliberately NOT
+           a Bootstrap carousel. Bootstrap's carousel JS (loaded globally via
+           plugins.bundle.js) kept leaving the active fade-slide at opacity 0 on
+           this page, rendering the whole banner blank. This owns its rotation
+           with a tiny setInterval and plain opacity classes, so there is no
+           dependency on Bootstrap's carousel state machine. Each slide still
+           owns its full background/image/scrim/text and animates atomically. */
         .ann-banner{ position:relative; border-radius:22px; overflow:hidden; margin-bottom:22px;
           border:1px solid #eceafe; box-shadow:0 12px 34px rgba(76,60,241,.10); }
-        .ann-carousel, .ann-carousel .carousel-inner{ position:relative; width:100%; }
-        .ann-carousel .carousel-inner{ overflow:hidden; }
-        .ann-carousel .carousel-item{ position:relative; display:none; float:left; width:100%;
-          margin-right:-100%; backface-visibility:hidden; }
-        .ann-carousel .carousel-item.active,
-        .ann-carousel .carousel-item-next,
-        .ann-carousel .carousel-item-prev{ display:block; }
-        .ann-carousel.carousel-fade .carousel-item{ opacity:0; transition:opacity .6s ease; transform:none; }
-        .ann-carousel.carousel-fade .carousel-item.active{ opacity:1; }
-        .ann-carousel.carousel-fade .active.carousel-item-start,
-        .ann-carousel.carousel-fade .active.carousel-item-end{ opacity:0; }
+        .ann-rotator{ position:relative; min-height:236px; }
+        .ann-slide-wrap{ position:absolute; inset:0; opacity:0; visibility:hidden;
+          transition:opacity .6s ease; pointer-events:none; }
+        .ann-slide-wrap.is-active{ opacity:1; visibility:visible; pointer-events:auto; }
 
-        .ann-slide{ position:relative; min-height:236px; display:flex; overflow:hidden;
+        .ann-slide{ position:absolute; inset:0; display:flex; overflow:hidden;
           background:linear-gradient(120deg,#6C4CF1 0%,#4E2CF0 100%); }
         .ann-slide__img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0; }
         .ann-slide__scrim{ position:absolute; inset:0; z-index:1;
@@ -561,7 +555,7 @@
         .ann-empty h2{ margin:0; font-size:19px; font-weight:800; opacity:.94; }
 
         @media (max-width:640px){
-          .ann-slide{ min-height:200px; }
+          .ann-rotator{ min-height:200px; }
           .ann-slide__content{ padding:22px 22px; max-width:100%; }
           .ann-slide__title{ font-size:20px; }
           .ann-slide__desc{ font-size:12.5px; }
@@ -570,66 +564,62 @@
 
       <?php if (!empty($notification)): /* No active announcements => render nothing at all (no empty placeholder banner). */ ?>
       <div class="ann-banner">
-        <div id="announcementCarousel" class="carousel slide carousel-fade ann-carousel"
-          data-bs-ride="carousel" data-bs-interval="6000" data-bs-pause="hover" data-bs-touch="true">
-          <div class="carousel-inner">
-            <?php $first = true;
-            foreach ($notification as $note):
-              $type = $note->announcement_type ?? 'text';
-              $showFullText = in_array($type, ['text', 'text_image'], true);
-              $imageOnly = ($type === 'image');
-              $hasRealImage = in_array($type, ['image', 'text_image'], true) && !empty($note->image);
-              $isAlert = in_array($note->category ?? 'general', ['alert', 'maintenance'], true);
-              $img = $hasRealImage ? base_url($note->image) : '';
-              $textColor = htmlspecialchars($note->text_color ?: '#ffffff');
-              $textPos = in_array($note->text_position ?? 'middle-left', ['top-left', 'bottom-left', 'center'], true) ? $note->text_position : 'middle-left';
-              // Alert => red gradient. No image => bg_color / gradient. With image => image itself is the background.
-              $slideBg = $isAlert ? $alertGradient : ($hasRealImage ? '' : ($note->bg_color ?: 'linear-gradient(120deg,#6C4CF1,#4E2CF0)'));
-              $catLabel = ucfirst(str_replace('_', ' ', $note->category ?? 'general'));
-              $slideClasses = 'pos-' . $textPos;
-              if ($imageOnly)  $slideClasses .= ' is-image-only';
-              if ($isAlert)    $slideClasses .= ' is-alert';
-            ?>
-              <div class="carousel-item <?= $first ? 'active' : '' ?>" data-id="<?= (int) $note->id ?>">
-                <div class="ann-slide <?= $slideClasses ?>"<?= $slideBg ? ' style="background:' . htmlspecialchars($slideBg) . ';"' : '' ?>>
-                  <?php if ($hasRealImage): ?>
-                    <img class="ann-slide__img" src="<?= htmlspecialchars($img) ?>" alt="<?= htmlspecialchars($note->title ?: 'Announcement') ?>">
-                    <?php if (!$imageOnly): ?><div class="ann-slide__scrim"></div><?php endif; ?>
-                  <?php endif; ?>
+        <div class="ann-rotator" id="annRotator">
+          <?php $first = true;
+          foreach ($notification as $note):
+            $type = $note->announcement_type ?? 'text';
+            $showFullText = in_array($type, ['text', 'text_image'], true);
+            $imageOnly = ($type === 'image');
+            $hasRealImage = in_array($type, ['image', 'text_image'], true) && !empty($note->image);
+            $isAlert = in_array($note->category ?? 'general', ['alert', 'maintenance'], true);
+            $img = $hasRealImage ? base_url($note->image) : '';
+            $textColor = htmlspecialchars($note->text_color ?: '#ffffff');
+            $textPos = in_array($note->text_position ?? 'middle-left', ['top-left', 'bottom-left', 'center'], true) ? $note->text_position : 'middle-left';
+            // Alert => red gradient. No image => bg_color / gradient. With image => image itself is the background.
+            $slideBg = $isAlert ? $alertGradient : ($hasRealImage ? '' : ($note->bg_color ?: 'linear-gradient(120deg,#6C4CF1,#4E2CF0)'));
+            $catLabel = ucfirst(str_replace('_', ' ', $note->category ?? 'general'));
+            $slideClasses = 'pos-' . $textPos;
+            if ($imageOnly)  $slideClasses .= ' is-image-only';
+            if ($isAlert)    $slideClasses .= ' is-alert';
+          ?>
+            <div class="ann-slide-wrap <?= $first ? 'is-active' : '' ?>" data-id="<?= (int) $note->id ?>">
+              <div class="ann-slide <?= $slideClasses ?>"<?= $slideBg ? ' style="background:' . htmlspecialchars($slideBg) . ';"' : '' ?>>
+                <?php if ($hasRealImage): ?>
+                  <img class="ann-slide__img" src="<?= htmlspecialchars($img) ?>" alt="<?= htmlspecialchars($note->title ?: 'Announcement') ?>">
+                  <?php if (!$imageOnly): ?><div class="ann-slide__scrim"></div><?php endif; ?>
+                <?php endif; ?>
 
-                  <?php if (!$imageOnly): ?>
-                  <div class="ann-slide__content" style="color:<?= $textColor ?>;">
-                    <?php if ($isAlert): ?>
-                      <div class="ann-slide__alert">⚠ <?= strtoupper(htmlspecialchars($catLabel)) ?></div>
-                    <?php else: ?>
-                      <span class="ann-slide__tag"><i class="ph ph-megaphone"></i> <?= htmlspecialchars($catLabel) ?></span>
-                    <?php endif; ?>
-                    <?php if (!empty($note->title)): ?>
-                      <h2 class="ann-slide__title"><?= htmlspecialchars($note->title) ?></h2>
-                    <?php endif; ?>
-                    <?php if ($showFullText && !empty($note->subtitle)): ?>
-                      <p class="ann-slide__subtitle"><?= htmlspecialchars($note->subtitle) ?></p>
-                    <?php endif; ?>
-                    <?php if ($showFullText && !empty($note->description)): ?>
-                      <p class="ann-slide__desc"><?= nl2br(htmlspecialchars($note->description)) ?></p>
-                    <?php endif; ?>
-                    <?php if (!empty($note->button_text) && !empty($note->button_url)): ?>
-                      <a href="<?= htmlspecialchars($note->button_url) ?>" class="ann-slide__btn announcement-cta" data-id="<?= (int) $note->id ?>">
-                        <?= htmlspecialchars($note->button_text) ?> <i class="ph ph-arrow-right"></i>
-                      </a>
-                    <?php endif; ?>
-                  </div>
+                <?php if (!$imageOnly): ?>
+                <div class="ann-slide__content" style="color:<?= $textColor ?>;">
+                  <?php if ($isAlert): ?>
+                    <div class="ann-slide__alert">⚠ <?= strtoupper(htmlspecialchars($catLabel)) ?></div>
+                  <?php else: ?>
+                    <span class="ann-slide__tag"><i class="ph ph-megaphone"></i> <?= htmlspecialchars($catLabel) ?></span>
+                  <?php endif; ?>
+                  <?php if (!empty($note->title)): ?>
+                    <h2 class="ann-slide__title"><?= htmlspecialchars($note->title) ?></h2>
+                  <?php endif; ?>
+                  <?php if ($showFullText && !empty($note->subtitle)): ?>
+                    <p class="ann-slide__subtitle"><?= htmlspecialchars($note->subtitle) ?></p>
+                  <?php endif; ?>
+                  <?php if ($showFullText && !empty($note->description)): ?>
+                    <p class="ann-slide__desc"><?= nl2br(htmlspecialchars($note->description)) ?></p>
+                  <?php endif; ?>
+                  <?php if (!empty($note->button_text) && !empty($note->button_url)): ?>
+                    <a href="<?= htmlspecialchars($note->button_url) ?>" class="ann-slide__btn announcement-cta" data-id="<?= (int) $note->id ?>">
+                      <?= htmlspecialchars($note->button_text) ?> <i class="ph ph-arrow-right"></i>
+                    </a>
                   <?php endif; ?>
                 </div>
+                <?php endif; ?>
               </div>
-              <?php $first = false; endforeach; ?>
-          </div>
+            </div>
+            <?php $first = false; endforeach; ?>
 
           <?php if (count($notification) > 1): ?>
           <div class="ann-dots">
             <?php for ($i = 0; $i < count($notification); $i++): ?>
-              <button type="button" data-bs-target="#announcementCarousel" data-bs-slide-to="<?= $i ?>"
-                class="<?= $i === 0 ? 'active' : '' ?>" aria-label="Slide <?= $i + 1 ?>"></button>
+              <button type="button" data-ann-idx="<?= $i ?>" class="<?= $i === 0 ? 'active' : '' ?>" aria-label="Slide <?= $i + 1 ?>"></button>
             <?php endfor; ?>
           </div>
           <?php endif; ?>
@@ -666,23 +656,34 @@
           }
 
           <?php if (!empty($notification)): ?>
-          // Each slide is self-contained now, so JS only tracks views — no more
-          // background/image swapping (the carousel animates the whole slide).
-          var carousel = document.getElementById('announcementCarousel');
-          var seenViews = {};
-          function trackView(item) {
-            if (!item) return;
-            var id = item.getAttribute('data-id');
-            if (!id || seenViews[id]) return;
-            seenViews[id] = true;
+          // Own fade rotator — no Bootstrap carousel (its JS kept blanking the
+          // active slide). Slides stack absolutely; we toggle .is-active for a
+          // CSS opacity crossfade and advance on a timer.
+          var annRot = document.getElementById('annRotator');
+          var annSlides = annRot ? annRot.querySelectorAll('.ann-slide-wrap') : [];
+          var annDots = annRot ? annRot.querySelectorAll('.ann-dots button') : [];
+          var annSeen = {}, annCur = 0, annTimer = null;
+          function annTrackView(el) {
+            if (!el) return;
+            var id = el.getAttribute('data-id');
+            if (!id || annSeen[id]) return;
+            annSeen[id] = true;
             beacon('user/announcement/view/' + id);
           }
-          if (carousel) {
-            trackView(carousel.querySelector('.carousel-item.active'));
-            carousel.addEventListener('slid.bs.carousel', function () {
-              trackView(carousel.querySelector('.carousel-item.active'));
-            });
+          function annShow(n) {
+            if (!annSlides.length) return;
+            n = (n + annSlides.length) % annSlides.length;
+            annSlides.forEach(function (s, i) { s.classList.toggle('is-active', i === n); });
+            annDots.forEach(function (d, i) { d.classList.toggle('active', i === n); });
+            annCur = n;
+            annTrackView(annSlides[n]);
           }
+          function annStart() { if (annSlides.length > 1) { annStop(); annTimer = setInterval(function () { annShow(annCur + 1); }, 6000); } }
+          function annStop() { if (annTimer) { clearInterval(annTimer); annTimer = null; } }
+          annDots.forEach(function (d, i) { d.addEventListener('click', function () { annShow(i); annStart(); }); });
+          if (annRot) { annRot.addEventListener('mouseenter', annStop); annRot.addEventListener('mouseleave', annStart); }
+          annTrackView(annSlides[0]);
+          annStart();
           <?php endif; ?>
 
           document.querySelectorAll('.announcement-cta').forEach(function (a) {

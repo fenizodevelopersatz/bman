@@ -1126,9 +1126,23 @@ function kyc_completion_percent($uid)
     if (!$uid) return 0;
 
     $CI =& get_instance();
-    $user = $CI->db->select('kyc_status, kyc_verified_at')->from('users')->where('id', $uid)->get()->row();
+    $user = $CI->db->select('kyc_status')->from('users')->where('id', $uid)->get()->row();
 
     if (!$user) return 0;
 
-    return ($user->kyc_status == 1 && !empty($user->kyc_verified_at)) ? 100 : 0;
+    // users.kyc_status is an ENUM string ('none','pending','under_review',
+    // 'resubmitted','approved','rejected') — NOT an integer. The old check
+    // (== 1 && kyc_verified_at) was always false for the real string values,
+    // and kyc_verified_at is frequently empty even when approved, so the ring
+    // permanently read 0%. Map the status to a meaningful progress instead.
+    switch (strtolower((string) $user->kyc_status)) {
+        case 'approved':
+            return 100;
+        case 'pending':
+        case 'under_review':
+        case 'resubmitted':
+            return 50;   // submitted, awaiting / in review
+        default:
+            return 0;    // none / rejected
+    }
 }

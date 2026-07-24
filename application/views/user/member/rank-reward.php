@@ -359,10 +359,12 @@ $msRewardText = function ($l) use ($rk_n) {
                     <p>Earn your rank on team volume. Once you reach it, it is yours permanently.</p>
                 </div>
                 <div class="actions">
+                    <?php if (!empty($rank_files)): /* Only surface Download when there is actually something to download. */ ?>
                     <button class="btn-soft" onclick="rkFiles(true)">
                         <i class="ph ph-download-simple"></i> Download
-                        <?php if (!empty($rank_files)): ?><span style="background:var(--color-primary,#6D4AFF);color:#fff;border-radius:999px;font-size:11px;font-weight:800;padding:1px 7px;margin-left:4px;"><?= count($rank_files); ?></span><?php endif; ?>
+                        <span style="background:var(--color-primary,#6D4AFF);color:#fff;border-radius:999px;font-size:11px;font-weight:800;padding:1px 7px;margin-left:4px;"><?= count($rank_files); ?></span>
                     </button>
+                    <?php endif; ?>
                     <button class="btn-soft" onclick="rkRules(true)"><i class="ph ph-info"></i> How ranks work</button>
                     <button class="btn-soft" onclick="window.print()"><i class="ph ph-printer"></i> Print</button>
                     <a class="btn-dark" href="<?= base_url('user/wallet'); ?>"><i class="ph ph-wallet"></i> My Wallet</a>
