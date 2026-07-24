@@ -24,3 +24,45 @@ function rank_badge_html($img, $color, $size = 42, $extraClass = '', $locked = f
     }
     return '<span class="' . $cls . ' rk-badge-dot" style="width:' . (int)$size . 'px;height:' . (int)$size . 'px;background:' . htmlspecialchars($color) . '"></span>';
 }
+
+/**
+ * rank_cell_html() — resolve a member's current rank and render its badge + name
+ * inline. Pass staking_ranks.id (e.g. user_ranks.current_rank_id); when null or
+ * unknown it falls back to the lowest active/base rank ("UN RANK"), matching how
+ * the platform shows an un-promoted member. All ranks are cached per request, so
+ * this is safe to call once per table row. Reuses rank_badge_html().
+ */
+function rank_cell_html($rankId = null, $size = 26)
+{
+    static $ranks = null, $base = null;
+    if ($ranks === null) {
+        $ranks = [];
+        $CI =& get_instance();
+        $rows = $CI->db->select('id, name, badge_image, badge_color, tier_level, is_active')
+                       ->order_by('tier_level', 'ASC')
+                       ->get('staking_ranks')->result_array();
+        foreach ($rows as $r) {
+            $ranks[(int)$r['id']] = $r;
+            if ($base === null && (int)$r['is_active'] === 1) $base = $r;
+        }
+    }
+    $r = ($rankId && isset($ranks[(int)$rankId])) ? $ranks[(int)$rankId] : $base;
+    if (!$r) return '<span class="text-muted">—</span>';
+    return '<span style="display:inline-flex;align-items:center;gap:8px;">'
+         . rank_badge_html($r['badge_image'], $r['badge_color'], $size)
+         . '<span class="fw-bold">' . htmlspecialchars($r['name']) . '</span></span>';
+}
+
+/**
+ * Minimal CSS for rank_badge_html() output — for admin pages that don't already
+ * load the rank stylesheet. Echo once per page. Mirrors user_style.php.
+ */
+function rank_badge_css()
+{
+    return '<style>'
+        . '.rk-badge{display:inline-flex;align-items:center;justify-content:center;border-radius:10px;flex:0 0 auto;overflow:hidden;}'
+        . '.rk-badge-img{width:100%;height:100%;object-fit:contain;border-radius:inherit;}'
+        . '.rk-badge-dot{border-radius:50%;display:inline-block;}'
+        . '.rk-badge-locked{opacity:.4;filter:grayscale(1);}'
+        . '</style>';
+}

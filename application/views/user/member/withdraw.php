@@ -858,6 +858,12 @@
       </div>
 
       <!-- KPI Cards -->
+      <?php
+        // Currency symbol for money cards; force 2 decimals here (currency_format()
+        // otherwise inherits the global currency_config.decimal = 3).
+        $__ci = function_exists('currency_info') ? currency_info() : null;
+        $cur_sym = (is_object($__ci) && !empty($__ci->currency_symbol)) ? $__ci->currency_symbol : '$';
+      ?>
       <div class="kpis">
         <div class="kpi">
           <div class="ic" style="background:#ecfdf3;color:#0f9d58;"><i class="ph ph-wallet"></i></div>
@@ -874,7 +880,7 @@
           <div>
             <small>Pending for Payout</small>
             <strong id="kpi-pending">
-              <?= currency_format((float) ($payout->pending_amount ?? 0), 2); ?></strong>
+              <?= $cur_sym . ' ' . number_format((float) ($payout->pending_amount ?? 0), 2); ?></strong>
             <span>Next cycle: <?= htmlspecialchars($payout->next_date ?? '—'); ?></span>
           </div>
         </div>
@@ -884,7 +890,7 @@
           <div>
             <small>Total Paid Out</small>
             <strong id="kpi-paid">
-              <?= currency_format((float) ($payout->paid_total ?? 0), 2); ?></strong>
+              <?= $cur_sym . ' ' . number_format((float) ($payout->paid_total ?? 0), 2); ?></strong>
             <span>Transferred to bank</span>
           </div>
         </div>
@@ -921,7 +927,7 @@
         <div class="wtile usdt">
           <div class="wico" style="background:#26a17b1a;color:#26a17b;"><i class="ph ph-currency-circle-dollar"></i></div>
           <div>
-            <div class="wlbl">USDT Wallet <span class="wtag">(IN/OUT)</span></div>
+            <div class="wlbl">USDT Wallet</div>
             <div class="wval" id="wallet-usdt-val"><?= number_format($wallet_usdt, 2); ?> <small>USDT</small></div>
           </div>
         </div>
@@ -932,14 +938,14 @@
           $total = (float) ($wallet_bman_total[$key] ?? $withdrawable);
           $locked = max(0, $total - $withdrawable);
           if ($locked > 0.000001) {
-            echo '<div class="wsub">' . number_format($total, 2) . ' total &middot; ' . number_format($locked, 2) . ' locked</div>';
+            echo '<div class="wsub">' . number_format($locked, 2) . ' locked</div>';
           }
         };
         ?>
         <div class="wtile">
           <div class="wico" style="background:#6366f11a;color:#6366f1;"><i class="ph ph-swap"></i></div>
           <div>
-            <div class="wlbl">Exchange Wallet <span class="wtag">Withdraw Source</span></div>
+            <div class="wlbl">Exchange Wallet</div>
             <div class="wval" id="wallet-exchange-val"><?= number_format((float)($wallet_bman['exchange'] ?? 0), 2); ?> <small>BMAN</small></div>
             <?php $bmanTile('exchange'); ?>
           </div>
@@ -1038,7 +1044,6 @@
                 <div class="field">
                   <label>Estimated USDT Payout</label>
                   <input class="inp" type="text" id="estimated_usdt" value="" readonly>
-                  <div class="hint">Net payout after processing fee.</div>
                   <div class="hint" id="fee_warning" style="color:#c2410c;"></div>
                 </div>
               </div>
@@ -1046,7 +1051,6 @@
               <div class="field">
                 <label>Remark (optional)</label>
                 <input class="inp" type="text" name="remark" placeholder="e.g., Manual review withdrawal" <?= $withdrawLocked ? 'disabled' : ''; ?>>
-                <div class="hint">Shown in your payout history.</div>
               </div>
 
               <button class="btn-full primary" type="submit" <?= (empty($payout->eligibility) || $withdrawLocked) ? 'disabled style="opacity:.55;cursor:not-allowed;"' : '' ?>>
@@ -1127,9 +1131,9 @@
                               <?= $st; ?></span></div>
                         </td>
                         <td class="amt">
-                          <?= currency_info()->currency_symbol; ?>     <?= number_format((float) ($p->amount ?? 0), 2); ?>
+                          <?= number_format((float) ($p->amount ?? 0), 2); ?> BMAN
                           <div style="margin-top:6px;font-size:11px;color:var(--text-muted);font-weight:900;">
-                            Fee: <?= currency_info()->currency_symbol; ?>     <?= number_format((float) ($p->fee ?? 0), 2); ?>
+                            Fee: <?= number_format((float) ($p->fee ?? 0), 2); ?> USDT
                           </div>
                         </td>
                         <td style="text-align:right;">
@@ -1235,6 +1239,33 @@
                   <div><span>Tue 10:00 PM</span></div>
                 </div>
                 <i class="ph ph-paper-plane-tilt" style="color:var(--primary);font-size:18px;"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h">
+              <h3>ROI &amp; Bonus — How It Works</h3>
+              <span class="chip"><i class="ph ph-info"></i> Guide</span>
+            </div>
+            <div style="margin-top:12px;display:grid;gap:10px;">
+              <div class="pillx">
+                <div><b>ROI (Staking Returns)</b>
+                  <div><span>Fixed pays the full ROI at maturity; Regular pays a fixed % every month; Special Offer pays a year-wise escalating monthly ROI plus a maturity bonus at term end.</span></div>
+                </div>
+                <i class="ph ph-chart-line-up" style="color:var(--primary);font-size:18px;"></i>
+              </div>
+              <div class="pillx">
+                <div><b>Bonus</b>
+                  <div><span>Each stake pays a one-time package bonus. Referral, matching and rank rewards are credited to your Bonus Wallet.</span></div>
+                </div>
+                <i class="ph ph-gift" style="color:var(--primary);font-size:18px;"></i>
+              </div>
+              <div class="pillx">
+                <div><b>Withdrawing</b>
+                  <div><span>Move earnings to your Exchange Wallet — only Exchange BMAN converts to USDT for withdrawal, minus the processing fee.</span></div>
+                </div>
+                <i class="ph ph-arrow-line-up-right" style="color:var(--primary);font-size:18px;"></i>
               </div>
             </div>
           </div>
@@ -1620,9 +1651,9 @@
               <div style="margin-top:6px;"><span class="badge ${badge}"><i class="ph ph-seal-check"></i> ${escapeHtml(st)}</span></div>
             </td>
             <td class="amt">
-              ${escapeHtml(p.currency_symbol || "")} ${toMoney(p.amount)}
+              ${toMoney(p.amount)} BMAN
               <div style="margin-top:6px;font-size:11px;color:var(--text-muted);font-weight:900;">
-                Fee: ${escapeHtml(p.currency_symbol || "")} ${toMoney(p.fee)}
+                Fee: ${toMoney(p.fee)} USDT
               </div>
             </td>
             <td style="text-align:right;">
@@ -1696,9 +1727,9 @@
     <div class="pillx"><b>Type</b><span>${esc(p.type)}</span></div>
     <div class="pillx"><b>Period</b><span>${esc(p.period)}</span></div>
 
-    <div class="pillx"><b>Requested Amount</b><span>₹ ${money(p.amount)}</span></div>
-    <div class="pillx"><b>Fee</b><span>₹ ${money(p.fee)}</span></div>
-    <div class="pillx"><b>Net Amount</b><span>₹ ${money(p.net_amount)}</span></div>
+    <div class="pillx"><b>Requested Amount</b><span>${money(p.amount)} BMAN${p.usdt_amount ? ` <small style="color:#6b7280;font-weight:700;">(≈ ${money(p.usdt_amount)} USDT)</small>` : ''}</span></div>
+    <div class="pillx"><b>Fee</b><span>${money(p.fee)} USDT</span></div>
+    <div class="pillx"><b>Net Amount</b><span>${money(p.net_amount)} USDT</span></div>
 
     <div class="pillx"><b>Requested At</b><span>${esc(p.created_at)}</span></div>    
 

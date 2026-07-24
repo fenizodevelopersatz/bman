@@ -1,4 +1,5 @@
 <?php $this->load->view('admin/Layout/common_style');?>
+<?php echo rank_badge_css(); ?>
 
     <link href="<?php echo base_url();?>/assets/admin/plugins/custom/datatables/datatables.bundle.css" rel="stylesheet" type="text/css">
     <link href="<?php echo base_url();?>/assets/admin/plugins/custom/vis-timeline/vis-timeline.bundle.css" rel="stylesheet" type="text/css">
@@ -143,6 +144,7 @@
                                                                     <th>S/No</th>
                                                                     <th>Member</th>
                                                                     <th>Sponsor</th>
+                                                                    <th>Current Rank</th>
                                                                     <th>Purchased Staking</th>
                                                                     <th>KYC</th>
                                                                     <th>Withdrawal Request</th>

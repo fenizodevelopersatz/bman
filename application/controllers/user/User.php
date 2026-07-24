@@ -120,6 +120,12 @@ class User extends CI_Controller
 			list($ws, $we) = $this->BinaryModel->getWeekRange();
 			$this->data['team_snapshot'] = $this->BinaryModel->getTeamSnapshotWeekly($userid, $ws, $we);
 
+			// Special Offer promo strip: show the dashboard CTA only when at least
+			// one active package is currently flagged Special Offer.
+			$this->data['has_special_offer'] = $this->db->field_exists('is_special', 'staking_packages')
+				? ($this->db->where('is_special', 1)->where('is_active', 1)->count_all_results('staking_packages') > 0)
+				: false;
+
 			$this->load->view('user/dashboard/index', $this->data);
 
 		} else {
