@@ -219,7 +219,9 @@ class  Advancesettings extends CI_Controller {
 
             $twofa_withdraw                    = $this->input->post('twofa_withdraw') ? 1 : 0;  //  Move to Dex
             $twofa_editprofile                 = $this->input->post('twofa_editprofile') ? 1 : 0;  // Dex Wallet Send Money
-            $twofa_login                       = $this->input->post('twofa_login') ? 1 : 0;
+            $admin_twofa_login                 = $this->input->post('admin_twofa_login')
+                && site_settings('user_settings','admin_twofa_login') ? 1 : 0;
+            $admin_email_otp_login             = $this->input->post('admin_email_otp_login') ? 1 : 0;
             $twofa_internel_transfer           = $this->input->post('twofa_internel_transfer') ? 1 : 0; // Internel Transfer
 
             $update_withdraw = $this->usersettings_update('min_password_length',$min_password_length);
@@ -227,7 +229,8 @@ class  Advancesettings extends CI_Controller {
 
             $update_withdraw = $this->usersettings_update('twofa_withdraw',$twofa_withdraw); //  Move to Dex
             $update_withdraw = $this->usersettings_update('twofa_editprofile',$twofa_editprofile); // Dex Wallet Send Money
-            $update_withdraw = $this->usersettings_update('twofa_login',$twofa_login);
+            $update_withdraw = $this->usersettings_update('admin_twofa_login',$admin_twofa_login);
+            $update_withdraw = $this->usersettings_update('admin_email_otp_login',$admin_email_otp_login);
             $update_withdraw = $this->usersettings_update('twofa_internel_transfer',$twofa_internel_transfer);  // Internel Transfer
 
             echo json_encode(['status' => true, 'message' => "User Settings update successfully"]);
@@ -241,7 +244,8 @@ class  Advancesettings extends CI_Controller {
         $this->data['card_title'] = 'Advance Settings List';
         $this->data['active_nav'] = 'user-settings';
 
-        $this->data['twofa_login'] = site_settings('user_settings','twofa_login');
+        $this->data['admin_twofa_login'] = site_settings('user_settings','admin_twofa_login');
+        $this->data['admin_email_otp_login'] = site_settings('user_settings','admin_email_otp_login');
         $this->data['twofa_editprofile'] = site_settings('user_settings','twofa_editprofile');
         $this->data['twofa_withdraw'] = site_settings('user_settings','twofa_withdraw');
         $this->data['twofa_internel_transfer'] = site_settings('user_settings','twofa_internel_transfer');
@@ -253,6 +257,60 @@ class  Advancesettings extends CI_Controller {
 
         }
 
+    }
+
+    public function admin_twofa_setup_request()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $adminId = (int)$this->session->userdata('admin_userid');
+        $admin = $this->db->get_where('admin_members', ['id' => $adminId])->row();
+        if (!$admin) return $this->_twofaJson(['status' => false, 'message' => 'Admin not found.'], 404);
+
+        $this->load->library('Google_authendicator');
+        $ga = new Google_authendicator();
+        $secret = $ga->createSecret();
+        $this->session->set_userdata('pending_admin_twofa_secret', $secret);
+
+        return $this->_twofaJson([
+            'status' => true,
+            'secret' => $secret,
+            'account' => $admin->admin_email,
+            'issuer' => 'Nexman Admin',
+        ]);
+    }
+
+    public function admin_twofa_setup_verify()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $adminId = (int)$this->session->userdata('admin_userid');
+        $secret = (string)$this->session->userdata('pending_admin_twofa_secret');
+        $code = trim((string)$this->input->post('code', true));
+        if (!$adminId || !$secret || !preg_match('/^\d{6}$/', $code)) {
+            return $this->_twofaJson(['status' => false, 'message' => 'Enter a valid 6-digit code.'], 422);
+        }
+
+        $this->load->library('Google_authendicator');
+        $ga = new Google_authendicator();
+        if (!$ga->verifyCode($secret, $code, 2)) {
+            return $this->_twofaJson(['status' => false, 'message' => 'Invalid authenticator code. Try again.'], 422);
+        }
+
+        $this->db->where('id', $adminId)->update('admin_members', [
+            'auth_key' => $secret,
+            'auth_status' => 1,
+            'update_date' => date('Y-m-d H:i:s'),
+        ]);
+        $this->usersettings_update('admin_twofa_login', 1);
+        $this->session->unset_userdata('pending_admin_twofa_secret');
+        return $this->_twofaJson(['status' => true, 'message' => 'Two-factor authentication enabled.']);
+    }
+
+    private function _twofaJson(array $payload, $status = 200)
+    {
+        return $this->output
+            ->set_status_header($status)
+            ->set_content_type('application/json')
+            ->set_output(json_encode($payload));
     }
     /*
     |--------------------------------------------------------------------------
@@ -281,9 +339,21 @@ class  Advancesettings extends CI_Controller {
             'settings_value' => $value
         );
 
-        $this->db->where('settings_type','user_settings');
-        $this->db->where('settings_name',$label);
-        $this->db->update('site_settings',$update_value);
+        $exists = $this->db->get_where('site_settings', [
+            'settings_type' => 'user_settings',
+            'settings_name' => $label,
+        ])->row();
+        if ($exists) {
+            $this->db->where('settings_type','user_settings');
+            $this->db->where('settings_name',$label);
+            $this->db->update('site_settings',$update_value);
+        } else {
+            $this->db->insert('site_settings', [
+                'settings_type' => 'user_settings',
+                'settings_name' => $label,
+                'settings_value' => $value,
+            ]);
+        }
 
     }
      /*

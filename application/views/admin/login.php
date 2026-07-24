@@ -138,9 +138,7 @@ $logo = site_settings('image', 'logo');
                                         <!--begin::Heading-->
                                         <div class="text-center mb-10">
                                             <!--begin::Title-->
-                                            <h1 class="text-gray-900 mb-3">
-                                                Two-Factor & Email Verification
-                                            </h1>
+                                            <h1 class="text-gray-900 mb-3">Login Verification</h1>
                                             <!--end::Title-->
 
                                             <!--begin::Sub-title-->
@@ -154,6 +152,7 @@ $logo = site_settings('image', 'logo');
                                         </div>
                                         <!--end::Heading-->
 
+                                        <?php if (!empty($twofa_required)): ?>
                                         <div class="mb-10">
                                             <div class="fw-bold text-start text-gray-900 fs-6 mb-1 ms-1">Type your
                                                 Two-Factor 6 digit security code</div>
@@ -188,10 +187,11 @@ $logo = site_settings('image', 'logo');
                                                 <span class="otp-loader d-none">⏳ Verifying...</span>
                                                 <p class="otp-message"></p>
                                             </div>
-                                            <p>OTP:123456</p>
                                         </div>
+                                        <?php endif; ?>
 
 
+                                        <?php if (!empty($email_otp_required)): ?>
                                         <div class="mb-10">
                                             <div class="fw-bold text-start text-gray-900 fs-6 mb-1 ms-1">Type your Email-OTP
                                                 6 digit security code</div>
@@ -226,15 +226,18 @@ $logo = site_settings('image', 'logo');
                                                 <span class="otp-loader d-none">⏳ Verifying...</span>
                                                 <p class="otp-message"></p>
                                             </div>
-                                            <p>OTP:123456</p>
                                         </div>
+                                        <?php endif; ?>
 
 
 
                                         <!--begin::Submit-->
                                         <div class="d-flex flex-center">
                                             <button type="submit" id="kt_sing_in_two_factor_submit"
-                                                data-kt-redirect-url="<?php echo base_url(); ?>admin" disabled
+                                                data-kt-redirect-url="<?php echo base_url(); ?>admin"
+                                                data-twofa-required="<?php echo !empty($twofa_required) ? '1' : '0'; ?>"
+                                                data-email-otp-required="<?php echo !empty($email_otp_required) ? '1' : '0'; ?>"
+                                                disabled
                                                 class="btn btn-lg btn-primary fw-bold">
                                                 <span class="indicator-label">
                                                     Submit
@@ -273,7 +276,7 @@ $logo = site_settings('image', 'logo');
     <script>
         const base_url = '<?php echo base_url(); ?>';
     </script>
-    <script src="<?php echo base_url(); ?>/assets/admin/js/custom/authentication/sign-in/general.js?ver=2.5"></script>
+    <script src="<?php echo base_url(); ?>assets/admin/js/custom/authentication/sign-in/general.js?ver=2.6"></script>
     <script src='https://www.google.com/recaptcha/api.js'></script>
 </body>
 
