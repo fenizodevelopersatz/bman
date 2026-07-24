@@ -118,6 +118,10 @@ class AllTransactions extends CI_Controller
         if (!$row) return $this->_json(['status' => false, 'message' => 'Not found'], 404);
 
         $row['avatar'] = user_profile_image($row['user_id']);
+        $row['user'] = $this->db
+            ->select('id, username, name, first_name, last_name, email, referral_id')
+            ->get_where('users', ['id' => (int)$row['user_id']])
+            ->row_array() ?: null;
         $this->_json(['status' => true, 'row' => $row, 'explorer_url' => $this->_explorer()]);
     }
 
@@ -233,4 +237,3 @@ class AllTransactions extends CI_Controller
         $this->_json(['status' => true, 'data' => $data]);
     }
 }
-
