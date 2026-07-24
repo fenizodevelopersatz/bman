@@ -35,9 +35,82 @@ class  Newsletter extends CI_Controller {
 
         $this->data['title'] = "News Letter";
         $this->data['card_title'] = "Send Your News Letter to members";
-        $this->data['users'] = $this->db->query("SELECT * FROM users where status = '1' ")->result();
 		$this->load->view('admin/newsletter/index',$this->data);
 
+    }
+
+    /**
+     * Remote Select2 member lookup.
+     *
+     * The Select2 id is the users.id value posted by the newsletter form.
+     */
+    public function member_search()
+    {
+        $term = trim((string) ($this->input->get('q', true) ?: $this->input->get('term', true)));
+        $page = max(1, (int) $this->input->get('page', true));
+        $limit = 100;
+        $offset = ($page - 1) * $limit;
+
+        $this->db->select('id, username, name, first_name, last_name, email, referral_id, profile_img, image')
+                 ->from('users')
+                 ->where('status', 1);
+
+        if ($term !== '') {
+            $this->db->group_start()
+                     ->like('username', $term)
+                     ->or_like('name', $term)
+                     ->or_like('first_name', $term)
+                     ->or_like('last_name', $term)
+                     ->or_like('email', $term)
+                     ->or_like('referral_id', $term)
+                     ->group_end();
+        }
+
+        $rows = $this->db->order_by('username', 'ASC')
+                         ->limit($limit + 1, $offset)
+                         ->get()
+                         ->result_array();
+
+        $more = count($rows) > $limit;
+        if ($more) {
+            array_pop($rows);
+        }
+
+        $results = [];
+        foreach ($rows as $row) {
+            $name = trim((string) $row['name']);
+            if ($name === '') {
+                $name = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
+            }
+            if ($name === '') {
+                $name = (string) $row['username'];
+            }
+
+            $profileImage = !empty($row['profile_img']) ? $row['profile_img'] : $row['image'];
+            if (!$profileImage) {
+                $avatar = default_avatar_url();
+            } elseif (preg_match('~^(https?://|assets/|uploads/)~i', $profileImage)) {
+                $avatar = media_url($profileImage);
+            } else {
+                $avatar = base_url('assets/images/' . ltrim($profileImage, '/'));
+            }
+
+            $results[] = [
+                'id'          => (int) $row['id'],
+                'text'        => $name . ' (' . $row['email'] . ' · ' . $row['referral_id'] . ')',
+                'name'        => $name,
+                'email'       => (string) $row['email'],
+                'referral_id' => (string) $row['referral_id'],
+                'avatar'      => $avatar,
+            ];
+        }
+
+        return $this->output
+                    ->set_content_type('application/json')
+                    ->set_output(json_encode([
+                        'results' => $results,
+                        'pagination' => ['more' => $more],
+                    ]));
     }
     /*
     |--------------------------------------------------------------------------
