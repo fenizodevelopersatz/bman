@@ -657,9 +657,21 @@ class Lendingcontroller extends CI_Controller
         $this->load->model('Staking_model');
         $grid = $this->Staking_model->roiGrid();               // packages + roi cells
         // active packages only, ordered by stake amount
-        return array_values(array_filter($grid, function ($p) {
+        $active = array_values(array_filter($grid, function ($p) {
             return (int) ($p['is_active'] ?? 0) === 1;
         }));
+
+        // Attach the year-wise Special ROI structure to Special Offer packages
+        // so the card can show the SPECIAL badge + "View ROI Structure" popup.
+        if ($this->db->table_exists('staking_special_roi')) {
+            $this->load->model('staking/Specialroi_model', 'specialroi');
+            foreach ($active as &$p) {
+                $p['is_special']  = (int) ($p['is_special'] ?? 0);
+                $p['special_roi'] = $p['is_special'] ? $this->specialroi->offeredYears((int) $p['id']) : [];
+            }
+            unset($p);
+        }
+        return $active;
     }
 
     /**
