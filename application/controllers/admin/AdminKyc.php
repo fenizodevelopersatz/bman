@@ -105,6 +105,13 @@ class AdminKyc extends CI_Controller
         $kyc = $this->db->get_where('kyc_applications', ['id' => (int)$id])->row_array();
         if (!$kyc) return $this->_json(['status'=>'error','message'=>'Not found'],404);
 
+        // Re-root document image URLs onto the CURRENT domain — stored values may
+        // have an old host baked in (from before a domain change), which would
+        // render broken in the review modal. media_url() strips it and rebuilds.
+        foreach (['doc_front_url', 'doc_back_url', 'selfie_url', 'proof_address_url'] as $col) {
+            if (!empty($kyc[$col])) $kyc[$col] = media_url($kyc[$col]);
+        }
+
         $user = $this->db->get_where('users', ['id' => (int)$kyc['user_id']])->row_array();
 
         // NEW: pull the full status history (reviewer, date, action, remarks) for this application.

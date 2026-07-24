@@ -106,11 +106,15 @@ class Dashboard extends CI_Controller
         $this->_json(['status' => true, 'data' => $this->stats->binaryGrowth($days)]);
     }
 
-    public function active_user_trend()
+    /** Platform-wide version of the member dashboard's "User Activity & Coin Trend" chart. */
+    public function activity_trend()
     {
         if (!$this->input->is_ajax_request()) show_404();
-        $days = (int) ($this->input->get('days', true) ?: 30);
-        $this->_json(['status' => true, 'data' => $this->stats->activeUserTrend($days)]);
+        $range = (string) $this->input->get('range', true);
+        if (!in_array($range, ['daily', 'monthly', 'yearly'], true)) $range = 'monthly';
+        $this->load->model('user/Dashboardchart_model', 'dashchart');
+        $data = $this->dashchart->platformTrend($range);
+        $this->_json(['status' => true] + $data);
     }
 
     public function rank_summary()

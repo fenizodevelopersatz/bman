@@ -70,6 +70,7 @@ $this->load->view('admin/Layout/common_style');
                                         'admin/staking/rank-history'       => 'Rank History',
                                         'admin/staking/rank-rewards'       => 'Rank Rewards',
                                         'admin/staking/rank-certificates'  => 'Certificates',
+                                        'admin/staking/rank-files'         => 'Downloads',
                                         'admin/staking/rank-power-users'   => 'Rank Power',
                                         'admin/staking/rank-reports'       => 'Reports',
                                         'admin/staking/rank-audit'         => 'Audit Log',

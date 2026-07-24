@@ -1204,7 +1204,10 @@ class Genealogycontroller extends MY_Controller
 
             $fileData = [
                 'message_type' => $isImage ? 'image' : 'file',
-                'file_url' => base_url('uploads/chat/' . $up['file_name']),
+                // Store the RELATIVE path only — never bake the domain in. The
+                // absolute URL is rebuilt at read time (chat_fetch) via
+                // media_url(), so chat images survive a domain change.
+                'file_url' => 'uploads/chat/' . $up['file_name'],
                 'file_name' => $up['client_name'],
                 'mime_type' => $mime,
                 'file_size' => (int) ($up['file_size'] * 1024),
@@ -1303,7 +1306,9 @@ class Genealogycontroller extends MY_Controller
             // everything: "Tom & Jerry" displayed as "Tom &amp; Jerry", "<3" as "&lt;3".
             // JSON is not HTML — escape at the point of render, once.
             foreach ($rows as &$r) {
-                $r['file_url'] = $r['file_url'] ?: null;
+                // Re-root the stored path onto the CURRENT domain. Handles both
+                // new relative paths and legacy rows that baked in an old host.
+                $r['file_url'] = !empty($r['file_url']) ? media_url($r['file_url']) : null;
                 $r['file_name'] = $r['file_name'] ?: null;
             }
             unset($r);

@@ -532,7 +532,7 @@
                         <small>JPG/JPEG/PNG/TIFF/GIF • Max 4 MB</small>
                         <?php if (!empty($kyc['doc_front_url'])): ?>
                           <div class="mt-1"><a target="_blank"
-                              href="<?php echo html_escape($kyc['doc_front_url']); ?>">View uploaded</a></div>
+                              href="<?php echo html_escape(media_url($kyc['doc_front_url'])); ?>">View uploaded</a></div>
                         <?php endif; ?>
                       </div>
                       <input type="file" name="doc_front" accept=".jpg,.jpeg,.png,.tif,.tiff,.gif" hidden <?php echo !empty($read_only) ? 'disabled' : ''; ?> />
@@ -559,7 +559,7 @@
                         <small>JPG/JPEG/PNG/TIFF/GIF • Max 4 MB</small>
                         <?php if (!empty($kyc['doc_back_url'])): ?>
                           <div class="mt-1"><a target="_blank"
-                              href="<?php echo html_escape($kyc['doc_back_url']); ?>">View uploaded</a></div>
+                              href="<?php echo html_escape(media_url($kyc['doc_back_url'])); ?>">View uploaded</a></div>
                         <?php endif; ?>
                       </div>
                       <input type="file" name="doc_back" accept=".jpg,.jpeg,.png,.tif,.tiff,.gif" hidden <?php echo !empty($read_only) ? 'disabled' : ''; ?> />
@@ -585,7 +585,7 @@
                         <b>Drag & drop or <a href="javascript:void(0)">browse</a></b>
                         <small>JPG/JPEG/PNG/TIFF/GIF • Max 4 MB</small>
                         <?php if (!empty($kyc['selfie_url'])): ?>
-                          <div class="mt-1"><a target="_blank" href="<?php echo html_escape($kyc['selfie_url']); ?>">View
+                          <div class="mt-1"><a target="_blank" href="<?php echo html_escape(media_url($kyc['selfie_url'])); ?>">View
                               uploaded</a></div>
                         <?php endif; ?>
                       </div>

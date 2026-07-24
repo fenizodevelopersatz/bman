@@ -267,17 +267,23 @@
                             <div class="row mb-6">
                             <label class="col-lg-4 col-form-label fw-semibold fs-6">Background Style</label>
                             <div class="col-lg-8 fv-row">
-                                <div class="d-flex gap-2 mb-3 flex-wrap" id="ann-gradient-presets">
+                                <div class="d-flex gap-2 mb-3 flex-wrap align-items-center" id="ann-gradient-presets">
                                     <button type="button" class="btn btn-sm" data-grad="linear-gradient(135deg,#6C4CF1,#4E2CF0)" style="background:linear-gradient(135deg,#6C4CF1,#4E2CF0);color:#fff;">Purple</button>
                                     <button type="button" class="btn btn-sm" data-grad="linear-gradient(135deg,#3B82F6,#1D4ED8)" style="background:linear-gradient(135deg,#3B82F6,#1D4ED8);color:#fff;">Blue</button>
                                     <button type="button" class="btn btn-sm" data-grad="linear-gradient(135deg,#22C55E,#15803D)" style="background:linear-gradient(135deg,#22C55E,#15803D);color:#fff;">Green</button>
                                     <button type="button" class="btn btn-sm" data-grad="linear-gradient(135deg,#F59E0B,#C2410C)" style="background:linear-gradient(135deg,#F59E0B,#C2410C);color:#fff;">Orange</button>
                                     <button type="button" class="btn btn-sm" data-grad="linear-gradient(135deg,#EF4444,#B91C1C)" style="background:linear-gradient(135deg,#EF4444,#B91C1C);color:#fff;">Red</button>
+                                    <span class="border-start ps-2 ms-1 d-inline-flex align-items-center gap-2">
+                                        <input type="color" id="ann-bg-color-picker" title="Pick a solid color"
+                                            style="width:44px;height:34px;padding:3px;border:1px solid #e1e3ea;border-radius:8px;cursor:pointer;background:#fff;"
+                                            value="#6E56CF">
+                                        <span class="text-muted fs-8">Solid color</span>
+                                    </span>
                                 </div>
                                 <input type="text" name="bg_color" id="ann-bg-color" class="form-control form-control-lg form-control-solid"
                                     placeholder="#6E56CF or linear-gradient(...)"
                                     value="<?php echo htmlspecialchars($bg_color); ?>">
-                                <div class="text-muted fs-8 mt-1">Click a preset above, or type a custom color / CSS gradient.</div>
+                                <div class="text-muted fs-8 mt-1">Click a gradient preset, pick a solid color, or type a custom color / CSS gradient.</div>
                             </div>
                             </div>
 
@@ -389,25 +395,8 @@
                         </div>
                         </div>
 
-                        <div class="row mb-6">
-                        <label class="col-lg-4 col-form-label fw-semibold fs-6">Display Mode</label>
-                        <div class="col-lg-8 fv-row">
-                            <div class="d-flex gap-6">
-                                <label class="form-check form-check-custom form-check-solid">
-                                    <input class="form-check-input" type="radio" name="display_mode" value="banner" <?= $display_mode === 'banner' ? 'checked' : '' ?>>
-                                    <span class="form-check-label">Show as Banner</span>
-                                </label>
-                                <label class="form-check form-check-custom form-check-solid">
-                                    <input class="form-check-input" type="radio" name="display_mode" value="popup" <?= $display_mode === 'popup' ? 'checked' : '' ?>>
-                                    <span class="form-check-label">Show as Popup</span>
-                                </label>
-                                <label class="form-check form-check-custom form-check-solid">
-                                    <input class="form-check-input" type="radio" name="display_mode" value="both" <?= $display_mode === 'both' ? 'checked' : '' ?>>
-                                    <span class="form-check-label">Show Both</span>
-                                </label>
-                            </div>
-                        </div>
-                        </div>
+                        <!-- Display Mode removed — announcements always render as a banner. -->
+                        <input type="hidden" name="display_mode" value="banner">
 
                         <div class="row mb-6">
                         <label class="col-lg-4 col-form-label fw-semibold fs-6">Show To</label>
@@ -567,6 +556,7 @@
                     bg: document.getElementById('ann-preview-bg'),
                     scrim: document.getElementById('ann-preview-scrim'),
                     content: document.getElementById('ann-preview-content'),
+                    tag: document.getElementById('ann-preview-tag'),
                     category: document.getElementById('ann-preview-category'),
                     title: document.getElementById('ann-preview-title'),
                     subtitle: document.getElementById('ann-preview-subtitle'),
@@ -575,10 +565,28 @@
                 };
                 var cropPreview = document.getElementById('ann-crop-preview');
                 var cropPreviewWrap = document.getElementById('ann-crop-preview-wrap');
+                var fileInput = document.getElementById('ann-file-input');
+                var bgPicker = document.getElementById('ann-bg-color-picker');
+                var bgField = document.getElementById('ann-bg-color');
+
+                // Image already saved on this announcement (edit mode).
+                var EXISTING_IMAGE = '<?= !empty($image) ? htmlspecialchars(base_url($image), ENT_QUOTES) : '' ?>';
+                // The raw file the admin just picked, shown instantly (before "Apply Crop").
+                var rawSelectedImage = '';
 
                 function val(selector, fallback) {
                     var el = document.querySelector(selector);
                     return el ? el.value : (fallback || '');
+                }
+
+                // Image the preview should show, in priority order:
+                // 1) freshly cropped result, 2) freshly picked (pre-crop) file, 3) saved image.
+                function effectiveImage() {
+                    if (cropPreview && cropPreviewWrap && cropPreviewWrap.style.display !== 'none' && cropPreview.getAttribute('src')) {
+                        return cropPreview.getAttribute('src');
+                    }
+                    if (rawSelectedImage) return rawSelectedImage;
+                    return EXISTING_IMAGE;
                 }
 
                 function updateAnnPreview() {
@@ -594,26 +602,29 @@
                     var buttonUrl = val('input[name="button_url"]');
                     var textPos = val('select[name="text_position"]', 'middle-left');
 
-                    var hasImage = ['image', 'text_image'].indexOf(type) !== -1
-                        && cropPreview && cropPreviewWrap
-                        && cropPreviewWrap.style.display !== 'none'
-                        && !!cropPreview.getAttribute('src');
-
-                    var showFullText = (type === 'text' || type === 'text_image');
+                    var wantsImage = (type === 'image' || type === 'text_image');
                     var imageOnly = (type === 'image');
+                    var showFullText = (type === 'text' || type === 'text_image');
+                    var imgSrc = wantsImage ? effectiveImage() : '';
+                    var hasImage = !!imgSrc;
 
-                    els.box.style.background = isAlert ? 'linear-gradient(135deg,#ef4444,#b91c1c)' : (hasImage ? '#111' : bgColor);
+                    // alert => red; with a real image => image fills it; else the chosen color/gradient.
+                    els.box.style.background = isAlert ? 'linear-gradient(135deg,#ef4444,#b91c1c)' : (hasImage ? '#0b0f1a' : bgColor);
                     els.bg.style.display = hasImage ? 'block' : 'none';
-                    if (hasImage) els.bg.style.backgroundImage = "url('" + cropPreview.getAttribute('src') + "')";
-                    els.scrim.style.display = hasImage ? 'block' : 'none';
+                    if (hasImage) els.bg.style.backgroundImage = "url('" + imgSrc + "')";
+                    // Scrim only when text sits over the image (text+image), never for image-only.
+                    els.scrim.style.display = (hasImage && !imageOnly) ? 'block' : 'none';
 
+                    // Image-only shows zero text overlay (matches the member dashboard).
+                    els.content.style.display = imageOnly ? 'none' : 'flex';
                     els.content.className = 'pos-' + textPos;
                     els.content.style.color = textColor;
 
-                    els.category.style.display = (isAlert && !imageOnly) ? 'block' : 'none';
+                    els.tag.style.display = isAlert ? 'none' : 'inline-flex';
+                    els.category.style.display = isAlert ? 'block' : 'none';
                     els.category.textContent = '⚠ ' + category.toUpperCase();
 
-                    els.title.style.display = imageOnly ? 'none' : 'block';
+                    els.title.style.display = 'block';
                     els.title.textContent = '— ' + title;
 
                     els.subtitle.style.display = (showFullText && subtitle) ? 'block' : 'none';
@@ -624,6 +635,25 @@
 
                     els.btn.style.display = (buttonText && buttonUrl) ? 'inline-flex' : 'none';
                     els.btn.textContent = buttonText || '';
+                }
+
+                // Show the picked image in the preview immediately (before cropping).
+                if (fileInput) {
+                    fileInput.addEventListener('change', function () {
+                        var f = fileInput.files && fileInput.files[0];
+                        if (!f) { rawSelectedImage = ''; updateAnnPreview(); return; }
+                        var reader = new FileReader();
+                        reader.onload = function (e) { rawSelectedImage = e.target.result; updateAnnPreview(); };
+                        reader.readAsDataURL(f);
+                    });
+                }
+
+                // Solid color picker -> bg_color field + preview.
+                if (bgPicker && bgField) {
+                    bgPicker.addEventListener('input', function () {
+                        bgField.value = bgPicker.value;
+                        updateAnnPreview();
+                    });
                 }
 
                 var watchedSelectors = [
