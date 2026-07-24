@@ -83,9 +83,10 @@
                                                     data-name="<?php echo html_escape($p['name']); ?>"
                                                     data-amount="<?php echo (float)$p['stake_amount']; ?>"
                                                     data-bonus="<?php echo (float)$p['bonus_percent']; ?>"
-                                                    data-ceiling="<?php echo (float)$p['group_ceiling']; ?>">
+                                                    data-ceiling="<?php echo (float)$p['group_ceiling']; ?>"
+                                                    data-special="<?php echo (int)($p['is_special'] ?? 0); ?>">
                                                     <td class="text-center"><?php echo $key + 1; ?></td>
-                                                    <td><?php echo html_escape($p['name']); ?></td>
+                                                    <td><?php echo html_escape($p['name']); ?><?php if (!empty($p['is_special'])): ?> <span class="badge badge-warning fw-bold ms-1" style="letter-spacing:.3px;">SPECIAL</span><?php endif; ?></td>
                                                     <td class="text-end stk-num"><?php echo number_format((float)$p['stake_amount']); ?></td>
                                                     <td class="text-end stk-num"><?php echo rtrim(rtrim(number_format((float)$p['bonus_percent'], 2), '0'), '.'); ?></td>
                                                     <td class="text-end stk-num"><?php echo number_format((float)$p['group_ceiling']); ?></td>
@@ -140,6 +141,13 @@
                                                             <input type="number" name="group_ceiling" step="0.0001" min="0"
                                                                 value="0" class="form-control form-control-solid" required />
                                                         </div>
+                                                    </div>
+                                                    <div class="mb-5">
+                                                        <label class="form-check form-switch form-check-custom form-check-solid">
+                                                            <input class="form-check-input" type="checkbox" name="is_special" id="stk-pkg-special" value="1" />
+                                                            <span class="form-check-label fw-semibold ms-2">Special Offer package</span>
+                                                        </label>
+                                                        <div class="text-muted fs-8 mt-1">Uses the year-wise <b>Special ROI Structure</b> (Monthly ROI + Maturity % per year) instead of the normal ROI matrix. Configure it under Staking &rarr; Special ROI.</div>
                                                     </div>
                                                     <div class="text-end">
                                                         <button type="button" class="btn btn-light me-2" data-bs-dismiss="modal">Cancel</button>
@@ -218,6 +226,7 @@
                 form.elements.stake_amount.value = tr.dataset.amount;
                 form.elements.bonus_percent.value = tr.dataset.bonus;
                 form.elements.group_ceiling.value = tr.dataset.ceiling;
+                form.elements.is_special.checked = tr.dataset.special === '1';
                 document.getElementById('stk-pkg-modal-title').textContent = 'Edit Package';
                 modal().show();
             }

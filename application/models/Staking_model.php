@@ -38,6 +38,7 @@ class Staking_model extends CI_Model
             'bonus_percent' => (float)($data['bonus_percent'] ?? 25),
             'group_ceiling' => (float)($data['group_ceiling'] ?? 0),
             'sort_order'    => (int)($data['sort_order'] ?? 0),
+            'is_special'    => (int)!!($data['is_special'] ?? 0),
         ];
         if ($row['name'] === '')          return [false, 'Package name is required.'];
         if ($row['stake_amount'] <= 0)    return [false, 'Stake amount must be greater than 0.'];
