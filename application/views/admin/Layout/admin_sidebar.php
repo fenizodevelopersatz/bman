@@ -251,8 +251,19 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div>
 
-              <!-- Gas Fee: no admin page built yet — nothing to link to -->
-              <!-- 50% Bonus Reduce: only a token-gated cron endpoint exists (bonus-reduction-cron), no admin page yet -->
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/all-transaction">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">All Transactions</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/gas-fee-transactions">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Gas Fee Transactions</span>
+                </a>
+              </div>
 
               <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
                 class="menu-item">
@@ -271,6 +282,12 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                     <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/matching-history">
                       <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                         class="menu-title">Distribution History</span>
+                    </a>
+                  </div>
+                  <div class="menu-item">
+                    <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/history">
+                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                        class="menu-title">Bonus Matching History</span>
                     </a>
                   </div>
                 </div>

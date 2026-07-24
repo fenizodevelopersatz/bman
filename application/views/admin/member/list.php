@@ -104,16 +104,10 @@
                                                         <div class="col-lg-6 mb-4">
                                                             <div class="d-flex align-items-center position-relative my-1 gap-7">
 
-                                                                <select class="form-select me-3" data-control="select2" id="client_filter" data-placeholder="Filter an Members" multiple>
+                                                                <select class="form-select me-3" id="client_filter"
+                                                                    data-search-url="<?php echo base_url('network-member-search'); ?>"
+                                                                    data-placeholder="Select or search members" multiple>
                                                                     <option></option>
-                                                                    <option value="0">Clear</option>
-                                                                    <?php
-                                                                        $agent_name_get = $this->db->query("SELECT * FROM `users` ")->result();
-                                                                        if(count($agent_name_get)){ foreach($agent_name_get as $agent_name){ ?>
-                                                                        <option value="<?php echo $agent_name->id; ?>">
-                                                                            <?php echo $agent_name->username ." ( ".$agent_name->referral_id." )"; ?>
-                                                                        </option>
-                                                                        <?php }} ?>
                                                                 </select>
 
                                                             </div>
@@ -128,7 +122,15 @@
                                                                     class="form-control form-control-solid w-250px ps-15" placeholder="Search SponserID" />
                                                                 </div>
 
-                                                                <div class="d-flex justify-content-end" data-kt-docs-table-toolbar="base">
+                                                                <div class="d-flex justify-content-end gap-3" data-kt-docs-table-toolbar="base">
+                                                                    <button type="button" id="network_table_refresh"
+                                                                        class="btn btn-light-primary"
+                                                                        title="Refresh member data without reloading the page">
+                                                                        <i class="ki-duotone ki-arrows-circle fs-2">
+                                                                            <span class="path1"></span><span class="path2"></span>
+                                                                        </i>
+                                                                        Refresh
+                                                                    </button>
                                                                     <button type="button" class="btn btn-light-primary" data-kt-menu-trigger="click" data-kt-menu-placement="bottom-end">
                                                                         <i class="ki-duotone ki-exit-down fs-2"><span class="path1"></span><span class="path2"></span></i> Export Report
                                                                     </button>
@@ -245,7 +247,7 @@
             <script>
             const base_url = '<?php echo base_url();?>';
             </script>
-            <script src="<?php echo base_url();?>/assets/admin/js/custom/authentication/sign-in/network-list.js?ver=2.9"></script>
+            <script src="<?php echo base_url();?>/assets/admin/js/custom/authentication/sign-in/network-list.js?ver=3.3"></script>
             <script>
             </script>
     </body>

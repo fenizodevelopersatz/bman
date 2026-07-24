@@ -92,7 +92,10 @@ class  Newsletter extends CI_Controller {
             } elseif (preg_match('~^(https?://|assets/|uploads/)~i', $profileImage)) {
                 $avatar = media_url($profileImage);
             } else {
-                $avatar = base_url('assets/images/' . ltrim($profileImage, '/'));
+                $relativeImage = 'assets/images/' . ltrim($profileImage, '/');
+                $avatar = is_file(FCPATH . str_replace('/', DIRECTORY_SEPARATOR, $relativeImage))
+                    ? base_url($relativeImage)
+                    : default_avatar_url();
             }
 
             $results[] = [
