@@ -633,6 +633,8 @@ class StakingPurchasecron extends CI_Controller
                 'stake_amount'           => (float)$order['bman_amount'],
                 'roi_percent'            => (float)($roi['roi_rate_percent'] ?? 0),
                 'roi_basis'              => $planCode === 'fixed' ? 'total' : 'monthly',
+                // Mirror the Special Offer flag so portfolio/history can badge it.
+                'is_special'             => (int)($roi['is_special'] ?? 0),
                 'bonus_amount'           => (float)($order['bonus_bman'] ?? 0),
                 'distribution_option_id' => (int)($order['coin_distribution_option'] ?? 1),
                 'start_date'             => date('Y-m-d'),

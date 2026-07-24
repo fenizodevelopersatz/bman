@@ -83,8 +83,28 @@ class RoiMonthlyDistribution_cron extends CI_Controller
         $credited  = 0;
         $creditError = null;
 
-        while ($completed < $count && $amount > 0 && $next && strtotime($next) <= strtotime($now)) {
+        // SPECIAL OFFER: the monthly amount escalates by staking-year. Decode the
+        // snapshotted year→monthly-% ramp; the per-cycle amount is recomputed
+        // inside the loop from the current year (see below). Normal records keep
+        // the flat regular_payment_amount.
+        $isSpecial = !empty($r['is_special']);
+        $special   = $isSpecial ? json_decode((string)$r['special_schedule_json'], true) : null;
+        $principal = (float)$r['principal_amount'];
+
+        // For special records the loop guard on $amount can't be the flat value
+        // (it may be 0 for year 1 if mis-seeded) — allow entry and compute per cycle.
+        while ($completed < $count && ($isSpecial || $amount > 0) && $next && strtotime($next) <= strtotime($now)) {
             $cycle    = $completed + 1;
+
+            // Special: amount for THIS month = principal × that year's monthly %.
+            if ($isSpecial) {
+                $yearOfStake = intdiv($completed, 12) + 1;                 // 1-based staking year
+                $pct = isset($special[$yearOfStake]) ? (float)$special[$yearOfStake]
+                     : (isset($special[(string)$yearOfStake]) ? (float)$special[(string)$yearOfStake] : 0);
+                $amount = round($principal * ($pct / 100), 8);
+                if ($amount <= 0) { break; } // nothing configured for this year — stop safely
+            }
+
             $cycleRef = $r['ref'] . '-M' . $cycle; // per-cycle idempotency key for the on-chain send
 
             try {

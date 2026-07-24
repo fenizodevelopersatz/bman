@@ -47,4 +47,8 @@ ALTER TABLE `user_stakes`
 
 ALTER TABLE `roi_staking_management`
   ADD COLUMN `is_special` TINYINT(1) NOT NULL DEFAULT 0,
-  ADD COLUMN `special_maturity_percent` DECIMAL(8,3) NOT NULL DEFAULT 0.000;
+  ADD COLUMN `special_maturity_percent` DECIMAL(8,3) NOT NULL DEFAULT 0.000,
+  -- Snapshot of the year→monthly-ROI-% ramp at purchase time (JSON), so a
+  -- later admin edit never re-prices a live special stake. The monthly cron
+  -- reads year = floor(months_paid/12)+1 and credits principal × that year's %.
+  ADD COLUMN `special_schedule_json` TEXT NULL;

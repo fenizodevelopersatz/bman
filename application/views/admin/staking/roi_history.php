@@ -354,10 +354,11 @@
         const progress = r.plan_type === 'fixed' ? (r.fixed_status || 'pending') : (r.regular_payments_completed + '/' + r.regular_payment_count);
         const nextDue = r.next_payment_date || r.fixed_maturity_date || '—';
         const who = r.username || r.email || ('User #' + r.user_id);
+        const specialTag = Number(r.is_special) ? ' <span class="badge" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:900;">★ SPECIAL'+(r.duration_years ? ' '+r.duration_years+'y' : '')+'</span>' : '';
         return '<tr>'+
           '<td class="mono">#'+r.id+'</td>'+
           '<td>'+who+'</td>'+
-          '<td><span class="badge badge-'+r.plan_type+'">'+r.plan_type.charAt(0).toUpperCase()+r.plan_type.slice(1)+'</span></td>'+
+          '<td><span class="badge badge-'+r.plan_type+'">'+r.plan_type.charAt(0).toUpperCase()+r.plan_type.slice(1)+'</span>'+specialTag+'</td>'+
           '<td>'+Number(r.principal_amount||0).toLocaleString(undefined,{maximumFractionDigits:4})+'</td>'+
           '<td>'+Number(r.total_roi_amount||0).toLocaleString(undefined,{maximumFractionDigits:4})+'</td>'+
           '<td>'+Number(r.total_paid_amount||0).toLocaleString(undefined,{maximumFractionDigits:4})+'</td>'+
