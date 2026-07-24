@@ -231,36 +231,6 @@ class DashboardStats_model extends CI_Model
         ];
     }
 
-    /**
-     * Daily chat-activity trend: distinct users whose last_active_at falls on
-     * each day. NOTE: last_active_at is a chat-poll heartbeat only (single
-     * writer: Genealogycontroller's Direct Chat tab) — this is NOT a sitewide
-     * presence signal, so the dashboard must label it as chat activity, not
-     * "active users" generally (see onlineMembers() below, same caveat).
-     */
-    public function activeUserTrend($days = 30)
-    {
-        $days = max(1, (int) $days);
-        $from = date('Y-m-d', strtotime("-{$days} days"));
-
-        $rows = $this->db->select("DATE(last_active_at) AS d, COUNT(*) AS n", false)
-                          ->where('last_active_at >=', $from . ' 00:00:00')
-                          ->group_by('d')->get('users')->result_array();
-
-        $byDay = [];
-        foreach ($rows as $r) $byDay[$r['d']] = (int) $r['n'];
-
-        $labels = [];
-        $activeUsers = [];
-        for ($i = $days - 1; $i >= 0; $i--) {
-            $d = date('Y-m-d', strtotime("-{$i} days"));
-            $labels[] = $d;
-            $activeUsers[] = $byDay[$d] ?? 0;
-        }
-
-        return ['labels' => $labels, 'active_users' => $activeUsers];
-    }
-
     /* ============================== rank achievement ============================== */
 
     public function rankSummary()

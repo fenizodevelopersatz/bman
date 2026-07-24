@@ -1617,17 +1617,20 @@ $hero_progress = 48;
         const daysSince = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
         const roiDays = [1, 7, 30, 90, 180, 365, 730];
         const maturityDays = d.plan?.duration_years ? d.plan.duration_years * 365 : 730;
+        // Show EVERY wallet the chosen option allocates to (any pct > 0), not
+        // just the 10% ones — otherwise Option 7's 70% Exchange slice vanishes.
+        const instantBonus = Number(d.distribution?.instant_bonus_bman ?? d.amounts?.bonus_bman ?? 0);
         const distributionRows = [
-          { label: 'Exchange Wallet', pct: Number(d.distribution?.exchange_pct || 0), amount: Number(d.distribution?.exchange_bman || 0) },
-          { label: 'Earning Wallet', pct: Number(d.distribution?.earning_pct || 0), amount: Number(d.distribution?.earning_bman || 0) },
-          { label: 'Staking Wallet', pct: Number(d.distribution?.staking_pct || 0), amount: Number(d.distribution?.staking_bman || 0) },
-          { label: 'Bonus Wallet', pct: Number(d.distribution?.bonus_pct || 0), amount: Number(d.distribution?.bonus_bman || 0) },
-        ].filter(row => Math.abs(row.pct - 10) < 0.001 && row.amount > 0);
+          { label: 'Exchange Wallet', pct: Number(d.distribution?.exchange_pct || 0), amount: Number(d.distribution?.exchange_bman || 0), note: '' },
+          { label: 'Earning Wallet', pct: Number(d.distribution?.earning_pct || 0), amount: Number(d.distribution?.earning_bman || 0), note: '' },
+          { label: 'Staking Wallet', pct: Number(d.distribution?.staking_pct || 0), amount: Number(d.distribution?.staking_bman || 0), note: 'locked' },
+          { label: 'Bonus Wallet', pct: Number(d.distribution?.bonus_pct || 0), amount: Number(d.distribution?.bonus_bman || 0), note: 'locked' },
+        ].filter(row => row.pct > 0);
         const distributionRowsHtml = distributionRows.length
           ? distributionRows.map(row => `
-              <div><span style="color:#666;">${row.label}:</span> <b>${row.amount.toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b> <small style="color:#64748b;font-weight:900;">(${row.pct.toFixed(0)}%)</small></div>
+              <div><span style="color:#666;">${row.label}:</span> <b>${row.amount.toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b> <small style="color:#64748b;font-weight:900;">(${row.pct.toFixed(0)}%${row.note ? ' ' + row.note : ''})</small></div>
             `).join('')
-          : '<div style="grid-column:1/-1;color:#64748b;font-weight:900;">No 10% distribution wallet amount found yet.</div>';
+          : '<div style="grid-column:1/-1;color:#64748b;font-weight:900;">No distribution recorded for this order yet.</div>';
 
         // Build HTML
         let html = `
@@ -1692,12 +1695,16 @@ $hero_progress = 48;
           </div>
 
           <div style="border-top:1px solid #e7e7f3;padding-top:12px;margin-bottom:16px;">
-            <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">Coin Distribution Options (10%) - Option ${d.distribution.option}</h5>
+            <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">Coin Distribution — Option ${d.distribution.option}</h5>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
               ${distributionRowsHtml}
             </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;margin-top:10px;background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;">
+              <span style="color:#92400e;font-weight:1000;">Instant Bonus (25%)</span>
+              <b style="color:#b45309;">+ ${instantBonus.toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b>
+            </div>
             <div style="font-size:11px;font-weight:800;color:#64748b;line-height:1.45;margin-top:10px;background:#f8fafc;border:1px solid #e7e7f3;border-radius:10px;padding:9px 10px;">
-              Only 10% coin distribution wallet amounts are shown here. Instant 25% package bonus is separate and appears in the Instant Bonus BMAN card above.
+              Your BMAN principal is split across the wallets above per your chosen option (Staking &amp; Bonus slices are locked). The 25% instant package bonus is separate and lands in your Bonus Wallet.
             </div>
           </div>
 

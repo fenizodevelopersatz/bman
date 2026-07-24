@@ -1887,7 +1887,9 @@ function renderExistingPreview($url, $title)
                 $fw = isset($five_wallets) ? $five_wallets : ['usdt'=>0,'exchange'=>0,'earning'=>0,'staking'=>0,'bonus'=>0];
                 $fmt = function ($v) { return number_format((float) $v, 2, '.', ','); };
                 $waddr = (!empty($wallet['wallet_address'])) ? $wallet['wallet_address'] : '';
-                $wqr = (!empty($wallet['wallet_qrimage'])) ? $wallet['wallet_qrimage'] : '';
+                // Re-root stored QR URL onto the current domain (base_url baked
+                // in at creation time breaks after a domain change).
+                $wqr = qr_public_url($wallet['wallet_qrimage'] ?? '');
                 ?>
                 <style>
                   .wl-wrap{margin-top:26px}

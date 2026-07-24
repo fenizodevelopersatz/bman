@@ -1008,6 +1008,34 @@ if (!function_exists('avatar_onerror')) {
     }
 }
 
+if (!function_exists('qr_public_url')) {
+    /**
+     * Re-root a stored QR image URL onto the CURRENT base_url().
+     *
+     * Wallet QR image URLs are persisted with the full base_url() baked in at
+     * wallet-creation time (Custodialwallet_model / Mlm_model). If the site's
+     * domain later changes, every stored URL still points at the OLD host and
+     * the QR renders broken — even though the PNG file itself (which only
+     * encodes the wallet address, never a URL) is perfectly valid on disk.
+     *
+     * This strips whatever scheme+host was stored and rebuilds the URL from
+     * the relative 'assets/...' path against the current base_url(), so the QR
+     * always follows the configured domain automatically. Non-destructive:
+     * the DB value is left untouched. Returns '' for empty input; leaves any
+     * value that isn't an assets path unchanged.
+     */
+    function qr_public_url($stored)
+    {
+        $stored = trim((string) $stored);
+        if ($stored === '') return '';
+        $pos = strpos($stored, 'assets/');
+        if ($pos !== false) {
+            return base_url(substr($stored, $pos));
+        }
+        return $stored;
+    }
+}
+
 function user_profile_image($uid)
 {
     $CI =& get_instance();
