@@ -46,6 +46,7 @@ class AdminKyc extends CI_Controller
         $status  = $this->input->get('status', true);
         $docType = $this->input->get('doc_type', true);
         $q       = trim((string)$this->input->get('q', true));
+        $userId  = (int) $this->input->get('user_id', true);
 
         $this->db->select('k.*, u.email, u.name, u.username, u.contact AS phone, u.id AS uid')
                  ->from('kyc_applications k')
@@ -56,6 +57,9 @@ class AdminKyc extends CI_Controller
         }
         if (in_array($docType, ['passport','national_id','driver_license'], true)) {
             $this->db->where('k.doc_type', $docType);
+        }
+        if ($userId > 0) {
+            $this->db->where('k.user_id', $userId);
         }
         if ($q !== '') {
             $this->db->group_start()

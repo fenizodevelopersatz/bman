@@ -187,9 +187,9 @@ class  Membermanagement extends CI_Controller {
         if ($fullName === '') $fullName = trim((string) ($user['name'] ?? ''));
         if ($fullName === '') $fullName = (string) ($user['username'] ?? 'Member');
 
-        $profileImage = $user['profile_img'] ?: $user['image'];
-        $avatar = $profileImage ? media_url($profileImage) : default_avatar_url();
-        $avatarHtml = '<img src="' . html_escape($avatar) . '" alt="" class="rounded-circle" width="44" height="44" style="object-fit:cover" onerror="this.onerror=null;this.src=\'' . html_escape(default_avatar_url()) . '\'">';
+        $avatar = $this->_profileAvatar($user['profile_img'] ?? '', $user['image'] ?? '');
+        $profileUrl = base_url('view-user/' . (int) $user['id']);
+        $avatarHtml = '<a href="' . $profileUrl . '" title="View member profile"><img src="' . html_escape($avatar) . '" alt="' . html_escape($fullName) . '" class="rounded-circle" width="44" height="44" style="object-fit:cover" onerror="this.onerror=null;this.src=\'' . html_escape(default_avatar_url()) . '\'"></a>';
 
         $sponsorReferral = $user['sponsor_referral'] ?: 'Main - Admin';
         $sponsorEmail = $user['sponsor_email'] ?: 'Main - Admin';
@@ -197,20 +197,26 @@ class  Membermanagement extends CI_Controller {
         $kycClass = $kyc === 'approved' ? 'success' : (in_array($kyc, ['pending', 'under_review', 'resubmitted'], true) ? 'warning' : ($kyc === 'rejected' ? 'danger' : 'secondary'));
         $pendingCount = (int) $user['pending_withdraw_count'];
         $pendingAmount = (float) $user['pending_withdraw_amount'];
-        $statusTitle = (int) $user['status'] === 1 ? 'Active' : 'Inactive';
-        $statusColor = (int) $user['status'] === 1 ? '#17c964' : '#d1d5db';
+        $isFrozen = !empty($user['account_frozen']);
+        $statusTitle = $isFrozen ? 'Frozen Account' : ((int) $user['status'] === 1 ? 'Active Account' : 'Inactive Account');
+        $statusColor = $isFrozen ? '#ef4444' : ((int) $user['status'] === 1 ? '#17c964' : '#d1d5db');
+        $frozenBadge = $isFrozen ? '<span class="badge badge-light-danger mt-1" title="Frozen Account">Frozen Account</span>' : '';
+        $kycUrl = base_url('admin/kyc?user_id=' . (int) $user['id'] . '&open=1');
+        $withdrawUrl = !empty($user['pending_withdraw_id'])
+            ? base_url('admin/bman-withdrawals/view/' . (int) $user['pending_withdraw_id'])
+            : '';
 
         $data[] = [
             'RecordID' => $start + $index + 1,
             'UserInfo' => '<div class="d-flex align-items-center gap-3">' . $avatarHtml .
-                '<div class="d-flex flex-column"><a class="text-gray-900 fw-bold text-hover-primary" href="' . base_url('view-user/' . (int) $user['id']) . '">' . html_escape($fullName) . '</a>' .
+                '<div class="d-flex flex-column"><a class="text-gray-900 fw-bold text-hover-primary" href="' . $profileUrl . '">' . html_escape($fullName) . '</a>' .
                 '<span class="text-gray-600 fw-semibold fs-7">' . html_escape($user['referral_id']) . ' · ' . html_escape($user['email']) . '</span>' .
-                '<span class="text-muted fs-8">' . html_escape($user['register_date']) . '</span></div></div>',
+                '<span class="text-muted fs-8">' . html_escape($user['register_date']) . '</span>' . $frozenBadge . '</div></div>',
             'SponserInfo' => '<div class="fw-bold text-gray-800">' . html_escape($sponsorReferral) . '</div><div class="text-muted fs-7">' . html_escape($sponsorEmail) . '</div>',
             'StakingTotal' => '<div class="fw-bolder text-gray-900">' . number_format((float) $user['purchased_staking'], 4) . ' BMAN</div><div class="text-muted fs-8">Completed purchases</div>',
-            'KycStatus' => '<span class="badge badge-light-' . $kycClass . '">' . html_escape(strtoupper(str_replace('_', ' ', $kyc))) . '</span>',
+            'KycStatus' => '<a href="' . $kycUrl . '" class="badge badge-light-' . $kycClass . ' text-hover-primary" title="Open KYC review">' . html_escape(strtoupper(str_replace('_', ' ', $kyc))) . '</a>',
             'WithdrawalRequest' => $pendingCount > 0
-                ? '<div class="fw-bold text-warning">' . $pendingCount . ' pending</div><div class="text-muted fs-7">' . number_format($pendingAmount, 4) . ' BMAN</div>'
+                ? '<a href="' . $withdrawUrl . '" class="d-block text-decoration-none" title="Open withdrawal request"><div class="fw-bold text-warning">' . $pendingCount . ' pending</div><div class="text-muted fs-7">' . number_format($pendingAmount, 4) . ' BMAN</div></a>'
                 : '<span class="text-muted">None</span>',
             'Status' => '<span title="' . $statusTitle . '" aria-label="' . $statusTitle . '" style="display:inline-block;width:12px;height:12px;border-radius:50%;background:' . $statusColor . ';box-shadow:0 0 0 4px ' . $statusColor . '22"></span>',
             'Action' => '<a class="btn btn-success btn-sm" href="' . base_url('view-user/' . (int) $user['id']) . '"><i class="fa fa-eye"></i> View</a>',
