@@ -145,14 +145,15 @@
 
                                             <input type="hidden" name="faq_id" value="<?php echo $faq_id; ?>" />
 
-                                            <div class="col-md-12">
-                                                <div class="form-group"><button type="submit"
-                                                        id="kt_account_meta_details_submit"
-                                                        class="btn btn-lg btn-primary">Save</button>
-                                                </div>
-                                            </div>
+                                             <div class="col-md-12">
+                                                 <div class="form-group"><button type="submit"
+                                                         id="kt_account_meta_details_submit"
+                                                         class="btn btn-lg btn-primary">Save</button>
+                                                 </div>
+                                             </div>
+                                            <?= form_close(); ?>
 
-                                        </div>
+                                         </div>
                                     </div>
 
                                 </div>
@@ -202,7 +203,7 @@
         const base_url = '<?php echo base_url(); ?>';
     </script>
     <script
-        src="<?php echo base_url(); ?>/assets/admin/js/custom/authentication/sign-in/announcement-edit-settings.js?ver=2.9"></script>
+        src="<?php echo base_url(); ?>/assets/admin/js/custom/authentication/sign-in/faq-edit.js?ver=3.0"></script>
 
 
     <script>

@@ -117,12 +117,12 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div>
 
-              <div class="menu-item">
+              <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/bank-verification">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Members Wallet Bank</span>
                 </a>
-              </div>
+              </div> -->
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/contact-requests">
@@ -251,8 +251,19 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div>
 
-              <!-- Gas Fee: no admin page built yet — nothing to link to -->
-              <!-- 50% Bonus Reduce: only a token-gated cron endpoint exists (bonus-reduction-cron), no admin page yet -->
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/all-transaction">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">All Transactions</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/gas-fee-transactions">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Gas Fee Transactions</span>
+                </a>
+              </div>
 
               <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
                 class="menu-item">
@@ -271,6 +282,12 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                     <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/matching-history">
                       <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                         class="menu-title">Distribution History</span>
+                    </a>
+                  </div>
+                  <div class="menu-item">
+                    <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/history">
+                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                        class="menu-title">Bonus Matching History</span>
                     </a>
                   </div>
                 </div>
@@ -536,7 +553,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div>
 
-              <div class="menu-item">
+              <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/blog-category-list">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">Blog
                     Category </span>
@@ -548,7 +565,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">Blog
                     Manage</span>
                 </a>
-              </div>
+              </div> -->
 
               <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>slider-cms">
@@ -596,13 +613,13 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div>
 
-
+<!-- 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>social-link-marketting">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Social Links</span>
                 </a>
-              </div>
+              </div> -->
 
             </div>
           </div>
@@ -739,12 +756,12 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div> -->
 
-              <div class="menu-item">
+              <!-- <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>payment-settings">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Payment Settings</span>
                 </a>
-              </div>
+              </div> -->
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>withdraw-settings">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
@@ -752,13 +769,13 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div>
 
-
+<!-- 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>transfer-settings">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Transfer Settings</span>
                 </a>
-              </div>
+              </div> -->
               <!-- <div class="menu-item">
     <a class="menu-link" href="<?php echo base_url(); ?>swap-settings">
     <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span class="menu-title">Swap Settings</span>
