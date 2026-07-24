@@ -129,6 +129,8 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                                     <?php $this->load->view('admin/dashboard/partials/_recent_transactions'); ?>
                                 </div>
 
+                                <?php $this->load->view('admin/dashboard/partials/_gas_stats'); ?>
+
                                 <div class="row g-5 g-xl-8 mb-5 mb-xl-8">
                                     <?php $this->load->view('admin/dashboard/partials/_activity_feed'); ?>
                                     <?php $this->load->view('admin/dashboard/partials/_system_health'); ?>

@@ -1,5 +1,93 @@
 $(document).ready(function(){
-   
+    var memberFilter = $("#client_filter");
+    var defaultAvatar = base_url + "assets/default-user.png";
+
+    function memberResultTemplate(member) {
+        if (member.loading) return member.text;
+
+        var wrapper = document.createElement("span");
+        wrapper.className = "d-flex align-items-center gap-3";
+
+        var avatar = document.createElement("img");
+        avatar.src = member.avatar || defaultAvatar;
+        avatar.alt = "";
+        avatar.className = "rounded-circle flex-shrink-0";
+        avatar.style.width = "36px";
+        avatar.style.height = "36px";
+        avatar.style.objectFit = "cover";
+        avatar.onerror = function () {
+            this.onerror = null;
+            this.src = defaultAvatar;
+        };
+
+        var details = document.createElement("span");
+        details.className = "d-flex flex-column";
+
+        var name = document.createElement("strong");
+        name.textContent = member.name || member.text || "";
+
+        var meta = document.createElement("small");
+        meta.className = "text-muted";
+        meta.textContent = [member.email, member.referral_id].filter(Boolean).join(" · ");
+
+        details.appendChild(name);
+        details.appendChild(meta);
+        wrapper.appendChild(avatar);
+        wrapper.appendChild(details);
+        return $(wrapper);
+    }
+
+    function memberSelectionTemplate(member) {
+        if (!member.id) return member.text;
+
+        var wrapper = document.createElement("span");
+        wrapper.className = "d-inline-flex align-items-center gap-2";
+
+        var avatar = document.createElement("img");
+        avatar.src = member.avatar || defaultAvatar;
+        avatar.alt = "";
+        avatar.className = "rounded-circle";
+        avatar.style.width = "24px";
+        avatar.style.height = "24px";
+        avatar.style.objectFit = "cover";
+        avatar.onerror = function () {
+            this.onerror = null;
+            this.src = defaultAvatar;
+        };
+
+        var label = document.createElement("span");
+        label.textContent = member.text || "";
+        wrapper.appendChild(avatar);
+        wrapper.appendChild(label);
+        return $(wrapper);
+    }
+
+    memberFilter.select2({
+        ajax: {
+            url: memberFilter.data("search-url"),
+            dataType: "json",
+            delay: 250,
+            data: function (params) {
+                return { q: params.term || "", page: params.page || 1 };
+            },
+            processResults: function (data) {
+                return {
+                    results: data.results || [],
+                    pagination: data.pagination || { more: false }
+                };
+            },
+            cache: true
+        },
+        placeholder: memberFilter.data("placeholder"),
+        allowClear: true,
+        closeOnSelect: false,
+        minimumInputLength: 0,
+        templateResult: memberResultTemplate,
+        templateSelection: memberSelectionTemplate,
+        escapeMarkup: function (markup) { return markup; },
+        width: "100%"
+    });
+
     var KTDatatablesExample = function () {
         var table;
         var datatable;
@@ -190,8 +278,33 @@ $(document).ready(function(){
     
         var handleFilterChange = function () {
             $('#cl_from_date, #cl_to_date, #client_filter').on('change', function () {
-                datatable.ajax.reload(null, false); 
-                loadData();
+                datatable.ajax.reload(null, false);
+            });
+        }
+
+        var handleTableRefresh = function () {
+            $('#network_table_refresh').on('click', function () {
+                var button = this;
+                button.disabled = true;
+                button.setAttribute('data-kt-indicator', 'on');
+
+                // Refresh means "show all": clear every external filter and any
+                // DataTables state that could keep an old empty result applied.
+                $('#cl_from_date, #cl_to_date').val('');
+                memberFilter.val(null).trigger('change.select2');
+
+                var searchInput = document.querySelector('[data-kt-docs-table-filter="search"]');
+                if (searchInput) {
+                    searchInput.value = '';
+                }
+
+                datatable.search('');
+                datatable.state.clear();
+                datatable.page('first');
+                datatable.ajax.reload(function () {
+                    button.removeAttribute('data-kt-indicator');
+                    button.disabled = false;
+                }, true);
             });
         }
 
@@ -208,7 +321,8 @@ $(document).ready(function(){
                 }
                 
                 initDatatable();
-                handleFilterChange(); 
+                handleFilterChange();
+                handleTableRefresh();
             }
         };
     }();

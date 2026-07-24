@@ -92,7 +92,19 @@ $route['admin/dashboard/alerts'] = 'admin/dashboard/Dashboard/alerts';
 $route['admin/dashboard/sidebar-counts'] = 'admin/dashboard/Dashboard/sidebar_counts';
 $route['admin/dashboard/notifications'] = 'admin/dashboard/Dashboard/notifications';
 $route['admin/dashboard/poll'] = 'admin/dashboard/Dashboard/poll';
+$route['admin/dashboard/gas-stats'] = 'admin/dashboard/Dashboard/gas_stats';
 $route['admin/all-transaction/export/(:any)'] = 'admin/AllTransactions/export/$1';
+$route['admin/all-transaction/live-gas'] = 'admin/AllTransactions/live_gas';
+$route['admin/all-transaction/gas-summary'] = 'admin/AllTransactions/gas_summary';
+
+/**** Gas Fee Transactions (Finance ▸ Gas Fee Transactions) ****/
+$route['admin/finance/gas-fee-transactions'] = 'admin/wallet/Gasfeepage/index';
+$route['admin/finance/gas-fee-transactions/list'] = 'admin/wallet/Gasfeepage/list';
+$route['admin/finance/gas-fee-transactions/live-gas'] = 'admin/wallet/Gasfeepage/live_gas';
+$route['admin/finance/gas-fee-transactions/stats'] = 'admin/wallet/Gasfeepage/stats';
+$route['admin/finance/gas-fee-transactions/export/(:any)'] = 'admin/wallet/Gasfeepage/export/$1';
+
+
 
 /****************** CRON ROUTES ********/
 $route['staking-roi-cron'] = 'Staking_roi_cron';
@@ -290,6 +302,7 @@ $route['template-status-update/(:num)'] = 'admin/markettings/Emailmarkettings/te
 
 /************** NEWS Letter Markettings */
 $route['newsletter-marketting'] = 'admin/markettings/Newsletter';
+$route['newsletter-member-search']['get'] = 'admin/markettings/Newsletter/member_search';
 $route['news-letter-send'] = 'admin/markettings/Newsletter/send';
 
 /************** Social Link Markettings */
@@ -381,6 +394,7 @@ $route['update-support-status/(:any)'] = 'admin/support/Supportmanagement/update
 
 /****************** MEMBER SETTINS ********/
 $route['network-member'] = 'admin/member/Membermanagement';
+$route['network-member-search']['get'] = 'admin/member/Membermanagement/member_search';
 $route['network-list'] = 'admin/member/Membermanagement/list';
 $route['add-user'] = 'admin/member/Membermanagement/add_user';
 $route['create-user'] = 'admin/member/Membermanagement/create_user';

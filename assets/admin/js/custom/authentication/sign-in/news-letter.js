@@ -1,4 +1,104 @@
 document.addEventListener("DOMContentLoaded", function () {
+    var memberSelect = $("#mySelect2");
+    var defaultAvatar = base_url + "assets/default-user.png";
+
+    function memberTemplate(member) {
+        if (member.loading) {
+            return member.text;
+        }
+
+        var wrapper = document.createElement("span");
+        wrapper.className = "d-flex align-items-center gap-3";
+
+        var avatar = document.createElement("img");
+        avatar.src = member.avatar || defaultAvatar;
+        avatar.alt = "";
+        avatar.className = "rounded-circle flex-shrink-0";
+        avatar.style.width = "36px";
+        avatar.style.height = "36px";
+        avatar.style.objectFit = "cover";
+        avatar.onerror = function () {
+            this.onerror = null;
+            this.src = defaultAvatar;
+        };
+
+        var details = document.createElement("span");
+        details.className = "d-flex flex-column";
+
+        var name = document.createElement("strong");
+        name.textContent = member.name || member.text || "";
+
+        var meta = document.createElement("small");
+        meta.className = "text-muted";
+        meta.textContent = [member.email, member.referral_id].filter(Boolean).join(" · ");
+
+        details.appendChild(name);
+        details.appendChild(meta);
+        wrapper.appendChild(avatar);
+        wrapper.appendChild(details);
+
+        return $(wrapper);
+    }
+
+    function memberSelectionTemplate(member) {
+        if (!member.id) {
+            return member.text;
+        }
+
+        var wrapper = document.createElement("span");
+        wrapper.className = "d-inline-flex align-items-center gap-2";
+
+        var avatar = document.createElement("img");
+        avatar.src = member.avatar || defaultAvatar;
+        avatar.alt = "";
+        avatar.className = "rounded-circle";
+        avatar.style.width = "24px";
+        avatar.style.height = "24px";
+        avatar.style.objectFit = "cover";
+        avatar.onerror = function () {
+            this.onerror = null;
+            this.src = defaultAvatar;
+        };
+
+        var label = document.createElement("span");
+        label.textContent = member.text || "";
+
+        wrapper.appendChild(avatar);
+        wrapper.appendChild(label);
+        return $(wrapper);
+    }
+
+    memberSelect.select2({
+        ajax: {
+            url: memberSelect.data("search-url"),
+            dataType: "json",
+            delay: 250,
+            data: function (params) {
+                return {
+                    q: params.term || "",
+                    page: params.page || 1
+                };
+            },
+            processResults: function (data) {
+                return {
+                    results: data.results || [],
+                    pagination: data.pagination || { more: false }
+                };
+            },
+            cache: true
+        },
+        placeholder: memberSelect.data("placeholder"),
+        allowClear: true,
+        closeOnSelect: false,
+        minimumInputLength: 0,
+        templateResult: memberTemplate,
+        templateSelection: memberSelectionTemplate,
+        escapeMarkup: function (markup) {
+            return markup;
+        },
+        width: "100%"
+    });
+
     var KTSigninGeneral = function () {
         var t, e, r;
         return {
@@ -42,6 +142,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
                     r.validate().then(function (status) {
                         if (status === "Valid") {
+                            if (window.CKEDITOR && CKEDITOR.instances.mail_content) {
+                                CKEDITOR.instances.mail_content.updateElement();
+                            }
+
                             e.setAttribute("data-kt-indicator", "on"); 
                             e.disabled = true; 
                             var formData = new FormData(t);

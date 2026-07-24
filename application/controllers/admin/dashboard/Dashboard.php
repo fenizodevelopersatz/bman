@@ -200,6 +200,12 @@ class Dashboard extends CI_Controller
         $this->_json(['status' => true, 'items' => $this->stats->notificationList(10)]);
     }
 
+    public function gas_stats()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->_json(['status' => true, 'data' => $this->stats->gasStats()]);
+    }
+
     /**
      * Combined poll — one round trip instead of four separate ones (sidebar
      * badges, bell notifications, admin alerts, system health). Fired by a
@@ -220,3 +226,4 @@ class Dashboard extends CI_Controller
         ]);
     }
 }
+

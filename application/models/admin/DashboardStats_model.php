@@ -801,4 +801,66 @@ class DashboardStats_model extends CI_Model
         $since = date('Y-m-d H:i:s', time() - max(30, (int) $windowSeconds));
         return (int) $this->db->where('last_active_at >=', $since)->count_all_results('users');
     }
+
+    /* ============================== gas stats ============================== */
+
+    /**
+     * Gas fee KPIs for the admin dashboard.
+     * Source: onchain_transactions (read-only, no joins needed).
+     * Returns zeros when the table is empty — never throws.
+     */
+    public function gasStats()
+    {
+        try {
+            $today      = date('Y-m-d');
+            $monthStart = date('Y-m-01');
+
+            $todayRow = $this->db->query(
+                "SELECT COALESCE(SUM(gas_fee_total),0) AS bnb, COUNT(*) AS cnt
+                 FROM onchain_transactions
+                 WHERE DATE(created_at) = ? AND gas_fee_total IS NOT NULL",
+                [$today]
+            )->row_array();
+
+            $monthRow = $this->db->query(
+                "SELECT COALESCE(SUM(gas_fee_total),0) AS bnb, COUNT(*) AS cnt
+                 FROM onchain_transactions
+                 WHERE DATE(created_at) >= ? AND gas_fee_total IS NOT NULL",
+                [$monthStart]
+            )->row_array();
+
+            $avgRow = $this->db->query(
+                "SELECT COALESCE(AVG(gas_price_gwei),0) AS avg_gwei
+                 FROM onchain_transactions
+                 WHERE gas_price_gwei IS NOT NULL AND DATE(created_at) >= ?",
+                [$monthStart]
+            )->row_array();
+
+            $failedToday = (int)$this->db->query(
+                "SELECT COUNT(*) AS cnt FROM onchain_transactions
+                 WHERE status IN ('failed','reverted') AND DATE(created_at) = ?",
+                [$today]
+            )->row()->cnt;
+
+            return [
+                'gas_today_bnb'   => round((float)($todayRow['bnb'] ?? 0), 8),
+                'gas_today_count' => (int)($todayRow['cnt'] ?? 0),
+                'gas_month_bnb'   => round((float)($monthRow['bnb'] ?? 0), 8),
+                'gas_month_count' => (int)($monthRow['cnt'] ?? 0),
+                'avg_gas_gwei'    => round((float)($avgRow['avg_gwei'] ?? 0), 2),
+                'failed_today'    => $failedToday,
+            ];
+        } catch (Throwable $e) {
+            log_message('error', '[DashboardStats_model::gasStats] ' . $e->getMessage());
+            return [
+                'gas_today_bnb'   => 0,
+                'gas_today_count' => 0,
+                'gas_month_bnb'   => 0,
+                'gas_month_count' => 0,
+                'avg_gas_gwei'    => 0,
+                'failed_today'    => 0,
+            ];
+        }
+    }
 }
+

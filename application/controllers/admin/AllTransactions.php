@@ -197,4 +197,40 @@ class AllTransactions extends CI_Controller
     {
         return strtolower(preg_replace('/[^a-z0-9]+/i', '_', trim($s)));
     }
+
+    /**
+     * Live BSC gas price from the active RPC in token_settings.
+     * Returns { available, gwei, slow, standard, fast, wei }
+     * Never throws — errors logged only, so they never interrupt transactions.
+     */
+    public function live_gas()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        try {
+            $this->load->model('GasFeeTx_model', 'gastx');
+            $data = $this->gastx->liveGasPrice();
+        } catch (Throwable $e) {
+            log_message('error', '[AllTransactions::live_gas] ' . $e->getMessage());
+            $data = ['available' => false, 'reason' => 'Exception'];
+        }
+        $this->_json(['status' => true, 'data' => $data]);
+    }
+
+    /**
+     * Gas summary stats (today / month / avg gwei / failed) — used by the
+     * gas summary card on the All Transactions page.
+     */
+    public function gas_summary()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        try {
+            $this->load->model('GasFeeTx_model', 'gastx');
+            $data = $this->gastx->gasStats();
+        } catch (Throwable $e) {
+            log_message('error', '[AllTransactions::gas_summary] ' . $e->getMessage());
+            $data = [];
+        }
+        $this->_json(['status' => true, 'data' => $data]);
+    }
 }
+
