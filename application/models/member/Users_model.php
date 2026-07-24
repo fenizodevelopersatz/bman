@@ -151,37 +151,66 @@ class Users_model extends CI_Model
     }
 
     // -------------------- USERS LIST --------------------
-    public function get_info($limit, $start, $client_filter, $from_date, $to_date)
+    public function get_info($limit, $start, $client_filter, $from_date, $to_date, $search = '')
     {
-        if (!empty($from_date) && !empty($to_date)) {
-            $this->db->where('DATE(register_date) >=', $from_date);
-            $this->db->where('DATE(register_date) <=', $to_date);
-        }
-
-        if (!empty($client_filter) && is_array($client_filter)) {
-            $this->db->where_in('id', $client_filter);
-        } elseif (!empty($client_filter)) {
-            $this->db->where('id', $client_filter);
-        }
-
-        $this->db->limit($limit, $start);
-        return $this->db->get('users')->result_array();
+        $this->memberListQuery($client_filter, $from_date, $to_date, $search);
+        $this->db->select('
+            u.id, u.name, u.first_name, u.last_name, u.username, u.referral_id,
+            u.email, u.profile_img, u.image, u.register_date, u.status, u.kyc_status,
+            s.referral_id AS sponsor_referral, s.email AS sponsor_email,
+            COALESCE((SELECT SUM(sso.bman_amount) FROM staking_swap_orders sso WHERE sso.user_id = u.id AND sso.status = "swap_completed"), 0) AS purchased_staking,
+            COALESCE((SELECT COUNT(*) FROM bman_withdraw_requests bwr WHERE bwr.user_id = u.id AND bwr.status IN ("pending","approved","processing")), 0) AS pending_withdraw_count,
+            COALESCE((SELECT SUM(bwr.request_amount) FROM bman_withdraw_requests bwr WHERE bwr.user_id = u.id AND bwr.status IN ("pending","approved","processing")), 0) AS pending_withdraw_amount
+        ', false);
+        return $this->db->order_by('u.id', 'DESC')
+            ->limit((int) $limit, (int) $start)
+            ->get()->result_array();
     }
 
-    public function get_count($client_filter, $from_date, $to_date)
+    public function get_count($client_filter, $from_date, $to_date, $search = '')
     {
-        if (!empty($from_date) && !empty($to_date)) {
-            $this->db->where('DATE(register_date) >=', $from_date);
-            $this->db->where('DATE(register_date) <=', $to_date);
-        }
+        $this->memberListQuery($client_filter, $from_date, $to_date, $search);
+        return $this->db->count_all_results();
+    }
+
+    public function get_export($client_filter, $from_date, $to_date, $search = '')
+    {
+        $this->memberListQuery($client_filter, $from_date, $to_date, $search);
+        return $this->db->select('
+            u.id, u.name, u.first_name, u.last_name, u.username, u.referral_id,
+            u.email, u.register_date, u.status, u.kyc_status,
+            s.referral_id AS sponsor_referral, s.email AS sponsor_email,
+            COALESCE((SELECT SUM(sso.bman_amount) FROM staking_swap_orders sso WHERE sso.user_id = u.id AND sso.status = "swap_completed"), 0) AS purchased_staking,
+            COALESCE((SELECT COUNT(*) FROM bman_withdraw_requests bwr WHERE bwr.user_id = u.id AND bwr.status IN ("pending","approved","processing")), 0) AS pending_withdraw_count,
+            COALESCE((SELECT SUM(bwr.request_amount) FROM bman_withdraw_requests bwr WHERE bwr.user_id = u.id AND bwr.status IN ("pending","approved","processing")), 0) AS pending_withdraw_amount
+        ', false)->order_by('u.id', 'DESC')->get()->result_array();
+    }
+
+    private function memberListQuery($client_filter, $from_date, $to_date, $search)
+    {
+        $this->db->from('users u')
+            ->join('users s', 's.id = u.sponser', 'left');
+
+        if ($from_date !== '') $this->db->where('u.register_date >=', $from_date . ' 00:00:00');
+        if ($to_date !== '') $this->db->where('u.register_date <=', $to_date . ' 23:59:59');
 
         if (!empty($client_filter) && is_array($client_filter)) {
-            $this->db->where_in('id', $client_filter);
+            $this->db->where_in('u.id', array_map('intval', $client_filter));
         } elseif (!empty($client_filter)) {
-            $this->db->where('id', $client_filter);
+            $this->db->where('u.id', (int) $client_filter);
         }
 
-        return $this->db->count_all_results('users');
+        $search = trim((string) $search);
+        if ($search !== '') {
+            $this->db->group_start()
+                ->like('u.username', $search)
+                ->or_like('u.name', $search)
+                ->or_like('u.email', $search)
+                ->or_like('u.referral_id', $search)
+                ->or_like('s.referral_id', $search)
+                ->or_like('s.email', $search)
+                ->group_end();
+        }
     }
 
     // -------------------- USER PROFILE --------------------
