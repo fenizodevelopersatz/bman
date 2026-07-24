@@ -659,12 +659,7 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
         $this->data['bonus_balance']      = (float) $this->wallet->getTotalEarnedBonusBalance($user_id);      // history type='bonus'
 
         // ✅ withdraw metrics (from withdraw table)
-        $this->data['pending_withdraw'] = (float) $this->wallet->getPendingWithdraw($user_id);
-        $this->data['total_withdrawn']  = (float) $this->wallet->getTotalWithdrawn($user_id);
-
         // ✅ total earned (bonus + commission credits)
-        $this->data['total_earned'] = (float) $this->wallet->getTotalEarned($user_id);
-
         // ✅ Custodial wallet balances (USDT + BMAN wallets) — same source of truth
         // as the Stakings page, shown as a wallet strip above the summary cards.
         // Hold-aware: matches the Payouts page (active BMAN withdrawal locks/debits
@@ -679,6 +674,11 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
             'staking'  => (float) ($bal['staking_withdrawable'] ?? 0),
             'bonus'    => (float) ($bal['bonus_withdrawable'] ?? 0),
         ];
+        // Same live withdrawal source used by /user/payouts.
+        $withdrawTotals = $this->bmanwithdraw->user_totals($user_id);
+        $this->data['pending_withdraw'] = (float) ($withdrawTotals['pending'] ?? 0);
+        $this->data['total_withdrawn'] = (float) ($withdrawTotals['paid'] ?? 0);
+        $this->data['total_available_balance'] = $this->data['wallet_bman']['exchange'];
         // Raw totals too, so the view can label the gap when a maturity hold
         // makes total > withdrawable (e.g. a not-yet-vested staking bonus).
         $this->data['wallet_bman_total'] = [

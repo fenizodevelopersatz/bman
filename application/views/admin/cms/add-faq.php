@@ -109,6 +109,23 @@
 
 
                                             <div class="row mb-6">
+                                                <label class="col-lg-4 col-form-label fw-semibold fs-6">Display Page<span
+                                                        class="text-danger"> * </span></label>
+                                                <div class="col-lg-8 fv-row">
+                                                    <select name="faq_page"
+                                                        class="form-select form-select-lg form-select-solid" required>
+                                                        <?php foreach (($faq_pages ?? []) as $page_key => $page_label): ?>
+                                                            <option value="<?= html_escape($page_key); ?>"
+                                                                <?= ($faq_page ?? 'support') === $page_key ? 'selected' : ''; ?>>
+                                                                <?= html_escape($page_label); ?>
+                                                            </option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                    <div class="form-text">The FAQ will be shown only on this user page.</div>
+                                                </div>
+                                            </div>
+
+                                            <div class="row mb-6">
                                                 <label class="col-lg-4 col-form-label fw-semibold fs-6">FAQ
                                                     Question<span class="text-danger"> * </span></label>
                                                 <div class="col-lg-8 fv-row">

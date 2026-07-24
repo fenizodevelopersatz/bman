@@ -332,7 +332,7 @@ class="form-control form-control-lg text-center" autocomplete="one-time-code" pl
 const base_url = '<?php echo base_url();?>';
 </script>
 <script src="<?php echo base_url();?>assets/js/vendor/qrcode.min.js"></script>
-<script src="<?php echo base_url();?>assets/admin/js/custom/authentication/sign-in/user-settings.js?ver=3.1"></script>
+<script src="<?php echo base_url();?>assets/admin/js/custom/authentication/sign-in/user-settings.js?ver=3.2"></script>
 
 <script>
 </script>

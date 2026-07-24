@@ -1214,8 +1214,8 @@ function wallet_title_fallback($type)
 
           <div class="hero-mini">
             <div>
-              <small>Total Earned</small>
-              <b><?= $currency; ?> <?= number_format($total_earned ?? 0, 2); ?></b>
+              <small>Total Available Balance</small>
+              <b><?= number_format($total_available_balance ?? 0, 2); ?> BMAN</b>
             </div>
             <div class="ic"><i class="ph ph-trend-up"></i></div>
           </div>

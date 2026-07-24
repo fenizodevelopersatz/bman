@@ -299,7 +299,9 @@
         message.textContent = '';
         modal.show();
 
-        axios.post(base_url + 'admin/settings/twofa/setup-request', new FormData())
+        axios.post(base_url + 'admin/settings/twofa/setup-request', new FormData(), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
             .then(function (response) {
                 const res = response.data || {};
                 if (!res.status) throw new Error(res.message || 'Could not generate the setup key.');
@@ -342,7 +344,9 @@
         confirmBtn.disabled = true;
         confirmBtn.setAttribute('data-kt-indicator', 'on');
 
-        axios.post(base_url + 'admin/settings/twofa/setup-verify', data)
+        axios.post(base_url + 'admin/settings/twofa/setup-verify', data, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
             .then(function (response) {
                 const res = response.data || {};
                 if (!res.status) throw new Error(res.message || 'Verification failed.');

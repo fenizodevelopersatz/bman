@@ -1064,6 +1064,7 @@ CREATE TABLE `faqs` (
   `id` int(11) NOT NULL,
   `question` varchar(255) NOT NULL,
   `answer` longtext NOT NULL,
+  `page_key` varchar(50) NOT NULL DEFAULT 'support',
   `datetime` datetime NOT NULL,
   `status` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
@@ -1072,12 +1073,12 @@ CREATE TABLE `faqs` (
 -- Dumping data for table `faqs`
 --
 
-INSERT INTO `faqs` (`id`, `question`, `answer`, `datetime`, `status`) VALUES
-(2, 'What is Fenizo Technologies MLM Software?', ' Fenizo Technologies MLM Software is a comprehensive platform designed to manage multi-level marketing businesses. It offers secure transaction processing, customizable commission structures, and tools for tracking member performance, commissions, and growth. The software integrates advanced features to streamline MLM operations and foster community-driven success.', '2025-05-07 11:44:50', 1),
-(3, 'How does the commission system work in Fenizo Technologies?', 'The Fenizo MLM commission system is flexible and allows you to set up tiered commissions based on your specific MLM plan. Members can earn commissions from direct sales, referrals, and team performance. The software supports various payout structures, including rank-based bonuses and passive income streams, ensuring maximum reward potential for all users.', '2025-05-07 11:45:15', 1),
-(4, 'Is Fenizo Technologies secure?', 'Yes, Fenizo Technologies ensures the highest levels of security for all transactions, including commissions, bonuses, and withdrawals. The platform uses encryption protocols and transparent transaction logs to protect user data and maintain trust. Additionally, the system is built to prevent fraud and unauthorized access.', '2025-05-07 11:45:36', 1),
-(5, 'Can I customize my MLM plan within Fenizo Technologies?', 'Absolutely! Fenizo Technologies offers a highly customizable MLM platform where you can define your commission structure, rank-based bonuses, payout rules, and other essential features. The system allows you to tailor your MLM plan to fit your business model and ensure it aligns with your growth goals.\r\n\r\n', '2025-05-07 11:45:56', 1),
-(6, 'How do I get support if I have issues with the platform?', ' If you encounter any issues or need assistance with the Fenizo Technologies MLM Software, our support team is available to help. You can reach us by emailing support@fenizotechnologies.com. Our team is committed to providing timely and effective solutions to ensure your experience is smooth and efficient.', '2025-05-07 11:46:16', 1);
+INSERT INTO `faqs` (`id`, `question`, `answer`, `page_key`, `datetime`, `status`) VALUES
+(2, 'What is Fenizo Technologies MLM Software?', ' Fenizo Technologies MLM Software is a comprehensive platform designed to manage multi-level marketing businesses. It offers secure transaction processing, customizable commission structures, and tools for tracking member performance, commissions, and growth. The software integrates advanced features to streamline MLM operations and foster community-driven success.', 'support', '2025-05-07 11:44:50', 1),
+(3, 'How does the commission system work in Fenizo Technologies?', 'The Fenizo MLM commission system is flexible and allows you to set up tiered commissions based on your specific MLM plan. Members can earn commissions from direct sales, referrals, and team performance. The software supports various payout structures, including rank-based bonuses and passive income streams, ensuring maximum reward potential for all users.', 'support', '2025-05-07 11:45:15', 1),
+(4, 'Is Fenizo Technologies secure?', 'Yes, Fenizo Technologies ensures the highest levels of security for all transactions, including commissions, bonuses, and withdrawals. The platform uses encryption protocols and transparent transaction logs to protect user data and maintain trust. Additionally, the system is built to prevent fraud and unauthorized access.', 'support', '2025-05-07 11:45:36', 1),
+(5, 'Can I customize my MLM plan within Fenizo Technologies?', 'Absolutely! Fenizo Technologies offers a highly customizable MLM platform where you can define your commission structure, rank-based bonuses, payout rules, and other essential features. The system allows you to tailor your MLM plan to fit your business model and ensure it aligns with your growth goals.\r\n\r\n', 'support', '2025-05-07 11:45:56', 1),
+(6, 'How do I get support if I have issues with the platform?', ' If you encounter any issues or need assistance with the Fenizo Technologies MLM Software, our support team is available to help. You can reach us by emailing support@fenizotechnologies.com. Our team is committed to providing timely and effective solutions to ensure your experience is smooth and efficient.', 'support', '2025-05-07 11:46:16', 1);
 
 -- --------------------------------------------------------
 

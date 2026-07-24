@@ -1238,6 +1238,29 @@
               </div>
             </div>
           </div>
+
+          <?php if (!empty($faqs)): ?>
+          <div class="card">
+            <div class="card-h">
+              <h3>Payout FAQs</h3>
+              <span class="chip"><i class="ph ph-question"></i> Help</span>
+            </div>
+
+            <div style="display:grid;gap:10px;margin-top:12px;">
+              <?php foreach ($faqs as $faq): ?>
+                <details class="pillx" style="display:block;cursor:pointer;">
+                  <summary style="display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none;font-weight:800;">
+                    <span><?= html_escape($faq->question); ?></span>
+                    <i class="ph ph-caret-down" style="color:var(--primary);font-size:16px;"></i>
+                  </summary>
+                  <div style="padding-top:10px;color:var(--text-muted);line-height:1.6;">
+                    <?= nl2br(html_escape($faq->answer)); ?>
+                  </div>
+                </details>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <?php endif; ?>
         </div>
       </div>
     </main>

@@ -985,6 +985,17 @@ class Genealogycontroller extends MY_Controller
         $this->data['bman_rate'] = $bman_rate;
         $this->data['processing_fee_usdt'] = $processing_fee_usdt;
         $this->data['min_bman_required'] = $min_bman_required;
+        $this->data['faqs'] = [];
+        if ($this->db->table_exists('faqs') && $this->db->field_exists('page_key', 'faqs')) {
+            $this->data['faqs'] = $this->db
+                ->select('id, question, answer')
+                ->from('faqs')
+                ->where('status', 1)
+                ->where('page_key', 'payouts')
+                ->order_by('id', 'DESC')
+                ->get()
+                ->result();
+        }
 
         $this->load->view('user/member/withdraw', $this->data);
     }
