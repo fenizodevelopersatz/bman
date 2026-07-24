@@ -102,15 +102,12 @@
                                 <label class="col-lg-4 col-form-label fw-semibold fs-6"> Select Members <span class="text-danger"> * </span></label>
                                 <div class="col-lg-8 fv-row">
                                 <div class="input-group mb-5">
-                                <select class="form-select form-select-solid" 
-                                    data-control="select2" data-close-on-select="false"  name="selected_members[]"
-                                    data-placeholder="Select a member" data-allow-clear="true" multiple="multiple">
+                                <select id="mySelect2" class="form-select form-select-solid"
+                                    name="selected_members[]"
+                                    data-search-url="<?php echo base_url('newsletter-member-search'); ?>"
+                                    data-placeholder="Select or search members"
+                                    multiple="multiple">
                                     <option></option>
-                                   <?php if(COUNT($users) > 0){ ?>
-                                   <?php foreach($users as $list){?>
-                                    <option value="<?php echo $list->id?>"><?php echo $list->username." ( ".$list->referral_id." )";?></option>
-                                    <?php } ?>
-                                    <?php } ?>
                                     </select>
                                 </div>
                                 </div>
@@ -216,7 +213,7 @@
             <script>
                 const base_url = '<?php echo base_url();?>';
             </script>
-            <script src="<?php echo base_url();?>/assets/admin/js/custom/authentication/sign-in/news-letter.js?ver=2.9"></script>
+            <script src="<?php echo base_url();?>/assets/admin/js/custom/authentication/sign-in/news-letter.js?ver=3.1"></script>
 
 
             

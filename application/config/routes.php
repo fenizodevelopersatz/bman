@@ -290,6 +290,7 @@ $route['template-status-update/(:num)'] = 'admin/markettings/Emailmarkettings/te
 
 /************** NEWS Letter Markettings */
 $route['newsletter-marketting'] = 'admin/markettings/Newsletter';
+$route['newsletter-member-search']['get'] = 'admin/markettings/Newsletter/member_search';
 $route['news-letter-send'] = 'admin/markettings/Newsletter/send';
 
 /************** Social Link Markettings */
