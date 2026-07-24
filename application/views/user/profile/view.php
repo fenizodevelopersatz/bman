@@ -148,8 +148,11 @@ function profileUploadUrl($path, $fallbackDir = '')
   if ($path === '') {
     return '';
   }
-  if (preg_match('#^https?://#i', $path)) {
-    return $path;
+  // Full URL (possibly with a stale, pre-domain-change host) OR a known
+  // uploads/assets path: re-root onto the CURRENT base_url via media_url()
+  // so images never break after a domain change.
+  if (preg_match('#^https?://#i', $path) || strpos($path, 'uploads/') !== false || strpos($path, 'assets/') !== false) {
+    return media_url($path);
   }
   return base_url(ltrim($fallbackDir . $path, '/'));
 }

@@ -1008,31 +1008,52 @@ if (!function_exists('avatar_onerror')) {
     }
 }
 
-if (!function_exists('qr_public_url')) {
+if (!function_exists('media_url')) {
     /**
-     * Re-root a stored QR image URL onto the CURRENT base_url().
+     * Re-root a stored asset/upload URL onto the CURRENT base_url().
      *
-     * Wallet QR image URLs are persisted with the full base_url() baked in at
-     * wallet-creation time (Custodialwallet_model / Mlm_model). If the site's
-     * domain later changes, every stored URL still points at the OLD host and
-     * the QR renders broken — even though the PNG file itself (which only
-     * encodes the wallet address, never a URL) is perfectly valid on disk.
+     * Many image URLs across this app (wallet QR, chat attachments, KYC
+     * documents) are persisted with the full base_url() baked in at write
+     * time. When the site's domain later changes, every stored URL still
+     * points at the OLD host and the image renders broken — even though the
+     * file itself is perfectly valid on disk. This finds the first known
+     * public-path segment ('uploads/' or 'assets/') and rebuilds the URL from
+     * that relative path against the current base_url(), stripping whatever
+     * scheme+host was stored (old OR new). A value that is already relative
+     * (no scheme) is prefixed with base_url(); any other absolute URL is left
+     * untouched. Non-destructive — the DB value is never modified. Returns ''
+     * for empty input.
      *
-     * This strips whatever scheme+host was stored and rebuilds the URL from
-     * the relative 'assets/...' path against the current base_url(), so the QR
-     * always follows the configured domain automatically. Non-destructive:
-     * the DB value is left untouched. Returns '' for empty input; leaves any
-     * value that isn't an assets path unchanged.
+     * Examples:
+     *   https://old-host.com/uploads/chat/x.jpg   -> base_url('uploads/chat/x.jpg')
+     *   https://old-host.com/assets/images/q.png  -> base_url('assets/images/q.png')
+     *   uploads/kyc/12/x.png                       -> base_url('uploads/kyc/12/x.png')
+     *   https://cdn.example.com/foo.png            -> unchanged (unknown absolute)
      */
-    function qr_public_url($stored)
+    function media_url($stored)
     {
         $stored = trim((string) $stored);
         if ($stored === '') return '';
-        $pos = strpos($stored, 'assets/');
-        if ($pos !== false) {
-            return base_url(substr($stored, $pos));
+        foreach (['uploads/', 'assets/'] as $seg) {
+            $pos = strpos($stored, $seg);
+            if ($pos !== false) {
+                return base_url(substr($stored, $pos));
+            }
         }
+        // Already relative (no scheme) -> anchor to the current base_url.
+        if (!preg_match('~^https?://~i', $stored)) {
+            return base_url(ltrim($stored, '/'));
+        }
+        // Unknown absolute URL -> leave as-is.
         return $stored;
+    }
+}
+
+if (!function_exists('qr_public_url')) {
+    /** Backwards-compatible alias — QR URLs are just another stored asset URL. */
+    function qr_public_url($stored)
+    {
+        return media_url($stored);
     }
 }
 

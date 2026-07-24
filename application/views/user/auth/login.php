@@ -122,13 +122,13 @@
                     </div>
 
                     <div class="fv-row mb-5">
-                        <input type="text" placeholder="<?php echo lang('Email'); ?>" name="useremail" autocomplete="off" class="form-control bg-transparent" value="" />
+                        <input type="text" placeholder="<?php echo lang('Email'); ?>" name="useremail" autocomplete="off" class="form-control bg-transparent" value="" tabindex="1" />
                     </div>
 
                     <div class="fv-row mb-3">
                         <div class="input-group">
-                            <input type="password" class="form-control bg-transparent" placeholder="Password" name="password" id="password" value="" required>
-                            <span class="input-group-text bg-transparent" id="togglePassword" style="cursor:pointer;">
+                            <input type="password" class="form-control bg-transparent" placeholder="Password" name="password" id="password" value="" required tabindex="2">
+                            <span class="input-group-text bg-transparent" id="togglePassword" style="cursor:pointer;" tabindex="-1">
                                 <i class="bi bi-eye"></i>
                             </span>
                         </div>
@@ -136,11 +136,13 @@
 
                     <div class="d-flex flex-stack flex-wrap gap-3 fs-base fw-semibold mb-8">
                         <div></div>
-                        <a href="<?php echo base_url(); ?>user/forgot" class="link-primary"><?php echo lang('forgot_password'); ?></a>
+                        <!-- tabindex 4 (after the Sign in button) so Tab from the password
+                             field lands on Sign in, not on this link. -->
+                        <a href="<?php echo base_url(); ?>user/forgot" class="link-primary" tabindex="4"><?php echo lang('forgot_password'); ?></a>
                     </div>
 
                     <div class="d-grid mb-8">
-                        <button type="submit" id="kt_sign_in_submit" class="btn btn-primary">
+                        <button type="submit" id="kt_sign_in_submit" class="btn btn-primary" tabindex="3">
                             <span class="indicator-label"><?php echo lang('sign_in'); ?></span>
                             <span class="indicator-progress"><?php echo lang('please_wait'); ?>
                                 <span class="spinner-border spinner-border-sm align-middle ms-2"></span>
@@ -286,9 +288,23 @@
     };
     const base_url = '<?php echo base_url();?>';
     </script>
-    <script src="<?php echo base_url();?>assets/user/js/custom/authentication/sign-in/general.js?version=2.5"></script>
+    <script src="<?php echo base_url();?>assets/user/js/custom/authentication/sign-in/general.js?version=2.6"></script>
     <script src="<?php echo base_url();?>assets/js/otp-timer.js"></script>
     <script>
+        // The Sign in button must be interactive as soon as the page loads.
+        // It is only meant to be disabled DURING an in-flight submit (the axios
+        // flow re-enables it in .finally); anything else leaving it disabled on
+        // load is a bug. Force-enable it once after init so a stale/cached build
+        // or validation plugin can't leave it stuck in the muted disabled state.
+        document.addEventListener("DOMContentLoaded", function () {
+            var _btn = document.getElementById("kt_sign_in_submit");
+            if (_btn) {
+                _btn.disabled = false;
+                _btn.removeAttribute("disabled");
+                _btn.removeAttribute("data-kt-indicator");
+            }
+        });
+
         var _tgl = document.getElementById("togglePassword");
         if (_tgl) _tgl.addEventListener("click", function () {
             const password = document.getElementById("password");

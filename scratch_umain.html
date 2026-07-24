@@ -2,7 +2,149 @@
 <html lang="en">
 
 <head>
-  <?php $this->load->view('user/layout/v2/user_style'); ?>
+  
+<!--========= Required meta tags =========-->
+<meta charset="utf-8">
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta name="author" content="Nexman Technologies Top MLM Software Company">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Nexman Software offers a powerful, user-friendly platform for network marketing businesses. Manage members, track commissions, grow your downline, and scale your business with ease. Start your MLM journey with Nexman today!">
+<meta name="keywords" content="Nexman Software – Best Multi-Level Marketing Solution for Your Business">
+
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="nexman software" />
+<meta property="og:title" content="Nexman MLM software - The World's #1 Selling MLM software" />
+<meta property="og:url" content="http://localhost:9000/assets/images/favicon.png"/>
+<meta property="og:site_name" content="Nexman mlm software" />
+
+<title>Nexman Crypto Community</title>
+<link rel="shortcut icon" href="http://localhost:9000/assets/images/black_logo.png"  type="image/png">
+<link rel="canonical" href="Nexman MLM Software"/>
+<!-- css include -->
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
+<link href="http://localhost:9000/assets/user_v2/css/style.css" rel="stylesheet" type="text/css"/>
+
+<style id="member-theme-vars">
+    :root{
+        /* ---- Global design tokens (platform-wide — see docs/theme) ----
+           Fixed, not admin-configurable via Site Settings (unlike --mp-* below,
+           which the Member Panel Theme page drives). Every card/button/badge/
+           table style across the member panel should reference these rather
+           than hardcoding hex values or re-declaring a local palette. */
+        --color-bg: #F8FAFC;
+        --color-card: #FFFFFF;
+        --color-border: #E5E7EB;
+        --text-primary: #111827;
+        --text-secondary: #6B7280;
+        --radius-lg: 16px;
+        --shadow-card: 0 10px 30px rgba(0,0,0,0.06);
+
+        /* drive the dashboard's own accent so the palette controls the
+           announcement banner, active sidebar, Create Ticket button, charts,
+           progress rings, badges and links */
+        --primary: #4F46E5;
+        --primary-dark: #4338CA;
+        --mp-primary: #4F46E5;
+        --mp-secondary: #7C3AED;
+        --mp-accent: #7C3AED;
+        --mp-highlight: #4F46E5;
+        --mp-highlight-accent: #7C3AED;
+        --mp-hover: #4338CA;
+        --mp-active: #4F46E5;
+        --mp-gradient: linear-gradient(135deg, #4F46E5, #7C3AED);
+        --mp-success: #10B981;
+        --mp-warning: #F59E0B;
+        --mp-danger: #EF4444;
+        --mp-info: #7C3AED;
+        --bs-primary: #4F46E5;
+        --bs-primary-rgb: 79, 70, 229;
+        --bs-link-color: #4F46E5;
+        --bs-link-hover-color: #4338CA;
+    }
+    /* sun/moon toggle for members */
+    .mp-theme-toggle{ position:fixed; left:24px; bottom:24px; z-index:9999; width:48px; height:48px;
+        display:flex; align-items:center; justify-content:center; border:none; border-radius:50%; cursor:pointer;
+        background:var(--mp-primary); color:#fff; box-shadow:0 8px 22px rgba(0,0,0,.25); transition:all .25s ease; }
+    .mp-theme-toggle:hover{ filter:brightness(1.08); transform:translateY(-2px); }
+    .mp-theme-toggle svg{ width:22px; height:22px; }
+    .mp-theme-toggle .mp-moon{ display:none; }
+    html[data-bs-theme="dark"] .mp-theme-toggle .mp-sun{ display:none; }
+    html[data-bs-theme="dark"] .mp-theme-toggle .mp-moon{ display:block; }
+    /* header sun/moon button */
+    #mpThemeToggle .mp-moon{ display:none; }
+    html[data-bs-theme="dark"] #mpThemeToggle .mp-sun{ display:none; }
+    html[data-bs-theme="dark"] #mpThemeToggle .mp-moon{ display:inline-block; }
+
+    /* ---- rank badge component (rank_helper.php::rank_badge_html) ----
+       The ONE rank badge look, everywhere it's used: dashboard right panel,
+       Rank & Rewards hero/timeline/rewards/certificates. Pages set only the
+       size (inline style, per call) and may layer a page-local wrapper class
+       for spacing — never redeclare the image/dot rendering itself. */
+    .rk-badge{ display:inline-flex; align-items:center; justify-content:center; border-radius:10px; flex:0 0 auto; overflow:hidden; }
+    .rk-badge-img{ width:100%; height:100%; object-fit:contain; border-radius:inherit; }
+    .rk-badge-dot{ border-radius:50%; display:inline-block; }
+    .rk-badge-locked{ opacity:.4; filter:grayscale(1); }
+</style>
+
+<script>
+    /* default dashboard mode comes from Settings -> Member Panel Theme */
+    var defaultThemeMode = "system";
+    var mpUserSwitch = true;
+    var themeMode;
+    if ( document.documentElement ) {
+    if ( document.documentElement.hasAttribute("data-bs-theme-mode")) {
+    themeMode = document.documentElement.getAttribute("data-bs-theme-mode");
+    } else {
+    if ( localStorage.getItem("data-bs-theme") !== null ) {
+    themeMode = localStorage.getItem("data-bs-theme");
+    } else {
+    themeMode = defaultThemeMode;
+    }			
+    }
+    if (themeMode === "system") {
+    themeMode = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-bs-theme", themeMode);
+    }
+</script>
+
+<script>
+    /* User-selectable sun / moon toggle (shown when the admin allows it) */
+    (function () {
+        if (typeof mpUserSwitch !== "undefined" && mpUserSwitch === false) return;
+        var SUN  = '<svg class="mp-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>';
+        var MOON = '<svg class="mp-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+        function current(){ return document.documentElement.getAttribute("data-bs-theme") === "dark" ? "dark" : "light"; }
+        function apply(mode){
+            document.documentElement.setAttribute("data-bs-theme", mode);
+            try { localStorage.setItem("data-bs-theme", mode); } catch(e){}
+            var b = document.querySelector(".mp-theme-toggle");
+            if (b) b.title = (mode === "dark") ? "Switch to light" : "Switch to dark";
+        }
+        function build(){
+            // 1) prefer the header button if present
+            var header = document.getElementById("mpThemeToggle");
+            if (header) {
+                if (!header.dataset.mpBound) {
+                    header.dataset.mpBound = "1";
+                    header.addEventListener("click", function(){ apply(current() === "dark" ? "light" : "dark"); });
+                }
+                return;
+            }
+            // 2) fallback floating button for layouts without a header slot
+            if (document.querySelector(".mp-theme-toggle")) return;
+            var btn = document.createElement("button");
+            btn.type = "button"; btn.className = "mp-theme-toggle";
+            btn.innerHTML = SUN + MOON;
+            btn.title = (current() === "dark") ? "Switch to light" : "Switch to dark";
+            btn.addEventListener("click", function(){ apply(current() === "dark" ? "light" : "dark"); });
+            document.body.appendChild(btn);
+        }
+        if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build);
+        else build();
+    })();
+</script>
   <style>
     /* =========================
      MOBILE RESPONSIVE PATCH
@@ -492,16 +634,279 @@
 <body>
   <div class="app-container">
     <!-- Sidebar -->
-    <?php $this->load->view('user/layout/v2/user_sidebar'); ?>
+    
+<button class="sidebar-toggle" id="sidebarToggleBtn" type="button" aria-label="Open menu">☰</button>
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
+<aside class="sidebar" style="overflow:auto">
+    <div class="logo">
+                    <img src="http://localhost:9000/assets/images/black_logo.png" alt="Nexman" style="width:100%;max-width:180px;height:auto;max-height:110px;object-fit:contain;">
+            </div>
+    <nav>
+        <span class="nav-label">Overview</span>
+        <a href="http://localhost:9000/user/main" class="nav-item active"><i
+                class="ph-fill ph-squares-four"></i> Dashboard</a>
+        <a href="http://localhost:9000/user/stakings" class="nav-item "><i
+                class="ph ph-coins"></i> Stakings</a>
+        <a href="http://localhost:9000/user/wallet" class="nav-item "><i
+                class="ph ph-wallet"></i> Wallet</a>
+        <a href="http://localhost:9000/user/transfer_wallet" class="nav-item "><i
+                class="ph ph-arrows-left-right"></i> Transfer Wallet</a>
+        <a href="http://localhost:9000/user/genealogy"
+            class="nav-item "><i class="ph ph-tree-structure"></i> Binary
+            Tree</a>        
+        <a href="http://localhost:9000/user/withdraw" class="nav-item "><i
+                class="ph ph-calendar-check"></i> Payouts</a>
+
+        <!-- <span class="nav-label">E-Commerce</span>
+        <a href="http://localhost:9000/user/myorders" class="nav-item "><i
+                class="ph ph-bag"></i> Orders</a>
+        <a href="http://localhost:9000/user/shop-list" class="nav-item "><i
+                class="ph ph-storefront"></i> Shop</a> -->
+
+        <span class="nav-label">Team</span>
+        <a href="http://localhost:9000/user/referrals"
+            class="nav-item "><i class="ph ph-users-three"></i> Referrals</a>
+        <a href="http://localhost:9000/user/rank-reward"
+            class="nav-item "><i class="ph ph-identification-card"></i>
+            Rank &
+            Rewards</a>
+        <!-- <a href="http://localhost:9000/user/earn_more"
+            class="nav-item "><i class="ph ph-rocket-launch"></i> Earn
+            More</a> -->
+        <a href="http://localhost:9000/user/chat" class="nav-item "><i
+                class="ph ph-chat-circle-dots"></i> Chat</a>
+        <a href="http://localhost:9000/user/support" class="nav-item "><i
+                class="ph ph-headset"></i> Support</a>
+    </nav>
+
+    <div class="support-card">
+        <p><b>Need help?</b><br />Raise a support ticket and our team will assist you quickly.</p>
+        <button type="button" onclick="window.location.href='http://localhost:9000/user/support'"><i
+                class="ph ph-chat-circle-dots"></i> Create Ticket</button>
+    </div>
+
+    <div style="margin-top:auto;">
+        <a href="http://localhost:9000/user/view-profile"
+            class="nav-item "><i class="ph ph-gear"></i> Setting</a>
+        <a href="http://localhost:9000/user/logout" class="nav-item" style="color:#ff4d4d;"><i
+                class="ph ph-sign-out"></i> Logout</a>
+    </div>
+</aside>
+
+<script>
+    (function () {
+        if (window.__sidebarMobileInit) return;
+        window.__sidebarMobileInit = true;
+
+        const sidebar = document.querySelector('.sidebar');
+        const toggleBtn = document.getElementById('sidebarToggleBtn');
+        const backdrop = document.getElementById('sidebarBackdrop');
+        const mobileMq = window.matchMedia('(max-width: 1024px)');
+
+        if (!sidebar || !toggleBtn || !backdrop) return;
+
+        function closeSidebar() {
+            sidebar.classList.remove('open');
+            backdrop.classList.remove('show');
+            document.body.classList.remove('sidebar-open');
+        }
+
+        function openSidebar() {
+            if (!mobileMq.matches) return;
+            sidebar.classList.add('open');
+            backdrop.classList.add('show');
+            document.body.classList.add('sidebar-open');
+        }
+
+        toggleBtn.addEventListener('click', function () {
+            if (sidebar.classList.contains('open')) closeSidebar();
+            else openSidebar();
+        });
+
+        backdrop.addEventListener('click', closeSidebar);
+
+        sidebar.querySelectorAll('a').forEach(function (link) {
+            link.addEventListener('click', closeSidebar);
+        });
+
+        window.addEventListener('resize', function () {
+            if (!mobileMq.matches) closeSidebar();
+        });
+    })();
+</script>
     <!-- Main Content -->
     <main class="main-content">
 
-      <?php $this->load->view('user/layout/v2/user_header'); ?>
+      <style>
+  .user-dropdown {
+    position: relative;
+  }
+
+  .user-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: 999px;
+  }
+
+  .user-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 10px);
+    min-width: 180px;
+    background: #fff;
+    border: 1px solid #eeecff;
+    border-radius: 16px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .08);
+    padding: 8px;
+    display: none;
+    z-index: 9999;
+  }
+
+  .user-menu.show {
+    display: block;
+  }
+
+  .user-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    text-decoration: none;
+    color: #111827;
+    font-weight: 700;
+    font-size: 13px;
+  }
+
+  .user-menu-item:hover {
+    background: #f6f5ff;
+  }
+
+  .user-menu-divider {
+    height: 1px;
+    background: #f1efff;
+    margin: 6px 0;
+  }
+
+  .user-menu-item.danger {
+    color: #dc2626;
+  }
+
+  .user-menu-item.danger:hover {
+    background: #fff1f2;
+  }
+</style>
+<header>
+  <div class="header-actions">
+            <button class="action-btn" type="button" id="mpThemeToggle" title="Toggle theme">
+      <i class="ph ph-sun mp-sun"></i><i class="ph ph-moon mp-moon"></i>
+    </button>
+    
+    <button class="action-btn" title="Messages" style="position:relative;" onclick="window.location.href='http://localhost:9000/user/chat'">
+      <i class="ph ph-chat-centered-text"></i>
+      <span id="chatUnreadBadge" style="display:none;position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#ef4444;color:#fff;font-size:10px;line-height:16px;text-align:center;font-weight:700;"></span>
+    </button>
+
+    <button class="action-btn" title="Notifications"><i class="ph ph-bell"></i></button>
+
+    <!-- User Dropdown -->
+    <div class="user-dropdown" id="userDropdown">
+      <button class="user-pill" id="userDropdownBtn" type="button">
+        <img src="http://localhost:9000/assets/images/profile_6a5f279f900ee.png" alt="user"
+          onerror="this.onerror=null;this.src='http://localhost:9000/assets/default-user.png';" />
+        <span>Trustwallet</span>
+        <i class="ph ph-caret-down" style="font-size:16px;"></i>
+      </button>
+
+      <div class="user-menu" id="userDropdownMenu">
+        <a href="http://localhost:9000/user/profile" class="user-menu-item">
+          <i class="ph ph-user"></i> Profile
+        </a>
+        <div class="user-menu-divider"></div>
+        <a href="http://localhost:9000/user/logout" class="user-menu-item danger">
+          <i class="ph ph-sign-out"></i> Logout
+        </a>
+      </div>
+    </div>
+  </div>
+</header>
+<script>
+  (function () {
+    const btn = document.getElementById('userDropdownBtn');
+    const menu = document.getElementById('userDropdownMenu');
+    const wrap = document.getElementById('userDropdown');
+
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      menu.classList.toggle('show');
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!wrap.contains(e.target)) {
+        menu.classList.remove('show');
+      }
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') menu.classList.remove('show');
+    });
+  })();
+</script>
+<script>
+  (function () {
+    // Site-wide presence heartbeat — Chat's own 2s poll only runs while the
+    // Chat page itself is open, so without this a member browsing anywhere
+    // else (Dashboard, Binary Tree, ...) would incorrectly show as offline.
+    var url = 'http://localhost:9000/user/heartbeat';
+    var badge = document.getElementById('chatUnreadBadge');
+    function ping() {
+      if (document.visibilityState !== 'visible') return;
+      fetch(url, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!badge || !j || !j.ok) return;
+          var n = parseInt(j.unread || 0, 10);
+          if (n > 0) { badge.textContent = n > 99 ? '99+' : n; badge.style.display = 'block'; }
+          else { badge.style.display = 'none'; }
+        })
+        .catch(function () {});
+    }
+    ping();
+    setInterval(ping, 15000);
+  })();
+</script>
+<!-- Browser Controls (proposal §16): disable right-click, F12, Ctrl+Shift+I/J/C, Ctrl+U.
+     Included from the common footers/scripts so it applies site-wide. Guarded so
+     it binds only once even if a page pulls in more than one common partial. -->
+<script>
+(function () {
+  if (window.__bmanBrowserGuard) return;
+  window.__bmanBrowserGuard = 1;
+
+  // Disable right-click context menu
+  document.addEventListener('contextmenu', function (e) { e.preventDefault(); return false; }, { capture: true });
+
+  // Disable dev-tools / view-source key combinations
+  document.addEventListener('keydown', function (e) {
+    var k = (e.key || '').toLowerCase();
+    // F12
+    if (e.keyCode === 123 || k === 'f12') { e.preventDefault(); return false; }
+    // Ctrl+U  (view source)
+    if (e.ctrlKey && !e.shiftKey && k === 'u') { e.preventDefault(); return false; }
+    // Ctrl+Shift+I / J / C  (open dev tools / inspector / console)
+    if (e.ctrlKey && e.shiftKey && (k === 'i' || k === 'j' || k === 'c')) { e.preventDefault(); return false; }
+  }, { capture: true });
+})();
+</script>
 
       <!-- ===================== ANNOUNCEMENT BANNER ===================== -->
-      <?php $alertGradient = 'linear-gradient(135deg,#ef4444,#b91c1c)'; ?>
-      <style>
+            <style>
         /* Self-contained announcement banner. Each carousel slide owns its
            OWN background/image/scrim/text so the carousel animates the whole
            slide atomically — the previous design rotated only the text while
@@ -568,105 +973,54 @@
         }
       </style>
 
-      <?php if (!empty($notification)): /* No active announcements => render nothing at all (no empty placeholder banner). */ ?>
-      <div class="ann-banner">
+            <div class="ann-banner">
         <div id="announcementCarousel" class="carousel slide carousel-fade ann-carousel"
           data-bs-ride="carousel" data-bs-interval="6000" data-bs-pause="hover" data-bs-touch="true">
           <div class="carousel-inner">
-            <?php $first = true;
-            foreach ($notification as $note):
-              $type = $note->announcement_type ?? 'text';
-              $showFullText = in_array($type, ['text', 'text_image'], true);
-              $imageOnly = ($type === 'image');
-              $hasRealImage = in_array($type, ['image', 'text_image'], true) && !empty($note->image);
-              $isAlert = in_array($note->category ?? 'general', ['alert', 'maintenance'], true);
-              $img = $hasRealImage ? base_url($note->image) : '';
-              $textColor = htmlspecialchars($note->text_color ?: '#ffffff');
-              $textPos = in_array($note->text_position ?? 'middle-left', ['top-left', 'bottom-left', 'center'], true) ? $note->text_position : 'middle-left';
-              // Alert => red gradient. No image => bg_color / gradient. With image => image itself is the background.
-              $slideBg = $isAlert ? $alertGradient : ($hasRealImage ? '' : ($note->bg_color ?: 'linear-gradient(120deg,#6C4CF1,#4E2CF0)'));
-              $catLabel = ucfirst(str_replace('_', ' ', $note->category ?? 'general'));
-              $slideClasses = 'pos-' . $textPos;
-              if ($imageOnly)  $slideClasses .= ' is-image-only';
-              if ($isAlert)    $slideClasses .= ' is-alert';
-            ?>
-              <div class="carousel-item <?= $first ? 'active' : '' ?>" data-id="<?= (int) $note->id ?>">
-                <div class="ann-slide <?= $slideClasses ?>"<?= $slideBg ? ' style="background:' . htmlspecialchars($slideBg) . ';"' : '' ?>>
-                  <?php if ($hasRealImage): ?>
-                    <img class="ann-slide__img" src="<?= htmlspecialchars($img) ?>" alt="<?= htmlspecialchars($note->title ?: 'Announcement') ?>">
-                    <?php if (!$imageOnly): ?><div class="ann-slide__scrim"></div><?php endif; ?>
-                  <?php endif; ?>
-
-                  <?php if (!$imageOnly): ?>
-                  <div class="ann-slide__content" style="color:<?= $textColor ?>;">
-                    <?php if ($isAlert): ?>
-                      <div class="ann-slide__alert">⚠ <?= strtoupper(htmlspecialchars($catLabel)) ?></div>
-                    <?php else: ?>
-                      <span class="ann-slide__tag"><i class="ph ph-megaphone"></i> <?= htmlspecialchars($catLabel) ?></span>
-                    <?php endif; ?>
-                    <?php if (!empty($note->title)): ?>
-                      <h2 class="ann-slide__title"><?= htmlspecialchars($note->title) ?></h2>
-                    <?php endif; ?>
-                    <?php if ($showFullText && !empty($note->subtitle)): ?>
-                      <p class="ann-slide__subtitle"><?= htmlspecialchars($note->subtitle) ?></p>
-                    <?php endif; ?>
-                    <?php if ($showFullText && !empty($note->description)): ?>
-                      <p class="ann-slide__desc"><?= nl2br(htmlspecialchars($note->description)) ?></p>
-                    <?php endif; ?>
-                    <?php if (!empty($note->button_text) && !empty($note->button_url)): ?>
-                      <a href="<?= htmlspecialchars($note->button_url) ?>" class="ann-slide__btn announcement-cta" data-id="<?= (int) $note->id ?>">
-                        <?= htmlspecialchars($note->button_text) ?> <i class="ph ph-arrow-right"></i>
+                          <div class="carousel-item active" data-id="7">
+                <div class="ann-slide pos-center">
+                                      <img class="ann-slide__img" src="http://localhost:9000/assets/images/announcement/ann_1784873600_4435.jpg" alt="Announcement Text *">
+                    <div class="ann-slide__scrim"></div>                  
+                                    <div class="ann-slide__content" style="color:#ffffff;">
+                                          <span class="ann-slide__tag"><i class="ph ph-megaphone"></i> Promotion</span>
+                                                              <h2 class="ann-slide__title">Announcement Text *</h2>
+                                                              <p class="ann-slide__subtitle">Promotion Banner</p>
+                                                              <p class="ann-slide__desc">Description</p>
+                                                              <a href="user/withdraw" class="ann-slide__btn announcement-cta" data-id="7">
+                        Withdraw Now <i class="ph ph-arrow-right"></i>
                       </a>
-                    <?php endif; ?>
-                  </div>
-                  <?php endif; ?>
-                </div>
+                                      </div>
+                                  </div>
               </div>
-              <?php $first = false; endforeach; ?>
-          </div>
+                            <div class="carousel-item " data-id="1">
+                <div class="ann-slide pos-middle-left" style="background:linear-gradient(120deg,#6C4CF1,#4E2CF0);">
+                  
+                                    <div class="ann-slide__content" style="color:#ffffff;">
+                                          <span class="ann-slide__tag"><i class="ph ph-megaphone"></i> General</span>
+                                                              <h2 class="ann-slide__title">Balu Sir</h2>
+                                                                                                  </div>
+                                  </div>
+              </div>
+                        </div>
 
-          <?php if (count($notification) > 1): ?>
-          <div class="ann-dots">
-            <?php for ($i = 0; $i < count($notification); $i++): ?>
-              <button type="button" data-bs-target="#announcementCarousel" data-bs-slide-to="<?= $i ?>"
-                class="<?= $i === 0 ? 'active' : '' ?>" aria-label="Slide <?= $i + 1 ?>"></button>
-            <?php endfor; ?>
-          </div>
-          <?php endif; ?>
-        </div>
+                    <div class="ann-dots">
+                          <button type="button" data-bs-target="#announcementCarousel" data-bs-slide-to="0"
+                class="active" aria-label="Slide 1"></button>
+                          <button type="button" data-bs-target="#announcementCarousel" data-bs-slide-to="1"
+                class="" aria-label="Slide 2"></button>
+                      </div>
+                  </div>
       </div>
-      <?php endif; ?>
-
-      <?php if (!empty($popup_announcement)): $pa = $popup_announcement; ?>
-      <!-- <div class="modal fade" id="announcementPopup" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-          <div class="modal-content" style="background:<?= htmlspecialchars($pa->bg_color ?: '#4E2CF0') ?>;color:<?= htmlspecialchars($pa->text_color ?: '#ffffff') ?>;border:0;border-radius:16px;">
-            <div class="modal-header border-0">
-              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" id="announcementPopupClose"></button>
-            </div>
-            <div class="modal-body text-center pb-5">
-              <?php if (!empty($pa->image)): ?><img src="<?= base_url($pa->image) ?>" style="max-width:100%;border-radius:10px;margin-bottom:16px;"><?php endif; ?>
-              <h3 class="fw-bold" style="color:inherit;"><?= htmlspecialchars($pa->title) ?></h3>
-              <?php if (!empty($pa->subtitle)): ?><div class="fw-semibold mt-1" style="opacity:.9;"><?= htmlspecialchars($pa->subtitle) ?></div><?php endif; ?>
-              <?php if (!empty($pa->description)): ?><p class="mt-3" style="color:inherit;opacity:.9;"><?= nl2br(htmlspecialchars($pa->description)) ?></p><?php endif; ?>
-              <?php if (!empty($pa->button_text) && !empty($pa->button_url)): ?>
-                <a href="<?= htmlspecialchars($pa->button_url) ?>" class="btn btn-light fw-bold mt-3 announcement-cta" data-id="<?= (int) $pa->id ?>"><?= htmlspecialchars($pa->button_text) ?></a>
-              <?php endif; ?>
-            </div>
-          </div>
-        </div>
-      </div> -->
-      <?php endif; ?>
-
+      
+      
       <script>
         (function () {
-          var base = '<?php echo base_url(); ?>';
+          var base = 'http://localhost:9000/';
           function beacon(path) {
             fetch(base + path, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, keepalive: true }).catch(function () {});
           }
 
-          <?php if (!empty($notification)): ?>
-          // Each slide is self-contained now, so JS only tracks views — no more
+                    // Each slide is self-contained now, so JS only tracks views — no more
           // background/image swapping (the carousel animates the whole slide).
           var carousel = document.getElementById('announcementCarousel');
           var seenViews = {};
@@ -683,8 +1037,7 @@
               trackView(carousel.querySelector('.carousel-item.active'));
             });
           }
-          <?php endif; ?>
-
+          
           document.querySelectorAll('.announcement-cta').forEach(function (a) {
             a.addEventListener('click', function () {
               var id = a.getAttribute('data-id');
@@ -692,18 +1045,7 @@
             });
           });
 
-          <?php if (!empty($popup_announcement)): ?>
-          var popupEl = document.getElementById('announcementPopup');
-          if (popupEl && window.bootstrap) {
-            var popupModal = new bootstrap.Modal(popupEl);
-            popupModal.show();
-            beacon('user/announcement/view/<?= (int) $popup_announcement->id ?>');
-            popupEl.addEventListener('hidden.bs.modal', function () {
-              beacon('user/announcement/dismiss/<?= (int) $popup_announcement->id ?>');
-            });
-          }
-          <?php endif; ?>
-        })();
+                  })();
       </script>
 
 
@@ -791,35 +1133,7 @@
         <div class="fin-chart-body"><canvas id="financeChart"></canvas></div>
       </div>
 
-      <?php
-      /**
-       * The five wallets. Replaces the old Available Balance / Pending
-       * Commission / Total Earned / Total Withdrawn cards, which had NO
-       * javascript behind them and so permanently displayed 0.00.
-       *
-       * Balances come from Walletledger_model::balances() — the single source
-       * of truth (it owns user_wallets + wallet_ledger and keeps them in step
-       * inside one locked transaction). Rendered server-side: five numbers do
-       * not need a round trip.
-       */
-      $wallets = $wallets ?? ['usdt'=>'0','exchange'=>'0','earning'=>'0','staking'=>'0','bonus'=>'0'];
-      // Display standardized to 2dp for every wallet card (product decision —
-      // full decimal(30,8) precision is still stored/used for calculations,
-      // this only affects what's rendered here).
-      $w_cards = [
-        ['key'=>'usdt',     'label'=>'USDT Wallet',     'unit'=>'USDT', 'dp'=>2,
-         'icon'=>'ph-currency-dollar',   'bg'=>'#ecfdf3', 'fg'=>'#059669'],
-        ['key'=>'exchange', 'label'=>'Exchange Wallet', 'unit'=>'BMAN', 'dp'=>2,
-         'icon'=>'ph-arrows-left-right', 'bg'=>'#eff6ff', 'fg'=>'#2563eb'],
-        ['key'=>'earning',  'label'=>'Earning Wallet',  'unit'=>'BMAN', 'dp'=>2,
-         'icon'=>'ph-trend-up',          'bg'=>'#f5f3ff', 'fg'=>'#7c3aed'],
-        ['key'=>'staking',  'label'=>'Staking Wallet',  'unit'=>'BMAN', 'dp'=>2,
-         'icon'=>'ph-lock-key',          'bg'=>'#fff7ed', 'fg'=>'#d97706'],
-        ['key'=>'bonus',    'label'=>'Bonus Wallet',    'unit'=>'BMAN', 'dp'=>2,
-         'icon'=>'ph-gift',              'bg'=>'#fdf2f8', 'fg'=>'#db2777'],
-      ];
-      ?>
-      <style>
+            <style>
         /* Five across on desktop. The shared .kpi-grid is 4-up, so the wallet
            row gets its own grid rather than fighting that breakpoint. */
         .wallet-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin:0 0 18px; }
@@ -847,28 +1161,60 @@
 
       <!-- Wallets -->
       <div class="wallet-grid">
-        <?php foreach ($w_cards as $wc):
-          $bal = (float) ($wallets[$wc['key']] ?? 0);
-          ?>
-          <a class="wallet-card" href="<?= base_url('user/wallet'); ?>" title="<?= $wc['label']; ?>">
-            <div class="wallet-ico" style="background:<?= $wc['bg']; ?>;color:<?= $wc['fg']; ?>">
-              <i class="ph <?= $wc['icon']; ?>"></i>
+                  <a class="wallet-card" href="http://localhost:9000/user/wallet" title="USDT Wallet">
+            <div class="wallet-ico" style="background:#ecfdf3;color:#059669">
+              <i class="ph ph-currency-dollar"></i>
             </div>
             <div class="wallet-meta">
-              <small><?= $wc['label']; ?></small>
-              <strong><?= number_format($bal, $wc['dp']); ?><u><?= $wc['unit']; ?></u></strong>
+              <small>USDT Wallet</small>
+              <strong>0.00<u>USDT</u></strong>
             </div>
           </a>
-        <?php endforeach; ?>
-      </div>
+                  <a class="wallet-card" href="http://localhost:9000/user/wallet" title="Exchange Wallet">
+            <div class="wallet-ico" style="background:#eff6ff;color:#2563eb">
+              <i class="ph ph-arrows-left-right"></i>
+            </div>
+            <div class="wallet-meta">
+              <small>Exchange Wallet</small>
+              <strong>3.95<u>BMAN</u></strong>
+            </div>
+          </a>
+                  <a class="wallet-card" href="http://localhost:9000/user/wallet" title="Earning Wallet">
+            <div class="wallet-ico" style="background:#f5f3ff;color:#7c3aed">
+              <i class="ph ph-trend-up"></i>
+            </div>
+            <div class="wallet-meta">
+              <small>Earning Wallet</small>
+              <strong>0.10<u>BMAN</u></strong>
+            </div>
+          </a>
+                  <a class="wallet-card" href="http://localhost:9000/user/wallet" title="Staking Wallet">
+            <div class="wallet-ico" style="background:#fff7ed;color:#d97706">
+              <i class="ph ph-lock-key"></i>
+            </div>
+            <div class="wallet-meta">
+              <small>Staking Wallet</small>
+              <strong>0.10<u>BMAN</u></strong>
+            </div>
+          </a>
+                  <a class="wallet-card" href="http://localhost:9000/user/wallet" title="Bonus Wallet">
+            <div class="wallet-ico" style="background:#fdf2f8;color:#db2777">
+              <i class="ph ph-gift"></i>
+            </div>
+            <div class="wallet-meta">
+              <small>Bonus Wallet</small>
+              <strong>0.60<u>BMAN</u></strong>
+            </div>
+          </a>
+              </div>
 
       <!-- Quick Actions -->
       <div class="quick-actions">
-        <a href="<?= base_url('user/withdraw'); ?>" class="qa"><i class="ph ph-money"></i> Withdraw</a>
-        <a href="<?= base_url('user/transfer-wallet'); ?>" class="qa"><i class="ph ph-arrows-left-right"></i> Transfer Wallet</a>
-        <a href="<?= base_url('user/binary-tree'); ?>" class="qa"><i class="ph ph-tree-structure"></i> View Binary Tree</a>
-        <a href="<?= base_url('user/referrals'); ?>" class="qa"><i class="ph ph-user-plus"></i> Invite Member</a>
-        <a href="<?= base_url('support'); ?>" class="qa"><i class="ph ph-headset"></i> Support Ticket</a>
+        <a href="http://localhost:9000/user/withdraw" class="qa"><i class="ph ph-money"></i> Withdraw</a>
+        <a href="http://localhost:9000/user/transfer-wallet" class="qa"><i class="ph ph-arrows-left-right"></i> Transfer Wallet</a>
+        <a href="http://localhost:9000/user/binary-tree" class="qa"><i class="ph ph-tree-structure"></i> View Binary Tree</a>
+        <a href="http://localhost:9000/user/referrals" class="qa"><i class="ph ph-user-plus"></i> Invite Member</a>
+        <a href="http://localhost:9000/support" class="qa"><i class="ph ph-headset"></i> Support Ticket</a>
       </div>
 
       <!-- Binary + Team -->
@@ -883,25 +1229,16 @@
             </div>
           </div>
 
-          <?php
-            $legLeft = (float) ($leg_investments['left_bman'] ?? 0);
-            $legRight = (float) ($leg_investments['right_bman'] ?? 0);
-            $legLeftStrong = $legLeft >= $legRight;
-            $legProgress = ($legLeft + $legRight) > 0
-              ? round((min($legLeft, $legRight) / ($legLeft + $legRight)) * 100, 2)
-              : 0;
-            $legProgressText = rtrim(rtrim(number_format($legProgress, 2), '0'), '.') . '%';
-          ?>
-          <div class="binary-grid">
+                    <div class="binary-grid">
             <!-- Left -->
             <div class="mini">
               <div class="mini-top">
                 <span>Left Leg</span>
-                <b id="binaryLeftStrength" style="color:#2563eb;"><?= $legLeftStrong ? 'STRONG' : 'WEAK'; ?></b>
+                <b id="binaryLeftStrength" style="color:#2563eb;">STRONG</b>
               </div>
 
               <div class="mini-value">
-                <strong id="binaryLeftAmount"><?= number_format($legLeft, 2); ?></strong>
+                <strong id="binaryLeftAmount">1.00</strong>
                 <div style="font-size:11px;color:#8a8f99;font-weight:600;margin-top:2px;">Leg Investment (BMAN)</div>
               </div>
 
@@ -911,11 +1248,11 @@
             <div class="mini">
               <div class="mini-top">
                 <span>Right Leg</span>
-                <b id="binaryRightStrength" style="color:#f97316;"><?= $legLeftStrong ? 'WEAK' : 'STRONG'; ?></b>
+                <b id="binaryRightStrength" style="color:#f97316;">WEAK</b>
               </div>
 
               <div class="mini-value">
-                <strong id="binaryRightAmount"><?= number_format($legRight, 2); ?></strong>
+                <strong id="binaryRightAmount">0.00</strong>
                 <div style="font-size:11px;color:#8a8f99;font-weight:600;margin-top:2px;">Leg Investment (BMAN)</div>
               </div>
 
@@ -926,34 +1263,25 @@
           <div class="progress-wrap">
             <div class="row">
               <b id="binaryProgressTitle">Weekly Pair Target Progress</b>
-              <span id="weekly_progress" style="font-size:12px;color:#5d56a8;font-weight:800;"><?= $legProgressText; ?></span>
+              <span id="weekly_progress" style="font-size:12px;color:#5d56a8;font-weight:800;">0%</span>
             </div>
 
             <div class="bar">
-              <div id="weekly_progress_bar" style="width:<?= min(100, max(0, $legProgress)); ?>%"></div>
+              <div id="weekly_progress_bar" style="width:0%"></div>
             </div>
 
-            <?php
-            // Achievement Rank / Rank Power / Group Volume / Next Rank Progress /
-            // Group Incentive — replaces the old KYC/Bank/Account/Weak-Leg
-            // checklist, which tracked pairing-engine gates that no longer exist.
-            // Source: Memberrank_model::sidebar() (§10/§11), the same cheap,
-            // cached-volume call the right-hand rank widget uses.
-            $rs = $rank_summary ?? [];
-            $nextLabel = !empty($rs['next_rank']) ? ' to ' . htmlspecialchars($rs['next_rank']) : '';
-            ?>
-            <div class="small-grid" style="margin-top:12px;">
+                        <div class="small-grid" style="margin-top:12px;">
               <div class="small-k">
                 <small>Group Volume</small>
-                <strong><?= number_format((float)($rs['group_volume'] ?? 0), 2); ?> BMAN</strong>
+                <strong>0.00 BMAN</strong>
               </div>
               <div class="small-k">
                 <small>Next Rank Progress</small>
-                <strong><?= (int)($rs['progress'] ?? 0); ?>%<?= $nextLabel; ?></strong>
+                <strong>0% to UN RANK</strong>
               </div>
               <div class="small-k">
                 <small>Group Incentive Eligibility</small>
-                <strong><?= !empty($rs['power_qualified']) ? 'Eligible' : 'Not Eligible'; ?></strong>
+                <strong>Not Eligible</strong>
               </div>
             </div>
           </div>
@@ -970,19 +1298,19 @@
           <div class="small-grid">
             <div class="small-k">
               <small>Left Team</small>
-              <strong><?= (int) ($team_snapshot['left_team'] ?? 0); ?></strong>
+              <strong>1</strong>
             </div>
             <div class="small-k">
               <small>Right Team</small>
-              <strong><?= (int) ($team_snapshot['right_team'] ?? 0); ?></strong>
+              <strong>0</strong>
             </div>
             <div class="small-k">
               <small>Active Members</small>
-              <strong><?= (int) ($team_snapshot['active_total'] ?? 0); ?></strong>
+              <strong>1</strong>
             </div>
             <div class="small-k">
               <small>New Joins</small>
-              <strong><?= (int) ($team_snapshot['new_joins_week'] ?? 0); ?></strong>
+              <strong>1</strong>
             </div>
           </div>
 
@@ -1002,7 +1330,7 @@
             <div style="display:flex;gap:10px;align-items:center;">
               <input id="referral_link"
                 style="flex:1;border:none;outline:none;background:#fff;padding:10px 12px;border-radius:14px;border:1px solid #eeecff;font-size:12px;"
-                value="<?php echo base_url() . 'user/re?ref=L-' . $userinfo->referral_id ?? ''; ?>" readonly />
+                value="http://localhost:9000/user/re?ref=L-NEXMAN946966" readonly />
               <button
                 style="border:none;background:var(--primary);color:#fff;padding:10px 14px;border-radius:14px;font-weight:800;cursor:pointer;"
                 onclick="copyText(dashRefSide)"><i class="ph ph-copy"></i></button>
@@ -1042,7 +1370,7 @@
           </div>
 
           <button id="btn_view_all_wallet_transactions" class="btn-full"
-            onclick="window.location.href='<?= base_url('user/wallet'); ?>'">
+            onclick="window.location.href='http://localhost:9000/user/wallet'">
             View All Wallet Transactions
           </button>
         </div>
@@ -1070,7 +1398,7 @@
           </div>
 
           <button id="btn_view_all_orders" class="btn-full"
-            onclick="window.location.href='<?= base_url('user/stakings'); ?>'">View All Staking</button>
+            onclick="window.location.href='http://localhost:9000/user/stakings'">View All Staking</button>
         </div>
 
 
@@ -1079,8 +1407,523 @@
 
     <!-- Right Panel -->
     <aside class="right-panel">
-      <?php $this->load->view('user/layout/v2/user_inner_right_panle'); ?>
-    </aside>
+      <script>
+    window.APP_CONFIG = window.APP_CONFIG || {};
+    window.APP_CONFIG.DEMO = false;
+    function isDemoMode() { return !!(window.APP_CONFIG && window.APP_CONFIG.DEMO === true); }
+    function demoBlockAlert() { Swal.fire({ icon: 'info', title: 'Demo Version', text: 'You Can not change record.', confirmButtonText: 'Ok, got it!', customClass: { confirmButton: 'btn btn-primary' }, buttonsStyling: false }); }
+    function stopIfDemo(e) { if (!isDemoMode()) return false; if (e && e.preventDefault) e.preventDefault(); demoBlockAlert(); return true; }
+</script>
+<div class="rp-title">
+    <h4>Profile & Stats</h4>
+    <a class="action-btn" title="Settings" style="width:40px;height:40px;"
+        href="http://localhost:9000/user/view-profile"><i class="ph ph-gear"></i></a>
+</div>
+
+<div class="rp-card">
+    <!-- <div class="stat-circle">
+        <img src="https://i.pravatar.cc/100?u=mlm-user" alt="avatar" />
+        <span class="stat-badge">72%</span>
+    </div> -->
+    <div class="stat-circle" style="background:conic-gradient(var(--primary) 0%, #f0f0f5 0);">
+        <img src="http://localhost:9000/assets/images/profile_6a5f279f900ee.png"
+            alt="avatar"
+            onerror="this.onerror=null;this.src='http://localhost:9000/assets/default-user.png';" />
+
+        <span class="stat-badge">
+            0%
+        </span>
+    </div>
+    <div style="text-align:center;font-size:10.5px;font-weight:700;color:var(--text-secondary, #8E8E93);margin:0 0 10px;text-transform:uppercase;letter-spacing:.4px;">
+        KYC Verification
+    </div>
+
+    <div class="hello">
+        <!-- <h3>Good Morning Lucas</h3> -->
+        <h3>
+            <span id="greeting">Hello</span>
+            <span>
+                Trustwallet            </span>
+        </h3>
+
+        <script>
+            (() => {
+                const h = new Date().getHours();
+                document.getElementById('greeting').textContent =
+                    h >= 5 && h < 12 ? 'Good Morning' :
+                        h >= 12 && h < 17 ? 'Good Afternoon' :
+                            h >= 17 && h < 21 ? 'Good Evening' :
+                                'Good Night';
+            })();
+        </script>
+
+        <p>Track your rank, grow your team volume, and withdraw earnings easily.</p>
+
+        <div class="pill">
+            <b>Next Payout</b>
+            <span>
+                Tonight 00:00 AM            </span>
+        </div>
+
+        <div class="pill">
+            <b>Withdraw Eligibility</b>
+
+            <span style="color:var(--bad);">
+                Not Eligible            </span>
+
+        </div>
+    </div>
+</div>
+
+
+<div class="rp-card rank-card-pro">
+    <style>
+        .rank-card {
+            display: flex;
+            justify-content: space-between;
+            background: #fff;
+            border-radius: 16px;
+            width: 100%;
+            max-width: 420px;
+        }
+
+        .rank-badge {
+            background: #000;
+            color: #fff;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .label {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .desc {
+            font-size: 12px;
+            color: #777;
+        }
+
+        .progress-circle {
+            width: 90px;
+        }
+
+        .bg {
+            fill: none;
+            stroke: #eee;
+            stroke-width: 3.8;
+        }
+
+        .progress {
+            fill: none;
+            stroke: #7b4dff;
+            stroke-width: 3.8;
+            stroke-linecap: round;
+        }
+
+        .percentage {
+            fill: #333;
+            font-size: 6px;
+            text-anchor: middle;
+        }
+    </style>
+    <style>
+        /* Rank card — achievement rank (permanent) + rank power (60-day cycle) */
+        .rank-perm {
+            display:inline-flex; align-items:center; gap:5px; font-size:9.5px; font-weight:700;
+            color:#15803d; background:#dcfce7; padding:3px 7px; border-radius:999px; margin-top:5px;
+        }
+        .rank-vol { display:flex; justify-content:space-between; font-size:10.5px; color:#8E8E93; margin:12px 0 5px; }
+        .rank-vol b { color:var(--text-main, #1A1A1A); font-variant-numeric:tabular-nums; }
+        .rank-bar { height:7px; border-radius:999px; background:#e9e7ff; overflow:hidden; }
+        .rank-bar>div { height:100%; background:var(--primary, #6E56CF); border-radius:999px; transition:width .8s ease; }
+        .rank-bar.done>div { background:var(--good, #22c55e); }
+        .rank-tiles-v2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:12px 0 4px; }
+        .rtile { background:#f7f7fb; border-radius:12px; padding:9px 10px; }
+        .rtile small { font-size:9px; text-transform:uppercase; letter-spacing:.5px; color:#8E8E93; font-weight:700; display:block; }
+        .rtile .v { font-size:13px; font-weight:800; color:var(--text-main, #1A1A1A); margin-top:3px; line-height:1.2; }
+        .rtile .v.none { color:#8E8E93; font-size:11.5px; font-weight:700; }
+        .rtile .m { font-size:8.5px; font-weight:700; padding:2px 5px; border-radius:999px; background:#efedfb; color:var(--primary, #6E56CF); display:inline-block; margin-top:4px; }
+        .rtile .m.ok { background:#dcfce7; color:#15803d; }
+        .rtile .m.mut { background:#eee; color:#8E8E93; }
+    </style>
+
+    <div class="rank-card">
+        <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+            <span class="rk-badge" style="width:64px;height:64px;--rk-ring:#9e9e9e"><img class="rk-badge-img" src="http://localhost:9000/uploads/rank_badges/a23b071465e22e42ebb253e273e73ecc.png" alt="" loading="lazy"></span>            <div style="min-width:0;">
+                <p class="label" style="margin:0;">Current Rank</p>
+                <span class="rank-badge">UN RANK</span>
+                            </div>
+        </div>
+
+        <div class="progress-circle">
+            <svg viewBox="0 0 36 36">
+                <path class="bg" d="M18 2.0845
+                     a 15.9155 15.9155 0 0 1 0 31.831
+                     a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <path class="progress" stroke-dasharray="0, 100" d="M18 2.0845
+                     a 15.9155 15.9155 0 0 1 0 31.831
+                     a 15.9155 15.9155 0 0 1 0 -31.831" />
+                <text x="18" y="20.35" class="percentage">0%</text>
+            </svg>
+        </div>
+    </div>
+
+            <p class="rank-desc" style="margin-bottom:0;">
+            Grow your <b>team volume</b> to unlock <b>UN RANK</b>.
+                    </p>
+
+        <!-- Team volume toward the next rank -->
+        <div class="rank-vol">
+            <span>Team volume</span>
+            <span><b>0</b> / 1 K</span>
+        </div>
+        <div class="rank-bar ">
+            <div style="width:0%"></div>
+        </div>
+    
+    <!-- Rank Power + Group Incentive -->
+    <div class="rank-tiles-v2">
+        <div class="rtile">
+            <small>Rank Power</small>
+            <div class="v none">
+                None yet            </div>
+            <span class="m mut">
+                No cycle            </span>
+        </div>
+
+        <div class="rtile">
+            <small>Group Incentive</small>
+            <div class="v none">
+                Not yet            </div>
+            <span class="m mut">
+                Build volume            </span>
+        </div>
+    </div>
+
+    <button class="rank-btn-pro" onclick="window.location.href='http://localhost:9000/user/rank-reward'">
+        View Rank Details <i class="ph ph-arrow-right"></i></button>
+</div>
+
+
+<div class="rp-card alerts">
+    <div class="panel-title" style="margin-bottom:8px;">
+        <h3 style="font-size:14px;">Action Center</h3>
+        <span class="chip">Important</span>
+    </div>    
+
+    <div class="a">
+        <div class="ic"><i class="ph ph-identification-card"></i></div>
+        <div>
+            <b>KYC Verified</b>
+            <small>Your account is eligible for withdrawals.</small>
+        </div>
+    </div>
+    
+    <button class="btn-full" onclick="window.location.href='http://localhost:9000/user/main'">Go to
+        Tasks</button>
+</div>
+
+<div class="rp-card">
+    <div class="panel-title" style="margin-bottom:10px;">
+        <h3 style="font-size:14px;">Quick Support</h3>
+        <span class="chip">24/7</span>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+        <div
+            style="width:40px;height:40px;border-radius:14px;background:#efedfb;color:var(--primary);display:grid;place-items:center;">
+            <i class="ph ph-headset" style="font-size:20px;"></i>
+        </div>
+        <div>
+            <b style="font-size:13px;">Help Desk</b>
+            <small style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px;">Raise a ticket for
+                payouts, orders, team issues.</small>
+        </div>
+    </div>
+    <button class="btn-full" style="margin-top:12px;background:var(--primary);color:#fff;"
+        onclick="window.location.href='http://localhost:9000/user/support'">Create Ticket</button>
+</div>
+
+
+<!-- ✅ Email Verify Popup (FULL FRONTEND SOURCE) -->
+<style>
+    #demoModal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, .6);
+        z-index: 9999;
+    }
+
+    #demoBox {
+        max-width: 420px;
+        margin: 7% auto;
+        background: #fff;
+        border-radius: 12px;
+        padding: 18px;
+        font-family: Arial;
+    }
+
+    #demoBox input {
+        width: 100%;
+        padding: 10px;
+        margin: 6px 0;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        outline: none;
+    }
+
+    #demoBox button {
+        width: 100%;
+        padding: 10px;
+        margin-top: 8px;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+    }
+
+    #demoBox button:disabled {
+        opacity: .6;
+        cursor: not-allowed;
+    }
+
+    #demoMsg {
+        margin-top: 10px;
+        font-size: 14px;
+    }
+
+    .hint {
+        font-size: 12px;
+        color: #666;
+        margin-top: 2px;
+    }
+
+    .row {
+        /* display: flex; */
+        gap: 10px;
+    }
+
+    .row>div {
+        flex: 1;
+    }
+</style>
+
+<div id="demoModal">
+    <div id="demoBox">
+        <h3 style="margin:0 0 10px;">Email Verification</h3>
+
+        <!-- STEP 1 -->
+        <div id="step1">
+            <input id="d_name" placeholder="Your name" autocomplete="name">
+            <input id="d_email" placeholder="Your email" autocomplete="email">
+            <div class="hint">Allowed: Gmail, Yahoo, Zoho, Hotmail/Outlook only</div>
+            <input id="d_phone" placeholder="Your phone 1234567891" maxlength="15" autocomplete="tel"
+                inputmode="numeric">
+            <button id="btnSend" onclick="demoStart()">Send OTP</button>
+        </div>
+
+        <!-- STEP 2 -->
+        <div id="step2" style="display:none;">
+            <div style="margin:8px 0;">Enter the 6-digit OTP sent to your email</div>
+            <input id="d_otp" maxlength="6" inputmode="numeric" placeholder="123456" autocomplete="one-time-code">
+            <button id="btnVerify" onclick="demoVerify()">Verify</button>
+
+            <button id="btnResend" onclick="demoResend()" style="margin-top:6px;">Resend OTP</button>
+            <div class="hint" id="timerText"></div>
+        </div>
+
+        <div id="demoMsg"></div>
+    </div>
+</div>
+
+<script>
+    const baseUrl = "http://localhost:9000/";
+
+    // ✅ auto detect role by url (edit if your admin url is different)
+    const role = window.location.pathname.toLowerCase().includes('/admin') ? 'admin' : 'user';
+
+    // ✅ allowed providers (blocks yopmail.com)
+    const ALLOWED_DOMAINS = [
+        "gmail.com",
+        "yahoo.com",
+        "yahoo.in",
+        "yahoo.co.in",
+        "zoho.com",
+        "zohomail.com",
+        "zohomail.in",
+        "hotmail.com",
+        "outlook.com",
+        "live.com"
+    ];
+
+    // ✅ popup delay
+    const POPUP_DELAY_MS = 3000;
+
+    // ✅ OTP expiry that we send to backend (seconds)
+    let ttlSec = 120;
+
+    // ✅ resend cooldown UI (seconds)
+    let resendCooldown = 30;
+    let resendInterval = null;
+
+    function showModal() { document.getElementById('demoModal').style.display = 'block'; }
+    function hideModal() { document.getElementById('demoModal').style.display = 'none'; }
+
+    function msg(text, ok = false) {
+        const el = document.getElementById('demoMsg');
+        el.style.color = ok ? 'green' : '#d00';
+        el.innerText = text || '';
+    }
+
+    function isAllowedEmail(email) {
+        email = (email || "").trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return false;
+        const domain = email.split("@").pop();
+        return ALLOWED_DOMAINS.includes(domain);
+    }
+
+    function onlyDigits(str) { return (str || '').replace(/[^\d]/g, ''); }
+
+    async function checkDemoPopup() {
+        try {
+            const res = await fetch(`${baseUrl}GlobalVerify/status?role=${encodeURIComponent(role)}`, {
+                credentials: 'include'
+            });
+            const data = await res.json();
+
+            if (data.status && data.showPopup) {
+                setTimeout(() => showModal(), POPUP_DELAY_MS);
+            }
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+    async function demoStart() {
+        msg('');
+
+        const name = document.getElementById('d_name').value.trim();
+        const email = document.getElementById('d_email').value.trim().toLowerCase();
+        const phone = onlyDigits(document.getElementById('d_phone').value.trim());
+
+        if (!name || !email || !phone) {
+            msg("Please enter name, email and phone");
+            return;
+        }
+
+        if (!isAllowedEmail(email)) {
+            msg("Only Gmail, Yahoo, Zoho, Hotmail/Outlook emails are allowed");
+            return;
+        }
+
+        const form = new URLSearchParams();
+        form.append('name', name);
+        form.append('email', email);
+        form.append('phone', phone);
+        form.append('role', role);
+        form.append('ttl', ttlSec); // backend will clamp if needed
+
+        const btn = document.getElementById('btnSend');
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await fetch(`${baseUrl}GlobalVerify/start`, {
+                method: "POST",
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: form.toString()
+            });
+            const data = await res.json();
+
+            if (data.status) {
+                document.getElementById('step1').style.display = 'none';
+                document.getElementById('step2').style.display = 'block';
+                msg("OTP sent. Please check your email.", true);
+
+                // backend may clamp expiry; sync UI
+                if (data.expiresInSec) {
+                    ttlSec = parseInt(data.expiresInSec, 10) || ttlSec;
+                }
+
+                startResendCooldown();
+            } else {
+                msg(data.msg || "Error sending OTP");
+            }
+        } catch (e) {
+            msg("Network error");
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    async function demoVerify() {
+        msg('');
+        const otp = onlyDigits(document.getElementById('d_otp').value.trim());
+
+        if (!/^\d{6}$/.test(otp)) {
+            msg("Enter valid 6-digit OTP");
+            return;
+        }
+
+        const form = new URLSearchParams();
+        form.append('otp', otp);
+        form.append('role', role);
+
+        const btn = document.getElementById('btnVerify');
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await fetch(`${baseUrl}GlobalVerify/verify`, {
+                method: "POST",
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: form.toString()
+            });
+            const data = await res.json();
+
+            if (data.status && data.verified) {
+                hideModal(); // ✅ never show again after verified
+            } else {
+                msg(data.msg || "Invalid OTP");
+            }
+        } catch (e) {
+            msg("Network error");
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    function startResendCooldown() {
+        const btnResend = document.getElementById('btnResend');
+        const timerEl = document.getElementById('timerText');
+
+        let left = resendCooldown;
+        if (btnResend) btnResend.disabled = true;
+        if (timerEl) timerEl.innerText = `You can resend OTP in ${left}s`;
+
+        if (resendInterval) clearInterval(resendInterval);
+
+        resendInterval = setInterval(() => {
+            left--;
+            if (timerEl) timerEl.innerText = left > 0 ? `You can resend OTP in ${left}s` : '';
+            if (left <= 0) {
+                clearInterval(resendInterval);
+                resendInterval = null;
+                if (btnResend) btnResend.disabled = false;
+            }
+        }, 1000);
+    }
+
+    function demoResend() {
+        // resend is same as start
+        demoStart();
+    }
+
+    // ✅ run on page load with delay
+    document.addEventListener("DOMContentLoaded", () => {
+        setTimeout(checkDemoPopup, 3000); // small wait for UI render
+    });
+</script>    </aside>
   </div>
 
   <div class="dash-share-backdrop" id="dashShareModal" aria-hidden="true">
@@ -1136,25 +1979,25 @@
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script> -->
 
   <!--begin::Global Javascript Bundle(mandatory for all pages)-->
-  <script src="<?php echo base_url(); ?>/assets/user/plugins/global/plugins.bundle.js"></script>
-  <script src="<?php echo base_url(); ?>/assets/user/js/scripts.bundle.js"></script>
+  <script src="http://localhost:9000//assets/user/plugins/global/plugins.bundle.js"></script>
+  <script src="http://localhost:9000//assets/user/js/scripts.bundle.js"></script>
 
-  <script src="<?php echo base_url(); ?>/assets/user/plugins/custom/datatables/datatables.bundle.js"></script>
+  <script src="http://localhost:9000//assets/user/plugins/custom/datatables/datatables.bundle.js"></script>
   <!--end::Vendors Javascript-->
 
   <!--begin::Custom Javascript(used for this page only)-->
-  <script src="<?php echo base_url(); ?>/assets/user/js/widgets.bundle.js"></script>
-  <script src="<?php echo base_url(); ?>/assets/user/js/custom/widgets.js"></script>
+  <script src="http://localhost:9000//assets/user/js/widgets.bundle.js"></script>
+  <script src="http://localhost:9000//assets/user/js/custom/widgets.js"></script>
   <!--end::Global Javascript Bundle-->
-  <script src="<?php echo base_url('assets/js/vendor/qrcode.min.js'); ?>"></script>
+  <script src="http://localhost:9000/assets/js/vendor/qrcode.min.js"></script>
   <script>
-    const base_url = "<?php echo base_url(); ?>";
-    const agent_id = "<?php echo $this->session->userdata('user_get_id'); ?>";
-    const currency_symbol = "<?php echo currency_info()->currency_symbol; ?>";
+    const base_url = "http://localhost:9000/";
+    const agent_id = "";
+    const currency_symbol = "$";
   </script>
-  <script src="<?php echo base_url(); ?>/assets/user_v2/js/script.js?ver=2.9"></script>
+  <script src="http://localhost:9000//assets/user_v2/js/script.js?ver=2.9"></script>
   <script
-    src="<?php echo base_url(); ?>/assets/admin/js/custom/authentication/sign-in/user-dashboard.js?ver=2.9"></script>
+    src="http://localhost:9000//assets/admin/js/custom/authentication/sign-in/user-dashboard.js?ver=2.9"></script>
 
   <script>
     function escapeHtml(str) {
@@ -1179,7 +2022,7 @@
 
     function loadRecentOrders() {
       $.ajax({
-        url: "<?= base_url('user/recentOrdersAjax'); ?>",
+        url: "http://localhost:9000/user/recentOrdersAjax",
         type: "GET",
         dataType: "json",
         data: { limit: 4 },
@@ -1322,7 +2165,7 @@
 
     function loadRecentCommissions() {
       $.ajax({
-        url: "<?= base_url('user/recentCommissionsAjax'); ?>",
+        url: "http://localhost:9000/user/recentCommissionsAjax",
         type: "GET",
         dataType: "json",
         data: { limit: 4 },
@@ -1436,7 +2279,7 @@
 
     function loadRecentWalletTransactions() {
       $.ajax({
-        url: "<?= base_url('user/recentWalletTransactionsAjax'); ?>",
+        url: "http://localhost:9000/user/recentWalletTransactionsAjax",
         type: "GET",
         dataType: "json",
         data: { limit: 5 },
@@ -1537,8 +2380,8 @@
   </script>
   <script>
     window.RefLinks = {
-      left: "<?php echo base_url() . 'user/re?ref=L-' . $userinfo->referral_id ?? ''; ?>",
-      right: "<?php echo base_url() . 'user/re?ref=R-' . $userinfo->referral_id ?? ''; ?>"
+      left: "http://localhost:9000/user/re?ref=L-NEXMAN946966",
+      right: "http://localhost:9000/user/re?ref=R-NEXMAN946966"
     };
   </script>
   <script>
@@ -1767,7 +2610,7 @@
       period = period === 'month' ? 'month' : 'week';
       setBinarySummaryLoading(true);
 
-      fetch("<?= base_url('user/binarySummaryAjax'); ?>?period=" + encodeURIComponent(period), {
+      fetch("http://localhost:9000/user/binarySummaryAjax?period=" + encodeURIComponent(period), {
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
         credentials: 'same-origin'
       })
@@ -1823,7 +2666,7 @@
     var canvas = document.getElementById('financeChart');
     if (!canvas || typeof Chart === 'undefined') return;
 
-    var ENDPOINT = '<?php echo base_url('user/activityTrendAjax'); ?>';
+    var ENDPOINT = 'http://localhost:9000/user/activityTrendAjax';
     var chart = null, range = 'monthly';
     // Each range is fetched once and kept — changing the dropdown after the
     // first visit is instant and costs no further requests.

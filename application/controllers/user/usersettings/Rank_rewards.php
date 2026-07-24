@@ -25,6 +25,19 @@ class Rank_rewards extends CI_Controller
   {
     $user_id = (int) $this->session->userdata('user_userid');
     $data = $this->memberrank->pageData($user_id);
+
+    // Admin-uploaded downloadable files for this member: those flagged "all
+    // ranks" plus any tied to a rank the member currently holds / has achieved.
+    $this->load->model('staking/Rankfiles_model', 'rankfiles');
+    $ur = $this->db->select('current_rank_id, highest_rank_id')
+                   ->get_where('user_ranks', ['user_id' => $user_id])->row_array();
+    $rankIds = [];
+    if ($ur) {
+      if (!empty($ur['current_rank_id'])) $rankIds[] = (int) $ur['current_rank_id'];
+      if (!empty($ur['highest_rank_id'])) $rankIds[] = (int) $ur['highest_rank_id'];
+    }
+    $data['rank_files'] = $this->rankfiles->forUser($rankIds);
+
     $this->load->view('user/member/rank-reward', $data);
   }
 

@@ -175,6 +175,84 @@ class Rankmanagement extends CI_Controller
         $this->load->view('admin/staking/rank_certificate_print', ['c' => $row]);
     }
 
+    /* ============================ RANK FILES (DOWNLOADS) =========================== */
+
+    /** Upload manager: any image/PDF/doc a member can download from Rank & Rewards. */
+    public function files()
+    {
+        $this->load->model('staking/Rankfiles_model', 'rankfiles');
+        $data = [
+            'title'      => 'Rank Downloads',
+            'card_tilte' => 'Downloadable files — shown on the member Rank & Rewards page',
+            'rows'       => $this->rankfiles->allForAdmin(),
+            'ranks'      => $this->staking->ranks(),
+        ];
+        $this->load->view('admin/staking/rank_files', $data);
+    }
+
+    /** Handle a new file upload (AJAX). Stores a RELATIVE path only. */
+    public function files_upload()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        if (!defined('ENABLE_SITE_UPLOAD_FUNCTION') || ENABLE_SITE_UPLOAD_FUNCTION !== true) {
+            return $this->_filesJson(false, 'Uploads are disabled.');
+        }
+
+        $this->load->model('staking/Rankfiles_model', 'rankfiles');
+
+        $title = trim((string) $this->input->post('title'));
+        if ($title === '') return $this->_filesJson(false, 'Title is required.');
+
+        $rankId = $this->input->post('rank_id');
+        $rankId = ($rankId === '' || $rankId === null) ? null : (int) $rankId;
+
+        $dir = FCPATH . 'uploads/rank_files/';
+        if (!is_dir($dir)) @mkdir($dir, 0755, true);
+
+        $this->load->library('upload', [
+            'upload_path'   => $dir,
+            'allowed_types' => 'jpg|jpeg|png|webp|gif|pdf|doc|docx|xls|xlsx',
+            'max_size'      => 10240, // 10 MB
+            'encrypt_name'  => true,
+        ]);
+
+        if (!$this->upload->do_upload('file')) {
+            return $this->_filesJson(false, strip_tags($this->upload->display_errors('', '')));
+        }
+
+        $up = $this->upload->data();
+        $mime = $up['file_type'] ?? '';
+        $id = $this->rankfiles->create([
+            'title'       => $title,
+            'rank_id'     => $rankId,
+            'file_path'   => 'uploads/rank_files/' . $up['file_name'], // relative — see model note
+            'file_name'   => $up['client_name'] ?? $up['file_name'],
+            'mime_type'   => $mime,
+            'file_size'   => (int) $up['file_size'] * 1024,            // CI reports KB
+            'is_image'    => (strpos($mime, 'image/') === 0) ? 1 : 0,
+            'status'      => 1,
+            'uploaded_by' => $this->admin_id,
+            'created_at'  => date('Y-m-d H:i:s'),
+        ]);
+
+        return $this->_filesJson(true, 'File uploaded.', ['id' => $id]);
+    }
+
+    /** Delete an uploaded file (AJAX). */
+    public function files_delete($id)
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $this->load->model('staking/Rankfiles_model', 'rankfiles');
+        $ok = $this->rankfiles->delete((int) $id);
+        return $this->_filesJson($ok, $ok ? 'File deleted.' : 'File not found.');
+    }
+
+    private function _filesJson($ok, $message = '', $data = [])
+    {
+        $this->output->set_content_type('application/json')
+                     ->set_output(json_encode(['status' => $ok ? 'success' : 'error', 'message' => $message, 'data' => $data]));
+    }
+
     /* ============================ RANK POWER =========================== */
 
     /** Per-member power for one cycle (defaults to the open cycle). */
