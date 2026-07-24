@@ -45,14 +45,15 @@ class BinaryMatchingAdmin extends CI_Controller
      */
     public function history()
     {
-        $page = $this->input->get('page', true) ? (int)$this->input->get('page') : 1;
-        $level_filter = $this->input->get('level', true);
+        $page          = $this->input->get('page', true) ? (int)$this->input->get('page') : 1;
+        $level_filter  = $this->input->get('level', true);
         $status_filter = $this->input->get('status', true);
-        $user_filter = $this->input->get('user_id', true);
-        $per_page = 50;
-        $offset = ($page - 1) * $per_page;
+        $user_filter   = $this->input->get('user_id', true);
+        $date_from     = $this->input->get('date_from', true);
+        $date_to       = $this->input->get('date_to', true);
+        $per_page      = 50;
+        $offset        = ($page - 1) * $per_page;
 
-        // Build query
         $this->db->select('
             bmb.id, bmb.purchase_id, bmb.bonus_recipient_id, bmb.bonus_payer_id,
             bmb.level, bmb.left_leg_volume, bmb.right_leg_volume, bmb.qualifying_volume,
@@ -65,42 +66,143 @@ class BinaryMatchingAdmin extends CI_Controller
         $this->db->join('users u_recipient', 'bmb.bonus_recipient_id = u_recipient.id', 'left');
         $this->db->join('users u_payer', 'bmb.bonus_payer_id = u_payer.id', 'left');
 
-        if ($level_filter) {
-            $this->db->where('bmb.level', (int)$level_filter);
-        }
-        if ($status_filter) {
-            $this->db->where('bmb.status', $status_filter);
-        }
-        if ($user_filter) {
-            $this->db->where('bmb.bonus_recipient_id', (int)$user_filter);
-        }
+        if ($level_filter)  $this->db->where('bmb.level', (int)$level_filter);
+        if ($status_filter) $this->db->where('bmb.status', $status_filter);
+        if ($user_filter)   $this->db->where('bmb.bonus_recipient_id', (int)$user_filter);
+        if ($date_from)     $this->db->where('DATE(bmb.created_at) >=', $date_from);
+        if ($date_to)       $this->db->where('DATE(bmb.created_at) <=', $date_to);
 
         $this->db->order_by('bmb.created_at', 'DESC');
         $this->db->limit($per_page, $offset);
-
         $bonuses = $this->db->get()->result_array();
 
-        // Get total count
-        $count_query = $this->db->select('COUNT(*) as total')
-            ->from('binary_matching_bonus_ledger bmb');
-        if ($level_filter) $count_query->where('bmb.level', (int)$level_filter);
-        if ($status_filter) $count_query->where('bmb.status', $status_filter);
-        if ($user_filter) $count_query->where('bmb.bonus_recipient_id', (int)$user_filter);
-        $total = $count_query->get()->row()->total;
+        // Count with same filters
+        $cq = $this->db->select('COUNT(*) as total')->from('binary_matching_bonus_ledger bmb');
+        if ($level_filter)  $cq->where('bmb.level', (int)$level_filter);
+        if ($status_filter) $cq->where('bmb.status', $status_filter);
+        if ($user_filter)   $cq->where('bmb.bonus_recipient_id', (int)$user_filter);
+        if ($date_from)     $cq->where('DATE(bmb.created_at) >=', $date_from);
+        if ($date_to)       $cq->where('DATE(bmb.created_at) <=', $date_to);
+        $total = $cq->get()->row()->total;
+
+        // Summary stats (all-time, unfiltered)
+        $summary_stats = $this->_getSummaryStats();
 
         $data = [
-            'page_title' => 'Binary Matching Bonus History',
-            'bonuses' => $bonuses,
-            'current_page' => $page,
-            'per_page' => $per_page,
-            'total' => $total,
-            'total_pages' => ceil($total / $per_page),
-            'level_filter' => $level_filter,
+            'page_title'    => 'Binary Matching Bonus History',
+            'bonuses'       => $bonuses,
+            'current_page'  => $page,
+            'per_page'      => $per_page,
+            'total'         => $total,
+            'total_pages'   => ceil($total / $per_page),
+            'level_filter'  => $level_filter,
             'status_filter' => $status_filter,
-            'user_filter' => $user_filter,
+            'user_filter'   => $user_filter,
+            'date_from'     => $date_from,
+            'date_to'       => $date_to,
+            'summary_stats' => $summary_stats,
         ];
 
         $this->load->view('admin/binary_matching/history', $data);
+    }
+
+    /**
+     * Export bonus matching history as CSV or Excel.
+     * Uses the same filters as history() but via GET params.
+     */
+    public function export_history($format = 'csv')
+    {
+        $level_filter  = $this->input->get('level', true);
+        $status_filter = $this->input->get('status', true);
+        $user_filter   = $this->input->get('user_id', true);
+        $date_from     = $this->input->get('date_from', true);
+        $date_to       = $this->input->get('date_to', true);
+
+        $this->db->select('
+            bmb.id, bmb.bonus_recipient_id, bmb.level,
+            bmb.left_leg_volume, bmb.right_leg_volume, bmb.qualifying_volume,
+            bmb.bonus_earning, bmb.bonus_staking, bmb.bonus_amount_total,
+            bmb.status, bmb.ceiling_amount_held, bmb.created_at, bmb.distributed_at,
+            u_recipient.username as recipient_name
+        ');
+        $this->db->from('binary_matching_bonus_ledger bmb');
+        $this->db->join('users u_recipient', 'bmb.bonus_recipient_id = u_recipient.id', 'left');
+        if ($level_filter)  $this->db->where('bmb.level', (int)$level_filter);
+        if ($status_filter) $this->db->where('bmb.status', $status_filter);
+        if ($user_filter)   $this->db->where('bmb.bonus_recipient_id', (int)$user_filter);
+        if ($date_from)     $this->db->where('DATE(bmb.created_at) >=', $date_from);
+        if ($date_to)       $this->db->where('DATE(bmb.created_at) <=', $date_to);
+        $this->db->order_by('bmb.created_at', 'DESC')->limit(10000);
+        $rows = $this->db->get()->result_array();
+
+        $cols = [
+            'id'                  => 'ID',
+            'bonus_recipient_id'  => 'User ID',
+            'recipient_name'      => 'Username',
+            'level'               => 'Level',
+            'left_leg_volume'     => 'Left Leg',
+            'right_leg_volume'    => 'Right Leg',
+            'qualifying_volume'   => 'Qualifying Vol',
+            'bonus_earning'       => 'Earning (8%)',
+            'bonus_staking'       => 'Staking (2%)',
+            'bonus_amount_total'  => 'Total Bonus',
+            'status'              => 'Status',
+            'ceiling_amount_held' => 'Ceiling Held',
+            'created_at'          => 'Date',
+        ];
+        $stamp = date('Y-m-d_His');
+
+        if ($format === 'csv') {
+            $out = fopen('php://temp', 'r+');
+            fputcsv($out, array_values($cols));
+            foreach ($rows as $r) {
+                $line = [];
+                foreach (array_keys($cols) as $c) $line[] = $r[$c] ?? '';
+                fputcsv($out, $line);
+            }
+            rewind($out);
+            $csv = stream_get_contents($out);
+            fclose($out);
+            return force_download('bonus_matching_history_' . $stamp . '.csv', $csv);
+        }
+
+        if ($format === 'excel') {
+            $html = '<table border="1"><tr>';
+            foreach ($cols as $h) $html .= '<th>' . htmlspecialchars($h) . '</th>';
+            $html .= '</tr>';
+            foreach ($rows as $r) {
+                $html .= '<tr>';
+                foreach (array_keys($cols) as $c) $html .= '<td>' . htmlspecialchars($r[$c] ?? '') . '</td>';
+                $html .= '</tr>';
+            }
+            $html .= '</table>';
+            return force_download('bonus_matching_history_' . $stamp . '.xls', $html);
+        }
+        show_404();
+    }
+
+    /**
+     * All-time summary stats for the History page cards.
+     */
+    private function _getSummaryStats()
+    {
+        $today = date('Y-m-d');
+        $total_count = (int)$this->db->count_all('binary_matching_bonus_ledger');
+        $total_dist  = (float)($this->db->query(
+            "SELECT COALESCE(SUM(bonus_earning + bonus_staking),0) AS s FROM binary_matching_bonus_ledger WHERE status = 'DISTRIBUTED'"
+        )->row()->s ?? 0);
+        $pending     = (int)($this->db->query(
+            "SELECT COUNT(*) AS c FROM binary_matching_bonus_ledger WHERE status IN ('PENDING','HELD_CEILING')"
+        )->row()->c ?? 0);
+        $today_count = (int)($this->db->query(
+            "SELECT COUNT(*) AS c FROM binary_matching_bonus_ledger WHERE DATE(created_at) = ?", [$today]
+        )->row()->c ?? 0);
+        return [
+            'total_count'       => $total_count,
+            'total_distributed' => $total_dist,
+            'pending_count'     => $pending,
+            'today_count'       => $today_count,
+        ];
     }
 
     /**
