@@ -105,10 +105,10 @@ class User extends CI_Controller
 			$this->data['wallets_withdrawable'] = $this->bmanwithdraw->maturity_breakdown($userid);
 
 			// Rank summary for the Binary Summary panel's checklist replacement
-			// (Achievement Rank / Rank Power / Group Volume / Next Rank Progress /
+			// (Achievement Rank / Rank Power / Rank Volume / Next Rank Progress /
 			// Group Incentive) — Memberrank_model::sidebar() is the cheap, cached-
 			// volume entry point meant for exactly this: rendered on many pages,
-			// so it deliberately skips the live genealogy walk.
+			// so it deliberately skips a live recalculation.
 			$this->load->model('user/Memberrank_model', 'mr');
 			$this->data['rank_summary'] = $this->mr->sidebar($userid);
 

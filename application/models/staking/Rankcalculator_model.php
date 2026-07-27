@@ -3,8 +3,7 @@
 /**
  * Rankcalculator_model — RankCalculatorService.
  * ----------------------------------------------------------------------------
- * The measurement layer for both rank systems. Answers two questions about a
- * member's binary downline:
+ * The measurement layer behind the rank systems. Answers three questions:
  *
  *   calculateGroupVolume($user_id [, $from, $to])
  *       → ['left_volume','right_volume','total_volume']
@@ -16,10 +15,24 @@
  *       rejected/expired/refunded) is excluded by the status pair above.
  *       Passing $from/$to windows the volume — that is how Rank Power (§11)
  *       counts current-cycle-only business off the same code path.
+ *       USED ONLY BY Rank Power as of the rank-volume-source fix
+ *       (db/2026-07-27_rank_volume_source_fix.sql) — the permanent
+ *       Achievement Rank no longer calls this.
+ *
+ *   calculateBonusVolume($user_id [, $from, $to])
+ *       → ['earning_volume','staking_volume','total_volume']
+ *       THE PERMANENT ACHIEVEMENT RANK'S VOLUME GATE. A PERSONAL metric, not
+ *       a downline/tree measurement: this member's own lifetime Binary
+ *       Matching Bonus — SUM(earning_amount)+SUM(staking_amount) from
+ *       staking_matching_payouts for this user_id. Written only by
+ *       Stakingmatching_model::payMatching(), so it already reflects the
+ *       matching conversion rate, the min(left,right) leg-balance
+ *       requirement, and this member's own package-ceiling cap.
  *
  *   countQualifiedRanks($user_id, $side, $rank_tier)
  *       → how many members in that whole leg hold >= $rank_tier.
- *       Unlimited depth, not just direct referrals.
+ *       Unlimited depth, not just direct referrals. Independent of volume —
+ *       unaffected by the rank-volume-source fix.
  *
  * PERFORMANCE
  * The genealogy (binary_placement), the per-user volume totals and the per-user
@@ -277,6 +290,52 @@ class Rankcalculator_model extends CI_Model
             }
         }
         return $sum;
+    }
+
+    /* ===================== bonus volume (rank-volume fix) ================= */
+
+    /**
+     * Lifetime Binary Matching Bonus for a member's OWN user_id — the
+     * REPLACEMENT volume source for the permanent Achievement Rank.
+     *
+     * Unlike calculateGroupVolume() this is NOT a downline/tree walk: it is a
+     * PERSONAL metric — what this member has actually been paid by
+     * Stakingmatching_model::payMatching(), which already encodes the
+     * matching conversion rate, the min(left,right) leg-balance requirement,
+     * and this member's own package-ceiling cap. staking_matching_payouts is
+     * written ONLY by the matching engine (never by rank rewards or any other
+     * credit source), so summing it can never double-count with anything
+     * else that also touches the earning/staking wallets.
+     *
+     * $from/$to (DATETIME strings, or null) window on created_at — kept for
+     * symmetry with calculateGroupVolume() and any future reporting need.
+     * The achievement engine always calls this with no window (lifetime).
+     *
+     * @param int         $user_id
+     * @param string|null $from  DATETIME lower bound (created_at >=)
+     * @param string|null $to    DATETIME upper bound (created_at <=)
+     * @return array{earning_volume:string,staking_volume:string,total_volume:string}
+     */
+    public function calculateBonusVolume($user_id, $from = null, $to = null)
+    {
+        $this->db->select(
+                "COALESCE(SUM(earning_amount), 0) AS earning_volume,
+                 COALESCE(SUM(staking_amount), 0) AS staking_volume", false
+            )
+            ->from('staking_matching_payouts')
+            ->where('user_id', (int)$user_id);
+        if ($from) $this->db->where('created_at >=', $from);
+        if ($to)   $this->db->where('created_at <=', $to);
+        $row = $this->db->get()->row_array();
+
+        $earning = $row ? (string)$row['earning_volume'] : '0';
+        $staking = $row ? (string)$row['staking_volume'] : '0';
+
+        return [
+            'earning_volume' => $earning,
+            'staking_volume' => $staking,
+            'total_volume'   => bcadd($earning, $staking, 8),
+        ];
     }
 
     /* ===================== binary rank counting (§10) ==================== */

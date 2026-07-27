@@ -6,7 +6,7 @@
  * Evaluates and promotes the PERMANENT achievement rank (§10).
  *
  * processUserRank($user_id):
- *   1. calculate downline group volume        (Rankcalculator_model)
+ *   1. calculate lifetime binary matching bonus volume (Rankcalculator_model::calculateBonusVolume)
  *   2. load rank definitions                  (staking_ranks)
  *   3. walk ranks highest → lowest
  *   4. validate qualification plans           (staking_rank_requirements)
@@ -140,7 +140,7 @@ class Rankachievement_model extends CI_Model
      * @return array{
      *   status:string, user_id:int, promoted:bool,
      *   old_rank:?string, new_rank:?string, plan:?string,
-     *   left_volume:string, right_volume:string, total_volume:string, message:string
+     *   earning_volume:string, staking_volume:string, total_volume:string, message:string
      * }
      */
     public function processUserRank($user_id, $opts = [])
@@ -153,7 +153,7 @@ class Rankachievement_model extends CI_Model
         $out = [
             'status' => 'success', 'user_id' => $user_id, 'promoted' => false,
             'old_rank' => null, 'new_rank' => null, 'plan' => null,
-            'left_volume' => '0', 'right_volume' => '0', 'total_volume' => '0',
+            'earning_volume' => '0', 'staking_volume' => '0', 'total_volume' => '0',
             'message' => 'No change.',
         ];
 
@@ -162,11 +162,11 @@ class Rankachievement_model extends CI_Model
             return $out;
         }
 
-        // ---- Step 1: group volume (downline only, own staking excluded) ----
-        $vol = $this->calc->calculateGroupVolume($user_id);
-        $out['left_volume']  = $vol['left_volume'];
-        $out['right_volume'] = $vol['right_volume'];
-        $out['total_volume'] = $vol['total_volume'];
+        // ---- Step 1: rank volume = lifetime binary matching bonus (own credits, not downline) ----
+        $vol = $this->calc->calculateBonusVolume($user_id);
+        $out['earning_volume'] = $vol['earning_volume'];
+        $out['staking_volume'] = $vol['staking_volume'];
+        $out['total_volume']   = $vol['total_volume'];
 
         // ---- current state ----
         $current      = $this->currentRank($user_id);
@@ -276,8 +276,14 @@ class Rankachievement_model extends CI_Model
             'old_rank_id'        => $old_rank_id ? (int)$old_rank_id : null,
             'new_rank_id'        => (int)$rank_id,
             'achieved_volume'    => $vol['total_volume'],
-            'left_volume'        => $vol['left_volume'],
-            'right_volume'       => $vol['right_volume'],
+            // left_volume/right_volume are the OLD downline-team-volume metric
+            // — no longer computed as part of qualification, so they are
+            // simply omitted here and fall back to their column DEFAULT (0)
+            // on new rows. Historical rows keep their original, correct
+            // meaning. earning_volume/staking_volume record what actually
+            // qualified this promotion.
+            'earning_volume'     => $vol['earning_volume'],
+            'staking_volume'     => $vol['staking_volume'],
             'qualification_plan' => $plan,
             'source'             => $source,
             'achieved_at'        => $now,
@@ -299,7 +305,7 @@ class Rankachievement_model extends CI_Model
             'new_value'  => $rank['name'],
             'changed_by' => $admin,
             'note'       => $plan . ' · volume ' . $vol['total_volume']
-                            . ' (L ' . $vol['left_volume'] . ' / R ' . $vol['right_volume'] . ')',
+                            . ' (Earning ' . $vol['earning_volume'] . ' / Staking ' . $vol['staking_volume'] . ')',
         ]);
 
         return [true, 'Promoted.'];
@@ -419,7 +425,7 @@ class Rankachievement_model extends CI_Model
         }
         if (!$next) return null;   // already CHALLENGER
 
-        $vol   = $this->calc->calculateGroupVolume($user_id);
+        $vol   = $this->calc->calculateBonusVolume($user_id);
         $need  = (string)$next['required_group_volume'];
         $have  = $vol['total_volume'];
         $pct   = bccomp($need, '0', 8) > 0
