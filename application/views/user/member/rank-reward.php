@@ -8,8 +8,11 @@
  *
  * There is NO pairing logic on this page. No pairs, no PV, no weak-leg BV, no
  * carry forward, no cycle matching, no weekly pairing — the new system has no
- * such concepts. Rank is earned on downline group volume plus a left/right
- * team-rank matrix, and once earned it is permanent.
+ * such concepts. Rank is earned on the member's own lifetime Binary Matching
+ * Bonus volume (Earning + Staking wallet credits) plus a left/right
+ * team-rank matrix, and once earned it is permanent. Rank Power (the
+ * separate 60-day-cycle card below) still measures downline group volume —
+ * unaffected by the rank-volume-source fix.
  *
  * Card-based rebuild on the platform's global theme tokens (--primary, the
  * --color- family, the --text- family, --radius-lg, --shadow-card — all
@@ -18,7 +21,7 @@
  * the one badge component shared with the dashboard right panel, so "current
  * rank" always looks identical everywhere it appears.
  *
- * Sections: Hero (badge/info/progress) · Stats row (Left/Right/Total/Power) ·
+ * Sections: Hero (badge/info/progress) · Stats row (Earning/Staking/Total/Power) ·
  * Next Rank Qualification · Rank Timeline · Rank Power · Group Incentive ·
  * Rank Rewards (cards) · Rank Certificates (cards).
  *
@@ -42,10 +45,10 @@ $hasNext  = !empty($next);
 $volPct   = $hasNext ? (float) $next['volume_percent'] : 100;
 $volMet   = $hasNext ? !empty($next['volume_met']) : true;
 $planMet  = $hasNext ? !empty($next['plan_met']) : true;
-$leftVol  = (float) $volume['left_volume'];
-$rightVol = (float) $volume['right_volume'];
-$totalVol = (float) $volume['total_volume'];
-$legMax   = max($leftVol, $rightVol, 1);             // for the leg bar widths only
+$earningVol = (float) $volume['earning_volume'];
+$stakingVol = (float) $volume['staking_volume'];
+$totalVol   = (float) $volume['total_volume'];
+$legMax     = max($earningVol, $stakingVol, 1);      // for the stat bar widths only
 $remaining = $hasNext ? max(0, (float)$next['required_volume'] - (float)$next['current_volume']) : 0;
 $rewardCnt = count($rewards);
 $certCnt   = count($certificates);
@@ -356,7 +359,7 @@ $msRewardText = function ($l) use ($rk_n) {
             <div class="titlebar">
                 <div>
                     <h1><i class="ph-fill ph-medal"></i> Rank &amp; Rewards</h1>
-                    <p>Earn your rank on team volume. Once you reach it, it is yours permanently.</p>
+                    <p>Earn your rank on your Binary Matching Bonus volume. Once you reach it, it is yours permanently.</p>
                 </div>
                 <div class="actions">
                     <?php if (!empty($rank_files)): /* Only surface Download when there is actually something to download. */ ?>
@@ -426,22 +429,27 @@ $msRewardText = function ($l) use ($rk_n) {
                 </div>
             </section>
 
-            <!-- ================= STATS ROW: Left / Right / Total / Rank Power ================= -->
+            <!-- ================= STATS ROW: Earning / Staking / Total / Rank Power ================= -->
+            <div class="stats-context-note" style="font-size:11px;color:var(--text-secondary);margin:0 0 10px;display:flex;gap:6px;align-items:flex-start;">
+                <i class="ph ph-info" style="color:var(--primary);margin-top:1px;"></i>
+                <span><b>Rank Volume — Binary Matching Bonus Earned (Lifetime)</b> powers your permanent Achievement Rank (first 3 cards).
+                <b>Rank Power</b> (4th card) is a separate, resetting 60-day-cycle metric used only for Group Incentive — see the Rank Power card below.</span>
+            </div>
             <div class="grid-4">
                 <div class="card stat-card">
-                    <div class="stat-head"><span>Left Team Volume</span><div class="stat-ico l"><i class="ph-fill ph-arrow-bend-down-left"></i></div></div>
-                    <div class="stat-amt"><?= $rk_n($leftVol); ?><small>BMAN</small></div>
-                    <div class="bar" style="margin-top:10px;"><div style="width:<?= (int) round($leftVol / $legMax * 100); ?>%"></div></div>
-                    <div class="stat-sub">Completed staking, whole left leg, any depth.</div>
+                    <div class="stat-head"><span>Earning Wallet Volume</span><div class="stat-ico l"><i class="ph-fill ph-wallet"></i></div></div>
+                    <div class="stat-amt"><?= $rk_n($earningVol); ?><small>BMAN</small></div>
+                    <div class="bar" style="margin-top:10px;"><div style="width:<?= (int) round($earningVol / $legMax * 100); ?>%"></div></div>
+                    <div class="stat-sub">Binary matching bonus credited to your Earning wallet, lifetime.</div>
                 </div>
                 <div class="card stat-card">
-                    <div class="stat-head"><span>Right Team Volume</span><div class="stat-ico r"><i class="ph-fill ph-arrow-bend-down-right"></i></div></div>
-                    <div class="stat-amt"><?= $rk_n($rightVol); ?><small>BMAN</small></div>
-                    <div class="bar ok" style="margin-top:10px;"><div style="width:<?= (int) round($rightVol / $legMax * 100); ?>%"></div></div>
-                    <div class="stat-sub">Completed staking, whole right leg, any depth.</div>
+                    <div class="stat-head"><span>Staking Wallet Volume</span><div class="stat-ico r"><i class="ph-fill ph-piggy-bank"></i></div></div>
+                    <div class="stat-amt"><?= $rk_n($stakingVol); ?><small>BMAN</small></div>
+                    <div class="bar ok" style="margin-top:10px;"><div style="width:<?= (int) round($stakingVol / $legMax * 100); ?>%"></div></div>
+                    <div class="stat-sub">Binary matching bonus credited to your Staking wallet, lifetime.</div>
                 </div>
                 <div class="card stat-card">
-                    <div class="stat-head"><span>Total Group Volume</span><div class="stat-ico t"><i class="ph-fill ph-chart-donut"></i></div></div>
+                    <div class="stat-head"><span>Total Rank Volume</span><div class="stat-ico t"><i class="ph-fill ph-chart-donut"></i></div></div>
                     <div class="stat-amt"><?= $rk_n($totalVol); ?><small>BMAN</small></div>
                     <div class="bar <?= $volMet ? 'ok' : ''; ?>" style="margin-top:10px;"><div style="width:<?= (int) round(min(100, $volPct)); ?>%"></div></div>
                     <div class="stat-sub">
@@ -452,7 +460,7 @@ $msRewardText = function ($l) use ($rk_n) {
                     </div>
                 </div>
                 <div class="card stat-card">
-                    <div class="stat-head"><span>Rank Power</span><div class="stat-ico p"><i class="ph-fill ph-lightning"></i></div></div>
+                    <div class="stat-head"><span>Rank Power (This Cycle)</span><div class="stat-ico p"><i class="ph-fill ph-lightning"></i></div></div>
                     <div class="stat-amt" style="font-size:19px;">
                         <?= $power['rank'] ? htmlspecialchars($power['rank']) : 'None yet'; ?>
                     </div>
@@ -486,8 +494,8 @@ $msRewardText = function ($l) use ($rk_n) {
                         </div>
                     <?php else: ?>
                         <p class="muted" style="font-size:12px;line-height:1.6;margin:0 0 14px;">
-                            Next Rank: <b><?= htmlspecialchars($next['next_rank']); ?></b> — you need the team volume
-                            <b>and any ONE</b> of the plans below — not all of them.
+                            Next Rank: <b><?= htmlspecialchars($next['next_rank']); ?></b> — you need the required rank volume
+                            <b>and any ONE</b> of the team plans below — not all of them.
                         </p>
 
                         <?php if ($planMet && !empty($next['matched_plan'])): ?>
@@ -498,7 +506,7 @@ $msRewardText = function ($l) use ($rk_n) {
 
                         <?php if (empty($next['requirements'])): ?>
                             <div class="chip mut" style="margin-bottom:10px;">
-                                <i class="ph ph-info"></i> This rank needs team volume only — no team structure required.
+                                <i class="ph ph-info"></i> This rank needs rank volume only — no team structure required.
                             </div>
                         <?php else:
                             $lastPlan = null; $missing = [];
@@ -642,7 +650,7 @@ $msRewardText = function ($l) use ($rk_n) {
                             $state = $l['is_current'] ? 'current' : ($l['achieved'] ? 'achieved' : 'locked');
                             ?>
                             <div class="rk-tl-node <?= $state; ?>"
-                                title="<?= htmlspecialchars($l['name']); ?> — needs <?= $rk_n($l['required_volume'], 0); ?> BMAN team volume<?= $l['achieved_at'] ? ' · achieved ' . date('d M Y', strtotime($l['achieved_at'])) : ''; ?>">
+                                title="<?= htmlspecialchars($l['name']); ?> — needs <?= $rk_n($l['required_volume'], 0); ?> BMAN rank volume<?= $l['achieved_at'] ? ' · achieved ' . date('d M Y', strtotime($l['achieved_at'])) : ''; ?>">
                                 <?php if ($l['is_current']): ?><span class="rk-tl-flag now">NOW</span>
                                 <?php elseif ($l['is_next']): ?><span class="rk-tl-flag next">NEXT</span>
                                 <?php elseif ($l['achieved']): ?><span class="rk-tl-flag done">DONE</span>
@@ -671,7 +679,7 @@ $msRewardText = function ($l) use ($rk_n) {
                         <span class="chip"><?= count($history); ?> milestone<?= count($history) == 1 ? '' : 's'; ?></span>
                     </div>
                     <?php if (empty($history)): ?>
-                        <div class="empty"><i class="ph ph-path"></i> Your journey starts with your first rank. Build team volume to get there.</div>
+                        <div class="empty"><i class="ph ph-path"></i> Your journey starts with your first rank. Build your rank volume to get there.</div>
                     <?php else: ?>
                         <?php foreach (array_reverse($history) as $h): ?>
                             <div class="cond" style="border-top:1px solid var(--color-border);padding:10px 0;">
@@ -681,7 +689,7 @@ $msRewardText = function ($l) use ($rk_n) {
                                 </div>
                                 <p class="muted" style="margin:2px 0 0;font-size:11.5px;line-height:1.55;">
                                     <?= $h['old_rank'] ? 'Promoted from ' . htmlspecialchars($h['old_rank']) : 'Your first rank'; ?>
-                                    · <?= $rk_k($h['achieved_volume']); ?> BMAN team volume<?= $h['qualification_plan'] ? ' · ' . htmlspecialchars($h['qualification_plan']) : ''; ?>
+                                    · <?= $rk_k($h['achieved_volume']); ?> BMAN rank volume<?= $h['qualification_plan'] ? ' · ' . htmlspecialchars($h['qualification_plan']) : ''; ?>
                                 </p>
                             </div>
                         <?php endforeach; ?>
@@ -837,13 +845,14 @@ $msRewardText = function ($l) use ($rk_n) {
             </div>
             <div class="rule-row">
                 <i class="ph-fill ph-chart-donut"></i>
-                <div><b>Team volume, not your own.</b> Rank is measured on completed staking from your whole team at
-                    any depth. Your own staking never counts, and only completed staking counts — pending, failed,
-                    cancelled and refunded orders are excluded.</div>
+                <div><b>Rank Volume is your own Binary Matching Bonus.</b> It is the lifetime total credited to your
+                    Earning wallet plus your Staking wallet by the Binary Matching Bonus engine — not your team's
+                    staking. It only grows when your own left and right legs are in balance and matching actually
+                    pays out to you.</div>
             </div>
             <div class="rule-row">
                 <i class="ph ph-target"></i>
-                <div><b>Two things must be true.</b> You need the team volume for the rank <em>and</em> a qualifying
+                <div><b>Two things must be true.</b> You need the required rank volume <em>and</em> a qualifying
                     team on your left and right legs.</div>
             </div>
             <div class="rule-row">

@@ -42,12 +42,12 @@ class Rankreport_model extends CI_Model
             ],
             'progress' => [
                 'label'   => 'Rank Progress',
-                'hint'    => 'Current rank, group volume, and distance to the next rank. '
-                           . 'Volume here is <b>as of the last rank cron pass</b> (hourly), not live — '
-                           . 'it is read from the stored figure so this report stays cheap instead of '
-                           . 'walking every member\'s tree. Open a member from Rank History for a live figure.',
+                'hint'    => 'Current rank, rank volume (lifetime Binary Matching Bonus), and distance to the '
+                           . 'next rank. Volume here is <b>as of the last rank cron pass</b> (hourly), not live — '
+                           . 'it is read from the stored figure so this report stays cheap. '
+                           . 'Open a member from Rank History for a live figure.',
                 'columns' => ['user_id'=>'User ID','username'=>'Username','current_rank'=>'Current rank',
-                              'group_volume'=>'Group volume','next_rank'=>'Next rank',
+                              'group_volume'=>'Rank volume','next_rank'=>'Next rank',
                               'next_required'=>'Next needs','shortfall'=>'Shortfall','percent'=>'Progress %'],
             ],
             'reward_summary' => [

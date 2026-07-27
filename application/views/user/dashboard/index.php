@@ -965,7 +965,7 @@
             </div>
 
             <?php
-            // Achievement Rank / Rank Power / Group Volume / Next Rank Progress /
+            // Achievement Rank / Rank Power / Rank Volume / Next Rank Progress /
             // Group Incentive — replaces the old KYC/Bank/Account/Weak-Leg
             // checklist, which tracked pairing-engine gates that no longer exist.
             // Source: Memberrank_model::sidebar() (§10/§11), the same cheap,
@@ -975,7 +975,7 @@
             ?>
             <div class="small-grid" style="margin-top:12px;">
               <div class="small-k">
-                <small>Group Volume</small>
+                <small>Rank Volume</small>
                 <strong><?= number_format((float)($rs['group_volume'] ?? 0), 2); ?> BMAN</strong>
               </div>
               <div class="small-k">

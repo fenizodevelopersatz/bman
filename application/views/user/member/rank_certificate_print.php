@@ -89,7 +89,7 @@ $colour = $c['badge_color'] ?: '#c8a24a';
             <div class="body">has permanently achieved the rank of</div>
             <div class="rank"><?= htmlspecialchars($c['rank_name']); ?></div>
             <div class="body">
-                in recognition of sustained team building and group volume.<br>
+                in recognition of sustained achievement and rank volume earned.<br>
                 This rank is permanent and is never withdrawn.
             </div>
         </div>
