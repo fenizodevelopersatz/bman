@@ -60,17 +60,15 @@ if (!function_exists('mp_hex_rgb')) {
 <style id="member-theme-vars">
     :root{
         /* ---- Global design tokens (platform-wide — see docs/theme) ----
-           Fixed, not admin-configurable via Site Settings (unlike --mp-* below,
-           which the Member Panel Theme page drives). Every card/button/badge/
-           table style across the member panel should reference these rather
-           than hardcoding hex values or re-declaring a local palette. */
-        --color-bg: #F8FAFC;
-        --color-card: #FFFFFF;
-        --color-border: #E5E7EB;
-        --text-primary: #111827;
-        --text-secondary: #6B7280;
-        --radius-lg: 16px;
-        --shadow-card: 0 10px 30px rgba(0,0,0,0.06);
+           --color-bg/--color-card/--color-border/--text-primary/--text-secondary/
+           --radius-lg/--shadow-card are now defined ONCE, canonically, in
+           assets/user_v2/css/style.css (loaded just above via <link>) — that
+           file's :root block both sets the real values AND aliases these
+           older names onto them, and its dark-theme block overrides them
+           correctly. This block used to re-declare all seven with fixed,
+           light-mode-only values, which — because this <style> tag loads
+           after that <link> — silently won every time and broke dark mode
+           for any page using these names. Do not re-add them here. */
 
         /* drive the dashboard's own accent so the palette controls the
            announcement banner, active sidebar, Create Ticket button, charts,
