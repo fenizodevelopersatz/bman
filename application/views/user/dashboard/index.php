@@ -1140,7 +1140,7 @@
   <script src="<?php echo base_url('assets/js/vendor/qrcode.min.js'); ?>"></script>
   <script>
     const base_url = "<?php echo base_url(); ?>";
-    const agent_id = "<?php echo $this->session->userdata('user_get_id'); ?>";
+    const agent_id = "<?php echo $this->session->userdata('user_userid'); ?>";
     const currency_symbol = "<?php echo currency_info()->currency_symbol; ?>";
   </script>
   <script src="<?php echo base_url(); ?>/assets/user_v2/js/script.js?ver=2.9"></script>
