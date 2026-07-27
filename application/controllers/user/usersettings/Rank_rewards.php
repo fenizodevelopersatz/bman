@@ -7,7 +7,8 @@
  *
  * The old pairing engine (application/models/user/RankModel.php) is no longer
  * used here — the new system has no pairs, PV, weak-leg BV, carry forward or
- * cycle matching. Rank is earned on downline group volume plus a left/right
+ * cycle matching. Rank is earned on the member's own lifetime Binary Matching
+ * Bonus volume (Earning + Staking wallet credits) plus a left/right
  * team-rank matrix, and is permanent once achieved.
  */
 class Rank_rewards extends CI_Controller

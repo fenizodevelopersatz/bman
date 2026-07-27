@@ -63,8 +63,8 @@ $this->load->view('admin/staking/_rank_head', ['title' => $title, 'card_tilte' =
                 <th>From</th>
                 <th>Achieved</th>
                 <th>Plan matched</th>
-                <th class="text-end">Left vol</th>
-                <th class="text-end">Right vol</th>
+                <th class="text-end">Earning vol</th>
+                <th class="text-end">Staking vol</th>
                 <th class="text-end">Total vol</th>
                 <th>Source</th>
                 <th>When</th>
@@ -95,8 +95,8 @@ $this->load->view('admin/staking/_rank_head', ['title' => $title, 'card_tilte' =
                     <span class="badge badge-light-secondary ms-1">T<?php echo (int)$h['tier_level']; ?></span>
                 </td>
                 <td><span class="badge badge-light-info"><?php echo html_escape($h['qualification_plan'] ?: '—'); ?></span></td>
-                <td class="rk-num rk-mono"><?php echo number_format((float)$h['left_volume'], 2); ?></td>
-                <td class="rk-num rk-mono"><?php echo number_format((float)$h['right_volume'], 2); ?></td>
+                <td class="rk-num rk-mono"><?php echo isset($h['earning_volume']) ? number_format((float)$h['earning_volume'], 2) : '<span class="text-muted" title="Recorded before the rank-volume-source fix">—</span>'; ?></td>
+                <td class="rk-num rk-mono"><?php echo isset($h['staking_volume']) ? number_format((float)$h['staking_volume'], 2) : '<span class="text-muted" title="Recorded before the rank-volume-source fix">—</span>'; ?></td>
                 <td class="rk-num rk-mono fw-bold"><?php echo number_format((float)$h['achieved_volume'], 2); ?></td>
                 <td><span class="badge badge-light"><?php echo html_escape($h['source']); ?></span></td>
                 <td class="text-muted fs-8"><?php echo date('d M Y H:i', strtotime($h['achieved_at'])); ?></td>

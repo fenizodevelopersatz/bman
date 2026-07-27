@@ -165,12 +165,12 @@
                                                     <input type="hidden" name="id" value="0" />
 
                                                     <div class="mb-5">
-                                                        <label class="form-label required">Group volume required (BMAN)</label>
+                                                        <label class="form-label required">Rank volume required (BMAN)</label>
                                                         <input type="number" name="required_group_volume" step="0.0001" min="0"
                                                             class="form-control form-control-solid" required />
                                                         <div class="form-text">
-                                                            Downline staking volume a member must have to <b>reach</b> this rank.
-                                                            Own staking never counts. This is <b>not</b> the incentive amount.
+                                                            Member's own lifetime Binary Matching Bonus (Earning + Staking wallet
+                                                            credits) needed to <b>reach</b> this rank. This is <b>not</b> the incentive amount.
                                                         </div>
                                                     </div>
 

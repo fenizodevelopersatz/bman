@@ -62,7 +62,7 @@
         <div class="table-responsive">
           <table class="table table-row-dashed fs-7 align-middle">
             <thead>
-              <tr class="fw-bold text-muted"><th>Member</th><th>Email</th><th>Group Volume (BMAN)</th><th>Achieved</th></tr>
+              <tr class="fw-bold text-muted"><th>Member</th><th>Email</th><th>Rank Volume (BMAN)</th><th>Achieved</th></tr>
             </thead>
             <tbody id="dash-rank-members-body"><tr><td colspan="4" class="text-muted">Loading…</td></tr></tbody>
           </table>

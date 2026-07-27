@@ -18,8 +18,11 @@
  *
  * REPLACES the old pairing engine (application/models/user/RankModel.php).
  * There are NO pairs, PV, weak-leg BV, carry forward or cycle matching here —
- * the new system has no such concepts. Rank is earned on downline group volume
- * plus a left/right team-rank matrix.
+ * the new system has no such concepts. The permanent Achievement Rank is
+ * earned on the member's own lifetime Binary Matching Bonus volume (Earning +
+ * Staking wallet credits — see Rankcalculator_model::calculateBonusVolume())
+ * plus a left/right team-rank matrix. Rank Power (§11) is unaffected by that
+ * and still measures downline group volume.
  *
  * TWO ENTRY POINTS, deliberately different in cost:
  *   pageData($uid)  full + LIVE volume — one page, accuracy matters
@@ -53,7 +56,7 @@ class Memberrank_model extends CI_Model
         $user_id = (int)$user_id;
 
         $current = $this->rk_engine->currentRank($user_id);
-        $volume  = $this->rk_calc->calculateGroupVolume($user_id);   // live
+        $volume  = $this->rk_calc->calculateBonusVolume($user_id);   // live — lifetime binary matching bonus (own), NOT downline
         $next    = $this->rk_engine->nextRankProgress($user_id);
 
         return [
