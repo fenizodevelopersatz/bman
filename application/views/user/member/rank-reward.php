@@ -80,8 +80,6 @@ $msRewardText = function ($l) use ($rk_n) {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rank &amp; Rewards</title>
     <?php $this->load->view('user/layout/v2/user_style'); ?>
-    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
-    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
 
     <style>
         /* ================= local aliases onto the global theme tokens ================
@@ -194,7 +192,10 @@ $msRewardText = function ($l) use ($rk_n) {
         .rpText { font-size:11.5px; opacity:.85; }
         .rpText b { display:block; font-size:13px; opacity:1; margin-top:2px; }
 
-        @media (max-width:1100px) {
+        /* ===== SHARED BREAKPOINT SCALE — see assets/user_v2/css/style.css =====
+           1400 xxl · 1200 xl · 1024 lg (must match user_sidebar.php JS) · 768 md · 600 sm · 380 xs
+           ===================================================================== */
+        @media (max-width:1200px) {
             .rk-hero { grid-template-columns:1fr; }
             .rk-hero-badge-col, .rk-hero-progress-col { border:0; border-bottom:1px solid rgba(255,255,255,.14); box-shadow:none; }
             .rk-hero-badge-col .rk-badge,
@@ -213,8 +214,8 @@ $msRewardText = function ($l) use ($rk_n) {
         .stat-amt { font-size:23px; font-weight:800; color:var(--text-primary); letter-spacing:-.5px; line-height:1.1; }
         .stat-amt small { font-size:12px; font-weight:700; color:var(--text-secondary); margin-left:4px; }
         .stat-sub { font-size:11px; color:var(--text-secondary); margin-top:auto; padding-top:8px; line-height:1.5; }
-        @media (max-width:1100px) { .grid-4 { grid-template-columns:repeat(2,1fr); } }
-        @media (max-width:560px)  { .grid-4 { grid-template-columns:1fr; } }
+        @media (max-width:1200px) { .grid-4 { grid-template-columns:repeat(2,1fr); } }
+        @media (max-width:600px)  { .grid-4 { grid-template-columns:1fr; } }
 
         /* ---------------- qualification plan tracker ---------------- */
         .plan { border:1px solid var(--color-border); border-radius:14px; padding:14px; margin-bottom:10px; background:var(--color-bg); }
@@ -306,7 +307,7 @@ $msRewardText = function ($l) use ($rk_n) {
         .rk-ms-lock i { font-size:20px; color:var(--text-primary); background:rgba(255,255,255,.9); width:36px; height:36px;
             border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,.12); }
         .rk-ms-hint { font-size:11.5px; color:var(--text-secondary); text-align:center; margin:0; line-height:1.65; }
-        @media (max-width:560px) { .rk-milestone { flex-direction:column; } .rk-ms-mid i { transform:rotate(90deg); } }
+        @media (max-width:600px) { .rk-milestone { flex-direction:column; } .rk-ms-mid i { transform:rotate(90deg); } }
 
         /* ---------------- rank certificates (cards) ---------------- */
         .cert-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; }
@@ -336,8 +337,8 @@ $msRewardText = function ($l) use ($rk_n) {
         .rule-row i { color:var(--primary); font-size:17px; flex:0 0 auto; margin-top:1px; }
 
         /* ---------------- responsive ---------------- */
-        @media (max-width:900px) { .grid-2, .grid-3 { grid-template-columns:1fr; } }
-        @media (max-width:560px) {
+        @media (max-width:768px) { .grid-2, .grid-3 { grid-template-columns:1fr; } }
+        @media (max-width:600px) {
             .titlebar h1 { font-size:19px; }
             .rk-hero-col { padding:20px; }
         }
