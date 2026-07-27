@@ -708,6 +708,36 @@
       </script>
 
 
+      <!-- Special Offer promo strip → staking purchase -->
+      <?php if (!empty($has_special_offer)): ?>
+      <a href="<?php echo base_url('user/stakings'); ?>" class="dash-special-offer" aria-label="View Special Offer staking packages">
+        <span class="dso-left">
+          <span class="dso-icon"><i class="ph-fill ph-star"></i></span>
+          <span class="dso-text">
+            <b>★ Special Offer Staking</b>
+            <small>Higher year-wise monthly ROI plus a maturity bonus — limited packages.</small>
+          </span>
+        </span>
+        <span class="dso-cta">Stake Now <i class="ph ph-arrow-right"></i></span>
+      </a>
+      <style>
+        .dash-special-offer{ display:flex; align-items:center; justify-content:space-between; gap:14px;
+          text-decoration:none; margin:0 0 18px; padding:16px 20px; border-radius:18px;
+          background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff;
+          box-shadow:0 10px 28px rgba(245,158,11,.35); transition:transform .15s ease, box-shadow .15s ease; }
+        .dash-special-offer:hover{ transform:translateY(-2px); box-shadow:0 14px 34px rgba(245,158,11,.45); color:#fff; }
+        .dash-special-offer .dso-left{ display:flex; align-items:center; gap:14px; min-width:0; }
+        .dash-special-offer .dso-icon{ width:44px; height:44px; border-radius:12px; background:rgba(255,255,255,.22);
+          display:grid; place-items:center; font-size:24px; flex:0 0 auto; }
+        .dash-special-offer .dso-text b{ display:block; font-size:16px; font-weight:900; letter-spacing:.2px; }
+        .dash-special-offer .dso-text small{ display:block; font-size:12.5px; opacity:.92; margin-top:2px; }
+        .dash-special-offer .dso-cta{ display:inline-flex; align-items:center; gap:8px; flex:0 0 auto;
+          background:#fff; color:#b45309; font-weight:900; font-size:13.5px; padding:10px 16px; border-radius:12px; white-space:nowrap; }
+        @media (max-width:560px){ .dash-special-offer{ flex-direction:column; align-items:stretch; text-align:center; }
+          .dash-special-offer .dso-left{ justify-content:center; } .dash-special-offer .dso-cta{ justify-content:center; } }
+      </style>
+      <?php endif; ?>
+
       <!-- User Activity & Coin Trend chart -->
       <style>
         /* Palette + panel styling per the reference design. The chart owns a
