@@ -34,8 +34,6 @@
     <title>Chat</title>
 
     <?php $this->load->view('user/layout/v2/user_style'); ?>
-    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
-    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script type="module" src="https://unpkg.com/emoji-picker-element@^1/index.js"></script>
@@ -238,12 +236,14 @@
         .cx-scroll::-webkit-scrollbar-thumb, .cx-rail-list::-webkit-scrollbar-thumb { background:var(--cx-line); border-radius:99px; }
         .cx-scroll::-webkit-scrollbar-track, .cx-rail-list::-webkit-scrollbar-track { background:transparent; }
 
-        /* responsive */
-        @media (max-width:900px) {
+        /* ===== SHARED BREAKPOINT SCALE — see assets/user_v2/css/style.css =====
+           1400 xxl · 1200 xl · 1024 lg (must match user_sidebar.php JS) · 768 md · 600 sm · 380 xs
+           ===================================================================== */
+        @media (max-width:768px) {
             .chatx { height:calc(100vh - 150px); }
             .cx-rail { width:240px; flex:0 0 240px; }
         }
-        @media (max-width:680px) {
+        @media (max-width:600px) {
             .cx-rail { width:100%; flex:1 1 auto; border-right:0; }
             .cx-rail.hide-sm { display:none; }
             .cx-thread.hide-sm { display:none; }
