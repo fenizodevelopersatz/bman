@@ -860,6 +860,7 @@ function renderExistingPreview($url, $title)
       align-items: center;
       justify-content: space-between;
       gap: 12px;
+      flex-wrap: wrap;
       background: linear-gradient(105deg, rgba(110, 86, 207, 0.12), rgba(110, 86, 207, 0.02));
       border-bottom: 1px solid #f5f5f7;
     }
@@ -983,9 +984,12 @@ function renderExistingPreview($url, $title)
     }
 
     /* Plain .field children (Profile tab, password modal) don't use the KYC
-       form's .fg/.col-* span classes, so give them a sensible default half-width
-       — .field.full (grid-column:1/-1) still overrides this where needed. */
-    .form-grid > .field {
+       form's .fg/.col-* span classes, so give them a sensible default half-width.
+       :not(.full) matters here, not just documents intent — .field.full is a
+       single class (specificity 0,1,0), which this 2-class compound selector
+       would otherwise beat regardless of source order, silently halving every
+       "full width" field instead of letting .full's 1/-1 apply. */
+    .form-grid > .field:not(.full) {
       grid-column: span 6;
     }
 
@@ -1209,22 +1213,10 @@ function renderExistingPreview($url, $title)
     }
 
     /* Responsive */
-    @media(max-width: 1200px) {
-      .kyc-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media(max-width: 900px) {
-      .profile-grid .field,
-      .profile-grid .field.span-6 {
-        grid-column: span 6;
-      }
-
-      .profile-grid .field.span-12 {
-        grid-column: 1/-1;
-      }
-
+    /* .kyc-grid's own @media(max-width:1200px) fold removed — that class is
+       never applied to any element (the wrapping <div class="kyc-grid"> is
+       HTML-commented-out above), so the rule was always a no-op. */
+    @media(max-width: 768px) {
       .col-6 {
         grid-column: span 12;
       }
@@ -1235,6 +1227,13 @@ function renderExistingPreview($url, $title)
 
       .col-3 {
         grid-column: span 12;
+      }
+
+      /* Login/New/Confirm currently share a hardcoded 3-column inline grid
+         (Security tab, #transferPwForm) — !important since only an inline
+         style itself otherwise beats another inline style. */
+      #transferPwForm {
+        grid-template-columns: 1fr !important;
       }
     }
 
@@ -1921,11 +1920,6 @@ function renderExistingPreview($url, $title)
                   .wl-dep{display:flex;gap:18px;flex-wrap:wrap;align-items:center;border:1px dashed #c9cee0;border-radius:12px;padding:16px;background:#fafbff}
                   .wl-dep img{width:132px;height:132px;border-radius:10px;border:1px solid #e6e8ef;background:#fff}
                   .wl-addr{font-family:monospace;word-break:break-all;background:#fff;border:1px solid #e6e8ef;border-radius:8px;padding:8px 10px}
-                  .wl-tables{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}
-                  @media(max-width:800px){.wl-tables{grid-template-columns:1fr}}
-                  .wl-tbl{width:100%;border-collapse:collapse;font-size:.82rem}
-                  .wl-tbl th,.wl-tbl td{border-bottom:1px solid #eef0f6;padding:7px 8px;text-align:left}
-                  .wl-tbl th{color:#7a7f9a;text-transform:uppercase;font-size:.66rem}
                   .wl-badge{padding:2px 8px;border-radius:20px;font-size:.68rem;font-weight:600}
                   .wl-ok{background:#e7f9ef;color:#149a55}.wl-warn{background:#fff4e0;color:#b5730a}.wl-mut{background:#eef0f6;color:#7a7f9a}
                   .wl-diff-box{margin-top:12px}
