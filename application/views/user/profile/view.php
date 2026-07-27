@@ -220,9 +220,11 @@ function renderExistingPreview($url, $title)
 
 <head>
   <?php $this->load->view('user/layout/v2/user_style'); ?>
-  <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
   <style>
+    /* ===== SHARED BREAKPOINT SCALE — see assets/user_v2/css/style.css =====
+       1400 xxl · 1200 xl · 1024 lg (must match user_sidebar.php JS) · 768 md · 600 sm · 380 xs
+       ===================================================================== */
     /* (your existing styles - kept as-is) */
     .titlebar {
       display: flex;
@@ -230,6 +232,7 @@ function renderExistingPreview($url, $title)
       align-items: flex-end;
       gap: 12px;
       margin: 8px 0 16px;
+      flex-wrap: wrap;
     }
 
     .titlebar h2 {
@@ -414,11 +417,10 @@ function renderExistingPreview($url, $title)
       display: block;
     }
 
-    .form-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
+    /* .form-grid is redefined below (KYC PAGE style block) as a 12-column grid
+       that wins by source order — this 2-column declaration is dead. Plain
+       .field elements (this tab, the password modal) get their span from the
+       ".form-grid > .field" rule added next to that later definition. */
 
     .profile-grid {
       grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -493,6 +495,11 @@ function renderExistingPreview($url, $title)
       display: flex;
       gap: 12px;
       align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .pn {
+      min-width: 0;
     }
 
     .ava {
@@ -807,10 +814,6 @@ function renderExistingPreview($url, $title)
       .grid-2 {
         grid-template-columns: 1fr;
       }
-
-      .form-grid {
-        grid-template-columns: 1fr;
-      }
     }
   </style>
   <style>
@@ -977,6 +980,13 @@ function renderExistingPreview($url, $title)
       display: grid;
       grid-template-columns: repeat(12, 1fr);
       gap: 12px;
+    }
+
+    /* Plain .field children (Profile tab, password modal) don't use the KYC
+       form's .fg/.col-* span classes, so give them a sensible default half-width
+       — .field.full (grid-column:1/-1) still overrides this where needed. */
+    .form-grid > .field {
+      grid-column: span 6;
     }
 
     .fg {
@@ -1228,15 +1238,23 @@ function renderExistingPreview($url, $title)
       }
     }
 
-    @media(max-width: 640px) {
-      .profile-grid .field,
-      .profile-grid .field.span-6 {
-        grid-column: 1/-1;
-      }
-
+    @media(max-width: 600px) {
       .upload {
         align-items: flex-start;
         flex-direction: column;
+      }
+
+      /* Stacks the Profile tab's fields and the password modal's New/Confirm
+         pair — must come after the 12-column .form-grid definition above to
+         actually win (media queries don't add specificity or reorder rules). */
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      /* Without this, the child's still-active "span 6" would force Grid to
+         auto-generate extra implicit columns instead of actually stacking. */
+      .form-grid > .field {
+        grid-column: 1/-1;
       }
     }
 
