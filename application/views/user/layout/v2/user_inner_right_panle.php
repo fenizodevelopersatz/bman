@@ -6,8 +6,8 @@
  * via Memberrank_model::sidebar() — NOT the old pairing engine. There are no
  * pairs, PV, weak-leg BV or carry forward here any more.
  *
- * sidebar() is deliberately the cheap path: it reads the STORED group volume
- * (refreshed each hourly cron pass) instead of walking the genealogy tree, so
+ * sidebar() is deliberately the cheap path: it reads the STORED rank volume
+ * (refreshed each hourly cron pass) instead of recalculating live, so
  * putting this panel on every page costs a handful of indexed lookups. It also
  * fails soft — if the rank tables are absent it returns an unranked state
  * rather than breaking every page in the member area.
@@ -91,7 +91,7 @@ $rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian not
             })();
         </script>
 
-        <p>Track your rank, grow your team volume, and withdraw earnings easily.</p>
+        <p>Track your rank, grow your rank volume, and withdraw earnings easily.</p>
 
         <div class="pill">
             <b>Next Payout</b>
@@ -213,13 +213,13 @@ $rk_fmt = function ($v) {                  // 12500000 → "1.25 Cr" (Indian not
         <p class="rank-desc">Rank data is not available yet.</p>
     <?php elseif ($rk['next_rank']): ?>
         <p class="rank-desc" style="margin-bottom:0;">
-            Grow your <b>team volume</b> to unlock <b><?= htmlspecialchars($rk['next_rank']); ?></b>.
+            Grow your <b>rank volume</b> to unlock <b><?= htmlspecialchars($rk['next_rank']); ?></b>.
             <?= $rk['has_rank'] ? 'Your ' . htmlspecialchars($rk['name']) . ' rank is permanent.' : ''; ?>
         </p>
 
-        <!-- Team volume toward the next rank -->
+        <!-- Rank volume toward the next rank -->
         <div class="rank-vol">
-            <span>Team volume</span>
+            <span>Rank volume</span>
             <span><b><?= $rk_fmt($rk['group_volume']); ?></b> / <?= $rk_fmt($rk['required_volume']); ?></span>
         </div>
         <div class="rank-bar <?= $rk['progress'] >= 100 ? 'done' : ''; ?>">
