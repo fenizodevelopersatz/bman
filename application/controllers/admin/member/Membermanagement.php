@@ -182,6 +182,18 @@ class  Membermanagement extends CI_Controller {
     $users = $this->Users_model->get_info($length, $start, $clients, $from_date, $to_date, $search);
     $data = [];
 
+    // Current rank per member (user_ranks.current_rank_id); rank_cell_html() falls
+    // back to the base rank when unset. One batch query for the whole page.
+    $userIds = array_map(function ($u) { return (int) $u['id']; }, $users);
+    $rankByUser = [];
+    if ($userIds) {
+        foreach ($this->db->select('user_id, current_rank_id')
+                          ->where_in('user_id', $userIds)
+                          ->get('user_ranks')->result_array() as $rk) {
+            $rankByUser[(int) $rk['user_id']] = $rk['current_rank_id'];
+        }
+    }
+
     foreach ($users as $index => $user) {
         $fullName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
         if ($fullName === '') $fullName = trim((string) ($user['name'] ?? ''));
@@ -213,6 +225,7 @@ class  Membermanagement extends CI_Controller {
                 '<span class="text-gray-600 fw-semibold fs-7">' . html_escape($user['referral_id']) . ' · ' . html_escape($user['email']) . '</span>' .
                 '<span class="text-muted fs-8">' . html_escape($user['register_date']) . '</span>' . $frozenBadge . '</div></div>',
             'SponserInfo' => '<div class="fw-bold text-gray-800">' . html_escape($sponsorReferral) . '</div><div class="text-muted fs-7">' . html_escape($sponsorEmail) . '</div>',
+            'Rank' => rank_cell_html($rankByUser[(int) $user['id']] ?? null, 26),
             'StakingTotal' => '<div class="fw-bolder text-gray-900">' . number_format((float) $user['purchased_staking'], 4) . ' BMAN</div><div class="text-muted fs-8">Completed purchases</div>',
             'KycStatus' => '<a href="' . $kycUrl . '" class="badge badge-light-' . $kycClass . ' text-hover-primary" title="Open KYC review">' . html_escape(strtoupper(str_replace('_', ' ', $kyc))) . '</a>',
             'WithdrawalRequest' => $pendingCount > 0

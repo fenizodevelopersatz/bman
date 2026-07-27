@@ -53,7 +53,7 @@ class GasFeeTx_model extends CI_Model
         $this->applyFilters($f);
         return $this->db
             ->select('o.id, o.tx_hash, o.user_id, u.username, o.network, o.wallet_type, o.tx_type,
-                      o.gas_used, o.gas_price_gwei, o.gas_fee_total, o.status,
+                      o.gas_used, (o.gas_price / 1000000000) AS gas_price_gwei, o.gas_fee_total, o.status,
                       o.block_number, o.amount, o.token_symbol, o.from_address, o.to_address,
                       o.created_at', false)
             ->order_by('o.created_at', 'DESC')
@@ -87,9 +87,9 @@ class GasFeeTx_model extends CI_Model
         )->row_array();
 
         $avgRow = $this->db->query(
-            "SELECT COALESCE(AVG(gas_price_gwei),0) AS avg_gwei
+            "SELECT COALESCE(AVG(gas_price / 1000000000),0) AS avg_gwei
              FROM onchain_transactions
-             WHERE gas_price_gwei IS NOT NULL AND DATE(created_at) >= ?",
+             WHERE gas_price IS NOT NULL AND DATE(created_at) >= ?",
             [$monthStart]
         )->row_array();
 
