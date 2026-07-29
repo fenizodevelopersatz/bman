@@ -48,7 +48,9 @@
                     <span class="fw-bold mb-1">One sheet row becomes one member.</span>
                     <span class="fs-7 text-gray-700">
                       <b>username</b>, <b>email</b> and <b>password</b> create the login (email is the login identity, so it must be unique).
-                      <b>reference_id</b> is the sponsor's referral code and decides where the member lands in the binary tree.
+                      <b>reference_id</b> is the sponsor's referral code — the <u>only</u> placement input.
+                      The binary engine fills that sponsor's left and right first, then spills down to the next free
+                      position automatically, so there is no leg column to fill in.
                       An on-chain wallet address is generated for every member automatically — it is never read from the sheet.
                       <b>bman</b> is queued for the on-chain cron, <u>not</u> sent during import.
                     </span>
@@ -72,19 +74,11 @@
                           </div>
 
                           <div class="row g-4">
-                            <div class="col-md-6">
+                            <div class="col-md-8">
                               <label class="form-label fw-semibold fs-7">Default password <span class="text-muted fw-normal">(used when a row's password cell is blank)</span></label>
                               <input type="text" name="default_password" class="form-control form-control-solid" autocomplete="off" placeholder="e.g. Welcome@2026" />
                             </div>
-                            <div class="col-md-3">
-                              <label class="form-label fw-semibold fs-7">Default leg</label>
-                              <select name="default_leg" class="form-select form-select-solid">
-                                <option value="auto">Auto</option>
-                                <option value="left">Left</option>
-                                <option value="right">Right</option>
-                              </select>
-                            </div>
-                            <div class="col-md-3 d-flex align-items-end">
+                            <div class="col-md-4 d-flex align-items-end">
                               <div class="form-check form-switch mb-2">
                                 <input class="form-check-input" type="checkbox" id="bmu-sendbman" name="send_bman" checked>
                                 <label class="form-check-label fw-semibold fs-7" for="bmu-sendbman">Queue BMAN</label>
@@ -124,7 +118,7 @@
                     <div class="table-responsive bmu-preview-wrap">
                       <table class="table align-middle table-row-dashed fs-7 gy-3 mb-0">
                         <thead><tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
-                          <th>#</th><th>Username</th><th>Email</th><th>Reference ID</th><th>Leg</th>
+                          <th>#</th><th>Username</th><th>Email</th><th>Reference ID (sponsor)</th>
                           <th class="text-end">BMAN</th><th>Status</th><th>Message</th>
                         </tr></thead>
                         <tbody id="bmu-preview-body" class="text-gray-700 fw-semibold"></tbody>
@@ -337,7 +331,6 @@
           <td>${esc(r.username)}</td>
           <td class="fs-8">${esc(r.email)}</td>
           <td class="bmu-mono">${esc(r.reference_id)}</td>
-          <td><span class="badge badge-light fs-9">${esc(r.leg)}</span></td>
           <td class="text-end">${Number(r.bman_amount) ? Number(r.bman_amount).toLocaleString(undefined, { maximumFractionDigits: 8 }) : '—'}</td>
           <td><span class="badge badge-light-${bad ? 'danger' : 'success'}">${bad ? 'INVALID' : 'READY'}</span></td>
           <td class="fs-8 text-danger">${esc(r.error_message || '')}</td>

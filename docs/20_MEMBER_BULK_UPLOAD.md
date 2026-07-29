@@ -64,9 +64,10 @@ punctuation-insensitively, so `Reference ID`, `reference_id` and
 | `username` | ✅ | Unique across `users` **and** within the file |
 | `email` | ✅ | **This is the login identity** — `Common_model::userloginVerify()` matches on email, not username. Must be unique |
 | `password` | — | Blank cells fall back to the form's **Default password** box. At least one of the two must be present |
-| `reference_id` | ✅ | The **sponsor's** referral code. Drives binary placement. Accepts the `L-CODE` / `R-CODE` prefix used by public referral links |
-| `leg` | — | `left` / `right` / `auto`. Overrides the `L-`/`R-` prefix and the form's default leg |
+| `reference_id` | ✅ | The **sponsor's** referral code — the *only* placement input (see §4). An `L-`/`R-` prefix from a pasted referral link is tolerated, but the side it encodes is ignored |
 | `bman` | — | Opening balance. Queued for the cron; `0` or blank means no transfer |
+
+**There is no `leg` column.** Placement is entirely automatic — see §4.
 
 Accepted formats: **`.xlsx`**, `.xlsm`, `.csv`, `.txt`. The legacy binary `.xls`
 is rejected with a message telling the admin to re-save.
@@ -107,21 +108,42 @@ via the existing `Custodialwallet_model::ensureAddress()`:
 
 ---
 
-## 4. Placement from `reference_id`
+## 4. Placement — automatic, from `reference_id` alone
+
+The sheet says **who sponsored** the member. The binary engine says **where
+they sit**. There is no way to specify a side, by design: in a binary tree the
+free position is a property of the tree, not something a spreadsheet author can
+know in advance.
 
 Placement goes through `Mlm_model::registerUser()` — the **same** call the
-public signup uses — so the auto-placement counter and the last-leg walk stay
-on one code path and cannot drift.
+public signup uses — with a `null` leg, its existing "you decide" signal. The
+engine then:
 
-| Sheet value | Resulting leg |
-|---|---|
-| `leg` column = `left` / `right` | that leg |
-| `reference_id` = `L-NEXMAN123456` | left |
-| `reference_id` = `R-NEXMAN123456` | right |
-| neither | the form's **Default leg**; `auto` lets the binary engine choose |
+1. puts the member on the sponsor's own **left** if it is free;
+2. otherwise the sponsor's own **right** if that is free;
+3. otherwise **spills over** — picks a side from the global auto-placement
+   counter and walks that leg down to the last free position.
 
-`auto` is passed to `registerUser()` as a `null` leg, which is its existing
-"you decide" signal.
+So a sheet of 20 members under one sponsor fills that sponsor's two legs and
+then cascades down the tree automatically.
+
+An `L-`/`R-` prefix on `reference_id` (from a pasted public referral link) is
+**stripped** so the sponsor still resolves, but the side it encodes is
+discarded.
+
+> **Verified:** importing 6 members under a sponsor whose left and right were
+> already taken produced 6 spillover placements walking down both legs, and a
+> row written as `L-NEXMAN001` resolved to sponsor `NEXMAN001` with an
+> engine-chosen position.
+
+Because the position is not predictable from the sheet, the batch detail page
+and the batch export both report where each member **actually** landed —
+parent, side, and whether it was a direct placement or spillover.
+
+The `leg` / `default_leg` columns remain in the schema (always `'auto'`) rather
+than being dropped: they cost nothing, they keep the history of older batches
+readable, and dropping columns is exactly the kind of migration a DB re-import
+silently undoes.
 
 > ### ⚠️ `Mlm_model` is deliberately NOT modified
 > An earlier revision added a 6th `$password_is_hash` parameter to
@@ -279,7 +301,7 @@ Audit trail **and** the cron's pending queue.
 
 | Group | Columns |
 |---|---|
-| Parsed input | `row_number`, `username`, `email`, `reference_id`, `sponsor_id`, `leg`, `bman_amount` |
+| Parsed input | `row_number`, `username`, `email`, `reference_id`, `sponsor_id`, `bman_amount` (plus a legacy `leg`, always `'auto'`) |
 | Credentials | `password_hash` (bcrypt only; cleared after import) |
 | Validation | `status` (`valid`/`invalid`/`imported`/`failed`/`skipped`), `error_message` |
 | Import result | `user_id`, `referral_id`, `wallet_address` |
@@ -305,9 +327,9 @@ settlement cron, plus a 30-minute stale-lock takeover.
 
 ## 8a. The page: two sections only
 
-**1 · Upload & Validate** — the drop zone, default password, default leg, and
-the per-upload *Queue BMAN* switch (that one is a property of *this* upload,
-not backend configuration, so it stays).
+**1 · Upload & Validate** — the drop zone, default password, and the per-upload
+*Queue BMAN* switch (that one is a property of *this* upload, not backend
+configuration, so it stays). No leg selector: placement is automatic (§4).
 
 **Upload History & Transaction Audit** — every sheet ever uploaded, with its
 import result *and* its on-chain delivery rolled up per batch:
@@ -423,9 +445,15 @@ the stage response carried no `password_hash`.
 **Import** — 8-row sheet with aliased headers (`Username`, `E-Mail`,
 `BMAN Balance`): 3 valid / 5 rejected (bad sponsor, malformed email, in-file
 duplicate email, negative BMAN, short password) each with the right message; 0
-users created during staging; correct placement including the `L-` prefix row;
-distinct valid addresses; `password_verify` passing for both sheet-supplied and
-default passwords; staged hashes cleared after import.
+users created during staging; distinct valid addresses; `password_verify`
+passing for both sheet-supplied and default passwords; staged hashes cleared
+after import.
+
+**Automatic placement** — a leg-less 6-row sheet imported under a sponsor whose
+left and right were both already taken produced 6 spillover placements walking
+down both legs to the last free position, every imported row carrying a
+recorded parent + side; a row written `L-NEXMAN001` resolved to sponsor
+`NEXMAN001` with the encoded side correctly ignored.
 
 **Exchange credit** — balances moved exactly (`12.5`, `7`), `wallet_ledger`
 rows written with maturity metadata, `bman_ledger_id` recorded; **second pass

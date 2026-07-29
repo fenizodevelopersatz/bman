@@ -36,12 +36,11 @@ class Memberbulkupload_model extends CI_Model
         'email'        => ['email', 'emailid', 'emailaddress', 'mail', 'useremail', 'mailid'],
         'password'     => ['password', 'defaultpassword', 'pass', 'pwd', 'loginpassword'],
         'reference_id' => ['referenceid', 'reference', 'referralid', 'referral', 'refid', 'ref', 'sponsor', 'sponsorid', 'sponsorreferral', 'sponsorreferenceid', 'placementid', 'uplineid', 'upline'],
-        'leg'          => ['leg', 'position', 'side', 'placement', 'selectleg', 'placementleg'],
         'bman'         => ['bman', 'bmanbalance', 'bmanamount', 'bmantoken', 'balance', 'amount', 'token', 'tokens', 'coin'],
     ];
 
     /** Column order of the downloadable template, and of the header row we expect. */
-    public static $templateColumns = ['username', 'email', 'password', 'reference_id', 'leg', 'bman'];
+    public static $templateColumns = ['username', 'email', 'password', 'reference_id', 'bman'];
 
     const MIN_PASSWORD = 6;
 
@@ -153,13 +152,23 @@ class Memberbulkupload_model extends CI_Model
      */
     public function rows($batchId, $limit = null, $offset = 0)
     {
-        $this->db->select('id, batch_id, row_number, username, email, reference_id, sponsor_id, leg,
-                           bman_amount, status, error_message, user_id, referral_id, wallet_address,
-                           bman_status, bman_attempts, bman_tx_hash, bman_network, bman_error,
-                           bman_sent_at, bman_ledger_id, bman_credited_at, created_at')
-                 ->where('batch_id', (int)$batchId)->order_by('row_number', 'ASC');
+        // Placement is automatic, so the admin cannot predict where a member
+        // landed — join binary_placement to report the position the engine
+        // actually chose. LEFT join: an invalid or failed row has no user yet.
+        $this->db->select('r.id, r.batch_id, r.row_number, r.username, r.email, r.reference_id,
+                           r.sponsor_id, r.bman_amount, r.status, r.error_message, r.user_id,
+                           r.referral_id, r.wallet_address, r.bman_status, r.bman_attempts,
+                           r.bman_tx_hash, r.bman_network, r.bman_error, r.bman_sent_at,
+                           r.bman_ledger_id, r.bman_credited_at, r.created_at,
+                           bp.parent_id AS placed_under, bp.position AS placed_position,
+                           bp.placement_type AS placed_type,
+                           pu.username AS placed_under_username, pu.referral_id AS placed_under_referral')
+                 ->from('member_bulk_upload_rows r')
+                 ->join('binary_placement bp', 'bp.user_id = r.user_id', 'left')
+                 ->join('users pu', 'pu.id = bp.parent_id', 'left')
+                 ->where('r.batch_id', (int)$batchId)->order_by('r.row_number', 'ASC');
         if ($limit !== null) $this->db->limit((int)$limit, (int)$offset);
-        return $this->db->get('member_bulk_upload_rows')->result_array();
+        return $this->db->get()->result_array();
     }
 
     /* =============================== stage =============================== */
@@ -202,7 +211,6 @@ class Memberbulkupload_model extends CI_Model
         }
 
         $defaultPassword = (string)($opts['default_password'] ?? '');
-        $defaultLeg      = in_array($opts['default_leg'] ?? 'auto', ['left', 'right', 'auto'], true) ? $opts['default_leg'] : 'auto';
         $sendBman        = !empty($opts['send_bman']) ? 1 : 0;
 
         // Duplicate detection has to cover the file itself, not just the DB —
@@ -227,7 +235,6 @@ class Memberbulkupload_model extends CI_Model
             $email    = $get('email');
             $password = $get('password') !== '' ? $get('password') : $defaultPassword;
             $refRaw   = $get('reference_id');
-            $legRaw   = $get('leg');
             $bmanRaw  = $get('bman');
 
             $errors = [];
@@ -261,9 +268,12 @@ class Memberbulkupload_model extends CI_Model
                 $errors[] = 'Password is shorter than '.self::MIN_PASSWORD.' characters';
             }
 
-            /* ---- sponsor + leg from reference_id ---- */
-            list($refCode, $legFromPrefix) = $this->parseReferenceLeg($refRaw);
-            $leg = $this->normaliseLeg($legRaw !== '' ? $legRaw : ($legFromPrefix ?: $defaultLeg));
+            /* ---- sponsor from reference_id ---- */
+            // Placement is ALWAYS automatic (see importRow) — the sheet has no
+            // leg column. An L-/R- prefix is still tolerated so a code pasted
+            // straight out of a referral link resolves, but the side it encodes
+            // is ignored along with everything else: the binary engine decides.
+            $refCode = $this->stripReferencePrefix($refRaw);
             $sponsorId = null;
 
             if ($refCode === '') {
@@ -316,7 +326,7 @@ class Memberbulkupload_model extends CI_Model
                 'password_hash' => $errors ? null : password_hash($password, PASSWORD_DEFAULT),
                 'reference_id'  => $refCode !== '' ? mb_substr($refCode, 0, 250) : null,
                 'sponsor_id'    => $sponsorId,
-                'leg'           => $leg,
+                'leg'           => 'auto',   // column retained for history; always auto now
                 'bman_amount'   => $bman,
                 'status'        => $errors ? 'invalid' : 'valid',
                 'error_message' => $errors ? mb_substr(implode('; ', $errors), 0, 255) : null,
@@ -335,7 +345,7 @@ class Memberbulkupload_model extends CI_Model
             'invalid_rows'  => $invalid,
             'bman_queued'   => $bmanQueued,
             'bman_total'    => $bmanTotal,
-            'default_leg'   => $defaultLeg,
+            'default_leg'   => 'auto',
             'send_bman'     => $sendBman,
         ]);
 
@@ -446,9 +456,13 @@ class Memberbulkupload_model extends CI_Model
 
         $this->db->trans_begin();
         try {
-            // 'auto' means "let the binary engine decide", which registerUser
-            // expresses as a null leg.
-            $leg = in_array($row['leg'], ['left', 'right'], true) ? $row['leg'] : null;
+            // Placement is always automatic: a null leg is registerUser()'s
+            // "you decide" signal. The binary engine then fills the sponsor's
+            // own left and right first, and once both are taken it walks the
+            // chosen leg down to the last free position (spillover). That is
+            // the whole reason the sheet has no leg column — the tree, not the
+            // spreadsheet, decides where a member lands.
+            $leg = null;
 
             // registerUser() hashes whatever it is given, and its signature is
             // deliberately NOT extended to accept a pre-hashed password: an
@@ -558,26 +572,19 @@ class Memberbulkupload_model extends CI_Model
     }
 
     /**
-     * "L-NEXMAN123456" → ['NEXMAN123456', 'left']. Same prefix convention the
-     * public signup link uses (see Register::parse_referral_leg), so a sponsor
-     * can paste the referral code straight out of their share link.
+     * "L-NEXMAN123456" → "NEXMAN123456".
+     *
+     * Public referral links carry an L-/R- prefix (see
+     * Register::parse_referral_leg), so a code pasted straight out of one would
+     * otherwise fail the sponsor lookup. The prefix is stripped purely to
+     * resolve the sponsor — the side it encodes is DISCARDED, because bulk
+     * placement is always automatic.
      */
-    private function parseReferenceLeg($raw)
+    private function stripReferencePrefix($raw)
     {
         $raw = trim((string)$raw);
-        if ($raw === '') return ['', null];
-        if (preg_match('/^(L|R)\-(.+)$/i', $raw, $m)) {
-            return [trim($m[2]), strtolower($m[1]) === 'l' ? 'left' : 'right'];
-        }
-        return [$raw, null];
-    }
-
-    private function normaliseLeg($leg)
-    {
-        $leg = mb_strtolower(trim((string)$leg));
-        if ($leg === 'l' || $leg === 'left')  return 'left';
-        if ($leg === 'r' || $leg === 'right') return 'right';
-        return 'auto';
+        if ($raw === '') return '';
+        return preg_match('/^(L|R)\-(.+)$/i', $raw, $m) ? trim($m[2]) : $raw;
     }
 
     /** Excel loves to append hundreds of empty rows below the real data. */
