@@ -60,6 +60,7 @@ class Memberbulkupload_model extends CI_Model
         return $row ?: [
             'enabled' => 0, 'dry_run' => 1, 'min_treasury_reserve' => '0',
             'max_batch_size' => 20, 'max_rows_per_file' => 1000,
+            'credit_exchange_wallet' => 1,
         ];
     }
 
@@ -67,6 +68,7 @@ class Memberbulkupload_model extends CI_Model
     {
         $allowed = array_intersect_key($data, array_flip([
             'enabled', 'dry_run', 'min_treasury_reserve', 'max_batch_size', 'max_rows_per_file',
+            'credit_exchange_wallet',
         ]));
         if (empty($allowed)) return [false, 'No valid fields to update.'];
         $allowed['updated_by'] = $adminId;
@@ -103,7 +105,7 @@ class Memberbulkupload_model extends CI_Model
         $this->db->select('id, batch_id, row_number, username, email, reference_id, sponsor_id, leg,
                            bman_amount, status, error_message, user_id, referral_id, wallet_address,
                            bman_status, bman_attempts, bman_tx_hash, bman_network, bman_error,
-                           bman_sent_at, created_at')
+                           bman_sent_at, bman_ledger_id, bman_credited_at, created_at')
                  ->where('batch_id', (int)$batchId)->order_by('row_number', 'ASC');
         if ($limit !== null) $this->db->limit((int)$limit, (int)$offset);
         return $this->db->get('member_bulk_upload_rows')->result_array();

@@ -15,10 +15,19 @@
  * minutes with money moving behind it. Queue-then-sweep also gives each
  * transfer its own retry surface and audit row.
  *
- * This is NEW money, exactly like Treasurysend_model: nothing is debited from
- * any internal ledger wallet, and the member's dashboard wallet buckets
- * (Exchange/Earning/Staking/Bonus) are intentionally untouched — only their
- * real on-chain BMAN balance changes.
+ * This is NEW money: nothing is debited from any internal ledger wallet. What
+ * it IS credited to is the member's EXCHANGE wallet — the delivery is posted
+ * through Walletledger_model exactly the way Depositlistener_model posts a
+ * detected on-chain deposit, so the BMAN the member now holds on-chain is the
+ * BMAN their dashboard shows. That single call locks the balance row, appends
+ * a wallet_ledger entry with balance_after, updates user_wallets, applies the
+ * normal exchange maturity rules, and mirrors the movement into
+ * onchain_transactions. (Treasurysend_model deliberately does NOT do this —
+ * it is a raw off-ledger airdrop. An imported member's opening balance is
+ * different: it is meant to be spendable in the panel.)
+ *
+ * Set member_bulk_upload_settings.credit_exchange_wallet = 0 to deliver
+ * on-chain only and leave dashboard balances untouched.
  *
  * Gated by member_bulk_upload_settings:
  *   enabled = 0  -> run() no-ops immediately; the queue just accumulates.
@@ -41,7 +50,7 @@ class Memberbulkbmancron_model extends CI_Model
     {
         parent::__construct();
         $this->load->model('Tokenmaster_model', 'tokens');
-        $this->load->model('Onchaintx_model', 'octx');
+        $this->load->model('Walletledger_model', 'ledger');
         $this->load->model('member/Memberbulkupload_model', 'bulk');
         $this->load->library('web3bman');
     }
@@ -64,16 +73,15 @@ class Memberbulkbmancron_model extends CI_Model
         $processed = 0; $sent = 0; $failed = 0; $details = [];
 
         try {
-            $treasuryKey = null; $available = null;
-            if (!$dry) {
-                $cfg = $this->tokens->activeSettings();
-                if (!$cfg || empty($cfg['treasury_wallet'])) throw new RuntimeException('Treasury wallet not configured.');
-                $treasuryKey = $this->tokens->treasuryPrivateKey();
-                if (!$treasuryKey) throw new RuntimeException('Treasury key missing or failed to decrypt.');
-                $balance = $this->web3bman->getTokenBalance($cfg['treasury_wallet']);
-                $available = bcsub($balance, (string)$settings['min_treasury_reserve'], 8);
-            }
+            // PHASE 1 — heal first. Rows whose BMAN reached the chain but whose
+            // Exchange credit did not are settled before anything new is sent.
+            // This runs BEFORE the treasury setup below on purpose: posting a
+            // ledger entry for BMAN that has already moved needs no treasury
+            // key, no balance, and no RPC, so a misconfigured or drained
+            // treasury must not be able to block the self-healing.
+            $backfilled = $dry ? 0 : $this->_backfillCredits($settings);
 
+            // PHASE 2 — drain the pending send queue.
             $rows = $this->db->select('r.*, b.ref AS batch_ref')
                 ->from('member_bulk_upload_rows r')
                 ->join('member_bulk_upload_batches b', 'b.id = r.batch_id', 'left')
@@ -81,6 +89,18 @@ class Memberbulkbmancron_model extends CI_Model
                 ->order_by('r.id', 'ASC')
                 ->limit((int)$settings['max_batch_size'])
                 ->get()->result_array();
+
+            // Nothing to send: skip the treasury handshake entirely rather than
+            // spending an RPC round-trip (and a key decrypt) to discover that.
+            $treasuryKey = null; $available = null;
+            if ($rows && !$dry) {
+                $cfg = $this->tokens->activeSettings();
+                if (!$cfg || empty($cfg['treasury_wallet'])) throw new RuntimeException('Treasury wallet not configured.');
+                $treasuryKey = $this->tokens->treasuryPrivateKey();
+                if (!$treasuryKey) throw new RuntimeException('Treasury key missing or failed to decrypt.');
+                $balance = $this->web3bman->getTokenBalance($cfg['treasury_wallet']);
+                $available = bcsub($balance, (string)$settings['min_treasury_reserve'], 8);
+            }
 
             foreach ($rows as $r) {
                 $processed++;
@@ -94,10 +114,13 @@ class Memberbulkbmancron_model extends CI_Model
                 $details[] = $res;
             }
 
-            $msg = "Processed {$processed}, sent {$sent}, failed {$failed}" . ($dry ? ' [DRY-RUN]' : '');
+            $msg = "Processed {$processed}, sent {$sent}, failed {$failed}"
+                 . ($backfilled ? ", back-credited {$backfilled}" : '')
+                 . ($dry ? ' [DRY-RUN]' : '');
             $this->_unlock(self::JOB, $msg, $sent);
             return ['status' => 'success', 'message' => $msg, 'dry_run' => $dry,
                     'processed' => $processed, 'sent' => $sent, 'failed' => $failed,
+                    'back_credited' => $backfilled,
                     'details' => $details, 'ran_at' => date('Y-m-d H:i:s')];
         } catch (Throwable $e) {
             $this->_unlock(self::JOB, 'Fatal: '.$e->getMessage(), $sent);
@@ -152,29 +175,129 @@ class Memberbulkbmancron_model extends CI_Model
                 'bman_sent_at' => date('Y-m-d H:i:s'),
             ]);
 
-            // No wallet_ledger row exists for this movement (it is off-ledger new
-            // money, same as a treasury direct send), so capture() rather than
-            // updateByLedgerId().
+            // The BMAN is now really on the member's address. Post it to their
+            // Exchange wallet so the panel shows what they actually hold. This
+            // also writes the onchain_transactions row (via the ledger's own
+            // observer), so there is no separate capture() here — a second one
+            // would duplicate the movement in transaction history.
             //
-            // wallet_type is deliberately left NULL: the column is an ENUM of the
-            // internal buckets (usdt/exchange/earning/staking/bonus) and this
-            // movement belongs to none of them — that is the whole point of new
-            // money. NULL is both accurate and schema-valid.
-            $this->octx->capture([
-                'tx_hash' => $tx, 'network' => $network,
-                'tx_type' => 'member_bulk_bman', 'status' => 'confirmed',
-                'user_id' => (int)$r['user_id'], 'token_symbol' => 'BMAN',
-                'amount' => (string)$r['bman_amount'], 'from_address' => $from, 'to_address' => $to,
-                'reference_type' => 'member_bulk_upload',
-                'reference_id' => substr((string)($r['batch_ref'] ?: $ref), 0, 64),
-                '_event' => ['detail' => 'bulk member upload opening balance'.($dry ? ' [DRY-RUN]' : '')],
-            ]);
+            // A dry run never credits: a spendable Exchange balance with no BMAN
+            // behind it is exactly what dry-run exists to prevent.
+            $credit = ['ok' => true, 'skipped' => 'dry_run'];
+            if (!$dry) {
+                $credit = $this->_creditExchange($r, $tx);
+            }
 
-            return ['id' => $id, 'ok' => true, 'tx_hash' => $tx, 'amount' => (string)$r['bman_amount']];
+            return ['id' => $id, 'ok' => true, 'tx_hash' => $tx,
+                    'amount' => (string)$r['bman_amount'],
+                    'exchange_credit' => $credit];
         } catch (Throwable $e) {
             $this->_fail($id, substr($e->getMessage(), 0, 255));
             return ['id' => $id, 'ok' => false, 'reason' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Post a delivered send to the member's Exchange wallet.
+     *
+     * Uses the real on-chain tx hash as the ledger's idempotency key: the
+     * UNIQUE (tx_hash, wallet_type) index on wallet_ledger means calling this
+     * twice for the same send credits once. That is what makes the backfill
+     * sweep below safe to run on every pass.
+     *
+     * Maturity is left to the standard exchange rules (no skip_maturity) — an
+     * admin-granted opening balance should not be more withdrawable than a
+     * deposit of the same size.
+     *
+     * A failure here is NOT fatal to the row: the BMAN has already moved
+     * on-chain, so the row stays 'completed' and the reason is recorded. The
+     * next pass retries the credit.
+     */
+    private function _creditExchange(array $r, $txHash)
+    {
+        if (!(int)($this->bulk->settings()['credit_exchange_wallet'] ?? 1)) {
+            return ['ok' => true, 'skipped' => 'credit_exchange_wallet=0'];
+        }
+        if (empty($r['user_id'])) {
+            return ['ok' => false, 'error' => 'row has no user_id'];
+        }
+
+        try {
+            list($ok, $info) = $this->ledger->credit(
+                (int)$r['user_id'], 'exchange', (string)$r['bman_amount'], 'admin_adjustment',
+                [
+                    'tx_hash'      => $txHash,
+                    'reference_id' => substr((string)($r['batch_ref'] ?: ('MBU-'.$r['id'])), 0, 64),
+                    'description'  => 'Bulk member upload — opening BMAN balance',
+                ]
+            );
+
+            if (!$ok) {
+                $this->_creditError($r['id'], 'Exchange credit failed: '.$info);
+                return ['ok' => false, 'error' => (string)$info];
+            }
+
+            // post() returns the ledger id, or the string 'already_posted' when
+            // the unique index already had this (tx_hash, wallet) pair.
+            $ledgerId = is_numeric($info) ? (int)$info : $this->_findLedgerId($txHash);
+
+            $this->db->where('id', (int)$r['id'])->update('member_bulk_upload_rows', [
+                'bman_ledger_id'   => $ledgerId ?: null,
+                'bman_credited_at' => date('Y-m-d H:i:s'),
+                'bman_error'       => null,
+            ]);
+            return ['ok' => true, 'ledger_id' => $ledgerId];
+        } catch (Throwable $e) {
+            $this->_creditError($r['id'], 'Exchange credit error: '.$e->getMessage());
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /** The ledger row for a hash already posted on a previous attempt. */
+    private function _findLedgerId($txHash)
+    {
+        $row = $this->db->select('id')->where('tx_hash', $txHash)->where('wallet_type', 'exchange')
+            ->limit(1)->get('wallet_ledger')->row_array();
+        return $row ? (int)$row['id'] : 0;
+    }
+
+    /**
+     * Phase 2: rows whose BMAN reached the chain but whose Exchange credit did
+     * not (crash between the two steps, or a transient ledger failure). Dry-run
+     * hashes are excluded — those represent no real money and must never be
+     * credited.
+     */
+    private function _backfillCredits(array $settings)
+    {
+        if (!(int)($settings['credit_exchange_wallet'] ?? 1)) return 0;
+
+        $rows = $this->db->select('r.*, b.ref AS batch_ref')
+            ->from('member_bulk_upload_rows r')
+            ->join('member_bulk_upload_batches b', 'b.id = r.batch_id', 'left')
+            ->where('r.bman_status', 'completed')
+            ->where('r.bman_ledger_id IS NULL', null, false)
+            ->where('r.bman_tx_hash IS NOT NULL', null, false)
+            ->where("r.bman_tx_hash NOT LIKE 'DRYRUN-%'", null, false)
+            ->order_by('r.id', 'ASC')
+            ->limit((int)$settings['max_batch_size'])
+            ->get()->result_array();
+
+        $done = 0;
+        foreach ($rows as $r) {
+            $res = $this->_creditExchange($r, $r['bman_tx_hash']);
+            if (!empty($res['ok']) && empty($res['skipped'])) $done++;
+        }
+        if ($done) log_message('info', "[member_bulk_bman_cron] back-credited {$done} exchange wallet(s)");
+        return $done;
+    }
+
+    /** Record a credit problem without disturbing the (successful) send status. */
+    private function _creditError($id, $reason)
+    {
+        $this->db->where('id', (int)$id)->update('member_bulk_upload_rows', [
+            'bman_error' => substr((string)$reason, 0, 255),
+        ]);
+        log_message('error', '[member_bulk_bman_cron] row '.$id.' '.$reason);
     }
 
     private function _fail($id, $reason)
