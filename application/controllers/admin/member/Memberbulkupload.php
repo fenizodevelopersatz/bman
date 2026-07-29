@@ -190,64 +190,100 @@ class Memberbulkupload extends CI_Controller
     /* ============================== template ============================= */
 
     /**
-     * The starter sheet. CSV rather than .xlsx: writing a valid workbook by
-     * hand is a lot of ceremony for a six-column header, and Excel opens a CSV
-     * natively — the admin can "Save As" .xlsx if they prefer to send that back.
+     * The starter sheet, as a real .xlsx workbook (add ?format=csv for CSV).
+     *
+     * The `bman` values are written as NUMBERS so Excel right-aligns them and
+     * the admin can type over them arithmetically; everything else is written
+     * as text, which is what keeps a referral code like 001234 from losing its
+     * leading zeros the moment the file is opened.
      */
     public function template()
     {
-        $filename = 'member-bulk-upload-template.csv';
-        $this->output
-            ->set_header('Content-Type: text/csv; charset=UTF-8')
-            ->set_header('Content-Disposition: attachment; filename="'.$filename.'"')
-            ->set_header('Cache-Control: no-store, no-cache, must-revalidate');
-
-        // A real sponsor code from this install, so the example row is usable
+        // A real sponsor code from this install, so the example rows are usable
         // as-is instead of pointing at a referral that does not exist.
         $sample = $this->db->select('referral_id')->where('status', '1')
             ->where('referral_id IS NOT NULL', null, false)
             ->order_by('id', 'ASC')->limit(1)->get('users')->row_array();
         $sponsor = $sample['referral_id'] ?? 'NEXMAN100001';
 
+        $rows = [
+            Memberbulkupload_model::$templateColumns,
+            ['john_doe', 'john@example.com', 'ChangeMe123', $sponsor,       'left',  100],
+            ['jane_doe', 'jane@example.com', '',            $sponsor,       'right', 250.5],
+            ['alex_roy', 'alex@example.com', '',            'L-'.$sponsor,  '',      ''],
+        ];
+
+        if (strtolower((string)$this->input->get('format', true)) === 'csv') {
+            return $this->_csv('member-bulk-upload-template.csv', $rows);
+        }
+
+        $this->load->library('sheetwriter');
+        try {
+            $this->sheetwriter->download($rows, 'member-bulk-upload-template.xlsx', 'Members');
+        } catch (Throwable $e) {
+            // ext-zip missing: a CSV the admin can still work with beats an error page.
+            log_message('error', '[member_bulk_upload] xlsx template failed: '.$e->getMessage());
+            return $this->_csv('member-bulk-upload-template.csv', $rows);
+        }
+    }
+
+    /** Shared CSV emitter (UTF-8 BOM so Excel opens it in the right encoding). */
+    private function _csv($filename, array $rows)
+    {
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="'.str_replace('"', '', $filename).'"');
+        header('Cache-Control: no-store, no-cache, must-revalidate');
         $stream = fopen('php://output', 'w');
         fputs($stream, "\xEF\xBB\xBF");
-        fputcsv($stream, Memberbulkupload_model::$templateColumns);
-        fputcsv($stream, ['john_doe',  'john@example.com',  'ChangeMe123', $sponsor, 'left',  '100']);
-        fputcsv($stream, ['jane_doe',  'jane@example.com',  '',            $sponsor, 'right', '250.5']);
-        fputcsv($stream, ['alex_roy',  'alex@example.com',  '',            'L-'.$sponsor, '', '']);
+        foreach ($rows as $row) fputcsv($stream, $row);
         fclose($stream);
         exit;
     }
 
-    /** Export one batch's result, including every rejection reason. */
+    /**
+     * Export one batch's result as .xlsx, including every rejection reason
+     * (add ?format=csv for CSV).
+     *
+     * Row number, member id and ledger id go out as integers and the BMAN
+     * amount as a float, so the sheet is sortable and summable. Everything
+     * else stays text — a wallet address or tx hash must never be reinterpreted
+     * as a number.
+     */
     public function export($batchId)
     {
         $batch = $this->bulk->batch($batchId);
         if (!$batch) show_404();
 
-        $filename = 'bulk-upload-'.$batch['ref'].'.csv';
-        $this->output
-            ->set_header('Content-Type: text/csv; charset=UTF-8')
-            ->set_header('Content-Disposition: attachment; filename="'.$filename.'"')
-            ->set_header('Cache-Control: no-store, no-cache, must-revalidate');
-
-        $stream = fopen('php://output', 'w');
-        fputs($stream, "\xEF\xBB\xBF");
-        fputcsv($stream, ['Row', 'Username', 'Email', 'Reference ID', 'Leg', 'BMAN', 'Status',
-                          'Member ID', 'New Referral ID', 'Wallet Address', 'BMAN Status', 'Tx Hash',
-                          'Exchange Ledger ID', 'Credited At', 'Message']);
+        $rows = [[
+            'Row', 'Username', 'Email', 'Reference ID', 'Leg', 'BMAN', 'Status',
+            'Member ID', 'New Referral ID', 'Wallet Address', 'BMAN Status', 'Tx Hash',
+            'Exchange Ledger ID', 'Credited At', 'Message',
+        ]];
         foreach ($this->bulk->rows($batchId) as $r) {
-            fputcsv($stream, [
-                $r['row_number'], $r['username'], $r['email'], $r['reference_id'], $r['leg'],
-                number_format((float)$r['bman_amount'], 8, '.', ''),
-                strtoupper($r['status']), $r['user_id'], $r['referral_id'], $r['wallet_address'],
+            $rows[] = [
+                (int)$r['row_number'], $r['username'], $r['email'], $r['reference_id'], $r['leg'],
+                (float)$r['bman_amount'],
+                strtoupper($r['status']),
+                $r['user_id'] !== null ? (int)$r['user_id'] : '',
+                $r['referral_id'], $r['wallet_address'],
                 strtoupper($r['bman_status']), $r['bman_tx_hash'],
-                $r['bman_ledger_id'], $r['bman_credited_at'],
+                $r['bman_ledger_id'] !== null ? (int)$r['bman_ledger_id'] : '',
+                $r['bman_credited_at'],
                 $r['error_message'] ?: $r['bman_error'],
-            ]);
+            ];
         }
-        fclose($stream);
-        exit;
+
+        if (strtolower((string)$this->input->get('format', true)) === 'csv') {
+            return $this->_csv('bulk-upload-'.$batch['ref'].'.csv', $rows);
+        }
+
+        $this->load->library('sheetwriter');
+        try {
+            $this->sheetwriter->download($rows, 'bulk-upload-'.$batch['ref'].'.xlsx', 'Batch '.$batch['ref']);
+        } catch (Throwable $e) {
+            log_message('error', '[member_bulk_upload] xlsx export failed: '.$e->getMessage());
+            return $this->_csv('bulk-upload-'.$batch['ref'].'.csv', $rows);
+        }
     }
 
     private function _uploadError($code)
