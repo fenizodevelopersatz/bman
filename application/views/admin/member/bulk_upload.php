@@ -57,7 +57,7 @@
 
                 <div class="row g-5">
                   <!-- ===================== Upload ===================== -->
-                  <div class="col-xl-7">
+                  <div class="col-12">
                     <div class="card mb-5">
                       <div class="card-header border-transparent pt-5">
                         <h3 class="card-title fw-bold">1 · Upload &amp; Validate</h3>
@@ -103,65 +103,6 @@
                     </div>
                   </div>
 
-                  <!-- ===================== Cron / settings ===================== -->
-                  <div class="col-xl-5">
-                    <div class="card mb-5">
-                      <div class="card-header border-transparent pt-5">
-                        <h3 class="card-title fw-bold">BMAN Send Cron <span class="text-muted fs-8 fw-normal ms-2">disabled + dry-run by default</span></h3>
-                      </div>
-                      <div class="card-body pt-2 pb-8">
-                        <div class="d-flex flex-wrap gap-6 mb-6">
-                          <div>
-                            <div class="fs-2 fw-bold text-gray-800"><?php echo (int)$bman_pending; ?></div>
-                            <div class="fs-8 text-muted text-uppercase">Pending in queue</div>
-                          </div>
-                          <div>
-                            <div class="fs-2 fw-bold text-gray-800"><?php echo (int)($cron_state['total_settled'] ?? 0); ?></div>
-                            <div class="fs-8 text-muted text-uppercase">Sent all-time</div>
-                          </div>
-                          <div>
-                            <div class="fs-6 fw-bold text-gray-800 pt-2"><?php echo html_escape($cron_state['last_run_at'] ?? 'never'); ?></div>
-                            <div class="fs-8 text-muted text-uppercase">Last run</div>
-                          </div>
-                        </div>
-
-                        <form id="bmu-settings-form" class="d-flex flex-wrap align-items-end gap-4">
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="bmu-enabled" name="enabled" <?php echo !empty($settings['enabled']) ? 'checked' : ''; ?>>
-                            <label class="form-check-label fw-semibold" for="bmu-enabled">Enabled</label>
-                          </div>
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="bmu-dryrun" name="dry_run" <?php echo !empty($settings['dry_run']) ? 'checked' : ''; ?>>
-                            <label class="form-check-label fw-semibold" for="bmu-dryrun">Dry-run</label>
-                          </div>
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="bmu-credit" name="credit_exchange_wallet" <?php echo !isset($settings['credit_exchange_wallet']) || !empty($settings['credit_exchange_wallet']) ? 'checked' : ''; ?>>
-                            <label class="form-check-label fw-semibold" for="bmu-credit" title="Post the delivered BMAN to the member's Exchange wallet so it shows in their panel">Credit Exchange wallet</label>
-                          </div>
-                          <div>
-                            <label class="form-label fw-semibold fs-8 mb-1">Min treasury reserve</label>
-                            <input type="number" step="0.00000001" min="0" name="min_treasury_reserve" class="form-control form-control-solid form-control-sm w-150px" value="<?php echo html_escape($settings['min_treasury_reserve']); ?>" />
-                          </div>
-                          <div>
-                            <label class="form-label fw-semibold fs-8 mb-1">Rows / cron pass</label>
-                            <input type="number" min="1" max="500" name="max_batch_size" class="form-control form-control-solid form-control-sm w-110px" value="<?php echo (int)$settings['max_batch_size']; ?>" />
-                          </div>
-                          <div>
-                            <label class="form-label fw-semibold fs-8 mb-1">Max rows / file</label>
-                            <input type="number" min="1" max="20000" name="max_rows_per_file" class="form-control form-control-solid form-control-sm w-110px" value="<?php echo (int)$settings['max_rows_per_file']; ?>" />
-                          </div>
-                          <button type="submit" class="btn btn-light-primary btn-sm">Save</button>
-                        </form>
-
-                        <div class="separator my-5"></div>
-                        <div class="fs-8 text-muted">
-                          Schedule <span class="bmu-mono">/member-bulk-bman-cron?token=…</span> every few minutes, or run it from
-                          <a href="<?php echo base_url(); ?>admin/wallet/cron-lab">Cron Lab</a>.
-                          Member accounts are created immediately at import — these switches only gate the on-chain money movement.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
                 <!-- ===================== Preview ===================== -->
@@ -192,30 +133,101 @@
                   </div>
                 </div>
 
-                <!-- ===================== History ===================== -->
+                <!-- ============ History / audit + cron status ============ -->
                 <div class="card mb-5">
-                  <div class="card-header border-transparent pt-5"><h3 class="card-title fw-bold">Upload History</h3></div>
-                  <div class="card-body pt-3 pb-9">
+                  <div class="card-header border-transparent pt-5 flex-wrap gap-3">
+                    <h3 class="card-title fw-bold d-flex flex-column">
+                      Upload History &amp; Transaction Audit
+                      <span class="text-muted fs-8 fw-normal">Every sheet, its import result, and the on-chain BMAN delivery for each one</span>
+                    </h3>
+                    <div class="card-toolbar">
+                      <a href="<?php echo base_url(); ?>admin/wallet/cron-lab" class="btn btn-sm btn-light-primary">Open Cron Lab</a>
+                    </div>
+                  </div>
+
+                  <!-- Read-only cron status. The switches that control it are
+                       backend configuration and deliberately not surfaced here. -->
+                  <div class="px-9 pt-2">
+                    <div class="d-flex flex-wrap align-items-center gap-7 p-5 rounded bg-light-primary bg-opacity-50">
+                      <?php
+                        $cronLive = !empty($settings['enabled']) && empty($settings['dry_run']);
+                        if (empty($settings['enabled']))      { $modeTone = 'secondary'; $modeText = 'DISABLED'; }
+                        elseif (!empty($settings['dry_run'])) { $modeTone = 'warning';   $modeText = 'DRY-RUN'; }
+                        else                                  { $modeTone = 'success';   $modeText = 'LIVE'; }
+                      ?>
+                      <div>
+                        <span class="badge badge-<?php echo $modeTone; ?> fs-8"><?php echo $modeText; ?></span>
+                        <div class="fs-9 text-muted text-uppercase mt-1">BMAN send cron</div>
+                      </div>
+                      <div>
+                        <div class="fs-3 fw-bold text-gray-800"><?php echo (int)$bman_pending; ?></div>
+                        <div class="fs-9 text-muted text-uppercase">Pending in queue</div>
+                      </div>
+                      <div>
+                        <div class="fs-3 fw-bold text-gray-800"><?php echo (int)($cron_state['total_settled'] ?? 0); ?></div>
+                        <div class="fs-9 text-muted text-uppercase">Sent all-time</div>
+                      </div>
+                      <div>
+                        <div class="fs-6 fw-bold text-gray-800"><?php echo html_escape($cron_state['last_run_at'] ?: 'never'); ?></div>
+                        <div class="fs-9 text-muted text-uppercase">Last cron run</div>
+                      </div>
+                      <?php if (!empty($cron_state['last_result'])): ?>
+                      <div class="flex-grow-1 min-w-200px">
+                        <div class="fs-8 text-gray-700"><?php echo html_escape($cron_state['last_result']); ?></div>
+                        <div class="fs-9 text-muted text-uppercase">Last result</div>
+                      </div>
+                      <?php endif; ?>
+                    </div>
+                  </div>
+
+                  <div class="card-body pt-5 pb-9">
                     <div class="table-responsive">
                       <table class="table align-middle table-row-dashed fs-7 gy-4">
                         <thead><tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
                           <th>Reference</th><th>File</th><th>By</th><th class="text-end">Rows</th>
-                          <th class="text-end">Imported</th><th class="text-end">BMAN queued</th><th>Status</th><th>Uploaded</th><th></th>
+                          <th class="text-end">Imported</th><th class="text-end">BMAN</th>
+                          <th>Delivery &amp; transactions</th><th>Status</th><th>Uploaded</th><th></th>
                         </tr></thead>
                         <tbody class="text-gray-700 fw-semibold">
                           <?php foreach ($batches as $b): ?>
                           <tr>
                             <td><span class="bmu-mono fw-bold text-primary"><?php echo html_escape($b['ref']); ?></span></td>
-                            <td class="text-truncate mw-200px" title="<?php echo html_escape($b['original_name']); ?>"><?php echo html_escape($b['original_name']); ?></td>
+                            <td class="text-truncate mw-150px" title="<?php echo html_escape($b['original_name']); ?>"><?php echo html_escape($b['original_name']); ?></td>
                             <td class="fs-8 text-muted"><?php echo html_escape($b['admin_name'] ?: ('#'.$b['admin_id'])); ?></td>
                             <td class="text-end"><?php echo (int)$b['total_rows']; ?>
-                              <?php if ((int)$b['invalid_rows'] > 0): ?><span class="text-danger fs-8">(<?php echo (int)$b['invalid_rows']; ?> bad)</span><?php endif; ?>
+                              <?php if ((int)$b['invalid_rows'] > 0): ?><div class="text-danger fs-8"><?php echo (int)$b['invalid_rows']; ?> invalid</div><?php endif; ?>
                             </td>
                             <td class="text-end fw-bold"><?php echo (int)$b['imported_rows']; ?>
-                              <?php if ((int)$b['failed_rows'] > 0): ?><span class="text-danger fs-8">/<?php echo (int)$b['failed_rows']; ?> failed</span><?php endif; ?>
+                              <?php if ((int)$b['failed_rows'] > 0): ?><div class="text-danger fs-8"><?php echo (int)$b['failed_rows']; ?> failed</div><?php endif; ?>
                             </td>
-                            <td class="text-end"><?php echo (int)$b['bman_queued']; ?>
-                              <?php if (bccomp((string)$b['bman_total'], '0', 8) > 0): ?><div class="text-muted fs-8"><?php echo rtrim(rtrim(number_format((float)$b['bman_total'], 8, '.', ''), '0'), '.'); ?> BMAN</div><?php endif; ?>
+                            <td class="text-end">
+                              <?php if (bccomp((string)$b['bman_total'], '0', 8) > 0): ?>
+                                <?php echo rtrim(rtrim(number_format((float)$b['bman_total'], 8, '.', ''), '0'), '.'); ?>
+                                <?php if (bccomp((string)$b['bman_sent_amount'], '0', 8) > 0): ?>
+                                  <div class="text-success fs-8"><?php echo rtrim(rtrim(number_format((float)$b['bman_sent_amount'], 8, '.', ''), '0'), '.'); ?> sent</div>
+                                <?php endif; ?>
+                              <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+                            </td>
+                            <td>
+                              <?php if ((int)$b['bman_queued'] === 0 && (int)$b['bman_sent'] === 0 && (int)$b['bman_failed'] === 0): ?>
+                                <span class="text-muted fs-8">No transfers</span>
+                              <?php else: ?>
+                                <div class="d-flex flex-wrap gap-1 mb-1">
+                                  <?php if ((int)$b['bman_sent'] > 0): ?><span class="badge badge-light-success fs-9"><?php echo (int)$b['bman_sent']; ?> sent</span><?php endif; ?>
+                                  <?php if ((int)$b['bman_credited'] > 0): ?><span class="badge badge-light-primary fs-9"><?php echo (int)$b['bman_credited']; ?> credited</span><?php endif; ?>
+                                  <?php if ((int)$b['bman_pending'] > 0): ?><span class="badge badge-light-warning fs-9"><?php echo (int)$b['bman_pending']; ?> queued</span><?php endif; ?>
+                                  <?php if ((int)$b['bman_processing'] > 0): ?><span class="badge badge-light-info fs-9"><?php echo (int)$b['bman_processing']; ?> sending</span><?php endif; ?>
+                                  <?php if ((int)$b['bman_failed'] > 0): ?><span class="badge badge-light-danger fs-9"><?php echo (int)$b['bman_failed']; ?> failed</span><?php endif; ?>
+                                </div>
+                                <?php if (!empty($b['last_tx_hash'])): ?>
+                                  <div class="bmu-mono fs-9 text-muted" title="<?php echo html_escape($b['last_tx_hash']); ?>">
+                                    <?php echo html_escape(substr($b['last_tx_hash'], 0, 20)).'…'; ?>
+                                  </div>
+                                <?php endif; ?>
+                                <?php if (!empty($b['last_sent_at'])): ?>
+                                  <div class="fs-9 text-muted">last <?php echo html_escape($b['last_sent_at']); ?></div>
+                                <?php endif; ?>
+                              <?php endif; ?>
                             </td>
                             <td>
                               <?php
@@ -230,7 +242,7 @@
                             </td>
                           </tr>
                           <?php endforeach; ?>
-                          <?php if (empty($batches)): ?><tr><td colspan="9" class="text-muted">No uploads yet.</td></tr><?php endif; ?>
+                          <?php if (empty($batches)): ?><tr><td colspan="10" class="text-muted">No uploads yet.</td></tr><?php endif; ?>
                         </tbody>
                       </table>
                     </div>
@@ -367,16 +379,6 @@
       if (ok) { stagedBatchId = null; el('bmu-preview-card').classList.add('d-none'); }
     });
 
-    /* ---------------- settings ---------------- */
-    el('bmu-settings-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fd = new FormData(e.target);
-      fd.set('enabled', el('bmu-enabled').checked ? '1' : '');
-      fd.set('dry_run', el('bmu-dryrun').checked ? '1' : '');
-      fd.set('credit_exchange_wallet', el('bmu-credit').checked ? '1' : '');
-      const { ok, j } = await post('admin/member/bulk-upload/settings', fd);
-      toast(j.message || (ok ? 'Saved.' : 'Failed.'), ok);
-    });
   })();
   </script>
 </body>

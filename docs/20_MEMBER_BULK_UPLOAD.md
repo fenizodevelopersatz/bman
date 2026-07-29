@@ -9,7 +9,7 @@ address, and an opening BMAN balance that is delivered from the admin hot
 
 | | |
 |---|---|
-| Admin page | `admin/member/bulk-upload` |
+| Admin page | `admin/member/bulk-upload` — upload/validate/import + the audit history |
 | Cron endpoint | `/member-bulk-bman-cron?token=<cron_token>` |
 | Cron Lab | "Member Bulk Upload — Opening BMAN (Hot Wallet → Member)" |
 | Migrations | `db/2026-07-29_member_bulk_upload.sql`, `db/2026-07-29_member_bulk_exchange_credit.sql` |
@@ -223,7 +223,25 @@ A failed **credit** is different: the BMAN has already moved, so the row stays
 
 ---
 
-## 7. Settings
+## 7. Settings — backend only
+
+**These are not editable from the Bulk Upload page.** They gate real money
+movement, so they are deliberately kept out of the operator's day-to-day
+screen; the page shows the resulting cron state read-only
+(`DISABLED` / `DRY-RUN` / `LIVE`) and nothing more. Change them with SQL, or
+from a backend/settings context:
+
+```sql
+-- go live (only after a dry-run pass has been verified)
+UPDATE member_bulk_upload_settings SET enabled = 1, dry_run = 0 WHERE id = 1;
+
+-- emergency stop
+UPDATE member_bulk_upload_settings SET enabled = 0 WHERE id = 1;
+```
+
+The `POST admin/member/bulk-upload/settings` endpoint still exists and is
+permission-gated, so a future dedicated settings screen can drive it — but no
+UI calls it today.
 
 `member_bulk_upload_settings` (row `id = 1`) — its own row, deliberately not a
 reuse of `treasury_direct_send_settings` or
@@ -276,6 +294,30 @@ settlement cron, plus a 30-minute stale-lock takeover.
 > guard pattern rather than a `DELIMITER` stored procedure — `DELIMITER` is a
 > `mysql` CLI directive, so a migration using it cannot be applied
 > programmatically.
+
+---
+
+## 8a. The page: two sections only
+
+**1 · Upload & Validate** — the drop zone, default password, default leg, and
+the per-upload *Queue BMAN* switch (that one is a property of *this* upload,
+not backend configuration, so it stays).
+
+**Upload History & Transaction Audit** — every sheet ever uploaded, with its
+import result *and* its on-chain delivery rolled up per batch:
+
+| Shown | Meaning |
+|---|---|
+| `N sent` | rows whose BMAN reached the chain |
+| `N credited` | rows also posted to the member's Exchange wallet |
+| `N queued` / `N sending` | still waiting for / mid-flight in the cron |
+| `N failed` | terminal send failures awaiting an admin re-queue |
+| tx hash + timestamp | the most recent transaction for that batch |
+
+Above the table sits a **read-only** cron strip: mode badge
+(`DISABLED`/`DRY-RUN`/`LIVE`), pending queue depth, sent all-time, last run
+time, and the cron's last result string. Per-row transaction detail (every
+hash, ledger id and error) lives one click away on the batch detail page.
 
 ---
 
