@@ -228,16 +228,22 @@ A failed **credit** is different: the BMAN has already moved, so the row stays
 **These are not editable from the Bulk Upload page.** They gate real money
 movement, so they are deliberately kept out of the operator's day-to-day
 screen; the page shows the resulting cron state read-only
-(`DISABLED` / `DRY-RUN` / `LIVE`) and nothing more. Change them with SQL, or
-from a backend/settings context:
+(`DISABLED` / `DRY-RUN` / `LIVE`) and nothing more.
+
+📘 **Every statement for installing, going live, monitoring, recovering and
+stopping the module is in
+[20a_MEMBER_BULK_UPLOAD_SQL_RUNBOOK.md](20a_MEMBER_BULK_UPLOAD_SQL_RUNBOOK.md).**
+The two you will reach for most:
 
 ```sql
--- go live (only after a dry-run pass has been verified)
-UPDATE member_bulk_upload_settings SET enabled = 1, dry_run = 0 WHERE id = 1;
+-- 1. enable, but STAY in dry-run and verify one pass first
+UPDATE member_bulk_upload_settings SET enabled = 1, dry_run = 1 WHERE id = 1;
 
--- emergency stop
-UPDATE member_bulk_upload_settings SET enabled = 0 WHERE id = 1;
+-- 2. only then go live (next cron pass broadcasts real, irreversible BMAN)
+UPDATE member_bulk_upload_settings SET dry_run = 0 WHERE id = 1;
 ```
+
+Emergency stop is `SET enabled = 0`. None of these affect member creation.
 
 The `POST admin/member/bulk-upload/settings` endpoint still exists and is
 permission-gated, so a future dedicated settings screen can drive it — but no
