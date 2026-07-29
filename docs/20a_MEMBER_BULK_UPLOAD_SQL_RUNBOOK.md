@@ -350,11 +350,65 @@ wallet-transfer settlement cron uses it.
 
 ## 8. Quick reference
 
+> ⚠️ Every statement below sets **both** switches. `enabled` is checked first
+> and short-circuits, so `SET dry_run = 0` **on its own does nothing** — the
+> cron still answers `"skipped"` — while quietly disarming the dry-run guard.
+> Use the self-contained forms here.
+
 | Intent | Statement |
 |---|---|
 | Check posture | `SELECT enabled, dry_run FROM member_bulk_upload_settings WHERE id = 1;` |
 | Enable, still safe | `UPDATE member_bulk_upload_settings SET enabled = 1, dry_run = 1 WHERE id = 1;` |
-| **Go live** | `UPDATE member_bulk_upload_settings SET dry_run = 0 WHERE id = 1;` |
+| **Go live** (after a verified dry-run pass) | `UPDATE member_bulk_upload_settings SET enabled = 1, dry_run = 0 WHERE id = 1;` |
 | Emergency stop | `UPDATE member_bulk_upload_settings SET enabled = 0 WHERE id = 1;` |
 | Queue depth | `SELECT COUNT(*) FROM member_bulk_upload_rows WHERE bman_status = 'pending';` |
 | Release stuck lock | `UPDATE wallet_settlement_cron_state SET running = 0 WHERE job = 'member_bulk_bman';` |
+
+---
+
+## 9. "The cron says skipped / processed 0" — troubleshooting
+
+Work down this list; it is ordered by how often each one is the cause.
+
+### `"status":"skipped"` … `enabled = 0`
+
+The master switch is off. `enabled` is evaluated **before** `dry_run`, so no
+amount of `dry_run` tinkering changes this message. Fix with the
+"Enable, still safe" statement above.
+
+### `"status":"success"` but `processed: 0`
+
+The cron ran and found **nothing to send**. It only ever claims rows whose
+`bman_status = 'pending'`. Check what actually exists:
+
+```sql
+SELECT bman_status, COUNT(*) FROM member_bulk_upload_rows GROUP BY bman_status;
+```
+
+- All `none` → **the batch was never imported.** Validating a file only stages
+  it; the accounts and the queue are created when you press *Import valid rows*.
+  Confirm with:
+  ```sql
+  SELECT ref, status, imported_rows FROM member_bulk_upload_batches ORDER BY id DESC;
+  ```
+  A `status` of `staged` with `imported_rows = 0` means nothing was created.
+- All `completed` → already delivered. A previous pass (including a **dry run**)
+  marked them done, and the idempotency guard stops a resend. To genuinely
+  re-send after a dry run:
+  ```sql
+  UPDATE member_bulk_upload_rows
+     SET bman_status = 'pending', bman_tx_hash = NULL, bman_ledger_id = NULL
+   WHERE batch_id = <BATCH_ID> AND bman_tx_hash LIKE 'DRYRUN-%';
+  ```
+  ⚠️ Only ever match `DRYRUN-%` here. Clearing a real hash would re-broadcast
+  BMAN that has already been sent.
+
+### `"status":"skipped"` … "Another bulk BMAN run is in progress"
+
+A previous pass crashed holding the lock. It self-clears after 30 minutes, or
+release it manually with the statement in the quick reference.
+
+### The batch page says "BMAN to send once imported"
+
+That is a projection, not a queue. Nothing is pending until the batch is
+imported.

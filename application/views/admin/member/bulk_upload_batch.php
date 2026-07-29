@@ -41,12 +41,24 @@
                 <div class="row g-5 mb-5">
                   <?php
                     $statusMap = ['completed' => 'success', 'failed' => 'danger', 'staged' => 'warning', 'importing' => 'info', 'cancelled' => 'secondary'];
+                    $isStaged = $batch['status'] === 'staged';
+
+                    // Count the ACTUAL queue from the rows. batch.bman_queued is
+                    // only a projection until the batch is imported — reporting
+                    // it as "queued" on a staged batch claims work the cron will
+                    // never find, because it only ever looks for bman_status =
+                    // 'pending' and a staged row is still 'none'.
+                    $bmanPending = 0;
+                    foreach ($rows as $__r) if ($__r['bman_status'] === 'pending') $bmanPending++;
+
                     $tiles = [
-                      ['Total rows',   (int)$batch['total_rows'],    'text-gray-800'],
-                      ['Imported',     (int)$batch['imported_rows'], 'text-success'],
-                      ['Invalid',      (int)$batch['invalid_rows'],  'text-warning'],
-                      ['Failed',       (int)$batch['failed_rows'],   'text-danger'],
-                      ['BMAN queued',  (int)$batch['bman_queued'],   'text-primary'],
+                      ['Total rows', (int)$batch['total_rows'],    'text-gray-800'],
+                      ['Imported',   (int)$batch['imported_rows'], 'text-success'],
+                      ['Invalid',    (int)$batch['invalid_rows'],  'text-warning'],
+                      ['Failed',     (int)$batch['failed_rows'],   'text-danger'],
+                      $isStaged
+                        ? ['BMAN to send once imported', (int)$batch['bman_queued'], 'text-gray-500']
+                        : ['BMAN queued now',            $bmanPending,               'text-primary'],
                     ];
                   ?>
                   <?php foreach ($tiles as $t): ?>
@@ -66,11 +78,50 @@
                   </div>
                 </div>
 
-                <?php if ((int)$batch['bman_queued'] > 0): ?>
+                <?php if ($isStaged): ?>
+                <!-- The single most important thing to say about a staged batch:
+                     nothing has happened yet. The old banner here announced
+                     "BMAN transfers are queued" off batch.bman_queued, which is
+                     only a projection before import — so it claimed a queue that
+                     did not exist and sent admins hunting the cron for work it
+                     could never find. -->
+                <div class="alert alert-primary d-flex align-items-start p-5 mb-5">
+                  <i class="ki-outline ki-information-5 fs-2hx text-primary me-4 mt-1"></i>
+                  <div class="d-flex flex-column flex-grow-1">
+                    <span class="fw-bold">This batch has not been imported yet — nothing has been created.</span>
+                    <span class="fs-7 text-gray-700 mb-3">
+                      The file was validated only. No member accounts exist, no wallet addresses were generated,
+                      and <b>no BMAN is queued</b> — so the cron has nothing to send for this batch and will keep
+                      reporting <span class="bmu-mono">processed 0</span>.
+                      Importing creates <b><?php echo (int)$batch['valid_rows']; ?></b> member(s)
+                      <?php if ((int)$batch['bman_queued'] > 0): ?>
+                        and queues <b><?php echo (int)$batch['bman_queued']; ?></b> BMAN transfer(s)
+                        totalling <?php echo rtrim(rtrim(number_format((float)$batch['bman_total'], 8, '.', ''), '0'), '.'); ?> BMAN
+                      <?php endif; ?>.
+                    </span>
+                    <!-- Import from HERE, not from the index page. The index
+                         page can only import a batch staged in the same page
+                         session (its JS holds the id in memory), so a batch
+                         staged earlier was previously strandable — reachable in
+                         the history, but with no way to import or discard it. -->
+                    <div class="d-flex flex-wrap gap-2">
+                      <button type="button" class="btn btn-sm btn-primary" id="bmu-import-now"
+                              data-batch="<?php echo (int)$batch['id']; ?>"
+                              data-valid="<?php echo (int)$batch['valid_rows']; ?>"
+                              <?php echo (int)$batch['valid_rows'] > 0 ? '' : 'disabled'; ?>>
+                        <span class="indicator-label">Import <?php echo (int)$batch['valid_rows']; ?> valid row(s)</span>
+                        <span class="indicator-progress">Creating members… <span class="spinner-border spinner-border-sm align-middle ms-2"></span></span>
+                      </button>
+                      <button type="button" class="btn btn-sm btn-light" id="bmu-discard-now"
+                              data-batch="<?php echo (int)$batch['id']; ?>">Discard this batch</button>
+                    </div>
+                  </div>
+                </div>
+                <?php elseif ($bmanPending > 0): ?>
                 <div class="alert alert-warning d-flex align-items-start p-5 mb-5">
                   <i class="ki-outline ki-time fs-2hx text-warning me-4 mt-1"></i>
                   <div class="d-flex flex-column">
-                    <span class="fw-bold">BMAN transfers are queued, not yet sent.</span>
+                    <span class="fw-bold"><?php echo $bmanPending; ?> BMAN transfer(s) queued, not yet sent.</span>
                     <span class="fs-7 text-gray-700">
                       The <span class="bmu-mono">member-bulk-bman-cron</span> sends them from the Treasury wallet on its next pass.
                       Until it runs — and until the cron is both <b>enabled</b> and out of <b>dry-run</b> — no real BMAN moves.
@@ -179,6 +230,48 @@
         confirmButtonText: 'Ok', customClass: { confirmButton: 'btn btn-primary' } });
       else alert(m);
     }
+    async function post(url, fd) {
+      const r = await fetch(base + url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      let j = {}; try { j = await r.json(); } catch (_) {}
+      return { ok: r.ok && j.status === 'success', j };
+    }
+
+    // Import / discard a batch that was staged in an earlier session.
+    const impBtn = document.getElementById('bmu-import-now');
+    if (impBtn) {
+      impBtn.addEventListener('click', async () => {
+        const n = impBtn.dataset.valid;
+        const go = window.Swal
+          ? (await Swal.fire({
+              title: 'Create these members?',
+              text: n + ' member account(s) will be created, each with a generated wallet address. This cannot be undone in bulk.',
+              icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, import',
+              buttonsStyling: false, customClass: { confirmButton: 'btn btn-primary', cancelButton: 'btn btn-light' }
+            })).isConfirmed
+          : confirm('Create ' + n + ' member account(s)?');
+        if (!go) return;
+
+        impBtn.disabled = true; impBtn.setAttribute('data-kt-indicator', 'on');
+        const fd = new FormData(); fd.set('batch_id', impBtn.dataset.batch);
+        const { ok, j } = await post('admin/member/bulk-upload/import', fd);
+        impBtn.setAttribute('data-kt-indicator', 'off');
+        toast(j.message || (ok ? 'Imported.' : 'Import failed.'), ok);
+        if (ok) setTimeout(() => location.reload(), 1200); else impBtn.disabled = false;
+      });
+    }
+
+    const disBtn = document.getElementById('bmu-discard-now');
+    if (disBtn) {
+      disBtn.addEventListener('click', async () => {
+        if (!confirm('Discard this staged batch? Nothing has been created, so nothing is lost.')) return;
+        disBtn.disabled = true;
+        const fd = new FormData(); fd.set('batch_id', disBtn.dataset.batch);
+        const { ok, j } = await post('admin/member/bulk-upload/cancel', fd);
+        toast(j.message || (ok ? 'Discarded.' : 'Failed.'), ok);
+        if (ok) setTimeout(() => location.reload(), 900); else disBtn.disabled = false;
+      });
+    }
+
     document.querySelectorAll('.bmu-requeue').forEach(btn => {
       btn.addEventListener('click', async () => {
         btn.disabled = true;
