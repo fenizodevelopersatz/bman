@@ -123,7 +123,6 @@ class Memberbulkupload extends CI_Controller
             'original_name'    => $file['name'],
             'extension'        => $ext,
             'default_password' => (string)$this->input->post('default_password'),
-            'default_leg'      => (string)$this->input->post('default_leg', true),
             'send_bman'        => $this->input->post('send_bman') ? 1 : 0,
         ], $this->_adminId());
 
@@ -208,9 +207,9 @@ class Memberbulkupload extends CI_Controller
 
         $rows = [
             Memberbulkupload_model::$templateColumns,
-            ['john_doe', 'john@example.com', 'ChangeMe123', $sponsor,       'left',  100],
-            ['jane_doe', 'jane@example.com', '',            $sponsor,       'right', 250.5],
-            ['alex_roy', 'alex@example.com', '',            'L-'.$sponsor,  '',      ''],
+            ['john_doe', 'john@example.com', 'ChangeMe123', $sponsor, 100],
+            ['jane_doe', 'jane@example.com', '',            $sponsor, 250.5],
+            ['alex_roy', 'alex@example.com', '',            $sponsor, ''],
         ];
 
         if (strtolower((string)$this->input->get('format', true)) === 'csv') {
@@ -255,13 +254,15 @@ class Memberbulkupload extends CI_Controller
         if (!$batch) show_404();
 
         $rows = [[
-            'Row', 'Username', 'Email', 'Reference ID', 'Leg', 'BMAN', 'Status',
+            'Row', 'Username', 'Email', 'Reference ID', 'Placed Under', 'Position', 'BMAN', 'Status',
             'Member ID', 'New Referral ID', 'Wallet Address', 'BMAN Status', 'Tx Hash',
             'Exchange Ledger ID', 'Credited At', 'Message',
         ]];
         foreach ($this->bulk->rows($batchId) as $r) {
             $rows[] = [
-                (int)$r['row_number'], $r['username'], $r['email'], $r['reference_id'], $r['leg'],
+                (int)$r['row_number'], $r['username'], $r['email'], $r['reference_id'],
+                $r['placed_under_referral'] ?: ($r['placed_under'] ? '#'.$r['placed_under'] : ''),
+                $r['placed_position'] ? strtoupper($r['placed_position']).($r['placed_type'] === 'auto' ? ' (spillover)' : '') : '',
                 (float)$r['bman_amount'],
                 strtoupper($r['status']),
                 $r['user_id'] !== null ? (int)$r['user_id'] : '',
