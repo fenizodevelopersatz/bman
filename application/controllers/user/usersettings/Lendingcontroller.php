@@ -713,7 +713,9 @@ class Lendingcontroller extends CI_Controller
         }));
 
         // Attach the year-wise Special ROI structure to Special Offer packages
-        // so the card can show the SPECIAL badge + "View ROI Structure" popup.
+        // so the card can show the SPECIAL badge and render the term/monthly/
+        // maturity table inline, and so the SELECT purchase modal can compute
+        // the per-term BMAN figures from it.
         if ($this->db->table_exists('staking_special_roi')) {
             $this->load->model('staking/Specialroi_model', 'specialroi');
             foreach ($active as &$p) {
@@ -839,9 +841,38 @@ class Lendingcontroller extends CI_Controller
         ->get('staking_swap_orders')
         ->result_array();
 
-        // Authoritative Special-Offer flag: which package ids are special right now.
-        // Keyed lookup avoids a per-row join; the package flag is the source of truth
-        // regardless of whether a roi_staking_management row exists yet for the order.
+        // Special-Offer flag, per ORDER — what that purchase actually was.
+        //
+        // This deliberately does NOT read staking_packages.is_special. That flag
+        // describes the package TODAY, so using it here rewrites history: flag a
+        // package special and every past purchase of it retroactively sprouts a
+        // ★ SPECIAL badge; un-flag it and genuinely special purchases silently
+        // lose theirs. `user_stakes.is_special` is stamped when the stake is
+        // created and never changes, so it is the honest source for history.
+        //
+        // An order with no stake row yet is still in flight (the purchase cron
+        // has not created it). For those — and only those — the package's
+        // current flag IS the truth, because the purchase is happening under
+        // today's terms. Hence the fallback.
+        $orderIds = array_map(function ($o) { return (int)$o['id']; }, $orders);
+
+        $specialByOrder = [];
+        if ($orderIds && $this->db->table_exists('user_stakes')
+            && $this->db->field_exists('is_special', 'user_stakes')
+            && $this->db->field_exists('swap_order_id', 'user_stakes')) {
+            $stakes = $this->db->select('swap_order_id, is_special')
+                ->where_in('swap_order_id', $orderIds)
+                ->where('swap_order_id IS NOT NULL', null, false)
+                ->get('user_stakes')->result_array();
+            foreach ($stakes as $s) {
+                // A combo purchase can produce more than one stake row for an
+                // order; treat the order as special if any of them is.
+                $sid = (int)$s['swap_order_id'];
+                $specialByOrder[$sid] = !empty($specialByOrder[$sid]) || !empty($s['is_special']);
+            }
+        }
+
+        // Fallback for in-flight orders only.
         $specialPkgIds = [];
         if ($this->db->table_exists('staking_packages') && $this->db->field_exists('is_special', 'staking_packages')) {
             $sp = $this->db->select('id')->where('is_special', 1)->get('staking_packages')->result_array();
@@ -877,7 +908,11 @@ class Lendingcontroller extends CI_Controller
                 'bonus_cron_status' => $o['bonus_cron_status'],
                 'bman_cron_status' => $o['bman_cron_status'],
                 'error' => $o['error'],
-                'is_special' => isset($specialPkgIds[(int)$o['package_id']]) ? 1 : 0,
+                // Stake row wins when it exists; the live package flag only
+                // covers an order whose stake has not been created yet.
+                'is_special' => array_key_exists((int)$o['id'], $specialByOrder)
+                    ? ($specialByOrder[(int)$o['id']] ? 1 : 0)
+                    : (isset($specialPkgIds[(int)$o['package_id']]) ? 1 : 0),
             ];
         }
 
