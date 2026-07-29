@@ -78,12 +78,63 @@ class Memberbulkupload_model extends CI_Model
 
     /* ================================ read =============================== */
 
+    /**
+     * Upload history, each batch carrying its on-chain delivery rollup so the
+     * history table doubles as the audit view: how many BMAN transfers were
+     * sent, credited, still queued or failed, and the most recent tx hash.
+     *
+     * The rollup is a SECOND query merged in PHP rather than a GROUP BY joined
+     * onto `b.*`. Under ONLY_FULL_GROUP_BY that join would have to list every
+     * batch column explicitly (or rely on functional-dependency detection that
+     * differs between MySQL and MariaDB), and this table is small enough that
+     * one extra indexed query is cheaper than that fragility.
+     */
     public function batches($limit = 50, $offset = 0)
     {
-        return $this->db->select('b.*, a.admin_name, a.admin_email')
+        $batches = $this->db->select('b.*, a.admin_name, a.admin_email')
             ->from('member_bulk_upload_batches b')
             ->join('admin_members a', 'a.id = b.admin_id', 'left')
             ->order_by('b.id', 'DESC')->limit($limit, $offset)->get()->result_array();
+        if (!$batches) return [];
+
+        $empty = ['bman_pending' => 0, 'bman_processing' => 0, 'bman_sent' => 0, 'bman_failed' => 0,
+                  'bman_credited' => 0, 'bman_sent_amount' => '0', 'last_tx_hash' => null, 'last_sent_at' => null];
+
+        $stats = [];
+        foreach ($this->db->select(
+                "batch_id,
+                 SUM(bman_status = 'pending')    AS bman_pending,
+                 SUM(bman_status = 'processing') AS bman_processing,
+                 SUM(bman_status = 'completed')  AS bman_sent,
+                 SUM(bman_status = 'failed')     AS bman_failed,
+                 SUM(bman_ledger_id IS NOT NULL) AS bman_credited,
+                 COALESCE(SUM(CASE WHEN bman_status = 'completed' THEN bman_amount ELSE 0 END), 0) AS bman_sent_amount,
+                 MAX(bman_sent_at) AS last_sent_at", false)
+            ->where_in('batch_id', array_column($batches, 'id'))
+            ->group_by('batch_id')->get('member_bulk_upload_rows')->result_array() as $s) {
+            $stats[(int)$s['batch_id']] = $s;
+        }
+
+        // Most recent tx hash per batch — MAX(bman_sent_at) above gives the
+        // time, but the hash has to come from the actual row.
+        $hashes = [];
+        foreach ($this->db->select('batch_id, bman_tx_hash, bman_sent_at')
+            ->where_in('batch_id', array_column($batches, 'id'))
+            ->where('bman_tx_hash IS NOT NULL', null, false)
+            ->order_by('bman_sent_at', 'DESC')->order_by('id', 'DESC')
+            ->get('member_bulk_upload_rows')->result_array() as $h) {
+            $bid = (int)$h['batch_id'];
+            if (!isset($hashes[$bid])) $hashes[$bid] = $h['bman_tx_hash'];
+        }
+
+        foreach ($batches as &$b) {
+            $id = (int)$b['id'];
+            $b = array_merge($b, $empty, $stats[$id] ?? []);
+            $b['last_tx_hash'] = $hashes[$id] ?? null;
+        }
+        unset($b);
+
+        return $batches;
     }
 
     public function batch($batchId)
