@@ -108,7 +108,6 @@ $hero_progress = 48;
 
 <head>
   <?php $this->load->view('user/layout/v2/user_style'); ?>
-  <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <style>
     /* ===================== BASE UI (YOUR EXISTING) ===================== */
     .titlebar {
@@ -1038,6 +1037,19 @@ $hero_progress = 48;
       font-weight: 1200;
     }
 
+    /* .table-scroll is used as a wrapper around two tables on this page (one
+       server-rendered, one built by JS in the investment-details modal) but
+       was never actually defined anywhere — meaning it did nothing, and a
+       table with an explicit min-width could overflow the page horizontally
+       on narrow screens. Defining it here fixes both usages at once. */
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* ===== SHARED BREAKPOINT SCALE — see assets/user_v2/css/style.css =====
+       1400 xxl · 1200 xl · 1024 lg (must match user_sidebar.php JS) · 768 md · 600 sm · 380 xs
+       ===================================================================== */
     @media (max-width: 1200px) {
       .kpi-grid {
         grid-template-columns: repeat(3, 1fr);
@@ -1048,7 +1060,7 @@ $hero_progress = 48;
       }
     }
 
-    @media (max-width: 700px) {
+    @media (max-width: 768px) {
       .kpi-grid {
         grid-template-columns: repeat(2, 1fr);
       }
@@ -1059,6 +1071,12 @@ $hero_progress = 48;
 
       .banner-content h2 {
         font-size: 24px;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .kpi-grid {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -1243,7 +1261,7 @@ $hero_progress = 48;
         </div>
         <div style="padding:16px 20px;">
           <div class="table-scroll">
-            <table class="table" style="border-spacing:0 8px;min-width:920px;">
+            <table class="table resp-card" style="border-spacing:0 8px;">
               <thead>
                 <tr><th>Date</th><th>Type</th><th>USDT</th><th>BMAN</th><th>Status</th><th>Description</th><th>Action</th></tr>
               </thead>
@@ -1252,16 +1270,16 @@ $hero_progress = 48;
                   <tr><td colspan="7" style="text-align:center;color:#9ca3af;padding:18px;">No recent staking activity found.</td></tr>
                 <?php else: foreach ($recent_staking_activity as $row): ?>
                   <tr style="cursor:pointer;transition:background 0.2s;" onclick="showSwapDetails(<?= (int)($row->order_id ?? 0) ?>)" onmouseover="this.style.background='#f9f9fb'" onmouseout="this.style.background=''">
-                    <td style="font-size:12px;"><?= htmlspecialchars((string)($row->history_date ?? '—')) ?></td>
-                    <td>
+                    <td data-label="Date" style="font-size:12px;"><?= htmlspecialchars((string)($row->history_date ?? '—')) ?></td>
+                    <td data-label="Type">
                       <b><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string)($row->type ?? '—')))) ?></b>
                       <?php if (!empty($row->is_special)): ?>
                         <span style="display:inline-block;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:900;font-size:9px;letter-spacing:.3px;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:middle;">★ SPECIAL</span>
                       <?php endif; ?>
                     </td>
-                    <td><?= number_format((float)($row->amount ?? 0), 2) ?></td>
-                    <td><?= number_format((float)($row->token_amount ?? 0), 0) ?></td>
-                    <td>
+                    <td data-label="USDT"><?= number_format((float)($row->amount ?? 0), 2) ?></td>
+                    <td data-label="BMAN"><?= number_format((float)($row->token_amount ?? 0), 0) ?></td>
+                    <td data-label="Status">
                       <?php
                         $status = $row->status ?? '—';
                         $badge_class = 'secondary';
@@ -1274,8 +1292,8 @@ $hero_progress = 48;
                         <?= $status_label ?>
                       </span>
                     </td>
-                    <td style="font-size:11px;color:#666;"><?= htmlspecialchars((string)($row->description ?? '—')) ?></td>
-                    <td><button class="btn-soft" onclick="event.stopPropagation();showSwapDetails(<?= (int)($row->order_id ?? 0) ?>)" style="padding:6px 10px;font-size:11px;">Details</button></td>
+                    <td data-label="Description" style="font-size:11px;color:#666;"><?= htmlspecialchars((string)($row->description ?? '—')) ?></td>
+                    <td data-label=""><button class="btn-soft" onclick="event.stopPropagation();showSwapDetails(<?= (int)($row->order_id ?? 0) ?>)" style="padding:6px 10px;font-size:11px;">Details</button></td>
                   </tr>
                 <?php endforeach; endif; ?>
               </tbody>
@@ -2136,7 +2154,7 @@ $hero_progress = 48;
           <b>Package:</b> ${data.investment.package} &nbsp; | &nbsp;          
         </div>
 <div class="table-scroll">
-        <table class="table" style="width:100%; border-spacing:0 8px;">
+        <table class="table resp-card" style="width:100%; border-spacing:0 8px;">
           <thead>
             <tr>
               <th>Date</th>
@@ -2155,11 +2173,11 @@ $hero_progress = 48;
           data.rows.forEach(r => {
             html += `
             <tr style="background:#fbfbff; border:1px solid rgba(17,24,39,.06);">
-              <td>${r.history_date}</td>
-              <td>${r.type}</td>
-              <td><b>${r.amount}</b></td>
-              <td>${r.description}</td>
-              <td>${r.status == 1 ? "Success" : "Pending"}</td>
+              <td data-label="Date">${r.history_date}</td>
+              <td data-label="Type">${r.type}</td>
+              <td data-label="Amount"><b>${r.amount}</b></td>
+              <td data-label="Description">${r.description}</td>
+              <td data-label="Status">${r.status == 1 ? "Success" : "Pending"}</td>
             </tr>
           `;
           });

@@ -220,9 +220,11 @@ function renderExistingPreview($url, $title)
 
 <head>
   <?php $this->load->view('user/layout/v2/user_style'); ?>
-  <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
   <style>
+    /* ===== SHARED BREAKPOINT SCALE — see assets/user_v2/css/style.css =====
+       1400 xxl · 1200 xl · 1024 lg (must match user_sidebar.php JS) · 768 md · 600 sm · 380 xs
+       ===================================================================== */
     /* (your existing styles - kept as-is) */
     .titlebar {
       display: flex;
@@ -230,6 +232,7 @@ function renderExistingPreview($url, $title)
       align-items: flex-end;
       gap: 12px;
       margin: 8px 0 16px;
+      flex-wrap: wrap;
     }
 
     .titlebar h2 {
@@ -414,11 +417,10 @@ function renderExistingPreview($url, $title)
       display: block;
     }
 
-    .form-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-    }
+    /* .form-grid is redefined below (KYC PAGE style block) as a 12-column grid
+       that wins by source order — this 2-column declaration is dead. Plain
+       .field elements (this tab, the password modal) get their span from the
+       ".form-grid > .field" rule added next to that later definition. */
 
     .profile-grid {
       grid-template-columns: repeat(12, minmax(0, 1fr));
@@ -493,6 +495,11 @@ function renderExistingPreview($url, $title)
       display: flex;
       gap: 12px;
       align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .pn {
+      min-width: 0;
     }
 
     .ava {
@@ -807,10 +814,6 @@ function renderExistingPreview($url, $title)
       .grid-2 {
         grid-template-columns: 1fr;
       }
-
-      .form-grid {
-        grid-template-columns: 1fr;
-      }
     }
   </style>
   <style>
@@ -857,6 +860,7 @@ function renderExistingPreview($url, $title)
       align-items: center;
       justify-content: space-between;
       gap: 12px;
+      flex-wrap: wrap;
       background: linear-gradient(105deg, rgba(110, 86, 207, 0.12), rgba(110, 86, 207, 0.02));
       border-bottom: 1px solid #f5f5f7;
     }
@@ -977,6 +981,16 @@ function renderExistingPreview($url, $title)
       display: grid;
       grid-template-columns: repeat(12, 1fr);
       gap: 12px;
+    }
+
+    /* Plain .field children (Profile tab, password modal) don't use the KYC
+       form's .fg/.col-* span classes, so give them a sensible default half-width.
+       :not(.full) matters here, not just documents intent — .field.full is a
+       single class (specificity 0,1,0), which this 2-class compound selector
+       would otherwise beat regardless of source order, silently halving every
+       "full width" field instead of letting .full's 1/-1 apply. */
+    .form-grid > .field:not(.full) {
+      grid-column: span 6;
     }
 
     .fg {
@@ -1199,22 +1213,10 @@ function renderExistingPreview($url, $title)
     }
 
     /* Responsive */
-    @media(max-width: 1200px) {
-      .kyc-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media(max-width: 900px) {
-      .profile-grid .field,
-      .profile-grid .field.span-6 {
-        grid-column: span 6;
-      }
-
-      .profile-grid .field.span-12 {
-        grid-column: 1/-1;
-      }
-
+    /* .kyc-grid's own @media(max-width:1200px) fold removed — that class is
+       never applied to any element (the wrapping <div class="kyc-grid"> is
+       HTML-commented-out above), so the rule was always a no-op. */
+    @media(max-width: 768px) {
       .col-6 {
         grid-column: span 12;
       }
@@ -1226,17 +1228,32 @@ function renderExistingPreview($url, $title)
       .col-3 {
         grid-column: span 12;
       }
+
+      /* Login/New/Confirm currently share a hardcoded 3-column inline grid
+         (Security tab, #transferPwForm) — !important since only an inline
+         style itself otherwise beats another inline style. */
+      #transferPwForm {
+        grid-template-columns: 1fr !important;
+      }
     }
 
-    @media(max-width: 640px) {
-      .profile-grid .field,
-      .profile-grid .field.span-6 {
-        grid-column: 1/-1;
-      }
-
+    @media(max-width: 600px) {
       .upload {
         align-items: flex-start;
         flex-direction: column;
+      }
+
+      /* Stacks the Profile tab's fields and the password modal's New/Confirm
+         pair — must come after the 12-column .form-grid definition above to
+         actually win (media queries don't add specificity or reorder rules). */
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      /* Without this, the child's still-active "span 6" would force Grid to
+         auto-generate extra implicit columns instead of actually stacking. */
+      .form-grid > .field {
+        grid-column: 1/-1;
       }
     }
 
@@ -1903,11 +1920,6 @@ function renderExistingPreview($url, $title)
                   .wl-dep{display:flex;gap:18px;flex-wrap:wrap;align-items:center;border:1px dashed #c9cee0;border-radius:12px;padding:16px;background:#fafbff}
                   .wl-dep img{width:132px;height:132px;border-radius:10px;border:1px solid #e6e8ef;background:#fff}
                   .wl-addr{font-family:monospace;word-break:break-all;background:#fff;border:1px solid #e6e8ef;border-radius:8px;padding:8px 10px}
-                  .wl-tables{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}
-                  @media(max-width:800px){.wl-tables{grid-template-columns:1fr}}
-                  .wl-tbl{width:100%;border-collapse:collapse;font-size:.82rem}
-                  .wl-tbl th,.wl-tbl td{border-bottom:1px solid #eef0f6;padding:7px 8px;text-align:left}
-                  .wl-tbl th{color:#7a7f9a;text-transform:uppercase;font-size:.66rem}
                   .wl-badge{padding:2px 8px;border-radius:20px;font-size:.68rem;font-weight:600}
                   .wl-ok{background:#e7f9ef;color:#149a55}.wl-warn{background:#fff4e0;color:#b5730a}.wl-mut{background:#eef0f6;color:#7a7f9a}
                   .wl-diff-box{margin-top:12px}

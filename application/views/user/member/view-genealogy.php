@@ -20,10 +20,12 @@
 
 <head>
   <?php $this->load->view('user/layout/v2/user_style'); ?>
-  <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <style>
     /* ===================== BINARY TREE ===================== */
+    /* ===== SHARED BREAKPOINT SCALE — see assets/user_v2/css/style.css =====
+       1400 xxl · 1200 xl · 1024 lg (must match user_sidebar.php JS) · 768 md · 600 sm · 380 xs
+       ===================================================================== */
     .page-titlebar {
       display: flex;
       align-items: flex-end;
@@ -916,19 +918,14 @@
         grid-template-columns: 1fr;
       }
 
-      .tree-inner {
-        min-width: 780px;
-      }
-
-      .node {
-        width: 208px;
-      }
+      /* .tree-inner/.node width no longer forced here — below 768px the
+         binary tab renders via renderCompactMobile(), not this scrolling tree. */
     }
 
     /* ===================== RESPONSIVE PATCH: BINARY TREE (ADD AT END) ===================== */
 
     /* Tablet */
-    @media (max-width: 992px) {
+    @media (max-width: 1024px) {
       .page-titlebar {
         align-items: flex-start;
         flex-direction: column;
@@ -947,13 +944,8 @@
         justify-content: center;
       }
 
-      .sum-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-
-      .grid-2 {
-        grid-template-columns: 1fr;
-      }
+      /* .sum-grid/.grid-2 already set by the 1200px block above — same values,
+         still in effect down through this tier. */
 
       .tree-canvas {
         height: 60vh;
@@ -962,7 +954,7 @@
 
       .tree-inner {
         min-width: 860px;
-        /* still scrollable but less wide */
+        /* still scrollable but less wide — this tier keeps the desktop tree */
       }
 
       .node-btm {
@@ -1054,23 +1046,20 @@
         padding: 6px 9px;
       }
 
-      /* Tree canvas: better mobile height */
-      .tree-canvas {
-        height: 56vh;
-        min-height: 500px;
-        padding: 18px 12px 14px;
-      }
+      /* Tree canvas/.tree-inner min-width and .tree ul/li connector spacing
+         removed here — below 768px renderCompactMobile() replaces the
+         connector-line tree entirely, so those band-aid rules no longer apply. */
 
-      /* Keep the tree scrollable without forcing too wide */
-      .tree-inner {
-        min-width: 760px;
-      }
-
-      /* Node smaller */
+      /* Node smaller (compact mobile cards; width itself comes from the
+         .tree-compact .node rule in the 768px block) */
       .node {
-        width: 200px;
         border-radius: 20px;
         padding: 11px;
+      }
+
+      /* Focus/children stack full-width below 600px too */
+      .tc-children {
+        flex-direction: column;
       }
 
       .av {
@@ -1092,16 +1081,6 @@
       .pill {
         padding: 7px 9px;
         font-size: 9px;
-      }
-
-      /* Reduce spacing between branches */
-      .tree ul {
-        gap: 24px;
-        padding-top: 34px;
-      }
-
-      .tree li {
-        padding: 34px 8px 0 8px;
       }
 
       /* Side panel */
@@ -1136,18 +1115,89 @@
       }
     }
 
-    /* Very small phones */
-    @media (max-width: 380px) {
-      .tree-inner {
-        min-width: 720px;
+    /* Compact mobile binary-tree view — focus node + Left/Right children only,
+       replacing the connector-line org chart below 768px. Populated by
+       renderCompactMobile(); see the script block near renderBinaryProgressive(). */
+    @media (max-width: 768px) {
+      .tree-canvas.tc-active {
+        height: auto;
+        min-height: 0;
+        overflow: visible;
+        padding: 16px 14px;
       }
 
-      .node {
-        width: 190px;
+      /* .tree-inner's base width:max-content (needed so the desktop tree can
+         grow wider than its canvas and scroll) would otherwise starve the
+         compact view's flex children of a real width to fill. */
+      .tree-canvas.tc-active .tree-inner {
+        width: 100%;
       }
 
-      .nm {
-        max-width: 124px;
+      .tree-compact {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        width: 100%;
+      }
+
+      .tc-tag {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10px;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: .3px;
+        color: var(--primary, #6e56cf);
+        margin-bottom: 8px;
+      }
+
+      .tc-children {
+        display: flex;
+        gap: 12px;
+      }
+
+      .tc-child-col {
+        flex: 1 1 0;
+        min-width: 0;
+      }
+
+      .tc-child-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 900;
+        color: #6b7280;
+        margin-bottom: 8px;
+      }
+
+      /* !important: wins over the pre-existing "Compact" toolbar button,
+         which sets an inline node width for the desktop tree's density
+         toggle — a fixed small width doesn't apply to this full-width layout. */
+      .tree-compact .node,
+      .tree-compact .more-node {
+        width: 100% !important;
+      }
+
+      .tc-empty-slot {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 110px;
+        border: 1.5px dashed #e5e7eb;
+        border-radius: 20px;
+        color: #9ca3af;
+        font-size: 11px;
+        font-weight: 800;
+        text-align: center;
+        padding: 12px;
+      }
+
+      .tc-empty-slot i {
+        font-size: 20px;
       }
     }
   </style>
@@ -1513,6 +1563,13 @@
     let CURRENT_VIEW = 'binary';
     let CURRENT_DEPTH = 10;
 
+    // Below this width the binary tab renders as a single-focus compact card
+    // stack (renderCompactMobile) instead of the full connector-line org chart.
+    const treeMobileMq = window.matchMedia('(max-width: 768px)');
+    treeMobileMq.addEventListener('change', () => {
+      if (CURRENT_VIEW === 'binary') renderCurrentView(CURRENT_DEPTH);
+    });
+
     function setTreeView(view, ev) {
       CURRENT_VIEW = view;
       document.querySelectorAll('.tv-tab').forEach(t => t.classList.remove('active'));
@@ -1526,10 +1583,14 @@
       RENDER_TOKEN++;
       const root = document.getElementById('treeRoot');
       const inner = document.getElementById('treeInner');
+      const canvas = document.getElementById('treeCanvas');
+      const mobileBinary = CURRENT_VIEW === 'binary' && treeMobileMq.matches;
       // Reset zoom/transform for the flat (non-binary) layouts.
       scale = 1; inner.style.transform = 'scale(1)';
-      // Binary tree needs the wide canvas; flat views should fit the container.
-      inner.style.minWidth = (CURRENT_VIEW === 'binary') ? '' : 'auto';
+      // Binary tree needs the wide canvas; flat views and the compact mobile
+      // binary view should both fit the container instead.
+      inner.style.minWidth = (CURRENT_VIEW === 'binary' && !mobileBinary) ? '' : 'auto';
+      canvas.classList.toggle('tc-active', mobileBinary);
 
       switch (CURRENT_VIEW) {
         case 'genealogy':  renderGenealogy(); break;
@@ -1538,8 +1599,13 @@
         case 'direct':     renderDirect(); break;
         case 'binary':
         default:
-          root.className = 'tree';
-          renderBinaryProgressive(CURRENT_DEPTH); // progressive, lag-free load
+          if (mobileBinary) {
+            root.className = 'tree-compact';
+            renderCompactMobile();
+          } else {
+            root.className = 'tree';
+            renderBinaryProgressive(CURRENT_DEPTH); // progressive, lag-free load
+          }
       }
     }
 
@@ -1806,6 +1872,57 @@
       attachSearchIndex();
       const firstNode = document.querySelector(".node");
       if (firstNode) selectNode(firstNode);
+    }
+
+    // ======= Compact mobile view (binary tab, ≤768px) =======
+    // Small screens can't show a multi-level connector tree without forcing
+    // horizontal scroll, so below 768px we show just the current focus node
+    // (TREE) plus its two direct children, and let tapping a child descend
+    // into it — reusing renderNode()/drillIntoEl()/ROOT_STACK verbatim so the
+    // side panel, search index, and PNG export all keep working unmodified.
+    function childCellHtml(parent, side) {
+      const child = parent ? parent[side] : null;
+      const position = side.toUpperCase();
+      let html = child ? renderNode(child, position) : "";
+      if (!html) {
+        const hasMore = parent && (side === 'left' ? parent.left_has_more : parent.right_has_more);
+        html = hasMore
+          ? moreNodeHtml(parent, side)
+          : `<div class="tc-empty-slot"><i class="ph ph-user-plus"></i><span>No ${position === 'LEFT' ? 'Left' : 'Right'} Member Yet</span></div>`;
+      }
+      return html;
+    }
+
+    function renderCompactMobile() {
+      const root = document.getElementById('treeRoot');
+      precomputeSums(TREE);
+
+      const focusHtml = renderNode(TREE, '') || '<div class="alt-empty">No team member here yet.</div>';
+
+      root.innerHTML = `
+        <div class="tc-focus-wrap">
+          <div class="tc-tag"><i class="ph ph-crosshair-simple"></i> Currently Viewing</div>
+          ${focusHtml}
+        </div>
+        <div class="tc-children">
+          <div class="tc-child-col">
+            <div class="tc-child-label"><i class="ph ph-arrow-circle-left"></i> Left Leg</div>
+            ${childCellHtml(TREE, 'left')}
+          </div>
+          <div class="tc-child-col">
+            <div class="tc-child-label"><i class="ph ph-arrow-circle-right"></i> Right Leg</div>
+            ${childCellHtml(TREE, 'right')}
+          </div>
+        </div>`;
+
+      // Children descend one level on tap; the focus card keeps selectNode().
+      root.querySelectorAll('.tc-children .node[data-position]').forEach(el => {
+        el.onclick = function () { drillIntoEl(this); };
+      });
+
+      attachSearchIndex();
+      const focusEl = root.querySelector('.tc-focus-wrap .node');
+      if (focusEl) selectNode(focusEl);
     }
 
     function zoomBy(delta) {
