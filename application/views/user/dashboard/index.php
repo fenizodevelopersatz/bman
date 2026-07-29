@@ -276,58 +276,18 @@
       background: #111;
     }
 
-    /* ---------- Default: keep desktop as-is ---------- */
+    /* ===== SHARED BREAKPOINT SCALE — see assets/user_v2/css/style.css =====
+       1400 xxl · 1200 xl · 1024 lg (must match user_sidebar.php JS) · 768 md · 600 sm · 380 xs
+       ===================================================================== */
 
-    /* ---------- Tablet (<= 992px) ---------- */
+    /* This block used to also redeclare .app-container/.sidebar/.sidebar-backdrop/
+       .main-content/.right-panel with !important, fully duplicating (and, because
+       of !important, permanently overriding) the shared shell rules in
+       assets/user_v2/css/style.css. Removed — the shared rules already cover
+       the sidebar off-canvas drawer and the right-panel reflow correctly, and
+       letting them apply here too is exactly the point of centralizing them.
+       Everything below is genuinely dashboard-specific component CSS. */
     @media (max-width: 1024px) {
-      .app-container {
-        display: block !important;
-      }
-
-      .sidebar {
-        position: fixed !important;
-        left: 0;
-        top: 0;
-        height: 100vh;
-        width: 280px;
-        max-width: 85vw;
-        transform: translateX(-110%);
-        transition: .25s ease;
-        z-index: 99999;
-        background: #fff;
-        box-shadow: 20px 0 60px rgba(0, 0, 0, .15);
-      }
-
-      .sidebar.open {
-        transform: translateX(0);
-      }
-
-      .sidebar-backdrop {
-        position: fixed;
-        inset: 0;
-        background: rgba(0, 0, 0, .35);
-        z-index: 99998;
-        display: none;
-      }
-
-      .sidebar-backdrop.show {
-        display: block;
-      }
-
-      .main-content {
-        width: 100% !important;
-        margin-left: 0 !important;
-        padding: 14px !important;
-      }
-
-      .right-panel {
-        width: 100% !important;
-        position: static !important;
-        height: auto !important;
-        overflow: visible !important;
-        margin-top: 12px !important;
-      }
-
       /* Banner stacks */
       .hero-grid {
         grid-template-columns: 1fr !important;
@@ -377,16 +337,7 @@
       }
     }
 
-    /* ---------- Mobile (<= 576px) ---------- */
-    @media (max-width: 576px) {
-      .main-content {
-        padding: 12px !important;
-      }
-
-      .right-panel {
-        margin-top: 12px !important;
-      }
-
+    @media (max-width: 600px) {
       /* Banner padding */
       .banner-wrapper {
         border-radius: 18px !important;
@@ -477,7 +428,7 @@
     }
 
     /* ---------- Optional: smaller font fixes ---------- */
-    @media (max-width: 360px) {
+    @media (max-width: 380px) {
       .hero-title {
         font-size: 16px !important;
       }
@@ -554,7 +505,7 @@
           background:linear-gradient(120deg,#6C4CF1,#4E2CF0); color:#fff; }
         .ann-empty h2{ margin:0; font-size:19px; font-weight:800; opacity:.94; }
 
-        @media (max-width:640px){
+        @media (max-width:600px){
           .ann-rotator{ min-height:200px; }
           .ann-slide__content{ padding:22px 22px; max-width:100%; }
           .ann-slide__title{ font-size:20px; }
@@ -733,7 +684,7 @@
         .dash-special-offer .dso-text small{ display:block; font-size:12.5px; opacity:.92; margin-top:2px; }
         .dash-special-offer .dso-cta{ display:inline-flex; align-items:center; gap:8px; flex:0 0 auto;
           background:#fff; color:#b45309; font-weight:900; font-size:13.5px; padding:10px 16px; border-radius:12px; white-space:nowrap; }
-        @media (max-width:560px){ .dash-special-offer{ flex-direction:column; align-items:stretch; text-align:center; }
+        @media (max-width:600px){ .dash-special-offer{ flex-direction:column; align-items:stretch; text-align:center; }
           .dash-special-offer .dso-left{ justify-content:center; } .dash-special-offer .dso-cta{ justify-content:center; } }
       </style>
       <?php endif; ?>
@@ -771,9 +722,7 @@
         .fin-filter button{ border:none; background:transparent; padding:6px 16px; border-radius:30px; font-weight:600;
           font-size:13px; color:var(--bs-secondary-color,#6b7280); cursor:pointer; transition:.2s; }
         .fin-filter button.active{ background:var(--mp-primary,#6D4AFF); color:#fff; }
-        .fin-chart-body{ position:relative; height:300px; }
-      </style>
-      <style>
+
         /* KPI cards — one per series, dot colour-matched to its dataset. */
         .fin-tiles{ display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin:18px 0 8px; }
         .fin-tile{ border:1px solid var(--c-line); border-radius:14px; padding:12px 14px;
@@ -789,8 +738,17 @@
           background:linear-gradient(90deg,#e9edf3 25%,#f6f8fb 50%,#e9edf3 75%);
           background-size:200% 100%; animation:finsh 1.3s infinite; }
         @keyframes finsh{ 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+        /* .fin-chart-body's height was declared twice (300px here, then 420px
+           below in a second <style> block) — the second silently won on every
+           screen size since Chart.js's responsive:true+maintainAspectRatio:false
+           config (see the init script below) just fills whatever height the
+           CSS gives this container. Merged into one declaration, with shorter
+           heights at the shared md/sm tiers so the chart doesn't force extra
+           scroll on tablet/phone. */
         .fin-chart-body{ position:relative; height:420px; margin-top:8px; }
-        @media (max-width:760px){ .fin-tiles{ grid-template-columns:repeat(2,1fr); } }
+        @media (max-width:768px){ .fin-tiles{ grid-template-columns:repeat(2,1fr); } .fin-chart-body{ height:320px; } }
+        @media (max-width:600px){ .fin-chart-body{ height:260px; } }
       </style>
       <div class="fin-chart-card">
         <div class="fin-chart-head">
@@ -871,9 +829,9 @@
         .wallet-meta strong u{ text-decoration:none; font-size:11px; font-weight:600;
           color:var(--bs-secondary-color,#8a8f99); margin-left:3px; }
         .wallet-meta span{ font-size:10.5px; color:var(--bs-secondary-color,#8a8f99); }
-        @media (max-width:1280px){ .wallet-grid{ grid-template-columns:repeat(3,1fr); } }
-        @media (max-width:760px){  .wallet-grid{ grid-template-columns:repeat(2,1fr); } }
-        @media (max-width:420px){  .wallet-grid{ grid-template-columns:1fr; } }
+        @media (max-width:1200px){ .wallet-grid{ grid-template-columns:repeat(3,1fr); } }
+        @media (max-width:768px){  .wallet-grid{ grid-template-columns:repeat(2,1fr); } }
+        @media (max-width:380px){  .wallet-grid{ grid-template-columns:1fr; } }
       </style>
 
       <!-- Wallets -->
@@ -1170,7 +1128,9 @@
   <script src="<?php echo base_url(); ?>/assets/user/plugins/global/plugins.bundle.js"></script>
   <script src="<?php echo base_url(); ?>/assets/user/js/scripts.bundle.js"></script>
 
-  <script src="<?php echo base_url(); ?>/assets/user/plugins/custom/datatables/datatables.bundle.js"></script>
+  <!-- DataTables bundle removed: this page has no <table> and never calls
+       .DataTable() — it was dead weight, and jQuery (which it depends on)
+       is already disabled above. -->
   <!--end::Vendors Javascript-->
 
   <!--begin::Custom Javascript(used for this page only)-->
@@ -1180,7 +1140,7 @@
   <script src="<?php echo base_url('assets/js/vendor/qrcode.min.js'); ?>"></script>
   <script>
     const base_url = "<?php echo base_url(); ?>";
-    const agent_id = "<?php echo $this->session->userdata('user_get_id'); ?>";
+    const agent_id = "<?php echo $this->session->userdata('user_userid'); ?>";
     const currency_symbol = "<?php echo currency_info()->currency_symbol; ?>";
   </script>
   <script src="<?php echo base_url(); ?>/assets/user_v2/js/script.js?ver=2.9"></script>

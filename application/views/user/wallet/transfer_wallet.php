@@ -578,7 +578,9 @@
     .wt-modal-close:hover { background: rgba(255,255,255,.2); }
     .wt-modal-body { padding: 24px; }
 
-    /* ─── Responsive ─── */
+    /* ===== SHARED BREAKPOINT SCALE — see assets/user_v2/css/style.css =====
+       1400 xxl · 1200 xl · 1024 lg (must match user_sidebar.php JS) · 768 md · 600 sm · 380 xs
+       ===================================================================== */
     @media (max-width: 1200px) {
       .transfer-layout { grid-template-columns: 1fr; }
       .wallet-tiles { grid-template-columns: repeat(2, 1fr); }
@@ -588,7 +590,7 @@
       .wt-select-row { grid-template-columns: 1fr auto 1fr; }
       .filter-bar { padding: 10px 14px; }
     }
-    @media (max-width: 440px) {
+    @media (max-width: 380px) {
       .wallet-tiles { grid-template-columns: 1fr; }
     }
   </style>
@@ -827,7 +829,7 @@
           </div>
           <?php else: ?>
           <?php $curUid = (int)($user['id'] ?? 0); ?>
-          <table class="tx-table">
+          <table class="tx-table resp-card">
             <thead>
               <tr>
                 <th>Reference</th>
@@ -850,26 +852,26 @@
                 $recvName = $isSelf ? 'Self' : (($tx['recipient_name'] ?? '') ?: ('#'.$tx['to_user_id']));
                 if (!$isSelf && (int)$tx['to_user_id'] === $curUid) $recvName .= ' (You)'; ?>
               <tr>
-                <td>
+                <td data-label="Reference">
                   <span class="ref-text" style="cursor:pointer;" onclick="WalletTransferUI.openDetail('<?= htmlspecialchars($tx['ref']) ?>')"
                         title="View details"><?= htmlspecialchars($tx['ref']) ?></span>
                   <div style="font-size:10.5px;color:var(--text-muted);font-weight:700;">TXN <?= htmlspecialchars($tx['txn_uid'] ?? '—') ?></div>
                 </td>
-                <td style="font-size:12.5px;font-weight:700;">
+                <td data-label="Sender" style="font-size:12.5px;font-weight:700;">
                   <?= htmlspecialchars($senderName) ?>
                   <?php if (!empty($tx['sender_ref'])): ?><div style="font-size:10.5px;color:var(--text-muted);"><?= htmlspecialchars($tx['sender_ref']) ?></div><?php endif; ?>
                 </td>
-                <td style="font-size:12.5px;font-weight:700;">
+                <td data-label="Receiver" style="font-size:12.5px;font-weight:700;">
                   <?php if ($isSelf): ?><span class="wallet-badge" style="background:#eef2ff;color:#3730a3;">Self</span>
                   <?php else: ?><?= htmlspecialchars($recvName) ?>
                     <?php if (!empty($tx['recipient_ref'])): ?><div style="font-size:10.5px;color:var(--text-muted);"><?= htmlspecialchars($tx['recipient_ref']) ?></div><?php endif; ?>
                   <?php endif; ?>
                 </td>
-                <td><span class="wallet-badge wb-<?= $tx['from_wallet'] ?>"><?= ucfirst($tx['from_wallet']) ?></span></td>
-                <td><span class="wallet-badge wb-<?= $tx['to_wallet'] ?>"><?= ucfirst($tx['to_wallet']) ?></span></td>
-                <td class="amt-cell"><?= number_format((float)$tx['amount'], 4) ?></td>
-                <td><span class="wallet-badge" style="background:#f1f5f9;color:#334155;">BMAN</span></td>
-                <td>
+                <td data-label="From"><span class="wallet-badge wb-<?= $tx['from_wallet'] ?>"><?= ucfirst($tx['from_wallet']) ?></span></td>
+                <td data-label="To"><span class="wallet-badge wb-<?= $tx['to_wallet'] ?>"><?= ucfirst($tx['to_wallet']) ?></span></td>
+                <td data-label="Amount" class="amt-cell"><?= number_format((float)$tx['amount'], 4) ?></td>
+                <td data-label="Token"><span class="wallet-badge" style="background:#f1f5f9;color:#334155;">BMAN</span></td>
+                <td data-label="Status">
                   <span class="st-badge st-<?= $tx['status'] ?>">
                     <?php if ($tx['status'] === 'completed'): ?><i class="ph-fill ph-check-circle"></i><?php
                     elseif ($tx['status'] === 'failed'):    ?><i class="ph-fill ph-x-circle"></i><?php
@@ -877,10 +879,10 @@
                     <?= ucfirst($tx['status']) ?>
                   </span>
                 </td>
-                <td style="font-size:12px;color:var(--text-muted);white-space:nowrap;">
+                <td data-label="Date" style="font-size:12px;color:var(--text-muted);white-space:nowrap;">
                   <?= date('d M Y, H:i', strtotime($tx['created_at'])) ?>
                 </td>
-                <td>
+                <td data-label="">
                   <button type="button" class="filter-btn" style="padding:5px 12px;font-size:11px;"
                           onclick="WalletTransferUI.openDetail('<?= htmlspecialchars($tx['ref']) ?>')">
                     <i class="ph ph-eye"></i> Details

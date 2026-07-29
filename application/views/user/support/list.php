@@ -42,7 +42,6 @@ function sText($stNumOrText)
 
 <head>
     <?php $this->load->view('user/layout/v2/user_style'); ?>
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
     <style>
         /* ===================== SUPPORT PAGE ===================== */
@@ -642,7 +641,7 @@ function sText($stNumOrText)
         }
 
         /* Mobile Fix */
-        @media (max-width: 992px) {
+        @media (max-width: 1024px) {
             .grid-2 {
                 grid-template-columns: 1fr;
             }
@@ -666,13 +665,16 @@ function sText($stNumOrText)
             }
         }
 
-        @media (max-width: 576px) {
+        @media (max-width: 600px) {
             .insight-grid {
                 grid-template-columns: 1fr;
             }
         }
 
-        @media (max-width: 1100px) {
+        /* ===== SHARED BREAKPOINT SCALE — see assets/user_v2/css/style.css =====
+           1400 xxl · 1200 xl · 1024 lg (must match user_sidebar.php JS) · 768 md · 600 sm · 380 xs
+           ===================================================================== */
+        @media (max-width: 1200px) {
             .insight-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
@@ -727,7 +729,7 @@ function sText($stNumOrText)
                 grid-template-columns: repeat(3, 1fr);
             }
 
-            @media (max-width: 992px) {
+            @media (max-width: 1024px) {
                 .quick-help-row {
                     grid-template-columns: 1fr;
                 }
@@ -738,7 +740,7 @@ function sText($stNumOrText)
                 grid-template-columns: 1.15fr .85fr;
             }
 
-            @media (max-width: 992px) {
+            @media (max-width: 1024px) {
                 .grid-2 {
                     grid-template-columns: 1fr;
                 }

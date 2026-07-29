@@ -849,8 +849,11 @@
 
     /* ===================== EXTRA RESPONSIVE PATCH (ADD AT END) ===================== */
 
+    /* ===== SHARED BREAKPOINT SCALE — see assets/user_v2/css/style.css =====
+       1400 xxl · 1200 xl · 1024 lg (must match user_sidebar.php JS) · 768 md · 600 sm · 380 xs
+       ===================================================================== */
     /* Improve hero + grids on mid screens */
-    @media (max-width: 992px) {
+    @media (max-width: 1024px) {
       .wallet-hero {
         padding: 16px;
         border-radius: 20px;

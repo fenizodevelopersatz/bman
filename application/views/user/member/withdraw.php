@@ -32,7 +32,6 @@
 
 <head>
   <?php $this->load->view('user/layout/v2/user_style'); ?>
-  <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <style>
     /* ===================== PAYOUTS ===================== */
     .titlebar {
@@ -202,7 +201,10 @@
       margin-top: 3px;
     }
 
-    @media(max-width:1100px) {
+    /* ===== SHARED BREAKPOINT SCALE — see assets/user_v2/css/style.css =====
+       1400 xxl · 1200 xl · 1024 lg (must match user_sidebar.php JS) · 768 md · 600 sm · 380 xs
+       ===================================================================== */
+    @media(max-width:1200px) {
       .kpis {
         grid-template-columns: repeat(2, 1fr);
       }
@@ -356,7 +358,7 @@
       line-height: 1.35;
     }
 
-    @media(max-width:900px) {
+    @media(max-width:768px) {
       .method-cards {
         grid-template-columns: 1fr;
       }
@@ -547,7 +549,7 @@
     }
 
     /* Titlebar: stack nicely */
-    @media (max-width: 900px) {
+    @media (max-width: 768px) {
       .titlebar {
         flex-direction: column;
         align-items: flex-start;
@@ -567,7 +569,7 @@
     }
 
     /* KPI grid: 4 -> 2 -> 1 */
-    @media (max-width: 1100px) {
+    @media (max-width: 1200px) {
       .kpis {
         grid-template-columns: repeat(2, 1fr);
       }
@@ -595,7 +597,7 @@
     }
 
     /* Main grid: 2 columns -> 1 column */
-    @media (max-width: 1100px) {
+    @media (max-width: 1200px) {
       .grid-2 {
         grid-template-columns: 1fr;
       }
@@ -610,14 +612,14 @@
     }
 
     /* Withdraw methods: 2 -> 1 */
-    @media (max-width: 900px) {
+    @media (max-width: 768px) {
       .method-cards {
         grid-template-columns: 1fr;
       }
     }
 
     /* Form row2: 2 -> 1 */
-    @media (max-width: 900px) {
+    @media (max-width: 768px) {
       .row2 {
         grid-template-columns: 1fr;
       }
@@ -662,72 +664,8 @@
       }
     }
 
-    /* ===== Table -> Mobile card rows =====
-   Keeps desktop table as-is.
-*/
-    @media (max-width: 780px) {
-      .table {
-        border-spacing: 0 12px;
-      }
-
-      .table thead {
-        display: none;
-      }
-
-      /* Turn each row into a card block */
-      .table tbody tr.tr {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 10px;
-        padding: 12px;
-      }
-
-      /* Each cell becomes a line */
-      .table tbody tr.tr td {
-        padding: 0;
-      }
-
-      /* Amount align left on mobile */
-      .amt {
-        text-align: left;
-      }
-
-      /* Add small labels before fields using nth-child */
-      .table tbody tr.tr td:nth-child(3)::before {
-        content: "Type";
-        display: block;
-        font-size: 10px;
-        color: var(--text-muted);
-        font-weight: 1000;
-        margin-bottom: 4px;
-      }
-
-      .table tbody tr.tr td:nth-child(4)::before {
-        content: "Date / Status";
-        display: block;
-        font-size: 10px;
-        color: var(--text-muted);
-        font-weight: 1000;
-        margin-bottom: 4px;
-      }
-
-      .table tbody tr.tr td:nth-child(5)::before {
-        content: "Amount";
-        display: block;
-        font-size: 10px;
-        color: var(--text-muted);
-        font-weight: 1000;
-        margin-bottom: 4px;
-      }
-
-      /* Action button align left */
-      .table tbody tr.tr td:nth-child(6) {
-        text-align: left !important;
-      }
-    }
-
     /* Filters: stack clean on mobile */
-    @media (max-width: 780px) {
+    @media (max-width: 600px) {
       .filters {
         display: grid;
         grid-template-columns: 1fr;
@@ -755,86 +693,17 @@
       }
     }
 
-    /* Right panel layout safety (if your template uses fixed widths) */
-    @media (max-width: 1100px) {
-      .right-panel {
-        display: none;
-      }
+    /* Right panel: handled globally by assets/user_v2/css/style.css's shared
+       1200px reflow rule — this page no longer needs its own override. */
 
-      /* optional: remove if you want it visible */
-    }
+    /* table.resp-card -> card rows below 600px: promoted to the shared
+       stylesheet (assets/user_v2/css/style.css) since every page with a
+       real table benefits from it — this page's own copy (and the older,
+       conflicting nth-child-based mechanism above) has been removed. */
 
-    @media (max-width: 1100px) {
-      .right-panel {
-        display: block;
-      }
-    }
-
-    /* ===== UNIVERSAL: Table -> Card rows (works for any page) ===== */
-    @media (max-width: 780px) {
-
-      table.resp-card {
-        width: 100%;
-        border-collapse: separate;
-        border-spacing: 0 12px;
-      }
-
-      table.resp-card thead {
-        display: none !important;
-      }
-
-      table.resp-card tbody,
-      table.resp-card tr,
-      table.resp-card td {
-        display: block;
-        width: 100%;
-      }
-
-      /* Each row becomes a card */
-      table.resp-card tbody tr {
-        background: #fff;
-        border: 1px solid #f5f5f7;
-        border-radius: 18px;
-        box-shadow: 0 12px 25px rgba(0, 0, 0, 0.03);
-        padding: 12px;
-        margin-bottom: 12px;
-      }
-
-      table.resp-card tbody td {
-        padding: 8px 0 !important;
-        border: 0 !important;
-      }
-
-      /* label + value layout */
-      table.resp-card tbody td {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 14px;
-      }
-
-      /* label text from data-label */
-      table.resp-card tbody td::before {
-        content: attr(data-label);
-        font-size: 10px;
-        color: var(--text-muted);
-        font-weight: 1000;
-        line-height: 1.2;
-        padding-top: 2px;
-        flex: 0 0 90px;
-        max-width: 90px;
-      }
-
-      /* value area */
-      table.resp-card tbody td>* {
-        flex: 1 1 auto;
-      }
-
-      /* If a td is empty (like actions), keep it aligned */
-      table.resp-card tbody td:empty {
-        display: none;
-      }
-    }
+    /* ===== SHARED BREAKPOINT SCALE — see assets/user_v2/css/style.css =====
+       1400 xxl · 1200 xl · 1024 lg (must match user_sidebar.php JS) · 768 md · 600 sm · 380 xs
+       ===================================================================== */
   </style>
 </head>
 
@@ -1118,25 +987,25 @@
                       <tr class="tr"
                         data-q="<?= htmlspecialchars(strtolower(($p->payout_id ?? '') . ' ' . ($p->period ?? '') . ' ' . ($p->note ?? ''))); ?>"
                         data-status="<?= htmlspecialchars($st); ?>" data-type="<?= htmlspecialchars($tp); ?>">
-                        <td><?= $sno; ?></td>
-                        <td class="td-title">
+                        <td data-label="S.No"><?= $sno; ?></td>
+                        <td data-label="Payout" class="td-title">
                           <b><?= htmlspecialchars($p->payout_id ?? '—'); ?></b>
                           <small><?= htmlspecialchars($p->period ?? '—'); ?> •
                             <?= htmlspecialchars($p->note ?? ''); ?></small>
                         </td>
-                        <td><span class="badge"><i class="ph ph-tag"></i> <?= $tp; ?></span></td>
-                        <td>
+                        <td data-label="Type"><span class="badge"><i class="ph ph-tag"></i> <?= $tp; ?></span></td>
+                        <td data-label="Date">
                           <?= htmlspecialchars($p->date ?? '—'); ?>
                           <div style="margin-top:6px;"><span class="badge <?= $badge; ?>"><i class="ph ph-seal-check"></i>
                               <?= $st; ?></span></div>
                         </td>
-                        <td class="amt">
+                        <td data-label="Amount" class="amt">
                           <?= number_format((float) ($p->amount ?? 0), 2); ?> BMAN
                           <div style="margin-top:6px;font-size:11px;color:var(--text-muted);font-weight:900;">
                             Fee: <?= number_format((float) ($p->fee ?? 0), 2); ?> USDT
                           </div>
                         </td>
-                        <td style="text-align:right;">
+                        <td data-label="">
                           <button class="btn-mini" type="button"
                             onclick="viewPayout('<?= htmlspecialchars($p->payout_id ?? ''); ?>')"><i
                               class="ph ph-eye"></i></button>
@@ -1640,23 +1509,23 @@
             data-q="${q}"
             data-status="${escapeHtml(st)}"
             data-type="${escapeHtml(tp)}">
-            <td>${idx + 1}</td>
-            <td class="td-title">
+            <td data-label="S.No">${idx + 1}</td>
+            <td data-label="Payout" class="td-title">
               <b>${escapeHtml(p.payout_id || "—")}</b>
               <small>${escapeHtml(p.period || "—")} • ${escapeHtml(p.note || "")}</small>
             </td>
-            <td><span class="badge"><i class="ph ph-tag"></i> ${escapeHtml(tp)}</span></td>
-            <td>
+            <td data-label="Type"><span class="badge"><i class="ph ph-tag"></i> ${escapeHtml(tp)}</span></td>
+            <td data-label="Date">
               ${escapeHtml(p.date || "—")}
               <div style="margin-top:6px;"><span class="badge ${badge}"><i class="ph ph-seal-check"></i> ${escapeHtml(st)}</span></div>
             </td>
-            <td class="amt">
+            <td data-label="Amount" class="amt">
               ${toMoney(p.amount)} BMAN
               <div style="margin-top:6px;font-size:11px;color:var(--text-muted);font-weight:900;">
                 Fee: ${toMoney(p.fee)} USDT
               </div>
             </td>
-            <td style="text-align:right;">
+            <td data-label="">
               <button class="btn-mini" type="button" onclick="viewPayout('${escapeHtml(p.payout_id || "")}')"><i class="ph ph-eye"></i></button>
             </td>
           </tr>

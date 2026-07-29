@@ -609,8 +609,10 @@
     margin-right: 6px;
   }
 
-  /* responsive */
-  @media(max-width: 900px) {
+  /* ===== SHARED BREAKPOINT SCALE — see assets/user_v2/css/style.css =====
+     1400 xxl · 1200 xl · 1024 lg (must match user_sidebar.php JS) · 768 md · 600 sm · 380 xs
+     ===================================================================== */
+  @media(max-width: 768px) {
     .ref-grid {
       grid-template-columns: 1fr;
     }
@@ -748,7 +750,7 @@
   }
 
   /* Bottom grid: always nice stacking */
-  @media (max-width: 900px) {
+  @media (max-width: 768px) {
     .ref-bottom {
       grid-template-columns: 1fr;
     }
@@ -778,7 +780,7 @@
   }
 
   /* Optional: improve leg pill spacing on very small screens */
-  @media (max-width: 420px) {
+  @media (max-width: 380px) {
     .leg-pill {
       font-size: 11px;
       padding: 7px 10px;
@@ -1312,7 +1314,6 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <script src="<?php echo base_url(); ?>/assets/user_v2/js/script.js?ver=2.9"></script>
 </body>
 
