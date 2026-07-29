@@ -99,10 +99,21 @@
                         totalling <?php echo rtrim(rtrim(number_format((float)$batch['bman_total'], 8, '.', ''), '0'), '.'); ?> BMAN
                       <?php endif; ?>.
                     </span>
-                    <div>
-                      <a href="<?php echo base_url(); ?>admin/member/bulk-upload" class="btn btn-sm btn-primary">
-                        Go to Bulk Upload to import
-                      </a>
+                    <!-- Import from HERE, not from the index page. The index
+                         page can only import a batch staged in the same page
+                         session (its JS holds the id in memory), so a batch
+                         staged earlier was previously strandable — reachable in
+                         the history, but with no way to import or discard it. -->
+                    <div class="d-flex flex-wrap gap-2">
+                      <button type="button" class="btn btn-sm btn-primary" id="bmu-import-now"
+                              data-batch="<?php echo (int)$batch['id']; ?>"
+                              data-valid="<?php echo (int)$batch['valid_rows']; ?>"
+                              <?php echo (int)$batch['valid_rows'] > 0 ? '' : 'disabled'; ?>>
+                        <span class="indicator-label">Import <?php echo (int)$batch['valid_rows']; ?> valid row(s)</span>
+                        <span class="indicator-progress">Creating members… <span class="spinner-border spinner-border-sm align-middle ms-2"></span></span>
+                      </button>
+                      <button type="button" class="btn btn-sm btn-light" id="bmu-discard-now"
+                              data-batch="<?php echo (int)$batch['id']; ?>">Discard this batch</button>
                     </div>
                   </div>
                 </div>
@@ -219,6 +230,48 @@
         confirmButtonText: 'Ok', customClass: { confirmButton: 'btn btn-primary' } });
       else alert(m);
     }
+    async function post(url, fd) {
+      const r = await fetch(base + url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      let j = {}; try { j = await r.json(); } catch (_) {}
+      return { ok: r.ok && j.status === 'success', j };
+    }
+
+    // Import / discard a batch that was staged in an earlier session.
+    const impBtn = document.getElementById('bmu-import-now');
+    if (impBtn) {
+      impBtn.addEventListener('click', async () => {
+        const n = impBtn.dataset.valid;
+        const go = window.Swal
+          ? (await Swal.fire({
+              title: 'Create these members?',
+              text: n + ' member account(s) will be created, each with a generated wallet address. This cannot be undone in bulk.',
+              icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, import',
+              buttonsStyling: false, customClass: { confirmButton: 'btn btn-primary', cancelButton: 'btn btn-light' }
+            })).isConfirmed
+          : confirm('Create ' + n + ' member account(s)?');
+        if (!go) return;
+
+        impBtn.disabled = true; impBtn.setAttribute('data-kt-indicator', 'on');
+        const fd = new FormData(); fd.set('batch_id', impBtn.dataset.batch);
+        const { ok, j } = await post('admin/member/bulk-upload/import', fd);
+        impBtn.setAttribute('data-kt-indicator', 'off');
+        toast(j.message || (ok ? 'Imported.' : 'Import failed.'), ok);
+        if (ok) setTimeout(() => location.reload(), 1200); else impBtn.disabled = false;
+      });
+    }
+
+    const disBtn = document.getElementById('bmu-discard-now');
+    if (disBtn) {
+      disBtn.addEventListener('click', async () => {
+        if (!confirm('Discard this staged batch? Nothing has been created, so nothing is lost.')) return;
+        disBtn.disabled = true;
+        const fd = new FormData(); fd.set('batch_id', disBtn.dataset.batch);
+        const { ok, j } = await post('admin/member/bulk-upload/cancel', fd);
+        toast(j.message || (ok ? 'Discarded.' : 'Failed.'), ok);
+        if (ok) setTimeout(() => location.reload(), 900); else disBtn.disabled = false;
+      });
+    }
+
     document.querySelectorAll('.bmu-requeue').forEach(btn => {
       btn.addEventListener('click', async () => {
         btn.disabled = true;
