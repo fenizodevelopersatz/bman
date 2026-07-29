@@ -134,6 +134,10 @@
                             <input class="form-check-input" type="checkbox" id="bmu-dryrun" name="dry_run" <?php echo !empty($settings['dry_run']) ? 'checked' : ''; ?>>
                             <label class="form-check-label fw-semibold" for="bmu-dryrun">Dry-run</label>
                           </div>
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="bmu-credit" name="credit_exchange_wallet" <?php echo !isset($settings['credit_exchange_wallet']) || !empty($settings['credit_exchange_wallet']) ? 'checked' : ''; ?>>
+                            <label class="form-check-label fw-semibold" for="bmu-credit" title="Post the delivered BMAN to the member's Exchange wallet so it shows in their panel">Credit Exchange wallet</label>
+                          </div>
                           <div>
                             <label class="form-label fw-semibold fs-8 mb-1">Min treasury reserve</label>
                             <input type="number" step="0.00000001" min="0" name="min_treasury_reserve" class="form-control form-control-solid form-control-sm w-150px" value="<?php echo html_escape($settings['min_treasury_reserve']); ?>" />
@@ -369,6 +373,7 @@
       const fd = new FormData(e.target);
       fd.set('enabled', el('bmu-enabled').checked ? '1' : '');
       fd.set('dry_run', el('bmu-dryrun').checked ? '1' : '');
+      fd.set('credit_exchange_wallet', el('bmu-credit').checked ? '1' : '');
       const { ok, j } = await post('admin/member/bulk-upload/settings', fd);
       toast(j.message || (ok ? 'Saved.' : 'Failed.'), ok);
     });

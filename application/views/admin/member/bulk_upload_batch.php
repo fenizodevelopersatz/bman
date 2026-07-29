@@ -89,7 +89,7 @@
                       <table class="table align-middle table-row-dashed fs-7 gy-4">
                         <thead><tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
                           <th>#</th><th>Member</th><th>Sponsor ref</th><th>Leg</th><th>Wallet address</th>
-                          <th class="text-end">BMAN</th><th>Row</th><th>BMAN send</th><th>Message</th><th></th>
+                          <th class="text-end">BMAN</th><th>Row</th><th>BMAN send</th><th>Exchange wallet</th><th>Message</th><th></th>
                         </tr></thead>
                         <tbody class="text-gray-700 fw-semibold">
                           <?php foreach ($rows as $r): ?>
@@ -123,6 +123,18 @@
                                 <div class="bmu-mono fs-9 text-muted" title="<?php echo html_escape($r['bman_tx_hash']); ?>"><?php echo html_escape(substr($r['bman_tx_hash'], 0, 16).'…'); ?></div>
                               <?php endif; ?>
                             </td>
+                            <td>
+                              <?php if (!empty($r['bman_ledger_id'])): ?>
+                                <span class="badge badge-light-success">CREDITED</span>
+                                <div class="text-muted fs-9">ledger #<?php echo (int)$r['bman_ledger_id']; ?></div>
+                              <?php elseif ($r['bman_status'] === 'completed' && strpos((string)$r['bman_tx_hash'], 'DRYRUN-') === 0): ?>
+                                <span class="badge badge-light-secondary" title="A dry run never credits a real balance">DRY-RUN</span>
+                              <?php elseif ($r['bman_status'] === 'completed'): ?>
+                                <span class="badge badge-light-warning" title="Sent on-chain but not yet posted to the Exchange wallet — the next cron pass retries this automatically">AWAITING</span>
+                              <?php else: ?>
+                                <span class="text-muted">—</span>
+                              <?php endif; ?>
+                            </td>
                             <td class="fs-8 <?php echo ($r['error_message'] || $r['bman_error']) ? 'text-danger' : 'text-muted'; ?>">
                               <?php echo html_escape($r['error_message'] ?: ($r['bman_error'] ?: '—')); ?>
                             </td>
@@ -133,7 +145,7 @@
                             </td>
                           </tr>
                           <?php endforeach; ?>
-                          <?php if (empty($rows)): ?><tr><td colspan="10" class="text-muted">This batch has no rows.</td></tr><?php endif; ?>
+                          <?php if (empty($rows)): ?><tr><td colspan="11" class="text-muted">This batch has no rows.</td></tr><?php endif; ?>
                         </tbody>
                       </table>
                     </div>

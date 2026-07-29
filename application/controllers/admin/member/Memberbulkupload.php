@@ -176,8 +176,9 @@ class Memberbulkupload extends CI_Controller
         $maxRows   = (int)$this->input->post('max_rows_per_file', true);
 
         list($ok, $msg) = $this->bulk->updateSettings([
-            'enabled'              => $this->input->post('enabled') ? 1 : 0,
-            'dry_run'              => $this->input->post('dry_run') ? 1 : 0,
+            'enabled'                => $this->input->post('enabled') ? 1 : 0,
+            'dry_run'                => $this->input->post('dry_run') ? 1 : 0,
+            'credit_exchange_wallet' => $this->input->post('credit_exchange_wallet') ? 1 : 0,
             'min_treasury_reserve' => $this->input->post('min_treasury_reserve', true) !== '' ? $this->input->post('min_treasury_reserve', true) : '0',
             'max_batch_size'       => $batchSize > 0 ? min($batchSize, 500) : 20,
             'max_rows_per_file'    => $maxRows > 0 ? min($maxRows, 20000) : 1000,
@@ -233,13 +234,15 @@ class Memberbulkupload extends CI_Controller
         $stream = fopen('php://output', 'w');
         fputs($stream, "\xEF\xBB\xBF");
         fputcsv($stream, ['Row', 'Username', 'Email', 'Reference ID', 'Leg', 'BMAN', 'Status',
-                          'Member ID', 'New Referral ID', 'Wallet Address', 'BMAN Status', 'Tx Hash', 'Message']);
+                          'Member ID', 'New Referral ID', 'Wallet Address', 'BMAN Status', 'Tx Hash',
+                          'Exchange Ledger ID', 'Credited At', 'Message']);
         foreach ($this->bulk->rows($batchId) as $r) {
             fputcsv($stream, [
                 $r['row_number'], $r['username'], $r['email'], $r['reference_id'], $r['leg'],
                 number_format((float)$r['bman_amount'], 8, '.', ''),
                 strtoupper($r['status']), $r['user_id'], $r['referral_id'], $r['wallet_address'],
                 strtoupper($r['bman_status']), $r['bman_tx_hash'],
+                $r['bman_ledger_id'], $r['bman_credited_at'],
                 $r['error_message'] ?: $r['bman_error'],
             ]);
         }
