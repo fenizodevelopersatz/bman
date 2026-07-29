@@ -417,6 +417,18 @@ $route['admin/member/profile-transaction/(:num)/(:num)'] = 'admin/member/Memberm
 $route['user-status-update/(:num)'] = 'admin/member/Membermanagement/statusupdate/$1';
 $route['user-delete/(:num)'] = 'admin/member/Membermanagement/deleteuser/$1';
 
+/* Bulk member upload — one Excel/CSV sheet becomes many members.
+   stage = parse + validate (writes nothing to `users`), import = create them. */
+$route['admin/member/bulk-upload'] = 'admin/member/Memberbulkupload/index';
+$route['admin/member/bulk-upload/template'] = 'admin/member/Memberbulkupload/template';
+$route['admin/member/bulk-upload/stage']['post'] = 'admin/member/Memberbulkupload/stage';
+$route['admin/member/bulk-upload/import']['post'] = 'admin/member/Memberbulkupload/import';
+$route['admin/member/bulk-upload/cancel']['post'] = 'admin/member/Memberbulkupload/cancel';
+$route['admin/member/bulk-upload/requeue']['post'] = 'admin/member/Memberbulkupload/requeue';
+$route['admin/member/bulk-upload/settings']['post'] = 'admin/member/Memberbulkupload/updateSettings';
+$route['admin/member/bulk-upload/batch/(:num)'] = 'admin/member/Memberbulkupload/batch/$1';
+$route['admin/member/bulk-upload/export/(:num)'] = 'admin/member/Memberbulkupload/export/$1';
+
 
 /*************** COMMISSION SETTINGS ****************/
 $route['commission-settings'] = 'admin/settings/Commissionsettings';
@@ -436,6 +448,8 @@ $route['rank-achievement-cron'] = 'RankAchievementCron/run';   // §10 permanent
 $route['rank-power-cron'] = 'RankPowerCron/run';               // §11 60-day cycle roll + current-cycle power rank calc (daily, token-gated)
 $route['wallet-transfer-settlement-cron'] = 'WalletTransferSettlementCron/run';   // on-chain settlement of wallet_internal_transfer rows from the Treasury wallet (disabled + dry-run by default, token-gated)
 $route['wallet-transfer-settlement-cron/test'] = 'WalletTransferSettlementCron/test';
+$route['member-bulk-bman-cron'] = 'MemberBulkBmanCron/run';                      // opening BMAN balance for bulk-uploaded members, sent from the Treasury wallet (disabled + dry-run by default, token-gated)
+$route['member-bulk-bman-cron/test'] = 'MemberBulkBmanCron/test';
 
 
 
