@@ -88,7 +88,7 @@
                     <div class="table-responsive">
                       <table class="table align-middle table-row-dashed fs-7 gy-4">
                         <thead><tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
-                          <th>#</th><th>Member</th><th>Sponsor ref</th><th>Leg</th><th>Wallet address</th>
+                          <th>#</th><th>Member</th><th>Sponsor ref</th><th>Placement</th><th>Wallet address</th>
                           <th class="text-end">BMAN</th><th>Row</th><th>BMAN send</th><th>Exchange wallet</th><th>Message</th><th></th>
                         </tr></thead>
                         <tbody class="text-gray-700 fw-semibold">
@@ -109,7 +109,15 @@
                               <?php if ($r['referral_id']): ?><div class="bmu-mono text-primary fs-8"><?php echo html_escape($r['referral_id']); ?></div><?php endif; ?>
                             </td>
                             <td class="bmu-mono"><?php echo html_escape($r['reference_id']); ?></td>
-                            <td><span class="badge badge-light fs-9"><?php echo html_escape($r['leg']); ?></span></td>
+                            <td>
+                              <?php if (!empty($r['placed_position'])): ?>
+                                <span class="badge badge-light-<?php echo $r['placed_position'] === 'left' ? 'primary' : 'info'; ?> fs-9"><?php echo strtoupper($r['placed_position']); ?></span>
+                                <div class="text-muted fs-9">
+                                  under <?php echo html_escape($r['placed_under_username'] ?: ('#'.$r['placed_under'])); ?>
+                                  <?php if ($r['placed_type'] === 'auto'): ?><span class="text-warning">· spillover</span><?php endif; ?>
+                                </div>
+                              <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+                            </td>
                             <td>
                               <?php if ($r['wallet_address']): ?>
                                 <span class="bmu-mono" title="<?php echo html_escape($r['wallet_address']); ?>"><?php echo html_escape(substr($r['wallet_address'], 0, 10).'…'.substr($r['wallet_address'], -6)); ?></span>
