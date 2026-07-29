@@ -203,7 +203,10 @@
                               <?php else: ?><span class="text-muted">—</span><?php endif; ?>
                             </td>
                             <td>
-                              <?php if ((int)$b['bman_queued'] === 0 && (int)$b['bman_sent'] === 0 && (int)$b['bman_failed'] === 0): ?>
+                              <?php if ($b['status'] === 'staged'): ?>
+                                <span class="badge badge-light-warning fs-9">NOT IMPORTED</span>
+                                <div class="fs-9 text-muted">nothing queued yet</div>
+                              <?php elseif ((int)$b['bman_pending'] === 0 && (int)$b['bman_sent'] === 0 && (int)$b['bman_failed'] === 0 && (int)$b['bman_processing'] === 0): ?>
                                 <span class="text-muted fs-8">No transfers</span>
                               <?php else: ?>
                                 <div class="d-flex flex-wrap gap-1 mb-1">

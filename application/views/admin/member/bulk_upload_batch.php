@@ -41,12 +41,24 @@
                 <div class="row g-5 mb-5">
                   <?php
                     $statusMap = ['completed' => 'success', 'failed' => 'danger', 'staged' => 'warning', 'importing' => 'info', 'cancelled' => 'secondary'];
+                    $isStaged = $batch['status'] === 'staged';
+
+                    // Count the ACTUAL queue from the rows. batch.bman_queued is
+                    // only a projection until the batch is imported — reporting
+                    // it as "queued" on a staged batch claims work the cron will
+                    // never find, because it only ever looks for bman_status =
+                    // 'pending' and a staged row is still 'none'.
+                    $bmanPending = 0;
+                    foreach ($rows as $__r) if ($__r['bman_status'] === 'pending') $bmanPending++;
+
                     $tiles = [
-                      ['Total rows',   (int)$batch['total_rows'],    'text-gray-800'],
-                      ['Imported',     (int)$batch['imported_rows'], 'text-success'],
-                      ['Invalid',      (int)$batch['invalid_rows'],  'text-warning'],
-                      ['Failed',       (int)$batch['failed_rows'],   'text-danger'],
-                      ['BMAN queued',  (int)$batch['bman_queued'],   'text-primary'],
+                      ['Total rows', (int)$batch['total_rows'],    'text-gray-800'],
+                      ['Imported',   (int)$batch['imported_rows'], 'text-success'],
+                      ['Invalid',    (int)$batch['invalid_rows'],  'text-warning'],
+                      ['Failed',     (int)$batch['failed_rows'],   'text-danger'],
+                      $isStaged
+                        ? ['BMAN to send once imported', (int)$batch['bman_queued'], 'text-gray-500']
+                        : ['BMAN queued now',            $bmanPending,               'text-primary'],
                     ];
                   ?>
                   <?php foreach ($tiles as $t): ?>
@@ -66,11 +78,39 @@
                   </div>
                 </div>
 
-                <?php if ((int)$batch['bman_queued'] > 0): ?>
+                <?php if ($isStaged): ?>
+                <!-- The single most important thing to say about a staged batch:
+                     nothing has happened yet. The old banner here announced
+                     "BMAN transfers are queued" off batch.bman_queued, which is
+                     only a projection before import — so it claimed a queue that
+                     did not exist and sent admins hunting the cron for work it
+                     could never find. -->
+                <div class="alert alert-primary d-flex align-items-start p-5 mb-5">
+                  <i class="ki-outline ki-information-5 fs-2hx text-primary me-4 mt-1"></i>
+                  <div class="d-flex flex-column flex-grow-1">
+                    <span class="fw-bold">This batch has not been imported yet — nothing has been created.</span>
+                    <span class="fs-7 text-gray-700 mb-3">
+                      The file was validated only. No member accounts exist, no wallet addresses were generated,
+                      and <b>no BMAN is queued</b> — so the cron has nothing to send for this batch and will keep
+                      reporting <span class="bmu-mono">processed 0</span>.
+                      Importing creates <b><?php echo (int)$batch['valid_rows']; ?></b> member(s)
+                      <?php if ((int)$batch['bman_queued'] > 0): ?>
+                        and queues <b><?php echo (int)$batch['bman_queued']; ?></b> BMAN transfer(s)
+                        totalling <?php echo rtrim(rtrim(number_format((float)$batch['bman_total'], 8, '.', ''), '0'), '.'); ?> BMAN
+                      <?php endif; ?>.
+                    </span>
+                    <div>
+                      <a href="<?php echo base_url(); ?>admin/member/bulk-upload" class="btn btn-sm btn-primary">
+                        Go to Bulk Upload to import
+                      </a>
+                    </div>
+                  </div>
+                </div>
+                <?php elseif ($bmanPending > 0): ?>
                 <div class="alert alert-warning d-flex align-items-start p-5 mb-5">
                   <i class="ki-outline ki-time fs-2hx text-warning me-4 mt-1"></i>
                   <div class="d-flex flex-column">
-                    <span class="fw-bold">BMAN transfers are queued, not yet sent.</span>
+                    <span class="fw-bold"><?php echo $bmanPending; ?> BMAN transfer(s) queued, not yet sent.</span>
                     <span class="fs-7 text-gray-700">
                       The <span class="bmu-mono">member-bulk-bman-cron</span> sends them from the Treasury wallet on its next pass.
                       Until it runs — and until the cron is both <b>enabled</b> and out of <b>dry-run</b> — no real BMAN moves.
