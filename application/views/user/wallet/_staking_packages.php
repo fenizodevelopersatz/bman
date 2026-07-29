@@ -175,9 +175,12 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         <span><b>Monthly:</b> credited each month</span>
         <span><b>Maturity:</b> bonus at term end</span>
       </div>
-      <button type="button" class="stk-viewroi" onclick="stkViewRoi(<?= (int)$p['id'] ?>)">
-        <i class="ph ph-table"></i> View ROI Structure
-      </button>
+      <?php /* No "View ROI Structure" button here: the table directly above is
+               that structure, from the same $p['special_roi'] data. The modal it
+               used to open repeated those exact three columns and added nothing.
+               The per-term BMAN figures (monthly credit, maturity bonus,
+               principal, total return) live in the SELECT purchase modal, where
+               a term has actually been chosen and they can be computed. */ ?>
       <?php else: ?>
       <table class="stk-roi">
         <thead>
@@ -251,25 +254,11 @@ foreach ($staking_packages as $__p) {
     letter-spacing:.5px; padding:4px 11px; border-radius:999px; box-shadow:0 4px 12px rgba(245,158,11,.45); }
   .stk-b.special-chip{ background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; font-weight:900;
     box-shadow:0 4px 12px rgba(245,158,11,.35); }
-  .stk-viewroi{ width:100%; margin-top:10px; border:1px solid #f5c451;
-    background:linear-gradient(135deg,#fffbeb,#fef3c7); color:#92400e;
-    font-weight:800; font-size:12.5px; border-radius:12px; padding:10px 12px; cursor:pointer;
-    display:flex; align-items:center; justify-content:center; gap:8px; transition:filter .15s ease, transform .15s ease; }
-  .stk-viewroi:hover{ filter:brightness(.97); transform:translateY(-1px); }
-  .stkroi-overlay{ position:fixed; inset:0; background:rgba(10,10,20,.55); z-index:100000; display:none;
-    align-items:center; justify-content:center; padding:16px; }
-  .stkroi-overlay.open{ display:flex; }
-  .stkroi-box{ width:min(460px,94vw); max-height:86vh; overflow:auto; background:#fff; border-radius:18px; padding:20px; }
-  .stkroi-h{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
-  .stkroi-h b{ font-size:16px; color:#0b1220; }
-  .stkroi-h button{ border:0; background:#f1f5f9; width:30px; height:30px; border-radius:9px; cursor:pointer; font-size:18px; line-height:1; }
-  .stkroi-table{ width:100%; border-collapse:collapse; font-size:13px; }
-  .stkroi-table th{ text-align:left; color:#64748b; font-weight:800; font-size:11px; text-transform:uppercase; padding:8px 6px; border-bottom:1px solid #eef0f4; }
-  .stkroi-table td{ padding:9px 6px; border-bottom:1px dashed #eef0f4; font-weight:700; color:#0b1220; }
-  .stkroi-table td.rg{ color:#15803d; } .stkroi-table td.fx{ color:#4338ca; }
-  .stkroi-note{ margin-top:12px; font-size:11.5px; color:#64748b; font-weight:600; line-height:1.5;
-    background:#f8fafc; border:1px solid #eef0f4; border-radius:12px; padding:10px 12px; }
 </style>
+<?php /* The .stk-viewroi button styles and the .stkroi-* modal styles were
+         removed along with the button itself — that modal only repeated the
+         ROI table already printed on the card. Kept as a PHP comment so the
+         note does not ship to every visitor inside <style>. */ ?>
 <style>
   .stksp-overlay{ position:fixed; inset:0; background:rgba(10,10,20,.6); z-index:100001; display:none;
     align-items:center; justify-content:center; padding:16px; }
@@ -299,16 +288,6 @@ foreach ($staking_packages as $__p) {
     color:#fff; background:linear-gradient(135deg,#f59e0b,#d97706); }
   .stksp-confirm:disabled{ opacity:.7; cursor:progress; }
 </style>
-<div class="stkroi-overlay" id="stkRoiPop" onclick="if(event.target===this)stkRoiClose()">
-  <div class="stkroi-box">
-    <div class="stkroi-h"><b id="stkRoiTitle">ROI Structure</b><button type="button" onclick="stkRoiClose()">&times;</button></div>
-    <table class="stkroi-table">
-      <thead><tr><th>Term</th><th>Monthly ROI</th><th>Maturity %</th></tr></thead>
-      <tbody id="stkRoiBody"></tbody>
-    </table>
-    <div class="stkroi-note">Earn the Monthly ROI each month for your chosen term, and receive the Maturity % as a bonus at the end. The 25% instant package bonus is separate.</div>
-  </div>
-</div>
 
 <!-- Dedicated SPECIAL OFFER purchase modal (escalating year-wise ROI) -->
 <div class="stksp-overlay" id="stkSpecialPop" onclick="if(event.target===this)stkSpecialClose()">
@@ -341,17 +320,6 @@ foreach ($staking_packages as $__p) {
   var SP_SWAP_ON = <?= !empty($swap_enabled) ? 'true' : 'false' ?>;
   var SP_DEFAULT_DIST = <?= (int) $spDefaultDist ?>;
   function spFmt(v){ v = Math.round((Number(v) || 0) * 1000) / 1000; return String(v); }
-
-  function stkViewRoi(pid) {
-    var rows = SPECIAL_ROI[pid] || [];
-    var body = document.getElementById('stkRoiBody');
-    body.innerHTML = rows.length
-      ? rows.map(function (r) { return '<tr><td>' + r.year + ' Year' + (r.year > 1 ? 's' : '') + '</td><td class="rg">' + spFmt(r.monthly) + '% /mo</td><td class="fx">' + spFmt(r.maturity) + '%</td></tr>'; }).join('')
-      : '<tr><td colspan="3" style="color:#94a3b8;">No structure configured yet.</td></tr>';
-    document.getElementById('stkRoiTitle').textContent = (SPECIAL_ROI_NAME[pid] || 'Special Offer') + ' — ROI Structure';
-    document.getElementById('stkRoiPop').classList.add('open');
-  }
-  function stkRoiClose() { document.getElementById('stkRoiPop').classList.remove('open'); }
 
   var spCur = { pid: null, year: null };
   function stkSpecialOpen(pid) {
@@ -418,7 +386,7 @@ foreach ($staking_packages as $__p) {
       })
       .catch(function () { btn.disabled = false; btn.textContent = 'Confirm Special Stake'; fb.style.color = '#dc2626'; fb.textContent = 'Could not reach the server.'; });
   }
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { stkRoiClose(); stkSpecialClose(); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { stkSpecialClose(); } });
 </script>
 
 <!-- ===================== STAKING PURCHASE MODAL ===================== -->
