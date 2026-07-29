@@ -71,8 +71,16 @@ punctuation-insensitively, so `Reference ID`, `reference_id` and
 Accepted formats: **`.xlsx`**, `.xlsm`, `.csv`, `.txt`. The legacy binary `.xls`
 is rejected with a message telling the admin to re-save.
 
-**Download Template** emits a starter CSV seeded with a real sponsor code from
-the install, so the example rows work as-is.
+**Download Template** emits a real **`.xlsx`** workbook (bold header row),
+seeded with a genuine sponsor code from the install so the example rows work
+as-is. Append `?format=csv` for a CSV instead. **Export Result** on the batch
+detail page is likewise `.xlsx`, with the same `?format=csv` escape hatch; if
+`ext-zip` is unavailable both fall back to CSV rather than erroring.
+
+In generated workbooks the `bman` column is written as a **number** (so Excel
+right-aligns and sums it) while every other column is written as **text** —
+that is what stops a referral code like `001234` from losing its leading zeros
+the moment the file is opened.
 
 > **The sponsor must already exist.** A new member's own referral code is
 > generated (`NEXMAN######`), so it cannot be known in advance — you cannot
@@ -341,11 +349,28 @@ settlement cron uses it.
 
 Verified against a live local database, then fully cleaned up.
 
-**Spreadsheet reader** — 9/9 on a generated `.xlsx`: shared strings, inline
-strings, cached formula results, **column-gap rebuilding** (omitted cells must
-not shift later columns left), `workbook.xml.rels` resolution so a renamed
-first tab is read rather than `sheet1.xml`, trailing blank rows, semicolon
-sniffing, BOM stripping, `.xls`/unsupported rejection.
+**Spreadsheet reader** (`Sheetreader`) — 9/9 on a generated `.xlsx`: shared
+strings, inline strings, cached formula results, **column-gap rebuilding**
+(omitted cells must not shift later columns left), `workbook.xml.rels`
+resolution so a renamed first tab is read rather than `sheet1.xml`, trailing
+blank rows, semicolon sniffing, BOM stripping, `.xls`/unsupported rejection.
+
+**Spreadsheet writer** (`Sheetwriter`) — 42/42 OOXML package assertions: all six
+required parts present and well-formed, every part declared in
+`[Content_Types].xml`, both `.rels` graphs resolving (package → workbook →
+worksheet + styles), the workbook's `r:id` matching a declared relationship,
+numeric vs inline-string cell typing, the bold header style, empty cells
+omitted, illegal sheet-name characters stripped, XML-illegal control
+characters stripped, column letters past Z (`AA`, `AD`), and a **round trip**
+back through `Sheetreader`.
+
+**Over real HTTP** — the template endpoint returns
+`Content-Type: application/vnd.openxmlformats-…sheet`, a `.xlsx` filename and a
+clean `PK\x03\x04` header with no stray bytes; the downloaded file opens as a
+valid zip with all parts well-formed; `?format=csv` still returns CSV. The
+generated workbook was then **uploaded back into the stage endpoint** and
+validated 3/3 rows with the BMAN amounts read as numbers (`100`, `250.5`), and
+the stage response carried no `password_hash`.
 
 **Import** — 8-row sheet with aliased headers (`Username`, `E-Mail`,
 `BMAN Balance`): 3 valid / 5 rejected (bad sponsor, malformed email, in-file
