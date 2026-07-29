@@ -110,6 +110,13 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               </div>
 
               <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/member/bulk-upload">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Bulk Upload</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/kyc">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Members KYC</span>

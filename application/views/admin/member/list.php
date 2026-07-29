@@ -135,6 +135,10 @@
                                                                     <button type="button" id="network_export" class="btn btn-light-primary">
                                                                         <i class="ki-duotone ki-exit-down fs-2"><span class="path1"></span><span class="path2"></span></i> Export Report
                                                                     </button>
+                                                                    <a href="<?php echo base_url(); ?>admin/member/bulk-upload" class="btn btn-light-primary"
+                                                                        title="Create many members at once from an Excel / CSV sheet">
+                                                                        <i class="ki-duotone ki-file-up fs-2"><span class="path1"></span><span class="path2"></span></i> Bulk Upload
+                                                                    </a>
                                                                 </div>
                                                             </div>
 
