@@ -51,8 +51,6 @@
                                     maturity; <b>Regular</b> credits monthly on the configured days;
                                     <b>Combo</b> splits the stake between the two (must total 100%).
                                     Durations tick which terms (2/3/5 years) each plan offers.
-                                    All withdrawal rules (status, limits, fees, per-plan windows) live on the
-                                    single <a href="<?php echo base_url(); ?>withdraw-settings" class="fw-bold">Withdraw Settings</a> page.
                                 </div>
 
                                 <div class="row g-5">
@@ -94,10 +92,6 @@
                                                     </div>
 
                                                     <?php if ($code === 'fixed'): ?>
-                                                        <div class="alert alert-secondary fs-7 py-3">
-                                                            ROI credited <b>only at maturity</b>; withdrawal allowed
-                                                            only after maturity (proposal §5).
-                                                        </div>
                                                         <input type="hidden" name="withdraw_after_maturity" value="1" />
                                                     <?php else: ?>
                                                         <div class="mb-5">
@@ -106,13 +100,6 @@
                                                                 value="<?php echo html_escape((string)$plan['credit_days']); ?>"
                                                                 placeholder="5,15,25" />
                                                             <div class="text-muted fs-8 mt-1">Day numbers 1–31, comma separated.</div>
-                                                        </div>
-                                                        <div class="alert alert-secondary fs-7 py-3">
-                                                            Withdraw window and min/max limits are managed on the single
-                                                            <a href="<?php echo base_url(); ?>withdraw-settings" class="fw-bold">Withdraw Settings</a>
-                                                            page (currently: every <?php echo (int)$plan['withdraw_frequency_days']; ?> days,
-                                                            <?php echo (float)$plan['min_withdraw_bman']; ?>–<?php echo (float)$plan['max_withdraw_bman']; ?> BMAN /
-                                                            <?php echo (float)$plan['min_withdraw_usdt']; ?>–<?php echo (float)$plan['max_withdraw_usdt']; ?> USDT).
                                                         </div>
                                                     <?php endif; ?>
 

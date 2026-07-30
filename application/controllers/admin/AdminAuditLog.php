@@ -97,7 +97,11 @@ class AdminAuditLog extends CI_Controller
                                    $r['old_value'], $r['new_value'], $r['admin_name'], $r['changed_by'], $r['created_at']);
         }
 
-        usort($rows, function ($a, $b) { return strcmp($b['created_at'], $a['created_at']); });
+        // The API contract is newest-first; the page may optionally reverse this
+        // order after applying its module and date filters.
+        usort($rows, function ($a, $b) {
+            return strcmp($b['created_at'], $a['created_at']);
+        });
         $rows = array_slice($rows, 0, 300);
 
         return $this->_json(['status' => 'success', 'rows' => $rows]);
