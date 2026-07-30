@@ -6,6 +6,13 @@
   .bmu-preview-wrap { max-height: 460px; overflow: auto; }
   .bmu-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; }
   @media (max-width: 767.98px) { .bmu-drop { padding: 1.5rem .75rem; } }
+  .bmu-settings-card .form-check-input { width: 2.4rem; height: 1.25rem; }
+  .bmu-settings-card .form-check-label { padding-left: .5rem; }
+  .bmu-wallet-badge { display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .65rem; border-radius: .5rem; font-size: .75rem; font-weight: 600; }
+  .bmu-wallet-exchange { background: var(--bs-light-info);    color: var(--bs-info); }
+  .bmu-wallet-earning  { background: var(--bs-light-success); color: var(--bs-success); }
+  .bmu-wallet-staking  { background: var(--bs-light-warning); color: var(--bs-warning); }
+  .bmu-wallet-bonus    { background: var(--bs-light-primary); color: var(--bs-primary); }
 </style>
 <body id="kt_app_body" data-kt-app-layout="dark-sidebar" data-kt-app-header-fixed="true"
   data-kt-app-sidebar-enabled="true" data-kt-app-sidebar-fixed="true" data-kt-app-sidebar-hoverable="true"
@@ -65,7 +72,7 @@
                         <h3 class="card-title fw-bold">1 · Upload &amp; Validate</h3>
                       </div>
                       <div class="card-body pt-2 pb-8">
-                        <form id="bmu-form">
+                      <form id="bmu-form">
                           <div class="bmu-drop mb-5" id="bmu-drop">
                             <i class="ki-outline ki-file-up fs-3x text-primary mb-3 d-block"></i>
                             <div class="fw-bold fs-6" id="bmu-filename">Drop an .xlsx or .csv here, or click to choose</div>
@@ -74,16 +81,47 @@
                           </div>
 
                           <div class="row g-4">
-                            <div class="col-md-8">
+                            <!-- Default password -->
+                            <div class="col-md-6">
                               <label class="form-label fw-semibold fs-7">Default password <span class="text-muted fw-normal">(used when a row's password cell is blank)</span></label>
                               <input type="text" name="default_password" class="form-control form-control-solid" autocomplete="off" placeholder="e.g. Welcome@2026" />
                             </div>
-                            <div class="col-md-4 d-flex align-items-end">
+
+                            <!-- Wallet type -->
+                            <div class="col-md-4">
+                              <label class="form-label fw-semibold fs-7" for="bmu-wallet-type">
+                                Default Wallet Type
+                                <span class="text-muted fw-normal">(where BMAN is credited)</span>
+                              </label>
+                              <select name="wallet_type" id="bmu-wallet-type" class="form-select form-select-solid">
+                                <?php
+                                  $savedWallet = $settings['wallet_type'] ?? 'exchange';
+                                  $walletOpts  = [
+                                    'exchange' => 'Exchange Wallet',
+                                    'earning'  => 'Earning Wallet',
+                                    'staking'  => 'Staking Wallet',
+                                    'bonus'    => 'Bonus Wallet',
+                                  ];
+                                  foreach ($walletOpts as $wk => $wl):
+                                ?>
+                                <option value="<?php echo $wk; ?>" <?php echo $savedWallet === $wk ? 'selected' : ''; ?>>
+                                  <?php echo $wl; ?>
+                                </option>
+                                <?php endforeach; ?>
+                              </select>
+                              <div class="form-text text-muted fs-8 mt-1">
+                                Add a <code>wallet_type</code> column in your sheet to override per row.
+                              </div>
+                            </div>
+
+                            <!-- Queue BMAN toggle -->
+                            <div class="col-md-2 d-flex align-items-end">
                               <div class="form-check form-switch mb-2">
                                 <input class="form-check-input" type="checkbox" id="bmu-sendbman" name="send_bman" checked>
                                 <label class="form-check-label fw-semibold fs-7" for="bmu-sendbman">Queue BMAN</label>
                               </div>
                             </div>
+
                             <div class="col-12">
                               <button type="submit" class="btn btn-primary" id="bmu-validate">
                                 <span class="indicator-label">Validate File</span>
@@ -96,7 +134,123 @@
                       </div>
                     </div>
                   </div>
+                </div>
 
+                <!-- =================== Cron Settings =================== -->
+                <div class="card mb-5 bmu-settings-card">
+                  <div class="card-header border-transparent pt-5" id="bmu-settings-heading"
+                       style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#bmu-settings-body" aria-expanded="false">
+                    <h3 class="card-title fw-bold d-flex align-items-center gap-3">
+                      <i class="ki-outline ki-setting-3 fs-3 text-gray-600"></i>
+                      BMAN Cron Settings
+                      <?php
+                        $cronLive = !empty($settings['enabled']) && empty($settings['dry_run']);
+                        if (empty($settings['enabled']))      { $st = 'secondary'; $sl = 'DISABLED'; }
+                        elseif (!empty($settings['dry_run'])) { $st = 'warning';   $sl = 'DRY-RUN'; }
+                        else                                  { $st = 'success';   $sl = 'LIVE'; }
+                      ?>
+                      <span class="badge badge-<?php echo $st; ?> fs-9 ms-1"><?php echo $sl; ?></span>
+                    </h3>
+                    <div class="card-toolbar">
+                      <span class="text-muted fs-8 me-2">Click to expand / collapse</span>
+                      <i class="ki-outline ki-down fs-5 text-gray-500" id="bmu-settings-chevron"></i>
+                    </div>
+                  </div>
+                  <div class="collapse" id="bmu-settings-body">
+                    <div class="card-body pt-2 pb-8">
+                      <form id="bmu-settings-form">
+                        <div class="row g-5">
+
+                          <!-- Master switches -->
+                          <div class="col-md-6">
+                            <div class="d-flex flex-column gap-4">
+                              <div class="d-flex align-items-center justify-content-between border rounded p-4">
+                                <div>
+                                  <div class="fw-bold fs-6">Enable BMAN Cron</div>
+                                  <div class="text-muted fs-8">Master switch — OFF means the queue just accumulates.</div>
+                                </div>
+                                <div class="form-check form-switch ms-4">
+                                  <input class="form-check-input" type="checkbox" id="bcs-enabled" name="enabled"
+                                         <?php echo !empty($settings['enabled']) ? 'checked' : ''; ?>>
+                                </div>
+                              </div>
+                              <div class="d-flex align-items-center justify-content-between border rounded p-4">
+                                <div>
+                                  <div class="fw-bold fs-6">Dry-Run Mode</div>
+                                  <div class="text-muted fs-8">Records a DRYRUN- hash — nothing is broadcast on-chain.</div>
+                                </div>
+                                <div class="form-check form-switch ms-4">
+                                  <input class="form-check-input" type="checkbox" id="bcs-dryrun" name="dry_run"
+                                         <?php echo !empty($settings['dry_run']) ? 'checked' : ''; ?>>
+                                </div>
+                              </div>
+                              <div class="d-flex align-items-center justify-content-between border rounded p-4">
+                                <div>
+                                  <div class="fw-bold fs-6">Credit Wallet on Delivery</div>
+                                  <div class="text-muted fs-8">Post the BMAN to the member's internal wallet after the on-chain send.</div>
+                                </div>
+                                <div class="form-check form-switch ms-4">
+                                  <input class="form-check-input" type="checkbox" id="bcs-credit" name="credit_exchange_wallet"
+                                         <?php echo !empty($settings['credit_exchange_wallet']) ? 'checked' : ''; ?>>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Numeric / select settings -->
+                          <div class="col-md-6">
+                            <div class="row g-4">
+                              <div class="col-12">
+                                <label class="form-label fw-semibold fs-7" for="bcs-wallet-type">
+                                  Default Wallet Type
+                                  <span class="text-muted fw-normal">(site-wide default for all new uploads)</span>
+                                </label>
+                                <select name="wallet_type" id="bcs-wallet-type" class="form-select form-select-solid">
+                                  <?php
+                                    $cw = $settings['wallet_type'] ?? 'exchange';
+                                    $cwOpts = ['exchange'=>'Exchange Wallet','earning'=>'Earning Wallet','staking'=>'Staking Wallet','bonus'=>'Bonus Wallet'];
+                                    foreach ($cwOpts as $k => $v):
+                                  ?>
+                                  <option value="<?php echo $k; ?>" <?php echo $cw === $k ? 'selected' : ''; ?>><?php echo $v; ?></option>
+                                  <?php endforeach; ?>
+                                </select>
+                                <div class="form-text fs-8 text-muted">This pre-selects the wallet type on the upload form. Each upload can still override it.</div>
+                              </div>
+                              <div class="col-sm-6">
+                                <label class="form-label fw-semibold fs-7" for="bcs-reserve">Min Treasury Reserve (BMAN)</label>
+                                <input type="number" name="min_treasury_reserve" id="bcs-reserve"
+                                       class="form-control form-control-solid" step="0.00000001" min="0"
+                                       value="<?php echo html_escape($settings['min_treasury_reserve']); ?>">
+                                <div class="form-text fs-8 text-muted">Cron pauses if treasury would drop below this amount.</div>
+                              </div>
+                              <div class="col-sm-6">
+                                <label class="form-label fw-semibold fs-7" for="bcs-batch">Max Batch Size</label>
+                                <input type="number" name="max_batch_size" id="bcs-batch"
+                                       class="form-control form-control-solid" min="1" max="500"
+                                       value="<?php echo (int)$settings['max_batch_size']; ?>">
+                                <div class="form-text fs-8 text-muted">Rows claimed per cron pass (max 500).</div>
+                              </div>
+                              <div class="col-sm-6">
+                                <label class="form-label fw-semibold fs-7" for="bcs-maxrows">Max Rows per File</label>
+                                <input type="number" name="max_rows_per_file" id="bcs-maxrows"
+                                       class="form-control form-control-solid" min="1" max="20000"
+                                       value="<?php echo (int)$settings['max_rows_per_file']; ?>">
+                                <div class="form-text fs-8 text-muted">Guard against runaway sheets (max 20000).</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="col-12 pt-2">
+                            <button type="submit" class="btn btn-primary" id="bmu-save-settings">
+                              <span class="indicator-label"><i class="ki-outline ki-check fs-4 me-1"></i>Save Settings</span>
+                              <span class="indicator-progress">Saving… <span class="spinner-border spinner-border-sm align-middle ms-2"></span></span>
+                            </button>
+                          </div>
+
+                        </div>
+                      </form>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- ===================== Preview ===================== -->
@@ -119,7 +273,7 @@
                       <table class="table align-middle table-row-dashed fs-7 gy-3 mb-0">
                         <thead><tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
                           <th>#</th><th>Username</th><th>Email</th><th>Reference ID (sponsor)</th>
-                          <th class="text-end">BMAN</th><th>Status</th><th>Message</th>
+                          <th class="text-end">BMAN</th><th>Wallet</th><th>Status</th><th>Message</th>
                         </tr></thead>
                         <tbody id="bmu-preview-body" class="text-gray-700 fw-semibold"></tbody>
                       </table>
@@ -321,6 +475,9 @@
       el('bmu-preview-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
+    /* Wallet type badge colours */
+    const walletBadgeClass = { exchange: 'info', earning: 'success', staking: 'warning', bonus: 'primary' };
+
     function renderPreview(rows, summary) {
       el('bmu-count-valid').textContent   = (summary.valid   || 0) + ' valid';
       el('bmu-count-invalid').textContent = (summary.invalid || 0) + ' invalid';
@@ -328,13 +485,17 @@
       el('bmu-import').disabled = !(summary.valid > 0);
 
       el('bmu-preview-body').innerHTML = rows.map(r => {
-        const bad = r.status === 'invalid';
+        const bad    = r.status === 'invalid';
+        const wtype  = (r.wallet_type || 'exchange').toLowerCase();
+        const wcolor = walletBadgeClass[wtype] || 'secondary';
+        const wlabel = wtype.charAt(0).toUpperCase() + wtype.slice(1);
         return `<tr class="${bad ? 'bg-light-danger' : ''}">
           <td class="text-muted">${esc(r.row_number)}</td>
           <td>${esc(r.username)}</td>
           <td class="fs-8">${esc(r.email)}</td>
           <td class="bmu-mono">${esc(r.reference_id)}</td>
           <td class="text-end">${Number(r.bman_amount) ? Number(r.bman_amount).toLocaleString(undefined, { maximumFractionDigits: 8 }) : '—'}</td>
+          <td><span class="badge badge-light-${wcolor} fs-9">${wlabel}</span></td>
           <td><span class="badge badge-light-${bad ? 'danger' : 'success'}">${bad ? 'INVALID' : 'READY'}</span></td>
           <td class="fs-8 text-danger">${esc(r.error_message || '')}</td>
         </tr>`;
@@ -374,6 +535,33 @@
       toast(j.message || (ok ? 'Discarded.' : 'Failed.'), ok);
       if (ok) { stagedBatchId = null; el('bmu-preview-card').classList.add('d-none'); }
     });
+
+    /* ---------------- cron settings form ---------------- */
+    const settingsForm = el('bmu-settings-form');
+    if (settingsForm) {
+      settingsForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = el('bmu-save-settings');
+        busy(btn, true);
+        const fd = new FormData(settingsForm);
+        // Checkboxes: add explicit '0' for unchecked so the server sees them
+        ['enabled','dry_run','credit_exchange_wallet'].forEach(name => {
+          if (!settingsForm.querySelector('[name="'+name+'"]:checked')) fd.set(name, '');
+        });
+        const { ok, j } = await post('admin/member/bulk-upload/settings', fd);
+        busy(btn, false);
+        toast(j.message || (ok ? 'Settings saved.' : 'Failed to save.'), ok);
+        if (ok) setTimeout(() => location.reload(), 900);
+      });
+    }
+
+    /* ---------------- cron settings chevron ---------------- */
+    const settingsBody = document.getElementById('bmu-settings-body');
+    const chevron      = document.getElementById('bmu-settings-chevron');
+    if (settingsBody && chevron) {
+      settingsBody.addEventListener('show.bs.collapse',  () => chevron.style.transform = 'rotate(180deg)');
+      settingsBody.addEventListener('hide.bs.collapse',  () => chevron.style.transform = 'rotate(0deg)');
+    }
 
   })();
   </script>

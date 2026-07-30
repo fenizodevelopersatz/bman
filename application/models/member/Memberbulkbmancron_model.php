@@ -222,13 +222,19 @@ class Memberbulkbmancron_model extends CI_Model
             return ['ok' => false, 'error' => 'row has no user_id'];
         }
 
+        // Use the per-row wallet type (set at stage time), defaulting to
+        // 'exchange' for rows that pre-date the wallet_type column.
+        $wallet = !empty($r['wallet_type']) && in_array($r['wallet_type'],
+            ['exchange', 'earning', 'staking', 'bonus'], true)
+            ? $r['wallet_type'] : 'exchange';
+
         try {
             list($ok, $info) = $this->ledger->credit(
-                (int)$r['user_id'], 'exchange', (string)$r['bman_amount'], 'admin_adjustment',
+                (int)$r['user_id'], $wallet, (string)$r['bman_amount'], 'admin_adjustment',
                 [
                     'tx_hash'      => $txHash,
                     'reference_id' => substr((string)($r['batch_ref'] ?: ('MBU-'.$r['id'])), 0, 64),
-                    'description'  => 'Bulk member upload — opening BMAN balance',
+                    'description'  => 'Bulk member upload — opening BMAN balance ('.ucfirst($wallet).' wallet)',
                 ]
             );
 
@@ -239,7 +245,7 @@ class Memberbulkbmancron_model extends CI_Model
 
             // post() returns the ledger id, or the string 'already_posted' when
             // the unique index already had this (tx_hash, wallet) pair.
-            $ledgerId = is_numeric($info) ? (int)$info : $this->_findLedgerId($txHash);
+            $ledgerId = is_numeric($info) ? (int)$info : $this->_findLedgerId($txHash, $wallet);
 
             $this->db->where('id', (int)$r['id'])->update('member_bulk_upload_rows', [
                 'bman_ledger_id'   => $ledgerId ?: null,
@@ -254,9 +260,9 @@ class Memberbulkbmancron_model extends CI_Model
     }
 
     /** The ledger row for a hash already posted on a previous attempt. */
-    private function _findLedgerId($txHash)
+    private function _findLedgerId($txHash, $wallet = 'exchange')
     {
-        $row = $this->db->select('id')->where('tx_hash', $txHash)->where('wallet_type', 'exchange')
+        $row = $this->db->select('id')->where('tx_hash', $txHash)->where('wallet_type', $wallet)
             ->limit(1)->get('wallet_ledger')->row_array();
         return $row ? (int)$row['id'] : 0;
     }

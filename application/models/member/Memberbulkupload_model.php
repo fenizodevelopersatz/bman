@@ -37,10 +37,15 @@ class Memberbulkupload_model extends CI_Model
         'password'     => ['password', 'defaultpassword', 'pass', 'pwd', 'loginpassword'],
         'reference_id' => ['referenceid', 'reference', 'referralid', 'referral', 'refid', 'ref', 'sponsor', 'sponsorid', 'sponsorreferral', 'sponsorreferenceid', 'placementid', 'uplineid', 'upline'],
         'bman'         => ['bman', 'bmanbalance', 'bmanamount', 'bmantoken', 'balance', 'amount', 'token', 'tokens', 'coin'],
+        'wallet_type'  => ['wallettype', 'wallet', 'walletname', 'creditwallet', 'targetwallet', 'receiverwallet'],
     ];
 
     /** Column order of the downloadable template, and of the header row we expect. */
-    public static $templateColumns = ['username', 'email', 'password', 'reference_id', 'bman'];
+    /** Column order of the downloadable template, and of the header row we expect. */
+    public static $templateColumns = ['username', 'email', 'password', 'reference_id', 'bman', 'wallet_type'];
+
+    /** Wallet types the BMAN credit can target. */
+    public static $walletTypes = ['exchange', 'earning', 'staking', 'bonus'];
 
     const MIN_PASSWORD = 6;
 
@@ -59,7 +64,7 @@ class Memberbulkupload_model extends CI_Model
         return $row ?: [
             'enabled' => 0, 'dry_run' => 1, 'min_treasury_reserve' => '0',
             'max_batch_size' => 20, 'max_rows_per_file' => 1000,
-            'credit_exchange_wallet' => 1,
+            'credit_exchange_wallet' => 1, 'wallet_type' => 'exchange',
         ];
     }
 
@@ -67,7 +72,7 @@ class Memberbulkupload_model extends CI_Model
     {
         $allowed = array_intersect_key($data, array_flip([
             'enabled', 'dry_run', 'min_treasury_reserve', 'max_batch_size', 'max_rows_per_file',
-            'credit_exchange_wallet',
+            'credit_exchange_wallet', 'wallet_type',
         ]));
         if (empty($allowed)) return [false, 'No valid fields to update.'];
         $allowed['updated_by'] = $adminId;
@@ -212,6 +217,8 @@ class Memberbulkupload_model extends CI_Model
 
         $defaultPassword = (string)($opts['default_password'] ?? '');
         $sendBman        = !empty($opts['send_bman']) ? 1 : 0;
+        $defaultWallet   = in_array($opts['wallet_type'] ?? '', self::$walletTypes, true)
+                           ? $opts['wallet_type'] : 'exchange';
 
         // Duplicate detection has to cover the file itself, not just the DB —
         // two rows claiming the same email would otherwise both pass validation
@@ -308,6 +315,20 @@ class Memberbulkupload_model extends CI_Model
                 }
             }
 
+            /* ---- wallet_type (per-row override, fallback to batch default) ---- */
+            $rowWalletRaw = $get('wallet_type');
+            if ($rowWalletRaw !== '') {
+                $rowWalletClean = strtolower(trim($rowWalletRaw));
+                if (!in_array($rowWalletClean, self::$walletTypes, true)) {
+                    $errors[] = 'wallet_type "'.$rowWalletRaw.'" is not valid (use: exchange, earning, staking, bonus)';
+                    $rowWallet = $defaultWallet;
+                } else {
+                    $rowWallet = $rowWalletClean;
+                }
+            } else {
+                $rowWallet = $defaultWallet;
+            }
+
             if (!$errors) {
                 $seenUsernames[mb_strtolower($username)] = $rowNo;
                 $seenEmails[mb_strtolower($email)] = $rowNo;
@@ -328,6 +349,7 @@ class Memberbulkupload_model extends CI_Model
                 'sponsor_id'    => $sponsorId,
                 'leg'           => 'auto',   // column retained for history; always auto now
                 'bman_amount'   => $bman,
+                'wallet_type'   => $rowWallet,
                 'status'        => $errors ? 'invalid' : 'valid',
                 'error_message' => $errors ? mb_substr(implode('; ', $errors), 0, 255) : null,
             ];
@@ -347,6 +369,7 @@ class Memberbulkupload_model extends CI_Model
             'bman_total'    => $bmanTotal,
             'default_leg'   => 'auto',
             'send_bman'     => $sendBman,
+            'wallet_type'   => $defaultWallet,
         ]);
 
         return [

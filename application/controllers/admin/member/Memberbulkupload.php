@@ -124,6 +124,7 @@ class Memberbulkupload extends CI_Controller
             'extension'        => $ext,
             'default_password' => (string)$this->input->post('default_password'),
             'send_bman'        => $this->input->post('send_bman') ? 1 : 0,
+            'wallet_type'      => (string)$this->input->post('wallet_type'),
         ], $this->_adminId());
 
         if (empty($res['ok'])) {
@@ -178,6 +179,7 @@ class Memberbulkupload extends CI_Controller
             'enabled'                => $this->input->post('enabled') ? 1 : 0,
             'dry_run'                => $this->input->post('dry_run') ? 1 : 0,
             'credit_exchange_wallet' => $this->input->post('credit_exchange_wallet') ? 1 : 0,
+            'wallet_type'            => $this->input->post('wallet_type', true),
             'min_treasury_reserve' => $this->input->post('min_treasury_reserve', true) !== '' ? $this->input->post('min_treasury_reserve', true) : '0',
             'max_batch_size'       => $batchSize > 0 ? min($batchSize, 500) : 20,
             'max_rows_per_file'    => $maxRows > 0 ? min($maxRows, 20000) : 1000,
@@ -207,9 +209,9 @@ class Memberbulkupload extends CI_Controller
 
         $rows = [
             Memberbulkupload_model::$templateColumns,
-            ['john_doe', 'john@example.com', 'ChangeMe123', $sponsor, 100],
-            ['jane_doe', 'jane@example.com', '',            $sponsor, 250.5],
-            ['alex_roy', 'alex@example.com', '',            $sponsor, ''],
+            ['john_doe', 'john@example.com', 'ChangeMe123', $sponsor, 100, 'exchange'],
+            ['jane_doe', 'jane@example.com', '',            $sponsor, 250.5, 'earning'],
+            ['alex_roy', 'alex@example.com', '',            $sponsor, '', ''],
         ];
 
         if (strtolower((string)$this->input->get('format', true)) === 'csv') {
@@ -254,7 +256,7 @@ class Memberbulkupload extends CI_Controller
         if (!$batch) show_404();
 
         $rows = [[
-            'Row', 'Username', 'Email', 'Reference ID', 'Placed Under', 'Position', 'BMAN', 'Status',
+            'Row', 'Username', 'Email', 'Reference ID', 'Placed Under', 'Position', 'BMAN', 'Wallet Type', 'Status',
             'Member ID', 'New Referral ID', 'Wallet Address', 'BMAN Status', 'Tx Hash',
             'Exchange Ledger ID', 'Credited At', 'Message',
         ]];
@@ -264,6 +266,7 @@ class Memberbulkupload extends CI_Controller
                 $r['placed_under_referral'] ?: ($r['placed_under'] ? '#'.$r['placed_under'] : ''),
                 $r['placed_position'] ? strtoupper($r['placed_position']).($r['placed_type'] === 'auto' ? ' (spillover)' : '') : '',
                 (float)$r['bman_amount'],
+                $r['wallet_type'] ?: 'exchange',
                 strtoupper($r['status']),
                 $r['user_id'] !== null ? (int)$r['user_id'] : '',
                 $r['referral_id'], $r['wallet_address'],
