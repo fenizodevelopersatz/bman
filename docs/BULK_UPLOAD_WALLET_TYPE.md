@@ -70,7 +70,11 @@ Run this once on any environment to add the three new columns. The script is ide
 | `export()` | Adds a **Wallet Type** column to the exported audit sheet |
 | `history()` | **[NEW]** JSON endpoint returning paginated history data filtered by status for dynamic rendering |
 
-### 4. `application/views/admin/member/bulk_upload.php`
+### 4. `application/config/routes.php`
+- **Added GET route**: `admin/member/bulk-upload/history` maps to `Memberbulkupload/history`.
+- **Added POST route**: `admin/member/bulk-upload/update-row-status` maps to `Memberbulkupload/updateRowStatus`.
+
+### 5. `application/views/admin/member/bulk_upload.php`
 
 #### Upload form (card 1)
 - **Wallet Type dropdown** (`<select name="wallet_type">`) between the Default Password field and the Queue BMAN toggle.

@@ -428,6 +428,9 @@ $route['admin/member/bulk-upload/requeue']['post'] = 'admin/member/Memberbulkupl
 $route['admin/member/bulk-upload/settings']['post'] = 'admin/member/Memberbulkupload/updateSettings';
 $route['admin/member/bulk-upload/batch/(:num)'] = 'admin/member/Memberbulkupload/batch/$1';
 $route['admin/member/bulk-upload/export/(:num)'] = 'admin/member/Memberbulkupload/export/$1';
+$route['admin/member/bulk-upload/history'] = 'admin/member/Memberbulkupload/history';
+$route['admin/member/bulk-upload/update-row-status']['post'] = 'admin/member/Memberbulkupload/updateRowStatus';
+
 
 
 /*************** COMMISSION SETTINGS ****************/
