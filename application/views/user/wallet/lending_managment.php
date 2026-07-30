@@ -1283,12 +1283,12 @@ $hero_progress = 48;
                       <?php
                         $status = $row->status ?? '—';
                         $badge_class = 'secondary';
-                        if (strpos($status, 'pending') !== false) $badge_class = 'warning';
+                        if (strpos($status, 'pending') !== false) $badge_class = 'black';
                         elseif ($status === 'swap_completed') $badge_class = 'success';
                         elseif (strpos($status, 'failed') !== false) $badge_class = 'danger';
                         $status_label = ($status === 'swap_completed') ? 'Completed' : ucfirst(str_replace('_', ' ', $status));
                       ?>
-                      <span class="badge" style="display:inline-block;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:900;background:var(--<?= $badge_class ?>);color:#fff;">
+                      <span class="badge" style="display:inline-block;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:900;background:<?= $badge_class === 'black' ? '#000' : 'var(--' . $badge_class . ')' ?>;color:#fff;">
                         <?= $status_label ?>
                       </span>
                     </td>
