@@ -256,9 +256,13 @@
   (function () {
     const base = '<?php echo base_url(); ?>';
     function toast(m, ok) {
-      if (window.Swal) Swal.fire({ text: m, icon: ok ? 'success' : 'error', buttonsStyling: false,
-        confirmButtonText: 'Ok', customClass: { confirmButton: 'btn btn-primary' } });
-      else alert(m);
+      if (window.Swal) {
+        return Swal.fire({ text: m, icon: ok ? 'success' : 'error', buttonsStyling: false,
+          confirmButtonText: 'Ok', customClass: { confirmButton: 'btn btn-primary' } });
+      } else {
+        alert(m);
+        return Promise.resolve();
+      }
     }
     async function post(url, fd) {
       const r = await fetch(base + url, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
@@ -285,8 +289,8 @@
         const fd = new FormData(); fd.set('batch_id', impBtn.dataset.batch);
         const { ok, j } = await post('admin/member/bulk-upload/import', fd);
         impBtn.setAttribute('data-kt-indicator', 'off');
-        toast(j.message || (ok ? 'Imported.' : 'Import failed.'), ok);
-        if (ok) setTimeout(() => location.reload(), 1200); else impBtn.disabled = false;
+        await toast(j.message || (ok ? 'Imported.' : 'Import failed.'), ok);
+        if (ok) location.reload(); else impBtn.disabled = false;
       });
     }
 
@@ -297,8 +301,8 @@
         disBtn.disabled = true;
         const fd = new FormData(); fd.set('batch_id', disBtn.dataset.batch);
         const { ok, j } = await post('admin/member/bulk-upload/cancel', fd);
-        toast(j.message || (ok ? 'Discarded.' : 'Failed.'), ok);
-        if (ok) setTimeout(() => location.reload(), 900); else disBtn.disabled = false;
+        await toast(j.message || (ok ? 'Discarded.' : 'Failed.'), ok);
+        if (ok) location.reload(); else disBtn.disabled = false;
       });
     }
 
@@ -312,8 +316,8 @@
         });
         let j = {}; try { j = await r.json(); } catch (_) {}
         const ok = r.ok && j.status === 'success';
-        toast(j.message || (ok ? 'Queued.' : 'Failed.'), ok);
-        if (ok) setTimeout(() => location.reload(), 900); else btn.disabled = false;
+        await toast(j.message || (ok ? 'Queued.' : 'Failed.'), ok);
+        if (ok) location.reload(); else btn.disabled = false;
       });
     });
 
@@ -341,10 +345,10 @@
 
         const { ok, j } = await post('admin/member/bulk-upload/update-row-status', fd);
         if (ok) {
-          toast(status === 'valid' ? 'Row included.' : 'Row excluded.', true);
-          setTimeout(() => location.reload(), 900);
+          await toast(status === 'valid' ? 'Row included.' : 'Row excluded.', true);
+          location.reload();
         } else {
-          toast(j.message || 'Failed to update row.', false);
+          await toast(j.message || 'Failed to update row.', false);
           btn.disabled = false;
         }
       });
@@ -356,7 +360,7 @@
         const status = btn.dataset.status;
         const checkedBoxes = document.querySelectorAll('.row-select-chk:checked');
         if (checkedBoxes.length === 0) {
-          toast('Select at least one row first.', false);
+          await toast('Select at least one row first.', false);
           return;
         }
 
@@ -370,10 +374,10 @@
 
         const { ok, j } = await post('admin/member/bulk-upload/update-row-status', fd);
         if (ok) {
-          toast(status === 'valid' ? 'Selected rows included.' : 'Selected rows excluded.', true);
-          setTimeout(() => location.reload(), 900);
+          await toast(status === 'valid' ? 'Selected rows included.' : 'Selected rows excluded.', true);
+          location.reload();
         } else {
-          toast(j.message || 'Failed to update rows.', false);
+          await toast(j.message || 'Failed to update rows.', false);
           btn.disabled = false;
         }
       });

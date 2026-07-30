@@ -36,29 +36,34 @@ class Login extends CI_Controller {
         redirect($_SERVER['HTTP_REFERER']); 
     }
 
+	private function _isAjax() {
+		return $this->input->is_ajax_request() || 
+		       (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+		       (!empty($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false);
+	}
+
 	public function index()
 	{
-
-
 		if($this->input->post())
 		{
-
 			$this->form_validation->set_rules('username', 'Username', 'trim|required|callback_username_check');
 			$this->form_validation->set_rules('password', 'Password', 'trim|required');
             $site_captcha_status = site_settings('captcha','status');
             if($site_captcha_status) {
-            $this->form_validation->set_rules('g-recaptcha-response', 'captcha', 'trim|required|xss_clean|callback_captcha_check');
+                $this->form_validation->set_rules('g-recaptcha-response', 'captcha', 'trim|required|xss_clean|callback_captcha_check');
             }
 
-
 			if ($this->form_validation->run() == FALSE) {
-
-            $errors = $this->form_validation->error_array();
-            echo json_encode(['status' => false, 'errors' => $errors]);
-            exit;
-
+                $errors = $this->form_validation->error_array();
+                if ($this->_isAjax()) {
+                    echo json_encode(['status' => false, 'errors' => $errors]);
+                    exit;
+                }
+                $this->data['verify_type'] = '1';
+                $this->data['action'] = base_url()."admin/login";
+                $this->load->view('admin/login', $this->data);
+                return;
 			} else {
-
                 $username = $this->input->post('username');
                 $password = $this->input->post('password');
 				$remember = $this->input->post('remember');
@@ -84,13 +89,26 @@ class Login extends CI_Controller {
 						}
 					}
 
-                    echo json_encode(['status' => true, 'message' => "login successfuly"]);
-                    exit;
-					
+                    if ($this->_isAjax()) {
+                        echo json_encode(['status' => true, 'message' => "login successfuly"]);
+                        exit;
+                    }
+                    if ($this->session->userdata('pending_admin_verification')) {
+                        redirect('admin/login');
+                    } else {
+                        redirect('admin');
+                    }
 				} else {
-				
-                    echo json_encode(['status' => false, 'errors' => $result_get['message']]);
-                    exit;
+                    if ($this->_isAjax()) {
+                        echo json_encode(['status' => false, 'errors' => $result_get['message']]);
+                        exit;
+                    }
+                    $errMsg = is_array($result_get['message']) ? implode(', ', $result_get['message']) : $result_get['message'];
+                    $this->session->set_flashdata('error', $errMsg);
+                    $this->data['verify_type'] = '1';
+                    $this->data['action'] = base_url()."admin/login";
+                    $this->load->view('admin/login', $this->data);
+                    return;
 				}
 			}
 		}

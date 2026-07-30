@@ -37,14 +37,14 @@ var KTSigninGeneral = function() {
                 }
             }), 
             
-            e.addEventListener("click", (function(i) {
+            t.addEventListener("submit", (function(i) {
                 i.preventDefault(), 
                 r.validate().then((function(r) {
                     if ("Valid" == r) {
                         e.setAttribute("data-kt-indicator", "on"), 
                         e.disabled = !0;
                         
-                        axios.post(e.closest("form").getAttribute("action"), new FormData(t))
+                        axios.post(e.closest("form").getAttribute("action"), new FormData(t), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                         .then((function(response) {
                             if (response.data.status === false) {
                                 // Handle validation errors

@@ -604,21 +604,25 @@ class Memberbulkupload_model extends CI_Model
 
     public function updateRowStatus($rowIds, $status, $batchId)
     {
-        if (empty($rowIds)) return [false, 'No rows selected.'];
+        if (empty($rowIds)) return [false, 'No rows selected.', null];
         if (!in_array($status, ['valid', 'invalid', 'skipped'], true)) {
-            return [false, 'Invalid status.'];
+            return [false, 'Invalid status.', null];
         }
 
         // Verify the batch is staged
         $batch = $this->batch($batchId);
         if (!$batch || $batch['status'] !== 'staged') {
-            return [false, 'Only staged batches can have row status updated.'];
+            return [false, 'Only staged batches can have row status updated.', null];
         }
 
         // Update the rows
+        $updateData = ['status' => $status];
+        if ($status === 'valid') {
+            $updateData['error_message'] = null;
+        }
         $this->db->where_in('id', $rowIds)
             ->where('batch_id', (int)$batchId)
-            ->update('member_bulk_upload_rows', ['status' => $status]);
+            ->update('member_bulk_upload_rows', $updateData);
 
         // Recalculate batch statistics (valid_rows, invalid_rows, bman_queued)
         $summary = $this->recalculateBatchStats($batchId);

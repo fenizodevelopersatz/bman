@@ -276,7 +276,7 @@ $logo = site_settings('image', 'logo');
     <script>
         const base_url = '<?php echo base_url(); ?>';
     </script>
-    <script src="<?php echo base_url(); ?>assets/admin/js/custom/authentication/sign-in/general.js?ver=2.6"></script>
+    <script src="<?php echo base_url(); ?>assets/admin/js/custom/authentication/sign-in/general.js?ver=2.7"></script>
     <script src='https://www.google.com/recaptcha/api.js'></script>
 </body>
 

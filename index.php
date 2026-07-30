@@ -1,4 +1,11 @@
 <?php
+// define('TESTING_BYPASS_AUTH', true);
+// $_POST['batch_id'] = 13;
+// $_POST['row_ids'] = [40];
+// $_POST['status'] = 'valid';
+// $_SERVER['REQUEST_METHOD'] = 'POST';
+// $_SERVER['HTTP_X_REQUESTED_WITH'] = 'xmlhttprequest';
+
 ob_start();
 require('config.php');
 
