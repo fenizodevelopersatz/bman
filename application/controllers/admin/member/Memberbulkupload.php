@@ -160,6 +160,31 @@ class Memberbulkupload extends CI_Controller
         return $this->_json(['status' => $ok ? 'success' : 'error', 'message' => $msg], $ok ? 200 : 422);
     }
 
+    public function history()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+
+        $page   = max(1, (int)$this->input->get('page'));
+        $limit  = max(1, min(100, (int)$this->input->get('limit') ?: 10));
+        $status = $this->input->get('status');
+
+        $offset = ($page - 1) * $limit;
+        $total  = $this->bulk->countBatches($status);
+        $rows   = $this->bulk->batches($limit, $offset, $status);
+
+        return $this->_json([
+            'status'     => 'success',
+            'data'       => $rows,
+            'pagination' => [
+                'page'  => $page,
+                'limit' => $limit,
+                'total' => $total,
+                'pages' => max(1, (int)ceil($total / $limit))
+            ]
+        ]);
+    }
+
+
     /** Put one failed BMAN transfer back in the cron's queue. */
     public function requeue()
     {
@@ -167,6 +192,32 @@ class Memberbulkupload extends CI_Controller
         list($ok, $msg) = $this->bulk->requeueBman((int)$this->input->post('row_id'));
         return $this->_json(['status' => $ok ? 'success' : 'error', 'message' => $msg], $ok ? 200 : 422);
     }
+
+    public function updateRowStatus()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+
+        $batchId = (int)$this->input->post('batch_id');
+        $rowIds  = $this->input->post('row_ids'); // array of ids
+        $status  = $this->input->post('status');
+
+        if (empty($rowIds)) {
+            return $this->_json(['status' => 'error', 'message' => 'No rows selected.'], 422);
+        }
+
+        list($ok, $msg, $summary) = $this->bulk->updateRowStatus($rowIds, $status, $batchId);
+
+        if (!$ok) {
+            return $this->_json(['status' => 'error', 'message' => $msg], 422);
+        }
+
+        return $this->_json([
+            'status'  => 'success',
+            'message' => $msg,
+            'summary' => $summary
+        ]);
+    }
+
 
     public function updateSettings()
     {

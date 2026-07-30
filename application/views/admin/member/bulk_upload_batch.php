@@ -132,13 +132,30 @@
 
                 <!-- Rows -->
                 <div class="card mb-5">
-                  <div class="card-header border-transparent pt-5">
+                  <div class="card-header border-transparent pt-5 flex-wrap gap-3">
                     <h3 class="card-title fw-bold">Rows</h3>
+                    <?php if ($isStaged): ?>
+                    <div class="card-toolbar gap-2">
+                      <button type="button" class="btn btn-sm btn-light-success bmu-bulk-btn" data-status="valid">
+                        <i class="ki-outline ki-check fs-5 me-1"></i> Include Selected
+                      </button>
+                      <button type="button" class="btn btn-sm btn-light-danger bmu-bulk-btn" data-status="skipped">
+                        <i class="ki-outline ki-cross fs-5 me-1"></i> Exclude Selected
+                      </button>
+                    </div>
+                    <?php endif; ?>
                   </div>
                   <div class="card-body pt-3 pb-9">
                     <div class="table-responsive">
-                      <table class="table align-middle table-row-dashed fs-7 gy-4">
+                      <table class="table align-middle table-row-dashed fs-7 gy-4" id="bmu-rows-table">
                         <thead><tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
+                          <?php if ($isStaged): ?>
+                          <th class="w-10px pe-2">
+                            <div class="form-check form-check-sm form-check-custom form-check-solid">
+                              <input class="form-check-input" type="checkbox" id="bmu-check-all" />
+                            </div>
+                          </th>
+                          <?php endif; ?>
                           <th>#</th><th>Member</th><th>Sponsor ref</th><th>Placement</th><th>Wallet address</th>
                           <th class="text-end">BMAN</th><th>Row</th><th>BMAN send</th><th>Exchange wallet</th><th>Message</th><th></th>
                         </tr></thead>
@@ -148,7 +165,14 @@
                             $rowTone = ['imported' => 'success', 'failed' => 'danger', 'invalid' => 'warning', 'valid' => 'info', 'skipped' => 'secondary'][$r['status']] ?? 'secondary';
                             $bmanTone = ['completed' => 'success', 'failed' => 'danger', 'pending' => 'warning', 'processing' => 'info', 'none' => 'secondary'][$r['bman_status']] ?? 'secondary';
                           ?>
-                          <tr>
+                          <tr data-row-id="<?php echo (int)$r['id']; ?>" class="<?php echo $r['status'] === 'skipped' ? 'opacity-50' : ''; ?>">
+                            <?php if ($isStaged): ?>
+                            <td>
+                              <div class="form-check form-check-sm form-check-custom form-check-solid">
+                                <input class="form-check-input row-select-chk" type="checkbox" value="<?php echo (int)$r['id']; ?>" />
+                              </div>
+                            </td>
+                            <?php endif; ?>
                             <td class="text-muted"><?php echo (int)$r['row_number']; ?></td>
                             <td>
                               <?php if ($r['user_id']): ?>
@@ -198,7 +222,13 @@
                               <?php echo html_escape($r['error_message'] ?: ($r['bman_error'] ?: '—')); ?>
                             </td>
                             <td class="text-end">
-                              <?php if ($r['bman_status'] === 'failed'): ?>
+                              <?php if ($isStaged): ?>
+                                <?php if ($r['status'] === 'valid'): ?>
+                                  <button type="button" class="btn btn-sm btn-light-danger py-1 px-3 fs-8 row-status-btn" data-row-id="<?php echo (int)$r['id']; ?>" data-status="skipped">Exclude</button>
+                                <?php else: ?>
+                                  <button type="button" class="btn btn-sm btn-light-success py-1 px-3 fs-8 row-status-btn" data-row-id="<?php echo (int)$r['id']; ?>" data-status="valid">Include</button>
+                                <?php endif; ?>
+                              <?php elseif ($r['bman_status'] === 'failed'): ?>
                                 <button type="button" class="btn btn-sm btn-light-warning py-1 px-3 fs-8 bmu-requeue" data-row="<?php echo (int)$r['id']; ?>">Re-queue</button>
                               <?php endif; ?>
                             </td>
@@ -272,6 +302,7 @@
       });
     }
 
+    // Requeue failed BMAN cron transfer
     document.querySelectorAll('.bmu-requeue').forEach(btn => {
       btn.addEventListener('click', async () => {
         btn.disabled = true;
@@ -285,6 +316,69 @@
         if (ok) setTimeout(() => location.reload(), 900); else btn.disabled = false;
       });
     });
+
+    // Check all rows checkbox
+    const checkAll = document.getElementById('bmu-check-all');
+    if (checkAll) {
+      checkAll.addEventListener('change', (e) => {
+        document.querySelectorAll('.row-select-chk').forEach(chk => {
+          chk.checked = e.target.checked;
+        });
+      });
+    }
+
+    // Individual Row status toggle (Include / Exclude)
+    document.querySelectorAll('.row-status-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const rowId = btn.dataset.rowId;
+        const status = btn.dataset.status;
+        btn.disabled = true;
+
+        const fd = new FormData();
+        fd.set('batch_id', '<?php echo (int)$batch['id']; ?>');
+        fd.append('row_ids[]', rowId);
+        fd.set('status', status);
+
+        const { ok, j } = await post('admin/member/bulk-upload/update-row-status', fd);
+        if (ok) {
+          toast(status === 'valid' ? 'Row included.' : 'Row excluded.', true);
+          setTimeout(() => location.reload(), 900);
+        } else {
+          toast(j.message || 'Failed to update row.', false);
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // Bulk status update (Include Selected / Exclude Selected)
+    document.querySelectorAll('.bmu-bulk-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const status = btn.dataset.status;
+        const checkedBoxes = document.querySelectorAll('.row-select-chk:checked');
+        if (checkedBoxes.length === 0) {
+          toast('Select at least one row first.', false);
+          return;
+        }
+
+        btn.disabled = true;
+        const fd = new FormData();
+        fd.set('batch_id', '<?php echo (int)$batch['id']; ?>');
+        checkedBoxes.forEach(chk => {
+          fd.append('row_ids[]', chk.value);
+        });
+        fd.set('status', status);
+
+        const { ok, j } = await post('admin/member/bulk-upload/update-row-status', fd);
+        if (ok) {
+          toast(status === 'valid' ? 'Selected rows included.' : 'Selected rows excluded.', true);
+          setTimeout(() => location.reload(), 900);
+        } else {
+          toast(j.message || 'Failed to update rows.', false);
+          btn.disabled = false;
+        }
+      });
+    });
+
   })();
   </script>
 </body>

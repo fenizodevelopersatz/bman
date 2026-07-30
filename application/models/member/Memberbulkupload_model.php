@@ -93,12 +93,24 @@ class Memberbulkupload_model extends CI_Model
      * differs between MySQL and MariaDB), and this table is small enough that
      * one extra indexed query is cheaper than that fragility.
      */
-    public function batches($limit = 50, $offset = 0)
+    public function batches($limit = 50, $offset = 0, $status = null)
     {
-        $batches = $this->db->select('b.*, a.admin_name, a.admin_email')
+        $this->db->select('b.*, a.admin_name, a.admin_email')
             ->from('member_bulk_upload_batches b')
-            ->join('admin_members a', 'a.id = b.admin_id', 'left')
-            ->order_by('b.id', 'DESC')->limit($limit, $offset)->get()->result_array();
+            ->join('admin_members a', 'a.id = b.admin_id', 'left');
+
+        if ($status !== null && $status !== '') {
+            if ($status === 'failed_cancelled') {
+                $this->db->group_start()
+                    ->where('b.status', 'failed')
+                    ->or_where('b.status', 'cancelled')
+                    ->group_end();
+            } else {
+                $this->db->where('b.status', $status);
+            }
+        }
+
+        $batches = $this->db->order_by('b.id', 'DESC')->limit($limit, $offset)->get()->result_array();
         if (!$batches) return [];
 
         $empty = ['bman_pending' => 0, 'bman_processing' => 0, 'bman_sent' => 0, 'bman_failed' => 0,
@@ -140,6 +152,23 @@ class Memberbulkupload_model extends CI_Model
 
         return $batches;
     }
+
+    public function countBatches($status = null)
+    {
+        $this->db->from('member_bulk_upload_batches');
+        if ($status !== null && $status !== '') {
+            if ($status === 'failed_cancelled') {
+                $this->db->group_start()
+                    ->where('status', 'failed')
+                    ->or_where('status', 'cancelled')
+                    ->group_end();
+            } else {
+                $this->db->where('status', $status);
+            }
+        }
+        return $this->db->count_all_results();
+    }
+
 
     public function batch($batchId)
     {
@@ -567,10 +596,70 @@ class Memberbulkupload_model extends CI_Model
         if (!$row) return [false, 'Row not found.'];
         if ($row['bman_status'] !== 'failed') return [false, 'Only a failed transfer can be re-queued.'];
         if (empty($row['wallet_address'])) return [false, 'This row has no wallet address on file.'];
-        $this->db->where('id', $row['id'])->update('member_bulk_upload_rows', [
+        $this->db->where('id', (int)$rowId)->update('member_bulk_upload_rows', [
             'bman_status' => 'pending', 'bman_error' => null,
         ]);
         return [true, 'Queued for retry.'];
+    }
+
+    public function updateRowStatus($rowIds, $status, $batchId)
+    {
+        if (empty($rowIds)) return [false, 'No rows selected.'];
+        if (!in_array($status, ['valid', 'invalid', 'skipped'], true)) {
+            return [false, 'Invalid status.'];
+        }
+
+        // Verify the batch is staged
+        $batch = $this->batch($batchId);
+        if (!$batch || $batch['status'] !== 'staged') {
+            return [false, 'Only staged batches can have row status updated.'];
+        }
+
+        // Update the rows
+        $this->db->where_in('id', $rowIds)
+            ->where('batch_id', (int)$batchId)
+            ->update('member_bulk_upload_rows', ['status' => $status]);
+
+        // Recalculate batch statistics (valid_rows, invalid_rows, bman_queued)
+        $summary = $this->recalculateBatchStats($batchId);
+
+        return [true, 'Row statuses updated successfully.', $summary];
+    }
+
+    public function recalculateBatchStats($batchId)
+    {
+        $rows = $this->db->where('batch_id', (int)$batchId)->get('member_bulk_upload_rows')->result_array();
+        
+        $valid = 0;
+        $invalid = 0;
+        $bmanQueued = 0;
+        $bmanTotal = '0';
+        
+        foreach ($rows as $r) {
+            if ($r['status'] === 'valid') {
+                $valid++;
+                if (bccomp((string)$r['bman_amount'], '0', 8) > 0) {
+                    $bmanQueued++;
+                    $bmanTotal = bcadd($bmanTotal, (string)$r['bman_amount'], 8);
+                }
+            } else {
+                $invalid++;
+            }
+        }
+        
+        $this->db->where('id', (int)$batchId)->update('member_bulk_upload_batches', [
+            'valid_rows'   => $valid,
+            'invalid_rows' => $invalid,
+            'bman_queued'  => $bmanQueued,
+            'bman_total'   => $bmanTotal,
+        ]);
+        
+        return [
+            'valid' => $valid,
+            'invalid' => $invalid,
+            'bman_queued' => $bmanQueued,
+            'bman_total' => $bmanTotal,
+        ];
     }
 
     /* ============================== helpers ============================== */

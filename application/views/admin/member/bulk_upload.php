@@ -293,9 +293,30 @@
                     </div>
                   </div>
 
+                  <!-- Tab filters -->
+                  <div class="px-9 border-bottom">
+                    <ul class="nav nav-stretch nav-line-tabs nav-line-tabs-2x border-transparent fs-6 fw-bold" id="bmu-history-tabs">
+                      <li class="nav-item">
+                        <a class="nav-link text-active-primary py-3 active" href="#" data-status="">All Uploads</a>
+                      </li>
+                      <li class="nav-item">
+                        <a class="nav-link text-active-primary py-3" href="#" data-status="staged">Drafts (Staged)</a>
+                      </li>
+                      <li class="nav-item">
+                        <a class="nav-link text-active-primary py-3" href="#" data-status="importing">Importing</a>
+                      </li>
+                      <li class="nav-item">
+                        <a class="nav-link text-active-primary py-3" href="#" data-status="completed">Completed</a>
+                      </li>
+                      <li class="nav-item">
+                        <a class="nav-link text-active-primary py-3" href="#" data-status="failed_cancelled">Failed / Cancelled</a>
+                      </li>
+                    </ul>
+                  </div>
+
                   <!-- Read-only cron status. The switches that control it are
                        backend configuration and deliberately not surfaced here. -->
-                  <div class="px-9 pt-2">
+                  <div class="px-9 pt-6">
                     <div class="d-flex flex-wrap align-items-center gap-7 p-5 rounded bg-light-primary bg-opacity-50">
                       <?php
                         $cronLive = !empty($settings['enabled']) && empty($settings['dry_run']);
@@ -336,69 +357,18 @@
                           <th class="text-end">Imported</th><th class="text-end">BMAN</th>
                           <th>Delivery &amp; transactions</th><th>Status</th><th>Uploaded</th><th></th>
                         </tr></thead>
-                        <tbody class="text-gray-700 fw-semibold">
-                          <?php foreach ($batches as $b): ?>
-                          <tr>
-                            <td><span class="bmu-mono fw-bold text-primary"><?php echo html_escape($b['ref']); ?></span></td>
-                            <td class="text-truncate mw-150px" title="<?php echo html_escape($b['original_name']); ?>"><?php echo html_escape($b['original_name']); ?></td>
-                            <td class="fs-8 text-muted"><?php echo html_escape($b['admin_name'] ?: ('#'.$b['admin_id'])); ?></td>
-                            <td class="text-end"><?php echo (int)$b['total_rows']; ?>
-                              <?php if ((int)$b['invalid_rows'] > 0): ?><div class="text-danger fs-8"><?php echo (int)$b['invalid_rows']; ?> invalid</div><?php endif; ?>
-                            </td>
-                            <td class="text-end fw-bold"><?php echo (int)$b['imported_rows']; ?>
-                              <?php if ((int)$b['failed_rows'] > 0): ?><div class="text-danger fs-8"><?php echo (int)$b['failed_rows']; ?> failed</div><?php endif; ?>
-                            </td>
-                            <td class="text-end">
-                              <?php if (bccomp((string)$b['bman_total'], '0', 8) > 0): ?>
-                                <?php echo rtrim(rtrim(number_format((float)$b['bman_total'], 8, '.', ''), '0'), '.'); ?>
-                                <?php if (bccomp((string)$b['bman_sent_amount'], '0', 8) > 0): ?>
-                                  <div class="text-success fs-8"><?php echo rtrim(rtrim(number_format((float)$b['bman_sent_amount'], 8, '.', ''), '0'), '.'); ?> sent</div>
-                                <?php endif; ?>
-                              <?php else: ?><span class="text-muted">—</span><?php endif; ?>
-                            </td>
-                            <td>
-                              <?php if ($b['status'] === 'staged'): ?>
-                                <span class="badge badge-light-warning fs-9">NOT IMPORTED</span>
-                                <div class="fs-9 text-muted">nothing queued yet</div>
-                              <?php elseif ((int)$b['bman_pending'] === 0 && (int)$b['bman_sent'] === 0 && (int)$b['bman_failed'] === 0 && (int)$b['bman_processing'] === 0): ?>
-                                <span class="text-muted fs-8">No transfers</span>
-                              <?php else: ?>
-                                <div class="d-flex flex-wrap gap-1 mb-1">
-                                  <?php if ((int)$b['bman_sent'] > 0): ?><span class="badge badge-light-success fs-9"><?php echo (int)$b['bman_sent']; ?> sent</span><?php endif; ?>
-                                  <?php if ((int)$b['bman_credited'] > 0): ?><span class="badge badge-light-primary fs-9"><?php echo (int)$b['bman_credited']; ?> credited</span><?php endif; ?>
-                                  <?php if ((int)$b['bman_pending'] > 0): ?><span class="badge badge-light-warning fs-9"><?php echo (int)$b['bman_pending']; ?> queued</span><?php endif; ?>
-                                  <?php if ((int)$b['bman_processing'] > 0): ?><span class="badge badge-light-info fs-9"><?php echo (int)$b['bman_processing']; ?> sending</span><?php endif; ?>
-                                  <?php if ((int)$b['bman_failed'] > 0): ?><span class="badge badge-light-danger fs-9"><?php echo (int)$b['bman_failed']; ?> failed</span><?php endif; ?>
-                                </div>
-                                <?php if (!empty($b['last_tx_hash'])): ?>
-                                  <div class="bmu-mono fs-9 text-muted" title="<?php echo html_escape($b['last_tx_hash']); ?>">
-                                    <?php echo html_escape(substr($b['last_tx_hash'], 0, 20)).'…'; ?>
-                                  </div>
-                                <?php endif; ?>
-                                <?php if (!empty($b['last_sent_at'])): ?>
-                                  <div class="fs-9 text-muted">last <?php echo html_escape($b['last_sent_at']); ?></div>
-                                <?php endif; ?>
-                              <?php endif; ?>
-                            </td>
-                            <td>
-                              <?php
-                                $map = ['completed' => 'success', 'failed' => 'danger', 'staged' => 'warning', 'importing' => 'info', 'cancelled' => 'secondary'];
-                                $tone = $map[$b['status']] ?? 'secondary';
-                              ?>
-                              <span class="badge badge-light-<?php echo $tone; ?>"><?php echo strtoupper($b['status']); ?></span>
-                            </td>
-                            <td class="text-muted fs-8"><?php echo html_escape($b['created_at']); ?></td>
-                            <td class="text-end">
-                              <a href="<?php echo base_url(); ?>admin/member/bulk-upload/batch/<?php echo (int)$b['id']; ?>" class="btn btn-sm btn-light-primary py-1 px-3 fs-8">View</a>
-                            </td>
-                          </tr>
-                          <?php endforeach; ?>
-                          <?php if (empty($batches)): ?><tr><td colspan="10" class="text-muted">No uploads yet.</td></tr><?php endif; ?>
+                        <tbody id="bmu-history-body" class="text-gray-700 fw-semibold">
+                          <tr><td colspan="10" class="text-muted text-center py-5">Loading history...</td></tr>
                         </tbody>
                       </table>
                     </div>
+                    <div class="d-flex flex-stack flex-wrap pt-6 border-top">
+                      <div class="fs-7 fw-semibold text-gray-700" id="bmu-pagination-info">Showing 0 to 0 of 0 entries</div>
+                      <ul class="pagination pagination-outline" id="bmu-pagination"></ul>
+                    </div>
                   </div>
                 </div>
+
 
               </div>
             </div>
@@ -410,14 +380,13 @@
   </div>
   <div id="kt_scrolltop" class="scrolltop" data-kt-scrolltop="true"><i class="ki-duotone ki-arrow-up"><span class="path1"></span><span class="path2"></span></i></div>
   <?php $this->load->view('admin/Layout/common_script'); ?>
-  <script src="<?php echo base_url(); ?>/assets/admin/plugins/global/plugins.bundle.js"></script>
   <script>
   (function () {
     const base = '<?php echo base_url(); ?>';
     let stagedBatchId = null;
 
-    const el = (id) => document.getElementById(id);
-    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const el  = (id) => document.getElementById(id);
+    const esc = (s)  => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
     function toast(msg, ok) {
       if (window.Swal) Swal.fire({ text: msg, icon: ok ? 'success' : 'error', buttonsStyling: false,
@@ -433,6 +402,44 @@
       const r = await fetch(base + url, { method: 'POST', body, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
       let j = {}; try { j = await r.json(); } catch (_) {}
       return { ok: r.ok && j.status === 'success', j };
+    }
+
+    /* ---- persistent result banner (shown above the upload card) ---- */
+    function showBanner(msg, ok, batchId) {
+      let banner = el('bmu-result-banner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'bmu-result-banner';
+        const uploadCard = el('bmu-form').closest('.card');
+        uploadCard.parentNode.insertBefore(banner, uploadCard);
+      }
+      const tone   = ok ? 'success' : 'danger';
+      const icon   = ok ? 'ki-check-circle' : 'ki-cross-circle';
+      const viewBtn = ok && batchId
+        ? `<a href="${base}admin/member/bulk-upload/batch/${batchId}" class="btn btn-sm btn-${tone} ms-3">View Batch</a>`
+        : '';
+      banner.innerHTML = `
+        <div class="alert alert-${tone} d-flex align-items-center justify-content-between p-4 mb-5">
+          <div class="d-flex align-items-center gap-3">
+            <i class="ki-outline ${icon} fs-2hx text-${tone}"></i>
+            <span class="fw-semibold fs-6">${esc(msg)}</span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            ${viewBtn}
+            <button type="button" class="btn btn-sm btn-light"
+                    onclick="this.closest('.alert').parentElement.remove()">Dismiss</button>
+          </div>
+        </div>`;
+      banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    /* ---- reset upload form to its initial empty state ---- */
+    function resetUploadForm() {
+      el('bmu-form').reset();
+      fileName.textContent = 'Drop an .xlsx or .csv here, or click to choose';
+      el('bmu-preview-card').classList.add('d-none');
+      el('bmu-preview-body').innerHTML = '';
+      stagedBatchId = null;
     }
 
     /* ---------------- file picker + drag & drop ---------------- */
@@ -459,11 +466,16 @@
       e.preventDefault();
       if (!fileInput.files.length) { toast('Choose a file first.', false); return; }
 
+      // Clear any previous result banner when starting a fresh upload
+      const old = el('bmu-result-banner');
+      if (old) old.remove();
+
       const btn = el('bmu-validate');
       busy(btn, true);
       const fd = new FormData(e.target);
       fd.set('sheet', fileInput.files[0]);
       fd.set('send_bman', el('bmu-sendbman').checked ? '1' : '');
+      // wallet_type is already included by the <select name="wallet_type">
       const { ok, j } = await post('admin/member/bulk-upload/stage', fd);
       busy(btn, false);
 
@@ -475,13 +487,13 @@
       el('bmu-preview-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
-    /* Wallet type badge colours */
+    /* Wallet badge colours for the preview table */
     const walletBadgeClass = { exchange: 'info', earning: 'success', staking: 'warning', bonus: 'primary' };
 
     function renderPreview(rows, summary) {
-      el('bmu-count-valid').textContent   = (summary.valid   || 0) + ' valid';
-      el('bmu-count-invalid').textContent = (summary.invalid || 0) + ' invalid';
-      el('bmu-count-bman').textContent    = (summary.bman_queued || 0) + ' BMAN queued';
+      el('bmu-count-valid').textContent   = (summary.valid        || 0) + ' valid';
+      el('bmu-count-invalid').textContent = (summary.invalid      || 0) + ' invalid';
+      el('bmu-count-bman').textContent    = (summary.bman_queued  || 0) + ' BMAN queued';
       el('bmu-import').disabled = !(summary.valid > 0);
 
       el('bmu-preview-body').innerHTML = rows.map(r => {
@@ -502,39 +514,235 @@
       }).join('');
     }
 
+    /* ---------------- AJAX History Loading & Pagination ---------------- */
+    let currentStatus = '';
+    let currentPage   = 1;
+    const historyLimit = 10;
+
+    function formatBman(val) {
+      if (!val || parseFloat(val) === 0) return '—';
+      let s = parseFloat(val).toFixed(8);
+      s = s.replace(/\.?0+$/, "");
+      return s;
+    }
+
+    const statusToneMap = {
+      completed: 'success',
+      failed: 'danger',
+      staged: 'warning',
+      importing: 'info',
+      cancelled: 'secondary'
+    };
+
+    async function loadHistory(page, status) {
+      const tbody = el('bmu-history-body');
+      if (!tbody) return;
+      tbody.innerHTML = `<tr><td colspan="10" class="text-muted text-center py-5">Loading history... <span class="spinner-border spinner-border-sm align-middle ms-2"></span></td></tr>`;
+
+      const r = await fetch(base + `admin/member/bulk-upload/history?page=${page}&limit=${historyLimit}&status=${status}`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      let j = {}; try { j = await r.json(); } catch (_) {}
+
+      if (r.ok && j.status === 'success') {
+        renderHistoryRows(j.data || []);
+        renderPagination(j.pagination.page, j.pagination.pages, j.pagination.total);
+      } else {
+        tbody.innerHTML = `<tr><td colspan="10" class="text-danger text-center py-5">Failed to load history.</td></tr>`;
+      }
+    }
+
+    function renderHistoryRows(rows) {
+      const tbody = el('bmu-history-body');
+      if (!tbody) return;
+
+      if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" class="text-muted text-center py-5">No uploads found in this category.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = rows.map(b => {
+        const totalBman = parseFloat(b.bman_total) > 0 ? formatBman(b.bman_total) : '—';
+        const sentBman = parseFloat(b.bman_sent_amount) > 0 ? `<div class="text-success fs-8">${formatBman(b.bman_sent_amount)} sent</div>` : '';
+        const tone = statusToneMap[b.status] || 'secondary';
+        const statusLabel = b.status.toUpperCase();
+
+        let deliveryHtml = '';
+        if (b.status === 'staged') {
+          deliveryHtml = `<span class="badge badge-light-warning fs-9">NOT IMPORTED</span><div class="fs-9 text-muted">nothing queued yet</div>`;
+        } else if (parseInt(b.bman_pending) === 0 && parseInt(b.bman_sent) === 0 && parseInt(b.bman_failed) === 0 && parseInt(b.bman_processing) === 0) {
+          deliveryHtml = `<span class="text-muted fs-8">No transfers</span>`;
+        } else {
+          let badges = [];
+          if (parseInt(b.bman_sent) > 0) badges.push(`<span class="badge badge-light-success fs-9">${b.bman_sent} sent</span>`);
+          if (parseInt(b.bman_credited) > 0) badges.push(`<span class="badge badge-light-primary fs-9">${b.bman_credited} credited</span>`);
+          if (parseInt(b.bman_pending) > 0) badges.push(`<span class="badge badge-light-warning fs-9">${b.bman_pending} queued</span>`);
+          if (parseInt(b.bman_processing) > 0) badges.push(`<span class="badge badge-light-info fs-9">${b.bman_processing} sending</span>`);
+          if (parseInt(b.bman_failed) > 0) badges.push(`<span class="badge badge-light-danger fs-9">${b.bman_failed} failed</span>`);
+
+          const txHashHtml = b.last_tx_hash ? `<div class="bmu-mono fs-9 text-muted" title="${esc(b.last_tx_hash)}">${esc(b.last_tx_hash.substring(0, 20))}…</div>` : '';
+          const lastSentHtml = b.last_sent_at ? `<div class="fs-9 text-muted">last ${esc(b.last_sent_at)}</div>` : '';
+          deliveryHtml = `<div class="d-flex flex-wrap gap-1 mb-1">${badges.join('')}</div>${txHashHtml}${lastSentHtml}`;
+        }
+
+        let actionButtons = `<a href="${base}admin/member/bulk-upload/batch/${b.id}" class="btn btn-sm btn-light-primary py-1 px-3 fs-8">View</a>`;
+        if (b.status === 'staged') {
+          actionButtons += `
+            <button type="button" class="btn btn-sm btn-light-danger py-1 px-3 fs-8 bmu-cancel-btn"
+                    data-batch-id="${b.id}" data-ref="${esc(b.ref)}">Cancel</button>`;
+        }
+
+        const adminLabel = b.admin_name ? esc(b.admin_name) : `#${b.admin_id}`;
+        const invalidRowsIndicator = parseInt(b.invalid_rows) > 0 ? `<div class="text-danger fs-8">${b.invalid_rows} invalid</div>` : '';
+        const failedRowsIndicator = parseInt(b.failed_rows) > 0 ? `<div class="text-danger fs-8">${b.failed_rows} failed</div>` : '';
+
+        return `
+          <tr>
+            <td><span class="bmu-mono fw-bold text-primary">${esc(b.ref)}</span></td>
+            <td class="text-truncate mw-150px" title="${esc(b.original_name)}">${esc(b.original_name)}</td>
+            <td class="fs-8 text-muted">${adminLabel}</td>
+            <td class="text-end">${parseInt(b.total_rows)}${invalidRowsIndicator}</td>
+            <td class="text-end fw-bold">${parseInt(b.imported_rows)}${failedRowsIndicator}</td>
+            <td class="text-end">${totalBman}${sentBman}</td>
+            <td>${deliveryHtml}</td>
+            <td><span class="badge badge-light-${tone}">${statusLabel}</span></td>
+            <td class="text-muted fs-8">${esc(b.created_at)}</td>
+            <td class="text-end d-flex gap-1 justify-content-end">${actionButtons}</td>
+          </tr>`;
+      }).join('');
+
+      tbody.querySelectorAll('.bmu-cancel-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const batchId = btn.dataset.batchId;
+          const ref     = btn.dataset.ref;
+          const go = window.Swal
+            ? (await Swal.fire({
+                title: 'Cancel ' + ref + '?',
+                text: 'This staged batch will be cancelled and can no longer be imported.',
+                icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, cancel it',
+                buttonsStyling: false, customClass: { confirmButton: 'btn btn-danger', cancelButton: 'btn btn-light' }
+              })).isConfirmed
+            : confirm('Cancel batch ' + ref + '?');
+          if (!go) return;
+          const fd = new FormData(); fd.set('batch_id', batchId);
+          const { ok, j } = await post('admin/member/bulk-upload/cancel', fd);
+          if (ok) {
+            toast('Batch ' + ref + ' cancelled.', true);
+            loadHistory(currentPage, currentStatus);
+          } else {
+            toast(j.message || 'Cancel failed.', false);
+          }
+        });
+      });
+    }
+
+    function renderPagination(page, pages, total) {
+      const wrapper = el('bmu-pagination');
+      const info = el('bmu-pagination-info');
+      if (!wrapper) return;
+
+      const start = total === 0 ? 0 : (page - 1) * historyLimit + 1;
+      const end = Math.min(page * historyLimit, total);
+      info.textContent = `Showing ${start} to ${end} of ${total} entries`;
+
+      if (pages <= 1) {
+        wrapper.innerHTML = '';
+        return;
+      }
+
+      let html = '';
+      html += `
+        <li class="page-item previous ${page === 1 ? 'disabled' : ''}">
+          <a href="#" class="page-link" data-page="${page - 1}"><i class="ki-outline ki-left fs-6"></i></a>
+        </li>`;
+
+      for (let i = 1; i <= pages; i++) {
+        html += `
+          <li class="page-item ${i === page ? 'active' : ''}">
+            <a href="#" class="page-link" data-page="${i}">${i}</a>
+          </li>`;
+      }
+
+      html += `
+        <li class="page-item next ${page === pages ? 'disabled' : ''}">
+          <a href="#" class="page-link" data-page="${page + 1}"><i class="ki-outline ki-right fs-6"></i></a>
+        </li>`;
+
+      wrapper.innerHTML = html;
+
+      wrapper.querySelectorAll('.page-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const p = parseInt(link.dataset.page);
+          if (p && p >= 1 && p <= pages && p !== page) {
+            currentPage = p;
+            loadHistory(p, currentStatus);
+          }
+        });
+      });
+    }
+
+    // Set up tabs click handlers
+    const tabContainer = el('bmu-history-tabs');
+    if (tabContainer) {
+      tabContainer.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          tabContainer.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+          link.classList.add('active');
+          currentStatus = link.dataset.status;
+          currentPage = 1;
+          loadHistory(1, currentStatus);
+        });
+      });
+    }
+
+    // Load initial history table rows
+    loadHistory(1, '');
+
     /* ---------------- import ---------------- */
     el('bmu-import').addEventListener('click', async () => {
       if (!stagedBatchId) return;
-      const valid = el('bmu-count-valid').textContent;
+      const validText = el('bmu-count-valid').textContent;
+      const batchId   = stagedBatchId;
 
       const go = window.Swal
         ? (await Swal.fire({
             title: 'Create these members?',
-            text: valid + ' member account(s) will be created, each with a generated wallet address. This cannot be undone in bulk.',
+            text: validText + ' member account(s) will be created, each with a generated wallet address. This cannot be undone in bulk.',
             icon: 'warning', showCancelButton: true, confirmButtonText: 'Yes, import',
             buttonsStyling: false, customClass: { confirmButton: 'btn btn-primary', cancelButton: 'btn btn-light' }
           })).isConfirmed
-        : confirm('Create ' + valid + ' member account(s)?');
+        : confirm('Create ' + validText + ' member account(s)?');
       if (!go) return;
 
       const btn = el('bmu-import');
       busy(btn, true);
-      const fd = new FormData(); fd.set('batch_id', stagedBatchId);
+      const fd = new FormData();
+      fd.set('batch_id', batchId);
       const { ok, j } = await post('admin/member/bulk-upload/import', fd);
       busy(btn, false);
 
-      toast(j.message || (ok ? 'Imported.' : 'Import failed.'), ok);
-      if (ok) setTimeout(() => location.href = base + 'admin/member/bulk-upload/batch/' + stagedBatchId, 1200);
+      resetUploadForm();
+      showBanner(j.message || (ok ? 'Import complete.' : 'Import failed.'), ok, ok ? batchId : null);
+
+      // Reload list dynamically instead of hard page refresh
+      if (ok) setTimeout(() => loadHistory(currentPage, currentStatus), 1200);
     });
 
-    /* ---------------- discard ---------------- */
+    /* ---------------- discard (cancel staged batch from preview) ---------------- */
     el('bmu-discard').addEventListener('click', async () => {
       if (!stagedBatchId) return;
-      const fd = new FormData(); fd.set('batch_id', stagedBatchId);
+      const fd = new FormData();
+      fd.set('batch_id', stagedBatchId);
       const { ok, j } = await post('admin/member/bulk-upload/cancel', fd);
-      toast(j.message || (ok ? 'Discarded.' : 'Failed.'), ok);
-      if (ok) { stagedBatchId = null; el('bmu-preview-card').classList.add('d-none'); }
+      if (ok) {
+        resetUploadForm();
+        loadHistory(currentPage, currentStatus);
+      }
+      else toast(j.message || 'Failed to discard.', false);
     });
+
 
     /* ---------------- cron settings form ---------------- */
     const settingsForm = el('bmu-settings-form');
@@ -544,9 +752,9 @@
         const btn = el('bmu-save-settings');
         busy(btn, true);
         const fd = new FormData(settingsForm);
-        // Checkboxes: add explicit '0' for unchecked so the server sees them
-        ['enabled','dry_run','credit_exchange_wallet'].forEach(name => {
-          if (!settingsForm.querySelector('[name="'+name+'"]:checked')) fd.set(name, '');
+        // Checkboxes: explicitly send empty string for unchecked boxes
+        ['enabled', 'dry_run', 'credit_exchange_wallet'].forEach(name => {
+          if (!settingsForm.querySelector('[name="' + name + '"]:checked')) fd.set(name, '');
         });
         const { ok, j } = await post('admin/member/bulk-upload/settings', fd);
         busy(btn, false);
@@ -559,8 +767,8 @@
     const settingsBody = document.getElementById('bmu-settings-body');
     const chevron      = document.getElementById('bmu-settings-chevron');
     if (settingsBody && chevron) {
-      settingsBody.addEventListener('show.bs.collapse',  () => chevron.style.transform = 'rotate(180deg)');
-      settingsBody.addEventListener('hide.bs.collapse',  () => chevron.style.transform = 'rotate(0deg)');
+      settingsBody.addEventListener('show.bs.collapse', () => chevron.style.transform = 'rotate(180deg)');
+      settingsBody.addEventListener('hide.bs.collapse', () => chevron.style.transform = 'rotate(0deg)');
     }
 
   })();
