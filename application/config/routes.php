@@ -757,8 +757,10 @@ $route['admin/staking/roi-structure'] = 'admin/staking/Roistructure';
 $route['admin/staking/roi-structure/save']['post'] = 'admin/staking/Roistructure/save';
 $route['admin/staking/roi-structure/history']['get'] = 'admin/staking/Roistructure/history';
 $route['admin/staking/roi-structure/audit']['get'] = 'admin/staking/Roistructure/audit';
-$route['admin/staking/special-roi'] = 'admin/staking/Specialroi/index';
-$route['admin/staking/special-roi/save']['post'] = 'admin/staking/Specialroi/save';
+// NOTE: admin/staking/special-roi is gone. "Special" is now only a badge on a
+// package — special packages price off this same ROI matrix like every other
+// package. Stakes bought under the old escalating engine keep paying from the
+// schedule snapshotted on their own record; see RoiMonthlyDistribution_cron.
 // Rank Achievement (11 permanent ranks, incentives, qualification matrix)
 $route['admin/staking/ranks'] = 'admin/staking/Ranks';
 $route['admin/staking/ranks/save/(:num)']['post'] = 'admin/staking/Ranks/save/$1';
@@ -835,7 +837,6 @@ $route['admin/staking/genealogy-tree/search-users'] = 'admin/staking/Genealogytr
 $route['admin/staking/roi-history'] = 'admin/staking/Roihistory/index';
 $route['admin/staking/roi-history/list']['post'] = 'admin/staking/Roihistory/list';
 $route['admin/staking/roi-history/records']['post'] = 'admin/staking/Roihistory/records';
-$route['admin/staking/roi-history/special-distributions']['post'] = 'admin/staking/Roihistory/special_distributions';
 $route['admin/staking/roi-history/retry/(:num)']['post'] = 'admin/staking/Roihistory/retry/$1';
 $route['admin/staking/roi-history/retry-all']['post'] = 'admin/staking/Roihistory/retry_all';
 $route['admin/staking/roi-history/lookup-user']['post'] = 'admin/staking/Roihistory/lookup_user';

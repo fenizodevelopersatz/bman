@@ -20,6 +20,11 @@ CREATE TABLE IF NOT EXISTS `staking_packages` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  -- SUPERSEDED: 2026-07-30_package_amount_special_unique.sql replaces this with
+  -- UNIQUE KEY `uq_amount_special` (`stake_amount`, `is_special`) so the same
+  -- amount can exist once as a normal package and once as a special one.
+  -- (`is_special` itself is added by 2026-07-24_special_offer.sql, which is why
+  -- the composite key cannot be declared here.) Apply both after this file.
   UNIQUE KEY `uq_amount` (`stake_amount`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

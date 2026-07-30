@@ -213,53 +213,6 @@ class Roihistory extends CI_Controller
     }
 
     /**
-     * AJAX: on-chain ROI credits (monthly / maturity / principal) for Special
-     * Offer records only. Special ROI records are keyed by ref = 'ORDER-{n}-ROI';
-     * their on-chain rows use reference_id = that ref (maturity/principal) or
-     * '{ref}-M{cycle}' (monthly), so a prefix match on reference_id captures
-     * every distribution for the special records. Client-paginated like list().
-     */
-    public function special_distributions()
-    {
-        if (!$this->input->is_ajax_request()) show_404();
-        $page  = max(1, (int)$this->input->post('page'));
-        $limit = 25;
-        $offset = ($page - 1) * $limit;
-
-        $refRows = $this->db->select('ref')->where('is_special', 1)
-            ->get('roi_staking_management')->result_array();
-        $refs = array_values(array_filter(array_map(function ($r) {
-            return trim((string)$r['ref']);
-        }, $refRows), function ($ref) { return $ref !== ''; }));
-
-        if (empty($refs)) {
-            return $this->_json(['status' => 'success', 'rows' => [], 'total' => 0, 'page' => $page, 'limit' => $limit]);
-        }
-
-        $applyFilters = function () use ($refs) {
-            $this->db->from('onchain_transactions o')
-                ->join('users u', 'u.id = o.user_id', 'left')
-                ->where('o.reference_type', 'roi');
-            $this->db->group_start();
-            foreach ($refs as $i => $ref) {
-                if ($i === 0) $this->db->like('o.reference_id', $ref, 'after');
-                else          $this->db->or_like('o.reference_id', $ref, 'after');
-            }
-            $this->db->group_end();
-        };
-
-        $applyFilters();
-        $total = $this->db->count_all_results();
-
-        $applyFilters();
-        $rows = $this->db->select('o.id, o.user_id, o.tx_type, o.amount, o.wallet_type, o.status,
-                o.tx_hash, o.reference_id, o.gas_fee_total, o.created_at, u.username, u.email', false)
-            ->order_by('o.created_at', 'DESC')->limit($limit, $offset)->get()->result_array();
-
-        return $this->_json(['status' => 'success', 'rows' => $rows, 'total' => $total, 'page' => $page, 'limit' => $limit]);
-    }
-
-    /**
      * Find a user's ROI records for the manual-send panel. Accepts a numeric
      * user_id or a username/email search term. Shows every record (not just
      * failed ones) so admin can manually trigger a send for support cases.

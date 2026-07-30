@@ -45,11 +45,19 @@ class Staking_model extends CI_Model
         if ($row['bonus_percent'] < 0)    return [false, 'Bonus % cannot be negative.'];
         if ($row['group_ceiling'] < 0)    return [false, 'Group ceiling cannot be negative.'];
 
-        // stake_amount is unique — check against other rows
-        $this->db->where('stake_amount', $row['stake_amount']);
+        // A stake amount is unique WITHIN its kind, not globally: the same amount
+        // may exist once as a normal package and once as a special one — e.g.
+        // 2,000 BMAN normal alongside 2,000 BMAN special. What stays blocked is
+        // two normals, or two specials, on the same amount. This mirrors the
+        // composite UNIQUE KEY uq_amount_special (stake_amount, is_special); see
+        // db/2026-07-30_package_amount_special_unique.sql.
+        $this->db->where('stake_amount', $row['stake_amount'])
+                 ->where('is_special', $row['is_special']);
         if ($id) $this->db->where('id !=', (int)$id);
         if ($this->db->count_all_results('staking_packages') > 0) {
-            return [false, 'A package with this stake amount already exists.'];
+            return [false, $row['is_special']
+                ? 'A SPECIAL package with this stake amount already exists.'
+                : 'A normal package with this stake amount already exists.'];
         }
 
         if ($id) {

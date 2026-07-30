@@ -63,6 +63,13 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   .stk-plan .pmeta span{background:rgba(15,23,42,.05);border-radius:8px;padding:3px 8px;}
   /* package cards */
   .stk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+  /* Full-width rule closing the Special group. grid-column:1/-1 makes it span
+     every column whatever auto-fill resolved to, so it stays a clean break at
+     any width instead of sitting in one cell. */
+  .stk-sep{grid-column:1/-1;display:flex;align-items:center;gap:12px;margin:8px 0 0;}
+  .stk-sep::before,.stk-sep::after{content:"";flex:1;height:1px;background:rgba(15,23,42,.08);}
+  .stk-sep span{font-size:11px;font-weight:1000;text-transform:uppercase;letter-spacing:.5px;
+    color:var(--muted,#6b7280);white-space:nowrap;}
   .stk-card{position:relative;background:var(--card,#fff);border:1px solid rgba(15,23,42,.08);border-radius:18px;
     padding:16px;box-shadow:0 8px 24px rgba(15,23,42,.05);transition:transform .15s,box-shadow .15s;overflow:hidden;}
   .stk-card:hover{transform:translateY(-3px);box-shadow:0 14px 32px rgba(67,56,202,.14);border-color:rgba(99,102,241,.35);}
@@ -139,11 +146,23 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   <?php endif; ?>
 
   <div class="stk-grid">
+    <?php $prevSpecial = null; ?>
     <?php foreach ($staking_packages as $p):
       $roi = $p['roi'] ?? [];
       $owned = in_array((int)$p['id'], $owned_stake_ids, true);
+      // Badge only — a special package offers the same Fixed/Regular terms as
+      // any other, so the card body below is identical for both.
+      $isSpecialPkg = !empty($p['is_special']);
     ?>
-    <?php $isSpecialPkg = !empty($p['is_special']) && !empty($p['special_roi']); ?>
+    <?php /* The controller hands the list over special-first, so the one place
+             the flag flips is the boundary between the two groups. Drawing the
+             rule off that transition means it appears only when both groups are
+             actually present — no stray bar when there are no special packages,
+             and none trailing the list when every package is special. */ ?>
+    <?php if ($prevSpecial === true && !$isSpecialPkg): ?>
+    <div class="stk-sep"><span>Standard Packages</span></div>
+    <?php endif; ?>
+    <?php $prevSpecial = $isSpecialPkg; ?>
     <div class="stk-card<?= $owned ? ' owned' : '' ?><?= $isSpecialPkg ? ' special' : '' ?>">
       <?php if ($owned): ?><span class="owned-rib">OWNED</span><?php endif; ?>
       <div class="amt"><?= number_format((float)$p['stake_amount']) ?> <small>BMAN</small></div>
@@ -152,36 +171,6 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         <?php if ($isSpecialPkg): ?><span class="stk-b special-chip"><i class="ph-fill ph-star"></i> Special Offer</span><?php endif; ?>
       </div>
 
-      <?php if ($isSpecialPkg): ?>
-      <table class="stk-roi">
-        <thead>
-          <tr>
-            <th>Term</th>
-            <th>Monthly <span style="font-weight:700;text-transform:none;">(ROI)</span></th>
-            <th>Maturity <span style="font-weight:700;text-transform:none;">(bonus)</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php foreach ($p['special_roi'] as $yr => $sr): ?>
-          <tr>
-            <td><?= (int)$yr ?> Year<?= $yr > 1 ? 's' : '' ?></td>
-            <td><span class="rg"><?= rtrim(rtrim(number_format((float)$sr['monthly_roi_percent'], 3), '0'), '.') ?>% /mo</span></td>
-            <td><span class="fx"><?= rtrim(rtrim(number_format((float)$sr['maturity_percent'], 3), '0'), '.') ?>%</span></td>
-          </tr>
-          <?php endforeach; ?>
-        </tbody>
-      </table>
-      <div class="stk-foot">
-        <span><b>Monthly:</b> credited each month</span>
-        <span><b>Maturity:</b> bonus at term end</span>
-      </div>
-      <?php /* No "View ROI Structure" button here: the table directly above is
-               that structure, from the same $p['special_roi'] data. The modal it
-               used to open repeated those exact three columns and added nothing.
-               The per-term BMAN figures (monthly credit, maturity bonus,
-               principal, total return) live in the SELECT purchase modal, where
-               a term has actually been chosen and they can be computed. */ ?>
-      <?php else: ?>
       <table class="stk-roi">
         <thead>
           <tr>
@@ -207,9 +196,8 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         <span><b>Fixed:</b> total ROI at maturity</span>
         <span><b>Regular:</b> % credited monthly</span>
       </div>
-      <?php endif; ?>
 
-      <button type="button" class="stk-buy" onclick="<?= $isSpecialPkg ? 'stkSpecialOpen' : 'stkOpen' ?>(<?= (int)$p['id'] ?>)">
+      <button type="button" class="stk-buy" onclick="stkOpen(<?= (int)$p['id'] ?>)">
         <i class="ph ph-lock-key"></i> SELECT
       </button>
     </div>
@@ -217,178 +205,18 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   </div>
 </section>
 
-<!-- ===================== SPECIAL OFFER styling + ROI popup ===================== -->
-<?php
-$specialRoiMap = [];   // offered (selectable) years: id => [{year, monthly, maturity}]
-$specialRoiName = [];  // id => package name
-$specialRoiMeta = [];  // id => {stake, bonus}
-$specialRoiFull = [];  // id => {year => monthly% (float)} for every configured year
-foreach ($staking_packages as $__p) {
-  if (!empty($__p['is_special']) && !empty($__p['special_roi'])) {
-    $__id = (int) $__p['id'];
-    $__rows = [];
-    foreach ($__p['special_roi'] as $__yr => $__sr) {
-      $__rows[] = [
-        'year'     => (int) $__yr,
-        'monthly'  => (float) $__sr['monthly_roi_percent'],
-        'maturity' => (float) $__sr['maturity_percent'],
-      ];
-    }
-    $specialRoiMap[$__id]  = $__rows;
-    $specialRoiName[$__id] = $__p['name'];
-    $specialRoiMeta[$__id] = ['stake' => (float) $__p['stake_amount'], 'bonus' => (float) $__p['bonus_percent']];
-    $__full = [];
-    foreach (($__p['special_roi_full'] ?? []) as $__y => $__r) {
-      if ((float) $__r['monthly_roi_percent'] > 0) $__full[(int) $__y] = (float) $__r['monthly_roi_percent'];
-    }
-    $specialRoiFull[$__id] = $__full;
-  }
-}
-?>
+<!-- ===================== SPECIAL OFFER badge styling ===================== -->
+<?php /* A special package is highlighted, not priced differently. It uses the
+         same ROI table, the same SELECT modal and the same purchase endpoint as
+         every other package — only the gold border and chip below set it
+         apart. The dedicated escalating-ROI card, modal and JS that used to
+         live here were removed with the Special ROI engine. */ ?>
 <style>
   .stk-card.special{ border:1.5px solid #f5c451 !important; box-shadow:0 12px 32px rgba(245,158,11,.20) !important;
     background:linear-gradient(180deg,#fffdf6 0%,#ffffff 46%) !important; }
-  /* .special-rib kept for the Special-Offer purchase modal header (.stksp-h) */
-  .special-rib{ position:absolute; top:10px; left:10px; z-index:3;
-    background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; font-weight:900; font-size:10px;
-    letter-spacing:.5px; padding:4px 11px; border-radius:999px; box-shadow:0 4px 12px rgba(245,158,11,.45); }
   .stk-b.special-chip{ background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; font-weight:900;
     box-shadow:0 4px 12px rgba(245,158,11,.35); }
 </style>
-<?php /* The .stk-viewroi button styles and the .stkroi-* modal styles were
-         removed along with the button itself — that modal only repeated the
-         ROI table already printed on the card. Kept as a PHP comment so the
-         note does not ship to every visitor inside <style>. */ ?>
-<style>
-  .stksp-overlay{ position:fixed; inset:0; background:rgba(10,10,20,.6); z-index:100001; display:none;
-    align-items:center; justify-content:center; padding:16px; }
-  .stksp-overlay.open{ display:flex; }
-  .stksp-box{ width:min(520px,95vw); max-height:90vh; overflow:auto; background:#fff; border-radius:20px; padding:0; }
-  .stksp-h{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:18px 20px;
-    background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; }
-  .stksp-h .special-rib{ position:static; background:rgba(255,255,255,.22); }
-  .stksp-h button{ border:0; background:rgba(255,255,255,.2); color:#fff; width:30px; height:30px; border-radius:9px; cursor:pointer; font-size:20px; line-height:1; flex:0 0 auto; }
-  .stksp-body{ padding:18px 20px; }
-  .stksp-label{ display:block; font-size:12px; font-weight:1000; color:#334155; margin:4px 0 8px; }
-  .stksp-years{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
-  .stksp-year{ border:1px solid #e6e8ef; background:#fff; color:#334155; font-weight:900; font-size:12.5px;
-    border-radius:12px; padding:9px 14px; cursor:pointer; }
-  .stksp-year.active{ border-color:#d97706; background:#fffbeb; color:#92400e; }
-  .stksp-sched-title{ font-size:12px; font-weight:1000; color:#0b1220; margin:6px 0 8px; }
-  .stksp-table{ width:100%; border-collapse:collapse; font-size:12.5px; margin-bottom:12px; }
-  .stksp-table th{ text-align:left; color:#64748b; font-weight:800; font-size:10.5px; text-transform:uppercase; padding:6px; border-bottom:1px solid #eef0f4; }
-  .stksp-table td{ padding:7px 6px; border-bottom:1px dashed #eef0f4; font-weight:700; color:#0b1220; }
-  .stksp-table td.rg{ color:#15803d; }
-  .stksp-summary{ background:#f8fafc; border:1px solid #eef0f4; border-radius:12px; padding:10px 12px; margin-bottom:12px; }
-  .stksp-sum-row{ display:flex; justify-content:space-between; font-size:12.5px; font-weight:800; color:#334155; padding:3px 0; }
-  .stksp-sum-row.total{ border-top:1px dashed #cbd5e1; margin-top:5px; padding-top:7px; color:#0b1220; font-size:14px; }
-  .stksp-sum-row.total b{ color:#15803d; }
-  .stksp-feedback{ font-size:12.5px; font-weight:800; min-height:18px; margin-bottom:10px; }
-  .stksp-confirm{ width:100%; border:0; border-radius:14px; padding:13px; cursor:pointer; font-weight:1100; font-size:14px;
-    color:#fff; background:linear-gradient(135deg,#f59e0b,#d97706); }
-  .stksp-confirm:disabled{ opacity:.7; cursor:progress; }
-</style>
-
-<!-- Dedicated SPECIAL OFFER purchase modal (escalating year-wise ROI) -->
-<div class="stksp-overlay" id="stkSpecialPop" onclick="if(event.target===this)stkSpecialClose()">
-  <div class="stksp-box">
-    <div class="stksp-h">
-      <div>
-        <span class="special-rib" style="display:inline-block;">★ SPECIAL OFFER</span>
-        <div id="stkSpTitle" style="font-size:18px;font-weight:1200;margin-top:8px;"></div>
-        <div id="stkSpSub" style="font-size:12px;font-weight:800;opacity:.92;"></div>
-      </div>
-      <button type="button" onclick="stkSpecialClose()">&times;</button>
-    </div>
-    <div class="stksp-body">
-      <label class="stksp-label">Select Term</label>
-      <div class="stksp-years" id="stkSpYears"></div>
-      <div id="stkSpSchedule"></div>
-      <div class="stksp-summary" id="stkSpSummary"></div>
-      <div class="stksp-feedback" id="stkSpFeedback"></div>
-      <button type="button" class="stksp-confirm" id="stkSpConfirm" onclick="stkSpecialConfirm()">Confirm Special Stake</button>
-    </div>
-  </div>
-</div>
-<?php $spDefaultDist = 1; foreach (($coin_distribution_options ?? []) as $__o) { if (!empty($__o['is_default'])) { $spDefaultDist = (int) $__o['id']; break; } } ?>
-<script>
-  var SPECIAL_ROI = <?= json_encode($specialRoiMap) ?>;
-  var SPECIAL_ROI_NAME = <?= json_encode($specialRoiName) ?>;
-  var SPECIAL_META = <?= json_encode($specialRoiMeta) ?>;
-  var SPECIAL_FULL = <?= json_encode($specialRoiFull) ?>;
-  var SP_BASE = '<?= base_url() ?>';
-  var SP_SWAP_ON = <?= !empty($swap_enabled) ? 'true' : 'false' ?>;
-  var SP_DEFAULT_DIST = <?= (int) $spDefaultDist ?>;
-  function spFmt(v){ v = Math.round((Number(v) || 0) * 1000) / 1000; return String(v); }
-
-  var spCur = { pid: null, year: null };
-  function stkSpecialOpen(pid) {
-    spCur.pid = pid; spCur.year = null;
-    var meta = SPECIAL_META[pid] || { stake: 0, bonus: 25 };
-    document.getElementById('stkSpTitle').textContent = (SPECIAL_ROI_NAME[pid] || 'Special Offer');
-    document.getElementById('stkSpSub').textContent = Number(meta.stake).toLocaleString() + ' BMAN · ' + spFmt(meta.bonus) + '% instant bonus';
-    var years = (SPECIAL_ROI[pid] || []).map(function (r) { return r.year; });
-    document.getElementById('stkSpYears').innerHTML = years.map(function (y) {
-      return '<button type="button" class="stksp-year" data-y="' + y + '" onclick="stkSpecialPickYear(' + y + ')">' + y + ' Year' + (y > 1 ? 's' : '') + '</button>';
-    }).join('');
-    document.getElementById('stkSpSchedule').innerHTML = '';
-    document.getElementById('stkSpSummary').innerHTML = '';
-    var fb = document.getElementById('stkSpFeedback'); fb.textContent = ''; fb.style.color = '';
-    document.getElementById('stkSpConfirm').disabled = false;
-    document.getElementById('stkSpConfirm').textContent = 'Confirm Special Stake';
-    document.getElementById('stkSpecialPop').classList.add('open');
-    if (years.length) stkSpecialPickYear(years[0]);
-  }
-  function stkSpecialPickYear(y) {
-    spCur.year = y;
-    document.querySelectorAll('#stkSpYears .stksp-year').forEach(function (b) { b.classList.toggle('active', +b.dataset.y === +y); });
-    var pid = spCur.pid;
-    var principal = Number((SPECIAL_META[pid] || {}).stake) || 0;
-    var full = SPECIAL_FULL[pid] || {};
-    // Ramp years 1..y with gap-fill (nearest lower) — mirrors the backend engine.
-    var rows = ''; var totalMonthly = 0; var last = 0;
-    for (var k = 1; k <= y; k++) {
-      var pct = (full[k] !== undefined) ? Number(full[k]) : last; last = pct;
-      var amt = principal * pct / 100;
-      totalMonthly += amt * 12;
-      rows += '<tr><td>Year ' + k + '</td><td class="rg">' + spFmt(pct) + '% /mo</td><td>' + Math.round(amt).toLocaleString() + ' BMAN/mo</td></tr>';
-    }
-    var offered = (SPECIAL_ROI[pid] || []).find(function (r) { return r.year === y; });
-    var matPct = offered ? Number(offered.maturity) : 0;
-    var matAmt = principal * matPct / 100;
-    document.getElementById('stkSpSchedule').innerHTML =
-      '<div class="stksp-sched-title">Escalating monthly ROI over ' + y + ' year' + (y > 1 ? 's' : '') + '</div>' +
-      '<table class="stksp-table"><thead><tr><th>Year</th><th>Rate</th><th>Monthly credit</th></tr></thead><tbody>' + rows + '</tbody></table>';
-    document.getElementById('stkSpSummary').innerHTML =
-      '<div class="stksp-sum-row"><span>Total monthly ROI over term</span><b>' + Math.round(totalMonthly).toLocaleString() + ' BMAN</b></div>' +
-      '<div class="stksp-sum-row"><span>Maturity bonus (' + spFmt(matPct) + '%)</span><b>' + Math.round(matAmt).toLocaleString() + ' BMAN</b></div>' +
-      '<div class="stksp-sum-row"><span>Principal returned at maturity</span><b>' + Math.round(principal).toLocaleString() + ' BMAN</b></div>' +
-      '<div class="stksp-sum-row total"><span>Total return</span><b>' + Math.round(totalMonthly + matAmt + principal).toLocaleString() + ' BMAN</b></div>';
-  }
-  function stkSpecialClose() { document.getElementById('stkSpecialPop').classList.remove('open'); }
-  function stkSpecialConfirm() {
-    var fb = document.getElementById('stkSpFeedback');
-    if (!spCur.pid || !spCur.year) { fb.style.color = '#dc2626'; fb.textContent = 'Please pick a term.'; return; }
-    var btn = document.getElementById('stkSpConfirm'); btn.disabled = true; btn.textContent = 'Processing…';
-    var fd = new FormData();
-    fd.append('package_id', spCur.pid);
-    fd.append('plan_code', 'regular');
-    fd.append('plan_type', 'regular');
-    fd.append('duration_years', spCur.year);
-    fd.append('coin_distribution_option_id', SP_DEFAULT_DIST);
-    fd.append('plan_id', 0);
-    var endpoint = SP_SWAP_ON ? 'user/lending/swap_purchase' : 'user/lending/purchase_stake';
-    fetch(SP_BASE + endpoint, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-      .then(function (r) { return r.json(); })
-      .then(function (j) {
-        if (j.status) { fb.style.color = '#15803d'; fb.textContent = j.message || 'Special stake submitted.'; setTimeout(function () { location.reload(); }, 1400); }
-        else { btn.disabled = false; btn.textContent = 'Confirm Special Stake'; fb.style.color = '#dc2626'; fb.textContent = j.message || 'Failed.'; }
-      })
-      .catch(function () { btn.disabled = false; btn.textContent = 'Confirm Special Stake'; fb.style.color = '#dc2626'; fb.textContent = 'Could not reach the server.'; });
-  }
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { stkSpecialClose(); } });
-</script>
-
 <!-- ===================== STAKING PURCHASE MODAL ===================== -->
 <style>
   .stk-buy{width:100%;margin-top:12px;border:0;border-radius:12px;padding:10px;cursor:pointer;background:linear-gradient(135deg,#6366f1,#4338ca);color:#fff;font-weight:1000;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .15s;}

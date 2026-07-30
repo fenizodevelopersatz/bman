@@ -201,19 +201,13 @@ class Lendingcontroller extends CI_Controller
         // Validate inputs
         if (!$packageId) { echo json_encode(['status'=>false,'message'=>'Package ID required']); return; }
 
-        // SPECIAL OFFER detection — a special package uses the year-wise Special
-        // ROI engine (escalating monthly + maturity bonus), not the normal
-        // fixed/regular/combo matrix. The chosen year (duration_years) may be 1-7.
-        $pkgRow = $this->db->get_where('staking_packages', ['id' => $packageId])->row_array();
-        $isSpecialPurchase = !empty($pkgRow['is_special']);
-        $specialOffered = [];
-        if ($isSpecialPurchase) {
-            $this->load->model('staking/Specialroi_model', 'specialroi');
-            $specialOffered = $this->specialroi->offeredYears($packageId);
-            if (!isset($specialOffered[$durationYears])) {
-                echo json_encode(['status'=>false,'message'=>'This term is not available for this Special Offer package.']); return;
-            }
-        } elseif (!in_array($planType, ['fixed', 'regular', 'combo'])) {
+        // Every package prices off the normal fixed/regular/combo matrix.
+        // `staking_packages.is_special` is a presentation badge only — it no
+        // longer selects a different ROI engine. (Stakes bought while the old
+        // escalating engine was live keep paying from the schedule snapshotted
+        // on their own roi_staking_management row, which the ROI cron still
+        // honours; nothing here changes what they are owed.)
+        if (!in_array($planType, ['fixed', 'regular', 'combo'])) {
             echo json_encode(['status'=>false,'message'=>'Invalid ROI plan type']); return;
         }
 
@@ -221,11 +215,8 @@ class Lendingcontroller extends CI_Controller
             echo json_encode(['status'=>false,'message'=>'Invalid distribution option (1-7)']); return;
         }
         // plan_code == the ROI plan (fixed/regular/combo). Never persist a stray
-        // "null"/invalid value — fall back to the validated plan_type. Special
-        // packages carry plan_code 'regular' (they are monthly-driven).
-        if ($isSpecialPurchase) {
-            $planCode = 'regular';
-        } elseif (!in_array($planCode, ['fixed', 'regular', 'combo'], true)) {
+        // "null"/invalid value — fall back to the validated plan_type.
+        if (!in_array($planCode, ['fixed', 'regular', 'combo'], true)) {
             $planCode = $planType;
         }
 
@@ -259,24 +250,7 @@ class Lendingcontroller extends CI_Controller
         // to the whole stake. This figure is only the swap order's headline
         // snapshot; roi_staking_management (created below) is the source of
         // truth for the actual payouts and does the same split.
-        $specialSchedule = [];
-        $specialMaturityPct = 0.0;
-        if ($isSpecialPurchase) {
-            // Full year->monthly% ramp (every configured year, not only the
-            // selectable terms) + the maturity % for the chosen term.
-            $allYears = $this->specialroi->forPackage($packageId);
-            foreach ($allYears as $yy => $rr) {
-                if ((float) $rr['monthly_roi_percent'] > 0) $specialSchedule[$yy] = (float) $rr['monthly_roi_percent'];
-            }
-            $specialMaturityPct = (float) $specialOffered[$durationYears]['maturity_percent'];
-            // Order-snapshot total: escalating monthly (gap-filled) over the term + maturity lump.
-            $rampTotal = 0.0; $lastP = 0.0;
-            for ($yy = 1; $yy <= $durationYears; $yy++) {
-                $p = $specialSchedule[$yy] ?? $lastP; $lastP = $p;
-                $rampTotal += $bmanAmount * ($p / 100) * 12;
-            }
-            $maturityRoiAmount = $rampTotal + $bmanAmount * ($specialMaturityPct / 100);
-        } elseif ($planType === 'fixed') {
+        if ($planType === 'fixed') {
             $maturityRoiAmount = $bmanAmount * ($fixedPct / 100);
         } elseif ($planType === 'regular') {
             $maturityRoiAmount = $bmanAmount * ($monthlyPct / 100) * $months;
@@ -311,41 +285,25 @@ class Lendingcontroller extends CI_Controller
                 error_log('WARNING: Failed to update staking order '.$res['id'].' with plan details');
             }
 
-            // ✅ Create ROI Staking Management record — special engine for Special
-            // Offer packages, normal engine otherwise.
+            // ✅ Create ROI Staking Management record. One engine for every
+            // package now — the special-badged ones included.
             try {
                 $this->load->model('RoiStakingManagement_model', 'roi_mgmt');
-                if ($isSpecialPurchase) {
-                    $roiRecordId = $this->roi_mgmt->createSpecialROIRecord(
-                        $res['id'],
-                        $userId,
-                        'ORDER-' . $res['id'],
-                        [
-                            'principal_amount' => $bmanAmount,
-                            'duration_years'   => $durationYears,
-                            'created_at'       => $createdAt,
-                            'maturity_date'    => $maturityDate,
-                            'schedule'         => $specialSchedule,      // year => monthly %
-                            'maturity_percent' => $specialMaturityPct,
-                        ]
-                    );
-                } else {
-                    $roiRecordId = $this->roi_mgmt->createROIRecord(
-                        $res['id'],
-                        $userId,
-                        'ORDER-' . $res['id'],
-                        $planType,
-                        [
-                            'principal_amount' => $bmanAmount,
-                            'roi_rate_percent' => $roiRate,
-                            'fixed_percent'    => $fixedPct,
-                            'monthly_percent'  => $monthlyPct,
-                            'duration_years'   => $durationYears,
-                            'created_at'       => $createdAt,
-                            'maturity_date'    => $maturityDate,
-                        ]
-                    );
-                }
+                $roiRecordId = $this->roi_mgmt->createROIRecord(
+                    $res['id'],
+                    $userId,
+                    'ORDER-' . $res['id'],
+                    $planType,
+                    [
+                        'principal_amount' => $bmanAmount,
+                        'roi_rate_percent' => $roiRate,
+                        'fixed_percent'    => $fixedPct,
+                        'monthly_percent'  => $monthlyPct,
+                        'duration_years'   => $durationYears,
+                        'created_at'       => $createdAt,
+                        'maturity_date'    => $maturityDate,
+                    ]
+                );
 
                 // Store the ROI staking management ID in the staking order
                 if ($roiRecordId) {
@@ -712,22 +670,21 @@ class Lendingcontroller extends CI_Controller
             return (int) ($p['is_active'] ?? 0) === 1;
         }));
 
-        // Attach the year-wise Special ROI structure to Special Offer packages
-        // so the card can show the SPECIAL badge and render the term/monthly/
-        // maturity table inline, and so the SELECT purchase modal can compute
-        // the per-term BMAN figures from it.
-        if ($this->db->table_exists('staking_special_roi')) {
-            $this->load->model('staking/Specialroi_model', 'specialroi');
-            foreach ($active as &$p) {
-                $p['is_special']       = (int) ($p['is_special'] ?? 0);
-                // Offered years = selectable terms; full = every year's monthly %
-                // (drives the escalating ramp display + backend math).
-                $p['special_roi']      = $p['is_special'] ? $this->specialroi->offeredYears((int) $p['id']) : [];
-                $p['special_roi_full'] = $p['is_special'] ? $this->specialroi->forPackage((int) $p['id']) : [];
-            }
-            unset($p);
+        // `is_special` is a badge and nothing more — a special package reads the
+        // same ROI matrix as every other one. Group the special ones first so
+        // the offers lead the list; within each group roiGrid()'s stake order is
+        // preserved, so this only ever reorders across the two groups.
+        foreach ($active as &$p) {
+            $p['is_special'] = (int) ($p['is_special'] ?? 0);
         }
-        return $active;
+        unset($p);
+
+        $special = [];
+        $normal  = [];
+        foreach ($active as $p) {
+            if ($p['is_special']) { $special[] = $p; } else { $normal[] = $p; }
+        }
+        return array_merge($special, $normal);
     }
 
     /**

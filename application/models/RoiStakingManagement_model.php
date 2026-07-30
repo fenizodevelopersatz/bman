@@ -174,6 +174,14 @@ class RoiStakingManagement_model extends CI_Model
      * @param array $data principal_amount, duration_years, maturity_date,
      *                     created_at, schedule (['1'=>pct,...] year→monthly %),
      *                     maturity_percent
+     *
+     * LEGACY — NO LONGER CALLED. The Special ROI engine was retired: `is_special`
+     * is now only a badge on a package, and every purchase goes through
+     * createROIRecord() on the normal fixed/regular/combo matrix. This method is
+     * kept because the rows it already wrote are still live — the monthly cron
+     * continues to read their special_schedule_json snapshot, so this is the
+     * definition of a record shape that is still in production. Do not delete it
+     * while any is_special=1 row remains in roi_staking_management.
      */
     public function createSpecialROIRecord($stakingOrderId, $userId, $orderRef, $data)
     {

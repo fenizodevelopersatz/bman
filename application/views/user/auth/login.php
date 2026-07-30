@@ -291,19 +291,29 @@
     <script src="<?php echo base_url();?>assets/user/js/custom/authentication/sign-in/general.js?version=2.6"></script>
     <script src="<?php echo base_url();?>assets/js/otp-timer.js"></script>
     <script>
-        // The Sign in button must be interactive as soon as the page loads.
-        // It is only meant to be disabled DURING an in-flight submit (the axios
-        // flow re-enables it in .finally); anything else leaving it disabled on
-        // load is a bug. Force-enable it once after init so a stale/cached build
-        // or validation plugin can't leave it stuck in the muted disabled state.
-        document.addEventListener("DOMContentLoaded", function () {
+        // The Sign in button must be interactive as soon as the page loads. It
+        // is only ever meant to be disabled DURING an in-flight submit (the
+        // axios flow re-enables it in .finally). The markup above never carries
+        // a disabled attribute, so when one shows up on load it is the browser
+        // putting it back, not us:
+        //   * a soft reload (F5) restores form-control state from session
+        //     history, and the disabled flag rides along with it;
+        //   * a back/forward restore replays the frozen DOM straight out of the
+        //     bfcache and never fires DOMContentLoaded at all, so a
+        //     DOMContentLoaded-only guard silently misses that case.
+        // pageshow fires for all three (first load, reload, bfcache restore),
+        // so clear from there. DOMContentLoaded is kept alongside it purely so
+        // the button is never briefly painted in the muted disabled state.
+        function _enableSignInButton() {
             var _btn = document.getElementById("kt_sign_in_submit");
             if (_btn) {
                 _btn.disabled = false;
                 _btn.removeAttribute("disabled");
                 _btn.removeAttribute("data-kt-indicator");
             }
-        });
+        }
+        document.addEventListener("DOMContentLoaded", _enableSignInButton);
+        window.addEventListener("pageshow", _enableSignInButton);
 
         var _tgl = document.getElementById("togglePassword");
         if (_tgl) _tgl.addEventListener("click", function () {

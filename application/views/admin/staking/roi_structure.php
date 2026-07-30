@@ -115,6 +115,12 @@
                                                     <tr>
                                                         <td>
                                                             <span class="fw-bold"><?php echo number_format((float)$p['stake_amount']); ?></span>
+                                                            <?php /* The same amount may now exist twice — once normal, once special
+                                                                     (uq_amount_special). Without this badge the two rows would be
+                                                                     indistinguishable here, and an admin could edit the wrong one's rates. */ ?>
+                                                            <?php if (!empty($p['is_special'])): ?>
+                                                                <span class="badge badge-warning fw-bold ms-1" style="letter-spacing:.3px;">SPECIAL</span>
+                                                            <?php endif; ?>
                                                             <?php if (!$p['is_active']): ?>
                                                                 <span class="badge badge-light-danger fs-9 ms-1">disabled</span>
                                                             <?php endif; ?>
@@ -148,76 +154,6 @@
                                                 </tbody>
                                             </table>
                                         </div>
-                                    </div>
-                                </div>
-
-                                <!-- ===================== SPECIAL OFFER — RECORDS & CRON EXECUTIONS ===================== -->
-                                <div class="card mt-8">
-                                    <div class="card-header border-transparent pt-5">
-                                        <h3 class="card-title fw-bold">Special Offer — Records &amp; Cron Executions
-                                            <span class="badge badge-light-warning ms-2 text-uppercase">Escalating ROI</span>
-                                        </h3>
-                                        <div class="card-toolbar">
-                                            <button type="button" class="btn btn-sm btn-light" id="so-refresh">Refresh</button>
-                                        </div>
-                                    </div>
-                                    <div class="card-body pt-2">
-
-                                        <!-- A. Special Offer stake records -->
-                                        <div class="d-flex align-items-center justify-content-between mb-2">
-                                            <h4 class="fs-6 fw-bold text-gray-800 mb-0">Special Offer Records</h4>
-                                            <span class="text-muted fs-8">Showing <b id="so-rec-showing">0</b> of <b id="so-rec-total">0</b></span>
-                                        </div>
-                                        <div class="table-responsive mb-3">
-                                            <table class="table table-row-bordered align-middle fs-7 gy-2">
-                                                <thead>
-                                                    <tr class="text-gray-500 fw-bold fs-8 text-uppercase">
-                                                        <th>User</th><th>Ref</th><th class="text-end">Principal</th><th>Term</th>
-                                                        <th>Yearly schedule</th><th class="text-end">Total ROI</th>
-                                                        <th class="text-end">Paid / Remaining</th><th>Progress</th>
-                                                        <th>Next due</th><th>Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody id="so-rec-body" class="text-gray-800 fw-semibold">
-                                                    <tr><td colspan="10" class="text-center text-muted py-6">Loading…</td></tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        <div class="d-flex justify-content-end gap-2 mb-6">
-                                            <button class="btn btn-sm btn-light" id="so-rec-prev" disabled>Prev</button>
-                                            <span class="badge badge-light align-self-center">Page <span id="so-rec-page">1</span></span>
-                                            <button class="btn btn-sm btn-light" id="so-rec-next" disabled>Next</button>
-                                        </div>
-
-                                        <div class="separator my-4"></div>
-
-                                        <!-- B. On-chain cron executions for special records -->
-                                        <div class="d-flex align-items-center justify-content-between mb-2">
-                                            <h4 class="fs-6 fw-bold text-gray-800 mb-0">Cron Executions
-                                                <span class="text-muted fs-8 fw-normal">— on-chain ROI credits</span>
-                                            </h4>
-                                            <span class="text-muted fs-8">Showing <b id="so-cron-showing">0</b> of <b id="so-cron-total">0</b></span>
-                                        </div>
-                                        <div class="table-responsive">
-                                            <table class="table table-row-bordered align-middle fs-7 gy-2">
-                                                <thead>
-                                                    <tr class="text-gray-500 fw-bold fs-8 text-uppercase">
-                                                        <th>Date</th><th>User</th><th>Reference</th><th>Type</th>
-                                                        <th class="text-end">Amount</th><th class="text-end">Gas (BNB)</th>
-                                                        <th>Tx hash</th><th>Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody id="so-cron-body" class="text-gray-800 fw-semibold">
-                                                    <tr><td colspan="8" class="text-center text-muted py-6">Loading…</td></tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        <div class="d-flex justify-content-end gap-2">
-                                            <button class="btn btn-sm btn-light" id="so-cron-prev" disabled>Prev</button>
-                                            <span class="badge badge-light align-self-center">Page <span id="so-cron-page">1</span></span>
-                                            <button class="btn btn-sm btn-light" id="so-cron-next" disabled>Next</button>
-                                        </div>
-
                                     </div>
                                 </div>
 
@@ -389,115 +325,6 @@
                   '</tr></thead><tbody>' + rows + '</tbody></table>'
                 : '<div class="text-muted">No ROI changes recorded yet.</div>';
         });
-
-        /* ---- Special Offer: records + on-chain cron executions ---- */
-        (function () {
-            const PER = 25;
-            const fmt = (n, d) => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: d == null ? 4 : d });
-            const shortHash = h => {
-                h = String(h || '');
-                if (!h) return '—';
-                if (h.indexOf('DRYRUN') === 0) return '<span class="badge badge-light-warning fs-9">DRY-RUN</span>';
-                return '<span class="text-muted fs-8" title="' + esc(h) + '">' + esc(h.slice(0, 10)) + '…' + esc(h.slice(-6)) + '</span>';
-            };
-            const schedule = js => {
-                let o; try { o = JSON.parse(js || '{}'); } catch (e) { o = {}; }
-                const ks = Object.keys(o);
-                if (!ks.length) return '<span class="text-muted">—</span>';
-                return ks.map(k => 'Y' + esc(k) + ' <b>' + esc(o[k]) + '%</b>').join(' → ');
-            };
-
-            let recPage = 1, cronPage = 1;
-
-            async function loadRec(p) {
-                recPage = p;
-                const body = document.getElementById('so-rec-body');
-                body.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-6">Loading…</td></tr>';
-                const fd = new FormData(); fd.append('page', p); fd.append('is_special', '1');
-                try {
-                    const res = await fetch(base + 'admin/staking/roi-history/records', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                    const j = await res.json();
-                    const rows = j.rows || [];
-                    if (!rows.length) {
-                        body.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-6">No Special Offer records yet.</td></tr>';
-                    } else {
-                        body.innerHTML = rows.map(r => {
-                            const who = esc(r.username || r.email || ('User #' + r.user_id));
-                            const term = (r.duration_years || 1) + 'y';
-                            const prog = (r.regular_payments_completed || 0) + '/' + (r.regular_payment_count || 0) + (r.fixed_status ? ' · ' + esc(r.fixed_status) : '');
-                            const badge = ' <span class="badge" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:900;">★ SPECIAL ' + esc(term) + '</span>';
-                            return '<tr>' +
-                                '<td>' + who + '</td>' +
-                                '<td class="text-muted fs-8">' + esc(r.ref) + '</td>' +
-                                '<td class="text-end">' + fmt(r.principal_amount) + '</td>' +
-                                '<td>' + esc(term) + '</td>' +
-                                '<td class="fs-8">' + schedule(r.special_schedule_json) + '</td>' +
-                                '<td class="text-end">' + fmt(r.total_roi_amount) + '</td>' +
-                                '<td class="text-end">' + fmt(r.total_paid_amount) + ' / ' + fmt(r.remaining_to_pay) + '</td>' +
-                                '<td>' + esc(prog) + '</td>' +
-                                '<td class="fs-8">' + esc(r.next_payment_date || r.fixed_maturity_date || '—') + '</td>' +
-                                '<td>' + esc(r.overall_status || '') + badge + '</td>' +
-                                '</tr>';
-                        }).join('');
-                    }
-                    document.getElementById('so-rec-showing').textContent = rows.length;
-                    document.getElementById('so-rec-total').textContent = j.total || 0;
-                    document.getElementById('so-rec-page').textContent = p;
-                    document.getElementById('so-rec-prev').disabled = p <= 1;
-                    document.getElementById('so-rec-next').disabled = (p * PER) >= (j.total || 0);
-                } catch (e) {
-                    body.innerHTML = '<tr><td colspan="10" class="text-danger text-center py-6">' + esc(e.message) + '</td></tr>';
-                }
-            }
-
-            async function loadCron(p) {
-                cronPage = p;
-                const body = document.getElementById('so-cron-body');
-                body.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-6">Loading…</td></tr>';
-                const fd = new FormData(); fd.append('page', p);
-                try {
-                    const res = await fetch(base + 'admin/staking/roi-history/special-distributions', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-                    const j = await res.json();
-                    const rows = j.rows || [];
-                    if (!rows.length) {
-                        body.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-6">No cron executions recorded for Special Offer records yet.</td></tr>';
-                    } else {
-                        const typeMap = { roi_monthly: 'Monthly', roi_maturity: 'Maturity', principal_return: 'Principal' };
-                        body.innerHTML = rows.map(r => {
-                            const who = esc(r.username || r.email || ('User #' + r.user_id));
-                            const type = typeMap[r.tx_type] || esc(r.tx_type || '');
-                            const st = String(r.status || '');
-                            const stBadge = '<span class="badge badge-light-' + (st === 'confirmed' ? 'success' : (st === 'failed' ? 'danger' : 'warning')) + '">' + esc(st || '—') + '</span>';
-                            return '<tr>' +
-                                '<td class="fs-8">' + esc(r.created_at) + '</td>' +
-                                '<td>' + who + '</td>' +
-                                '<td class="text-muted fs-8">' + esc(r.reference_id) + '</td>' +
-                                '<td>' + type + '</td>' +
-                                '<td class="text-end">' + fmt(r.amount) + '</td>' +
-                                '<td class="text-end fs-8">' + fmt(r.gas_fee_total, 8) + '</td>' +
-                                '<td>' + shortHash(r.tx_hash) + '</td>' +
-                                '<td>' + stBadge + '</td>' +
-                                '</tr>';
-                        }).join('');
-                    }
-                    document.getElementById('so-cron-showing').textContent = rows.length;
-                    document.getElementById('so-cron-total').textContent = j.total || 0;
-                    document.getElementById('so-cron-page').textContent = p;
-                    document.getElementById('so-cron-prev').disabled = p <= 1;
-                    document.getElementById('so-cron-next').disabled = (p * PER) >= (j.total || 0);
-                } catch (e) {
-                    body.innerHTML = '<tr><td colspan="8" class="text-danger text-center py-6">' + esc(e.message) + '</td></tr>';
-                }
-            }
-
-            document.getElementById('so-rec-prev').addEventListener('click', () => { if (recPage > 1) loadRec(recPage - 1); });
-            document.getElementById('so-rec-next').addEventListener('click', () => loadRec(recPage + 1));
-            document.getElementById('so-cron-prev').addEventListener('click', () => { if (cronPage > 1) loadCron(cronPage - 1); });
-            document.getElementById('so-cron-next').addEventListener('click', () => loadCron(cronPage + 1));
-            document.getElementById('so-refresh').addEventListener('click', () => { loadRec(1); loadCron(1); });
-
-            loadRec(1); loadCron(1);
-        })();
     })();
     </script>
 </body>

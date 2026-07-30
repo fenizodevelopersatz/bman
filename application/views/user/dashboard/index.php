@@ -665,8 +665,14 @@
         <span class="dso-left">
           <span class="dso-icon"><i class="ph-fill ph-star"></i></span>
           <span class="dso-text">
+            <?php /* Copy deliberately makes no ROI claim: special packages price
+                     off the same Fixed/Regular matrix as every other package now,
+                     so the old "higher year-wise monthly ROI plus a maturity
+                     bonus" line would be promising something that no longer
+                     exists. They are hand-picked and listed first — that is all
+                     the flag means. */ ?>
             <b>★ Special Offer Staking</b>
-            <small>Higher year-wise monthly ROI plus a maturity bonus — limited packages.</small>
+            <small>Hand-picked packages — shown first on the staking page.</small>
           </span>
         </span>
         <span class="dso-cta">Stake Now <i class="ph ph-arrow-right"></i></span>
