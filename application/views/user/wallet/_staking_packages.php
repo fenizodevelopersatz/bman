@@ -291,6 +291,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         <div style="background:#f8fafc;border:1px solid rgba(15,23,42,.08);border-radius:14px;padding:14px 16px;margin:12px 0;margin-top:16px;">
           <div style="font-size:13px;font-weight:800;color:#334155;line-height:1.6;" id="stkm-distribution-desc">Select an option above</div>
         </div>
+        <div class="stkm-warn" id="stkm-dist-warn"></div>
         <div class="stkm-note">Choose how your principal is split across wallets. The 25% package bonus is separate and is shown as Instant Bonus.</div>
       </div>
       <div class="stkm-pane" data-step="4">
@@ -595,7 +596,47 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         '<div style="font-size:11px;font-weight:800;color:#64748b;margin-top:6px;">Remaining principal stays in Exchange Wallet. Instant 25% package bonus is shown separately.</div>';
     }
   }
-  function renderDistButtons(){ $('stkm-distributions').innerHTML=''; Object.entries(DISTS).forEach(([k,v])=>{ const b=document.createElement('button'); b.type='button'; b.textContent=v.name; b.dataset.dist=k; b.onclick=()=>{ cur.dist=+k; document.querySelectorAll('#stkm-distributions button').forEach(x=>x.classList.toggle('active', +x.dataset.dist===+k)); renderDistDescription(); renderLive(); renderStep(3); }; $('stkm-distributions').appendChild(b); }); document.querySelectorAll('#stkm-distributions button').forEach(b=>b.classList.toggle('active', +b.dataset.dist===cur.dist)); renderDistDescription(); }
+  // Live pre-check mirroring the server-side gate in Lendingcontroller::swap_purchase():
+  // options other than 1 (100% Exchange) also draw on EXISTING Earning/Staking/Bonus
+  // balance (this purchase itself only ever funds Exchange), so warn — and block
+  // Confirm — before the user even submits if that balance isn't there. Uses the
+  // same withdrawable figures already fetched into cur.quote.bman_wallets by quote(),
+  // so this never disagrees with what the server checks. Returns true/false only —
+  // does not touch stkm-go itself, since that button also depends on the independent
+  // USDT-balance check quote() runs; syncGoButton() combines both.
+  function checkDistBalance(){
+    const warnEl=$('stkm-dist-warn');
+    if(!warnEl) return true;
+    const selected=DISTS[cur.dist];
+    if(!selected || !cur.pkg || !cur.quote || !cur.quote.bman_wallets){ warnEl.style.display='none'; return true; }
+    const amount=+cur.pkg.stake||0, bw=cur.quote.bman_wallets;
+    const labels={earning:'Earning Wallet', staking:'Staking Wallet', bonus:'Bonus Wallet'};
+    const shortfalls=[];
+    Object.keys(labels).forEach(function(w){
+      const pct=+selected[w]||0;
+      if(pct<=0) return;
+      const required=amount*pct/100, available=+bw[w]||0;
+      if(available+1e-8<required) shortfalls.push(labels[w]+' needs '+required.toLocaleString(undefined,{maximumFractionDigits:4})+' BMAN (has '+available.toLocaleString(undefined,{maximumFractionDigits:4})+')');
+    });
+    if(shortfalls.length){
+      warnEl.textContent='Insufficient balance for this option — '+shortfalls.join('; ')+'.';
+      warnEl.style.display='block';
+      return false;
+    }
+    warnEl.style.display='none';
+    return true;
+  }
+  // Combines the USDT-balance check (quote() sets cur.usdtShort) with the
+  // distribution-wallet check above — Confirm stays disabled if either fails.
+  function syncGoButton(){
+    const goBtn=$('stkm-go');
+    // checkDistBalance() must always run — it has a side effect (updates the
+    // dist-warn box) — so it can't sit on the right of || where a truthy
+    // usdtShort would short-circuit past it and leave that box stale.
+    const distOk=checkDistBalance();
+    if(goBtn) goBtn.disabled = !!cur.usdtShort || !distOk;
+  }
+  function renderDistButtons(){ $('stkm-distributions').innerHTML=''; Object.entries(DISTS).forEach(([k,v])=>{ const b=document.createElement('button'); b.type='button'; b.textContent=v.name; b.dataset.dist=k; b.onclick=()=>{ cur.dist=+k; document.querySelectorAll('#stkm-distributions button').forEach(x=>x.classList.toggle('active', +x.dataset.dist===+k)); renderDistDescription(); renderLive(); syncGoButton(); renderStep(3); }; $('stkm-distributions').appendChild(b); }); document.querySelectorAll('#stkm-distributions button').forEach(b=>b.classList.toggle('active', +b.dataset.dist===cur.dist)); renderDistDescription(); }
   function stkPickTerm(y){
     cur.years=y;
     document.querySelectorAll('#stkm-terms button').forEach(b=>b.classList.toggle('active', +b.dataset.y===+y));
@@ -654,7 +695,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     renderStep(1);
   };
   window.stkClose = ()=> $('stkm').classList.remove('open');
-  function quote(){ const fd=new FormData(); fd.append('package_id',cur.pkg.id); fetch(BASE+'user/lending/stake_quote',{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{ if(!j.status){ $('stkm-cost').textContent=j.message||'?'; return; } cur.usdt=j.usdt; cur.bal=j.usdt_balance; cur.quote=j; $('stkm-cost').textContent = Number(j.usdt).toLocaleString(undefined,{maximumFractionDigits:4})+' USDT'; $('stkm-lock').textContent = Number(j.bman).toLocaleString()+' BMAN'; $('stkm-bal').textContent  = Number(j.usdt_balance).toLocaleString(undefined,{maximumFractionDigits:2})+' USDT'; const bw = j.bman_wallets||{}; ['exchange','staking','bonus','earning'].forEach(function(w){ const el=$('stkm-bw-'+w); if(el) el.textContent=Number(bw[w]||0).toLocaleString()+' BMAN'; }); const short = j.usdt_balance + 1e-8 < j.usdt; $('stkm-warn').style.display = short?'block':'none'; $('stkm-go').disabled = short; renderLive(); }).catch(()=>{ $('stkm-cost').textContent='Quote failed'; }); }
+  function quote(){ const fd=new FormData(); fd.append('package_id',cur.pkg.id); fetch(BASE+'user/lending/stake_quote',{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{ if(!j.status){ $('stkm-cost').textContent=j.message||'?'; return; } cur.usdt=j.usdt; cur.bal=j.usdt_balance; cur.quote=j; $('stkm-cost').textContent = Number(j.usdt).toLocaleString(undefined,{maximumFractionDigits:4})+' USDT'; $('stkm-lock').textContent = Number(j.bman).toLocaleString()+' BMAN'; $('stkm-bal').textContent  = Number(j.usdt_balance).toLocaleString(undefined,{maximumFractionDigits:2})+' USDT'; const bw = j.bman_wallets||{}; ['exchange','staking','bonus','earning'].forEach(function(w){ const el=$('stkm-bw-'+w); if(el) el.textContent=Number(bw[w]||0).toLocaleString()+' BMAN'; }); cur.usdtShort = j.usdt_balance + 1e-8 < j.usdt; $('stkm-warn').style.display = cur.usdtShort?'block':'none'; renderLive(); syncGoButton(); }).catch(()=>{ $('stkm-cost').textContent='Quote failed'; }); }
   $('stkm-back').onclick = function(){ if(cur.step>1) renderStep(cur.step-1); };
   $('stkm-next').onclick = function(){ if(cur.step<4) renderStep(cur.step+1); };
   window.stkConfirm = function(){

@@ -220,6 +220,51 @@ class Lendingcontroller extends CI_Controller
         if ($coinDistOptionId < 1 || $coinDistOptionId > 7) {
             echo json_encode(['status'=>false,'message'=>'Invalid distribution option (1-7)']); return;
         }
+
+        // ---- Pre-purchase Coin Distribution Option validation ----
+        // A USDT->BMAN purchase only ever funds the Exchange wallet — that's
+        // the one on-chain leg this flow actually delivers. Option 1 (100%
+        // Exchange) needs nothing else and is always allowed. Options 2-7
+        // ALSO allocate a share to Earning/Staking/Bonus; since this purchase
+        // itself puts nothing into those wallets, choosing one of those
+        // options means blending in existing internal balance from those
+        // wallets alongside the new buy — so the user must already hold at
+        // least the required share there, checked up front, before an order
+        // is ever created.
+        $distOption = $this->db->get_where('coin_distribution_options', ['id' => $coinDistOptionId, 'status' => 1])->row_array();
+        if (!$distOption) {
+            echo json_encode(['status'=>false,'message'=>'Selected distribution option is not available.']); return;
+        }
+        if ($coinDistOptionId !== 1) {
+            $pkgForCheck = $this->db->get_where('staking_packages', ['id' => $packageId, 'is_active' => 1])->row_array();
+            if (!$pkgForCheck) { echo json_encode(['status'=>false,'message'=>'Package not available.']); return; }
+            $bmanForCheck = (float) $pkgForCheck['stake_amount'];
+
+            // Withdrawable, not raw, balance — the same hold/maturity-aware
+            // figure stake_quote() already shows in this exact modal
+            // (bman_wallets), so what the user sees and what gets enforced
+            // here never disagree.
+            $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
+            $bal = $this->bmanwithdraw->maturity_breakdown($userId);
+            $shortfalls = [];
+            foreach (['earning' => 'Earning Wallet', 'staking' => 'Staking Wallet', 'bonus' => 'Bonus Wallet'] as $wallet => $label) {
+                $pct = (float) ($distOption[$wallet . '_percentage'] ?? 0);
+                if ($pct <= 0) continue;
+                $required = $bmanForCheck * $pct / 100;
+                $available = (float) ($bal[$wallet . '_withdrawable'] ?? 0);
+                if ($available + 1e-8 < $required) {
+                    $shortfalls[] = $label . ' needs ' . number_format($required, 4) . ' BMAN (has ' . number_format($available, 4) . ')';
+                }
+            }
+            if ($shortfalls) {
+                echo json_encode([
+                    'status'  => false,
+                    'message' => 'Insufficient balance for this distribution option — ' . implode('; ', $shortfalls) . '.',
+                ]);
+                return;
+            }
+        }
+
         // plan_code == the ROI plan (fixed/regular/combo). Never persist a stray
         // "null"/invalid value — fall back to the validated plan_type.
         if (!in_array($planCode, ['fixed', 'regular', 'combo'], true)) {
