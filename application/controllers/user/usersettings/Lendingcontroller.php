@@ -217,52 +217,16 @@ class Lendingcontroller extends CI_Controller
             echo json_encode(['status'=>false,'message'=>'Invalid ROI plan type']); return;
         }
 
-        if ($coinDistOptionId < 1 || $coinDistOptionId > 7) {
-            echo json_encode(['status'=>false,'message'=>'Invalid distribution option (1-7)']); return;
-        }
-
-        // ---- Pre-purchase Coin Distribution Option validation ----
-        // A USDT->BMAN purchase only ever funds the Exchange wallet — that's
-        // the one on-chain leg this flow actually delivers. Option 1 (100%
-        // Exchange) needs nothing else and is always allowed. Options 2-7
-        // ALSO allocate a share to Earning/Staking/Bonus; since this purchase
-        // itself puts nothing into those wallets, choosing one of those
-        // options means blending in existing internal balance from those
-        // wallets alongside the new buy — so the user must already hold at
-        // least the required share there, checked up front, before an order
-        // is ever created.
-        $distOption = $this->db->get_where('coin_distribution_options', ['id' => $coinDistOptionId, 'status' => 1])->row_array();
-        if (!$distOption) {
-            echo json_encode(['status'=>false,'message'=>'Selected distribution option is not available.']); return;
-        }
+        // This is the real USDT->BMAN on-chain purchase — it only ever funds
+        // the Exchange wallet, so it only ever supports Option 1 (100%
+        // Exchange). Options 2-7 re-stake EXISTING wallet balance instead
+        // (no USDT, no blockchain leg) — see restake_purchase().
         if ($coinDistOptionId !== 1) {
-            $pkgForCheck = $this->db->get_where('staking_packages', ['id' => $packageId, 'is_active' => 1])->row_array();
-            if (!$pkgForCheck) { echo json_encode(['status'=>false,'message'=>'Package not available.']); return; }
-            $bmanForCheck = (float) $pkgForCheck['stake_amount'];
-
-            // Withdrawable, not raw, balance — the same hold/maturity-aware
-            // figure stake_quote() already shows in this exact modal
-            // (bman_wallets), so what the user sees and what gets enforced
-            // here never disagree.
-            $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
-            $bal = $this->bmanwithdraw->maturity_breakdown($userId);
-            $shortfalls = [];
-            foreach (['earning' => 'Earning Wallet', 'staking' => 'Staking Wallet', 'bonus' => 'Bonus Wallet'] as $wallet => $label) {
-                $pct = (float) ($distOption[$wallet . '_percentage'] ?? 0);
-                if ($pct <= 0) continue;
-                $required = $bmanForCheck * $pct / 100;
-                $available = (float) ($bal[$wallet . '_withdrawable'] ?? 0);
-                if ($available + 1e-8 < $required) {
-                    $shortfalls[] = $label . ' needs ' . number_format($required, 4) . ' BMAN (has ' . number_format($available, 4) . ')';
-                }
-            }
-            if ($shortfalls) {
-                echo json_encode([
-                    'status'  => false,
-                    'message' => 'Insufficient balance for this distribution option — ' . implode('; ', $shortfalls) . '.',
-                ]);
-                return;
-            }
+            echo json_encode(['status'=>false,'message'=>'This purchase flow only supports Option 1 (100% Exchange). Choose a different option to re-stake from your existing wallet balances instead — no USDT payment needed.']); return;
+        }
+        $distOption = $this->db->get_where('coin_distribution_options', ['id' => 1, 'status' => 1])->row_array();
+        if (!$distOption) {
+            echo json_encode(['status'=>false,'message'=>'Option 1 is not currently available. Contact admin.']); return;
         }
 
         // plan_code == the ROI plan (fixed/regular/combo). Never persist a stray
@@ -380,6 +344,81 @@ class Lendingcontroller extends CI_Controller
                 'duration_years' => $durationYears,
                 'coin_distribution_option' => $coinDistOptionId,
             ]),
+        ]);
+    }
+
+    /**
+     * Re-stake using EXISTING internal wallet balances (Options 2-7 only) —
+     * no USDT, no blockchain leg, since the BMAN is already owned by the user
+     * inside the platform. Option 1 (100% Exchange, new USDT->BMAN purchase)
+     * stays on swap_purchase()/purchase_stake(); this endpoint refuses it.
+     * All balance validation + wallet debits + order creation + ledger
+     * entries + Lock Wallet update happen inside one DB transaction in
+     * Staking_model::restakeFromWallets() — this method only shapes the
+     * request/response.
+     */
+    public function restake_purchase()
+    {
+        $userId = (int) $this->session->userdata('user_userid');
+        if (!$userId) { echo json_encode(['status'=>false,'message'=>'Unauthorized']); return; }
+
+        $packageId        = (int) $this->input->post('package_id');
+        $planCode         = (string) ($this->input->post('plan_code') ?? 'fixed');
+        $durationYears    = (int) ($this->input->post('duration_years') ?? 1);
+        $planType         = (string) ($this->input->post('plan_type') ?? 'fixed');
+        $coinDistOptionId = (int) ($this->input->post('coin_distribution_option_id') ?? 0);
+
+        if (!$packageId) { echo json_encode(['status'=>false,'message'=>'Package ID required']); return; }
+        if (!in_array($planType, ['fixed', 'regular', 'combo'], true)) {
+            echo json_encode(['status'=>false,'message'=>'Invalid ROI plan type']); return;
+        }
+        // plan_code == the ROI plan; never persist a stray/invalid value.
+        if (!in_array($planCode, ['fixed', 'regular', 'combo'], true)) {
+            $planCode = $planType;
+        }
+
+        if ($coinDistOptionId < 2 || $coinDistOptionId > 7) {
+            echo json_encode(['status'=>false,'message'=>'This flow only supports Options 2-7 (re-staking from existing wallet balances). Choose Option 1 to buy new BMAN with USDT instead.']); return;
+        }
+
+        $this->load->model('Staking_model');
+        list($ok, $res) = $this->Staking_model->restakeFromWallets([
+            'user_id'                => $userId,
+            'package_id'             => $packageId,
+            'plan_code'              => $planCode,
+            'duration_years'         => $durationYears,
+            'distribution_option_id' => $coinDistOptionId,
+        ]);
+        if (!$ok) { echo json_encode(['status'=>false,'message'=>$res]); return; }
+
+        $pkg       = $this->db->select('name')->get_where('staking_packages', ['id' => $packageId])->row_array();
+        $planLabel = ['fixed' => 'Fixed', 'regular' => 'Regular', 'combo' => 'Combo'][$planType] ?? $planType;
+
+        $walletLabels = ['exchange' => 'Exchange Wallet', 'earning' => 'Earning Wallet', 'staking' => 'Staking Wallet', 'bonus' => 'Bonus Wallet'];
+        $deductions = [];
+        foreach (($res['wallet_deductions'] ?? []) as $wallet => $amount) {
+            $deductions[] = ['wallet' => $wallet, 'label' => $walletLabels[$wallet] ?? ucfirst($wallet), 'amount' => (float) $amount];
+        }
+
+        echo json_encode([
+            'status'  => true,
+            'message' => 'Re-stake successful — '.number_format($res['bman'], 4).' BMAN staked from your wallet balances ('.$res['distribution_option_name'].'). Plan: '.$planLabel.'. Term: '.$durationYears.' years.'.
+                         ($res['bonus'] > 0 ? ' Bonus credited: '.number_format($res['bonus'], 4).' BMAN.' : ''),
+            'data'    => [
+                'stake_id'                 => $res['stake_id'],
+                'package_name'             => $pkg['name'] ?? ('Package #'.$packageId),
+                'plan_type'                => $planType,
+                'plan_label'               => $planLabel,
+                'plan_code'                => $planCode,
+                'duration_years'           => $durationYears,
+                'coin_distribution_option' => $coinDistOptionId,
+                'distribution_option_name' => $res['distribution_option_name'],
+                'bman'                     => $res['bman'],
+                'wallet_deductions'        => $deductions,
+                'bonus'                    => $res['bonus'],
+                'maturity_date'            => $res['maturity'],
+                'lock_wallet_balance'      => $this->Staking_model->lockWalletBalance($userId),
+            ],
         ]);
     }
 
@@ -947,7 +986,71 @@ class Lendingcontroller extends CI_Controller
             ];
         }
 
-        return $result;
+        // Re-stakes (Coin Distribution Options 2-7): pure wallet-funded
+        // purchases created by Staking_model::restakeFromWallets(), which
+        // writes straight to user_stakes with NO staking_swap_orders row at
+        // all (there's no on-chain leg to track). distribution_option_id
+        // IS NOT NULL is what distinguishes these from legacy
+        // Staking_model::purchaseStake() rows — those also have no
+        // swap_order_id, but never set distribution_option_id, and stay
+        // excluded from this feed exactly as before.
+        if ($this->db->field_exists('distribution_option_id', 'user_stakes')
+            && $this->db->field_exists('swap_order_id', 'user_stakes')) {
+            $restakes = $this->db->select('id, package_id, plan_code, duration_years, stake_amount, bonus_amount, distribution_option_id, status, maturity_date, start_date, is_special, created_at')
+                ->where('user_id', (int)$user_id)
+                ->where('swap_order_id IS NULL', null, false)
+                ->where('distribution_option_id IS NOT NULL', null, false)
+                ->order_by('id', 'DESC')
+                ->limit(50)
+                ->get('user_stakes')->result_array();
+
+            if ($restakes) {
+                $optNames = [];
+                $optIds = array_values(array_unique(array_map(function ($r) { return (int)$r['distribution_option_id']; }, $restakes)));
+                $opts = $this->db->select('id, option_name')->where_in('id', $optIds)->get('coin_distribution_options')->result_array();
+                foreach ($opts as $op) { $optNames[(int)$op['id']] = $op['option_name']; }
+
+                foreach ($restakes as $r) {
+                    $maturityDate = $r['maturity_date'] ?? null;
+                    $remainingDays = $maturityDate !== null
+                        ? max(0, (int) floor((strtotime($maturityDate) - time()) / 86400))
+                        : null;
+                    $optId   = (int)$r['distribution_option_id'];
+                    $optName = $optNames[$optId] ?? ('Option '.$optId);
+
+                    $result[] = (object)[
+                        'id' => 'restake-'.$r['id'],
+                        'ref' => 'RESTAKE-'.$r['id'],
+                        'history_date' => $r['created_at'] ?: $r['start_date'],
+                        'type' => 'staking_purchase',
+                        'amount' => 0.0, // no USDT — funded entirely from existing wallets
+                        'token_amount' => (float)$r['stake_amount'],
+                        'status' => $r['status'] === 'active' ? 'swap_completed' : $r['status'],
+                        'description' => 'Re-stake '.number_format((float)$r['stake_amount'], 0).' BMAN (' .
+                                        ($r['plan_code'] ?: 'fixed') . '/' . ($r['duration_years'] ?: 1) . 'y) — ' .
+                                        $optName . ' — ' . ucfirst((string)$r['status']),
+                        'hash_id' => null,
+                        // No staking_swap_orders row exists for a re-stake — nothing
+                        // on-chain to look up, so order_id stays 0 (the view hides
+                        // the Details action rather than link to a dead lookup).
+                        'order_id' => 0,
+                        'bonus_bman' => (float)$r['bonus_amount'],
+                        'coin_distribution_option' => $optId,
+                        'gas_tx_hash' => null, 'usdt_tx_hash' => null, 'bonus_tx_hash' => null, 'bman_tx_hash' => null,
+                        'gas_cron_status' => null, 'usdt_cron_status' => null, 'bonus_cron_status' => null, 'bman_cron_status' => null,
+                        'error' => null,
+                        'is_special' => !empty($r['is_special']) ? 1 : 0,
+                        'maturity_date'  => $maturityDate,
+                        'remaining_days' => $remainingDays,
+                    ];
+                }
+            }
+        }
+
+        // Merge both sources newest-first and cap at 50 total — "most recent
+        // 50 across every purchase path", not 50 of each.
+        usort($result, function ($a, $b) { return strtotime($b->history_date) <=> strtotime($a->history_date); });
+        return array_slice($result, 0, 50);
     }
 
     /**

@@ -878,6 +878,150 @@ class Staking_model extends CI_Model
     }
 
     /**
+     * Re-stake using EXISTING internal wallet balances — coin_distribution_
+     * options 2-7 only. No USDT payment, no blockchain leg: the package's
+     * BMAN is funded entirely by debiting the required share out of
+     * Exchange/Earning/Staking/Bonus per the chosen option's percentages
+     * (Walletledger_model::debit() itself refuses an overdraft, so it's the
+     * authoritative sufficiency check — the controller's pre-check is only a
+     * fast, friendly error shown before this point). Nothing is credited
+     * back into those 4 wallets for the principal — the debited BMAN simply
+     * *becomes* the new stake, tracked by the user_stakes row itself (which
+     * is exactly what Staking_model::lockWalletBalance()/DashboardStats_
+     * model::stakingAnalytics() already sum for the Lock Wallet). Only the
+     * 25% package bonus is a genuine credit, since that's new money the
+     * platform grants, not a re-allocation of what the user already had.
+     * Option 1 (100% Exchange, real USDT->BMAN purchase) is NOT handled
+     * here — see purchaseStake() / Lendingcontroller::swap_purchase().
+     */
+    public function restakeFromWallets(array $ctx)
+    {
+        $userId       = (int)($ctx['user_id'] ?? 0);
+        $pkgId        = (int)($ctx['package_id'] ?? 0);
+        $planCode     = (string)($ctx['plan_code'] ?? '');
+        $years        = (int)($ctx['duration_years'] ?? 0);
+        $distOptionId = (int)($ctx['distribution_option_id'] ?? 0);
+        $skipKyc      = !empty($ctx['skip_kyc']);
+
+        // ---- 1. account + KYC ----
+        $user = $this->db->select('status, kyc_status')->get_where('users', ['id' => $userId])->row_array();
+        if (!$user || (string)$user['status'] !== '1') return [false, 'Your account is not active.'];
+        if (!$skipKyc && strtolower((string)($user['kyc_status'] ?? '')) !== 'approved')
+            return [false, 'KYC must be approved before purchasing a stake.'];
+
+        // ---- 2. package ----
+        $pkg = $this->db->get_where('staking_packages', ['id' => $pkgId, 'is_active' => 1])->row_array();
+        if (!$pkg) return [false, 'Selected package is not available.'];
+
+        // ---- 3. plan + term ----
+        if (!in_array($planCode, ['fixed','regular','combo'], true)) return [false, 'Invalid plan.'];
+        if (!in_array($years, [2,3,5], true))                        return [false, 'Invalid term.'];
+        $plan = $this->db->get_where('staking_plans', ['code' => $planCode, 'is_active' => 1])->row_array();
+        if (!$plan) return [false, 'Selected plan is not available.'];
+        $term = $this->db->get_where('staking_plan_terms',
+            ['plan_id' => $plan['id'], 'duration_years' => $years, 'is_active' => 1])->row_array();
+        if (!$term) return [false, ucfirst($planCode).' plan does not offer a '.$years.'-year term.'];
+
+        // ---- 4. ROI cell(s) ----
+        $roi = $this->resolveRoi($pkgId, $planCode, $years);
+        if (!$roi) return [false, 'ROI is not configured for this package / plan / term.'];
+
+        // ---- 5. distribution option (2-7 only) ----
+        if ($distOptionId < 2 || $distOptionId > 7) return [false, 'Invalid distribution option for re-staking.'];
+        $distOption = $this->db->get_where('coin_distribution_options', ['id' => $distOptionId, 'status' => 1])->row_array();
+        if (!$distOption) return [false, 'Selected distribution option is not available.'];
+
+        $bman = (float)$pkg['stake_amount'];
+        $shares = [];
+        foreach (['exchange', 'earning', 'staking', 'bonus'] as $wallet) {
+            $pct = (float)($distOption[$wallet . '_percentage'] ?? 0);
+            if ($pct > 0) $shares[$wallet] = round($bman * $pct / 100, 4);
+        }
+        if (!$shares) return [false, 'This distribution option allocates nothing — nothing to re-stake.'];
+        // Defensive: admin-configured percentages should sum to 100%; catch a
+        // misconfigured option rather than silently locking the wrong amount.
+        if (abs(array_sum($shares) - $bman) > 0.01) {
+            return [false, 'This distribution option is misconfigured (percentages do not total 100%) — contact admin.'];
+        }
+
+        $bonusPct  = (float)$pkg['bonus_percent'];
+        $bonusBman = round($bman * $bonusPct / 100, 4);
+        $start     = date('Y-m-d');
+        $maturity  = date('Y-m-d', strtotime('+'.$years.' years'));
+        $ref       = 'RESTAKE-'.date('Ymd').'-'.strtoupper(substr(bin2hex(random_bytes(4)),0,8));
+
+        // Snapshot is_special at purchase time — never re-priced by a later
+        // admin edit (same principle as the swap-path mirror in
+        // StakingPurchasecron::_checkAndCompleteOrder()).
+        $hasSpecialCol = $this->db->field_exists('is_special', 'user_stakes')
+            && $this->db->field_exists('is_special', 'staking_packages');
+        $isSpecial = $hasSpecialCol ? (int)($pkg['is_special'] ?? 0) : 0;
+
+        // header ROI snapshot (combo stores the fixed half as representative)
+        if ($planCode === 'combo') { $hdrPct = (float)$roi['fixed']['roi_percent']; $hdrBasis = 'total'; }
+        else                        { $hdrPct = (float)$roi['roi_percent'];        $hdrBasis = $roi['roi_basis']; }
+
+        $this->load->model('Walletledger_model', 'L');
+
+        // ============================ TRANSACTION ============================
+        $this->db->trans_begin();
+
+        // 1. Debit the required share from each source wallet.
+        foreach ($shares as $wallet => $amount) {
+            list($okDebit, $msg) = $this->L->debit($userId, $wallet, $amount, 'stake_purchase', [
+                'reference_id' => $ref,
+                'description'  => 'Re-stake: '.number_format($amount, 4).' BMAN from '.ucfirst($wallet).' ('.$distOption['option_name'].')',
+            ]);
+            if (!$okDebit) { $this->db->trans_rollback(); return [false, ucfirst($wallet).' wallet: '.$msg]; }
+        }
+
+        // 2. Create the stake order.
+        $insertData = [
+            'user_id' => $userId, 'package_id' => $pkgId, 'plan_id' => (int)$plan['id'],
+            'plan_code' => $planCode, 'duration_years' => $years,
+            'stake_amount' => $bman, 'roi_percent' => $hdrPct, 'roi_basis' => $hdrBasis,
+            'bonus_amount' => $bonusBman, 'distribution_option_id' => $distOptionId,
+            'start_date' => $start, 'maturity_date' => $maturity, 'status' => 'active',
+            'chain_status' => 'confirmed',
+        ];
+        if ($hasSpecialCol) $insertData['is_special'] = $isSpecial;
+        $this->db->insert('user_stakes', $insertData);
+        $stakeId = (int)$this->db->insert_id();
+        if (!$stakeId) { $this->db->trans_rollback(); return [false, 'Could not create the stake order.']; }
+
+        // 3. 25% Bonus Coin → Bonus wallet (new money the platform grants).
+        if ($bonusBman > 0) {
+            list($okB) = $this->L->credit($userId, 'bonus', $bonusBman, 'bonus', [
+                'reference_id' => $ref,
+                'description'  => number_format($bonusPct, 0).'% staking bonus — stake #'.$stakeId,
+                'skip_maturity'=> true,
+            ]);
+            if (!$okB) { $this->db->trans_rollback(); return [false, 'Could not credit the Bonus wallet.']; }
+        }
+
+        // 4. ROI schedule → staking_roi_payouts (pending).
+        $this->_generateRoiSchedule($stakeId, $userId, $bman, $planCode, $years, $roi, $plan, $start, $maturity);
+
+        // 5. binary business volume (consumed by the rank / matching cron).
+        if ($this->db->table_exists('binary_volume_ledger')) {
+            $this->db->insert('binary_volume_ledger', [
+                'user_id' => $userId, 'invest_id' => $stakeId,
+                'pv' => 0, 'bv' => $bman, 'source_amount' => $bman,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        if ($this->db->trans_status() === false) { $this->db->trans_rollback(); return [false, 'Database error — purchase rolled back.']; }
+        $this->db->trans_commit();
+
+        return [true, [
+            'stake_id' => $stakeId, 'ref' => $ref, 'bman' => $bman, 'bonus' => $bonusBman,
+            'maturity' => $maturity, 'wallet_deductions' => $shares,
+            'distribution_option_name' => $distOption['option_name'],
+        ]];
+    }
+
+    /**
      * Create the STAKE RECORD immediately for a purchase whose BMAN is being
      * acquired elsewhere (e.g. the on-chain swap credits the Exchange wallet).
      * This does NOT debit USDT or credit bonus — it only creates the user_stakes

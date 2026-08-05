@@ -443,6 +443,34 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     box.className = 'stkm-feedback';
     box.innerHTML = '';
   }
+  // Richer confirmation for a successful re-stake (Options 2-7) — reuses the
+  // same .stkm-feedback box/classes as stkMessage() but renders the full
+  // breakdown the spec calls for: Package, Plan, Distribution, per-wallet
+  // deductions, Bonus, new Lock Wallet total, Maturity date.
+  function stkRestakeSummary(d){
+    const box = $('stkm-feedback');
+    if(!box) return;
+    const rows = (d.wallet_deductions||[]).map(function(w){
+      return '<tr><td>'+esc(w.label)+'</td><td style="text-align:right;white-space:nowrap;">-'+
+        Number(w.amount).toLocaleString(undefined,{maximumFractionDigits:4})+' BMAN</td></tr>';
+    }).join('');
+    box.className = 'stkm-feedback show success';
+    box.innerHTML =
+      '<div class="stkm-feedback-ico">OK</div>' +
+      '<div style="width:100%;">' +
+        '<strong>Re-stake Successful</strong>' +
+        '<div style="margin-top:6px;font-size:12px;line-height:1.7;font-weight:700;">' +
+          '<div><b>Package:</b> '+esc(d.package_name)+'</div>' +
+          '<div><b>Plan:</b> '+esc(d.plan_label)+' &middot; '+esc(String(d.duration_years))+' Years</div>' +
+          '<div><b>Distribution:</b> '+esc(d.distribution_option_name)+'</div>' +
+          (rows ? '<table style="width:100%;margin-top:6px;border-collapse:collapse;">'+rows+'</table>' : '') +
+          (Number(d.bonus)>0 ? '<div style="margin-top:6px;"><b>Bonus credited:</b> '+Number(d.bonus).toLocaleString(undefined,{maximumFractionDigits:4})+' BMAN</div>' : '') +
+          '<div style="margin-top:6px;"><b>Lock Wallet total now:</b> '+Number(d.lock_wallet_balance).toLocaleString(undefined,{maximumFractionDigits:4})+' BMAN</div>' +
+          '<div><b>Maturity date:</b> '+esc(d.maturity_date)+'</div>' +
+        '</div>' +
+      '</div>';
+    requestAnimationFrame(function(){ box.scrollIntoView({block:'nearest', behavior:'smooth'}); });
+  }
   function stkPickROIPlan(code){
     cur.roi_plan = code;
     document.querySelectorAll('#stkm-roi-plans button').forEach(b=>b.classList.toggle('active', b.dataset.code===code));
@@ -607,10 +635,15 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   function checkDistBalance(){
     const warnEl=$('stkm-dist-warn');
     if(!warnEl) return true;
+    // Option 1 (100% Exchange) is a new USDT->BMAN purchase — it funds
+    // Exchange itself, so it needs no pre-existing wallet balance at all.
+    // Options 2-7 re-stake EXISTING balance instead, so every wallet they
+    // draw on (Exchange included) must already hold enough.
+    if(+cur.dist===1){ warnEl.style.display='none'; return true; }
     const selected=DISTS[cur.dist];
     if(!selected || !cur.pkg || !cur.quote || !cur.quote.bman_wallets){ warnEl.style.display='none'; return true; }
     const amount=+cur.pkg.stake||0, bw=cur.quote.bman_wallets;
-    const labels={earning:'Earning Wallet', staking:'Staking Wallet', bonus:'Bonus Wallet'};
+    const labels={exchange:'Exchange Wallet', earning:'Earning Wallet', staking:'Staking Wallet', bonus:'Bonus Wallet'};
     const shortfalls=[];
     Object.keys(labels).forEach(function(w){
       const pct=+selected[w]||0;
@@ -713,15 +746,22 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     fd.append('coin_distribution_option_id', cur.dist);  // ✅ Distribution option (1-7)
     fd.append('plan_id', 0);  // ✅ Plan ID
 
-    const endpoint = SWAP_ON ? 'user/lending/swap_purchase' : 'user/lending/purchase_stake';
+    // Option 1 (100% Exchange) is a new USDT->BMAN purchase — on-chain flow.
+    // Options 2-7 re-stake EXISTING wallet balances — no USDT/blockchain leg.
+    const isRestake = +cur.dist !== 1;
+    const endpoint = isRestake ? 'user/lending/restake_purchase' : (SWAP_ON ? 'user/lending/swap_purchase' : 'user/lending/purchase_stake');
     fetch(BASE+endpoint,{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{
       if(j.status){
+        if(isRestake && j.data){
+          stkRestakeSummary(j.data);
+        } else {
+          stkMessage('success', 'Staking Successful', j.message || 'Your staking request has been submitted successfully.');
+        }
         // Timer + confirm button both resolve .then() — whichever comes first,
         // the page reloads with no extra click required (refreshes portfolio,
         // wallet balances, active staking table and package availability, all
         // server-rendered on load).
-        stkMessage('success', 'Staking Successful', j.message || 'Your staking request has been submitted successfully.');
-        setTimeout(function(){ location.reload(); }, 1500);
+        setTimeout(function(){ location.reload(); }, isRestake ? 2600 : 1500);
       } else {
         go.disabled=false;
         go.textContent='Confirm';

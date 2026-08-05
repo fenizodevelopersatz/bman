@@ -1296,8 +1296,8 @@ $hero_progress = 48;
               <tbody>
                 <?php if (empty($recent_staking_activity)): ?>
                   <tr><td colspan="10" style="text-align:center;color:#9ca3af;padding:18px;">No recent staking activity found.</td></tr>
-                <?php else: foreach ($recent_staking_activity as $i => $row): ?>
-                  <tr style="cursor:pointer;transition:background 0.2s;" onclick="showSwapDetails(<?= (int)($row->order_id ?? 0) ?>)" onmouseover="this.style.background='#f9f9fb'" onmouseout="this.style.background=''">
+                <?php else: foreach ($recent_staking_activity as $i => $row): $hasOrder = !empty($row->order_id); ?>
+                  <tr style="cursor:<?= $hasOrder ? 'pointer' : 'default' ?>;transition:background 0.2s;" <?= $hasOrder ? 'onclick="showSwapDetails(' . (int)$row->order_id . ')"' : '' ?> onmouseover="this.style.background='#f9f9fb'" onmouseout="this.style.background=''">
                     <td data-label="S.No"><?= (int)$i + 1 ?></td>
                     <td data-label="Date" style="font-size:12px;"><?= htmlspecialchars((string)($row->history_date ?? '—')) ?></td>
                     <td data-label="Type">
@@ -1324,7 +1324,7 @@ $hero_progress = 48;
                       </span>
                     </td>
                     <td data-label="Description" style="font-size:11px;color:#666;"><?= htmlspecialchars((string)($row->description ?? '—')) ?></td>
-                    <td data-label=""><button class="btn-soft" onclick="event.stopPropagation();showSwapDetails(<?= (int)($row->order_id ?? 0) ?>)" style="padding:6px 10px;font-size:11px;">Details</button></td>
+                    <td data-label=""><?php if ($hasOrder): ?><button class="btn-soft" onclick="event.stopPropagation();showSwapDetails(<?= (int)$row->order_id ?>)" style="padding:6px 10px;font-size:11px;">Details</button><?php else: ?><span style="font-size:11px;color:#9ca3af;">Wallet re-stake</span><?php endif; ?></td>
                   </tr>
                 <?php endforeach; endif; ?>
               </tbody>
