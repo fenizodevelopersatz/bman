@@ -85,14 +85,21 @@ class AdminAuditLog extends CI_Controller
                                    $r['old_value'], $r['new_value'], $r['admin_name'], $r['changed_by'], $r['created_at']);
         }
 
-        $withdrawRows = $this->db->select('a.*, adm.admin_name')
+        // Generic admin_settings_audit modules — anything without its own
+        // bespoke audit table (see db/2026-07-21_admin_settings_audit.sql).
+        $genericLabels = [
+            'withdraw_settings'       => 'Withdraw Settings',
+            'token_withdraw_settings' => 'Token Withdraw Settings',
+            'member_status'           => 'Member Status',
+        ];
+        $genericRows = $this->db->select('a.*, adm.admin_name')
                                   ->from('admin_settings_audit a')
                                   ->join('admin_members adm', 'adm.id = a.changed_by', 'left')
-                                  ->where_in('a.module', ['withdraw_settings', 'token_withdraw_settings'])
+                                  ->where_in('a.module', array_keys($genericLabels))
                                   ->order_by('a.created_at', 'DESC')->limit($limit)
                                   ->get()->result_array();
-        foreach ($withdrawRows as $r) {
-            $label = $r['module'] === 'withdraw_settings' ? 'Withdraw Settings' : 'Token Withdraw Settings';
+        foreach ($genericRows as $r) {
+            $label = $genericLabels[$r['module']] ?? $r['module'];
             $rows[] = $this->_row($r['module'], $label, $r['field_name'], null,
                                    $r['old_value'], $r['new_value'], $r['admin_name'], $r['changed_by'], $r['created_at']);
         }

@@ -1013,41 +1013,52 @@ class  Membermanagement extends CI_Controller {
         | STATUS Update
         |--------------------------------------------------------------------------
         */
+        /**
+         * Activate/deactivate a member. Audited via the generic
+         * admin_settings_audit table (module='member_status') — same
+         * mechanism Withdrawsettings.php uses — so the change shows up in
+         * the unified Admin Audit Log alongside every other settings change.
+         */
         public function statusupdate($id){
-
-            if($id){
-
-                $check_template = $this->db->query("SELECT * FROM `users` where id = '".$id."'")->num_rows();
-
-                if($check_template > 0){
-
-                    $status = $this->input->post('template_status');
-                    $template_status = $status == '1' ? '1':'2';
-
-                    $array_template = array(
-                        "status" => $template_status,
-                    );
-
-                    $this->db->where('id',$id);
-                    $this->db->update('users',$array_template);
-
-                    $response = array(
-                        'status' => "success",
-                        'message' => "Status update successfully.."
-                    );
-                    echo json_encode($response);
-                    exit(); 
-                } else {
-                    $response = array(
-                        'status' => false,
-                        'message' => "Invalide User!"
-                    );
-                    echo json_encode($response);
-                    exit(); 
-                }
-
+            $id = (int) $id;
+            if (!$id) {
+                echo json_encode(['status' => false, 'message' => 'Invalid user!']);
+                return;
             }
 
+            $user = $this->db->get_where('users', ['id' => $id])->row_array();
+            if (!$user) {
+                echo json_encode(['status' => false, 'message' => 'Invalid user!']);
+                return;
+            }
+
+            $oldStatus = (string) $user['status'];
+            $newStatus = ((string) $this->input->post('template_status') === '1') ? '1' : '2';
+
+            if ($oldStatus === $newStatus) {
+                echo json_encode([
+                    'status' => true, 'message' => 'No change.',
+                    'new_status' => $newStatus, 'new_status_label' => $newStatus === '1' ? 'Active' : 'Inactive',
+                ]);
+                return;
+            }
+
+            $this->db->where('id', $id)->update('users', ['status' => $newStatus]);
+
+            $this->db->insert('admin_settings_audit', [
+                'module'     => 'member_status',
+                'field_name' => $user['username'] . ' (#' . $id . ')',
+                'old_value'  => $oldStatus === '1' ? 'Active' : 'Inactive',
+                'new_value'  => $newStatus === '1' ? 'Active' : 'Inactive',
+                'changed_by' => (int) $this->session->userdata('admin_userid'),
+            ]);
+
+            echo json_encode([
+                'status' => true,
+                'message' => 'Status updated successfully.',
+                'new_status' => $newStatus,
+                'new_status_label' => $newStatus === '1' ? 'Active' : 'Inactive',
+            ]);
         }
         /*
         |--------------------------------------------------------------------------

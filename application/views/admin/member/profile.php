@@ -22,6 +22,7 @@ $rankPercent = $rankTarget > 0 ? min(100, ($rank['group_volume'] / $rankTarget) 
   .mp-toolbar{position:sticky;top:70px;z-index:8;background:#fff;border:1px solid var(--mp-line);border-radius:12px;padding:8px;display:flex;gap:6px;flex-wrap:wrap;box-shadow:0 5px 18px rgba(30,40,70,.05)}
   .mp-btn{border:1px solid var(--mp-line);background:#fff;color:#344054;border-radius:8px;padding:9px 13px;font-weight:700;display:inline-flex;align-items:center;gap:7px;cursor:pointer;text-decoration:none}
   .mp-btn:hover{border-color:var(--mp-primary);color:var(--mp-primary)}.mp-btn.primary{background:var(--mp-primary);border-color:var(--mp-primary);color:#fff}
+  .mp-btn.danger{background:var(--mp-red);border-color:var(--mp-red);color:#fff}.mp-btn.success{background:var(--mp-green);border-color:var(--mp-green);color:#fff}
   .mp-btn:disabled{opacity:.45;cursor:not-allowed}.mp-card{background:#fff;border:1px solid var(--mp-line);border-radius:12px;box-shadow:0 2px 10px rgba(30,40,70,.025)}
   .mp-member{padding:22px;display:grid;grid-template-columns:auto minmax(220px,1.1fr) repeat(3,minmax(145px,1fr));gap:22px;align-items:center}
   .mp-avatar{width:88px;height:88px;border-radius:50%;object-fit:cover;border:4px solid #f0edff}.mp-name{font-size:25px;font-weight:800;line-height:1.15}
@@ -61,7 +62,7 @@ $rankPercent = $rankTarget > 0 ? min(100, ($rank['group_volume'] / $rankTarget) 
     <div class="app-main flex-column flex-row-fluid" id="kt_app_main"><div class="d-flex flex-column flex-column-fluid">
       <div class="app-toolbar py-3 py-lg-6"><div class="app-container container-xxl d-flex flex-stack">
         <div><h1 class="page-heading text-gray-900 fw-bold fs-3 my-0">View User Profile</h1><div class="text-muted fw-semibold fs-7 mt-1">Admin · Members Management · <?= $e($m['referral_id']); ?></div></div>
-        <div class="d-flex gap-2"><a href="<?= base_url('network-member'); ?>" class="mp-btn"><i class="ki-outline ki-arrow-left"></i> Back</a><button class="mp-btn primary" id="profile-refresh"><i class="ki-outline ki-arrows-circle"></i> Refresh</button></div>
+        <div class="d-flex gap-2"><a href="<?= base_url('network-member'); ?>" class="mp-btn"><i class="ki-outline ki-arrow-left"></i> Back</a><button class="mp-btn" id="status-toggle-btn"><i class="ki-outline ki-toggle-on"></i> <span id="status-toggle-label">Deactivate</span></button><button class="mp-btn primary" id="profile-refresh"><i class="ki-outline ki-arrows-circle"></i> Refresh</button></div>
       </div></div>
       <div class="app-content flex-column-fluid pb-10"><div class="app-container container-xxl mp-page" id="profile-app">
         <div class="mp-card mp-member">
@@ -181,6 +182,34 @@ $rankPercent = $rankTarget > 0 ? min(100, ($rank['group_volume'] / $rankTarget) 
   const num=v=>Number(v||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:8});
   const toast=msg=>{const el=document.getElementById('mp-toast');el.textContent=msg;el.style.display='block';setTimeout(()=>el.style.display='none',2200)};
   const loading=on=>document.getElementById('profile-app').classList.toggle('mp-loading',on);
+
+  function syncStatusButton(){
+    const badge=document.querySelector('[data-member-badge="status"]');
+    const active=badge && badge.textContent.trim().toLowerCase()==='active';
+    document.getElementById('status-toggle-label').textContent=active?'Deactivate':'Activate';
+    document.getElementById('status-toggle-btn').classList.toggle('danger',active);
+    document.getElementById('status-toggle-btn').classList.toggle('success',!active);
+  }
+  async function toggleMemberStatus(){
+    const badge=document.querySelector('[data-member-badge="status"]');
+    const activating=!badge || badge.textContent.trim().toLowerCase()!=='active';
+    if(!confirm(`Are you sure you want to ${activating?'activate':'deactivate'} this member's account?`)) return;
+    const btn=document.getElementById('status-toggle-btn'); btn.disabled=true;
+    try{
+      const r=await fetch(`<?= base_url('user-status-update/'); ?>${MEMBER_ID}`,{
+        method:'POST',credentials:'same-origin',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:new URLSearchParams({template_status:activating?'1':'2'})
+      });
+      const j=await r.json();
+      if(!j.status) throw new Error(j.message||'Failed to update status');
+      if(badge){badge.textContent=j.new_status_label.toLowerCase();badge.className='mp-badge '+(j.new_status==='1'?'ok':'bad');}
+      syncStatusButton();
+      toast(j.message);
+    }catch(e){toast(e.message||'Failed to update status')}finally{btn.disabled=false}
+  }
+  document.getElementById('status-toggle-btn').onclick=toggleMemberStatus;
+  syncStatusButton();
 
   document.querySelectorAll('[data-jump]').forEach(b=>b.onclick=()=>document.querySelector(b.dataset.jump)?.scrollIntoView({behavior:'smooth',block:'start'}));
   document.getElementById('profile-refresh').onclick=async()=>{

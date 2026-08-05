@@ -56,6 +56,7 @@
                                                 <option value="token_withdraw_settings">Token Withdraw Settings</option>
                                                 <option value="coin_distribution">Coin Distribution</option>
                                                 <option value="token_settings">Token Settings / Exchange Rate</option>
+                                                <option value="member_status">Member Status</option>
                                             </select>
                                             <select class="form-select form-select-sm w-150px" id="aal-date-preset" aria-label="Quick date range">
                                                 <option value="">All dates</option>
