@@ -224,8 +224,31 @@ class Swapengine_model extends CI_Model
     }
 
     /**
-     * Deliver the order's BMAN (+25% bonus) on-chain to the user's address,
-     * signed by the treasury key. Idempotent: skips if already delivered.
+     * LEGACY / RECOVERY-ONLY. Predates StakingPurchasecron's 4-step state
+     * machine, which is now the SOLE authority that broadcasts, confirms and
+     * credits the BMAN leg for every order (see execute()'s and resume()'s
+     * comments above). This method used to broadcast BMAN and the 25% bonus
+     * as two separate transfers and write bman_tx_hash/bonus_tx_hash with NO
+     * Walletledger_model credit at all — a real on-chain delivery with zero
+     * internal balance trace, reachable via a real admin button and a real
+     * deliver-bman-cron route, and able to double-broadcast if it ever raced
+     * the per-minute cron on the same order (the one way an order reaches
+     * that state today is Walletreset::mark_completed(), which is why that
+     * method now only ever fast-tracks the gas/usdt legs — see its comment).
+     *
+     * Now: this method ONLY ever broadcasts — it refuses outright unless
+     * StakingPurchasecron has already confirmed the USDT leg
+     * (usdt_cron_status=1), atomically claims bman_tx_hash before sending so
+     * a second concurrent call (another click, or deliver_cron overlapping)
+     * can't also pass the empty-hash check, then sends the SAME combined
+     * bman_amount + bonus_bman transfer StakingPurchasecron::_stepBman()
+     * would send. It deliberately does NOT credit wallet_ledger itself —
+     * once bman_tx_hash is set, _stepBman() picks this hash up on its very
+     * next run exactly as if it had broadcast it (_verifyLeg() doesn't care
+     * who broadcast a hash, only that one exists), and credits + activates
+     * the stake through the one canonical code path. That guarantees the
+     * wallet split can never drift out of sync with what the cron computes.
+     *
      * Returns [ok, message]. Treasury must hold BMAN + BNB gas.
      */
     public function deliverBman($orderId)
@@ -234,26 +257,47 @@ class Swapengine_model extends CI_Model
         if (!$o) return [false, 'Order not found.'];
         if (!empty($o['bman_tx_hash'])) return [false, 'BMAN already delivered ('.$o['bman_tx_hash'].').'];
         if ((float)$o['bman_amount'] <= 0) return [false, 'Nothing to deliver.'];
+        if ((string)($o['status'] ?? '') === 'cancelled') return [false, 'Order is cancelled.'];
+
+        // StakingPurchasecron never attempts this leg before it has confirmed
+        // the USDT payment itself — this path must never release BMAN any
+        // earlier than the cron would, no matter what an admin action has
+        // done to the display `status` column.
+        if ((int)($o['usdt_cron_status'] ?? 0) !== 1) {
+            return [false, 'USDT payment leg is not yet confirmed by the staking purchase cron — refusing to release BMAN.'];
+        }
+        if ((int)($o['bman_cron_status'] ?? 0) === 1) {
+            return [false, 'BMAN leg already handled by the staking purchase cron.'];
+        }
+
+        // Atomic claim: only proceed if THIS call is the one flipping
+        // bman_tx_hash from empty to non-empty. Closes the double-broadcast
+        // race between two calls into this method (double click, or
+        // deliver_cron sweeping while an admin also clicks "Send BMAN").
+        $claim = 'CLAIM-' . bin2hex(random_bytes(8));
+        $this->db->where('id', (int)$orderId)
+                 ->group_start()->where('bman_tx_hash', null)->or_where('bman_tx_hash', '')->group_end()
+                 ->update('staking_swap_orders', ['bman_tx_hash' => $claim]);
+        if ((int)$this->db->affected_rows() !== 1) {
+            return [false, 'BMAN delivery already claimed by another process.'];
+        }
 
         $cfg   = $this->config();
         $dry   = (int)($cfg['swap_dry_run'] ?? 1) === 1; // global flag (no per-order dry_run column)
         $bmanC = $cfg['bman_contract'] ?? '';
-        if (!$bmanC) return [false, 'BMAN contract not configured.'];
+        if (!$bmanC) { $this->_set($orderId, ['bman_tx_hash' => null]); return [false, 'BMAN contract not configured.']; }
         $userAddr = $o['user_address'];
-        $bman  = (float)$o['bman_amount'];
-        $bonus = (float)$o['bonus_bman'];
+        $total = (float)$o['bman_amount'] + (float)$o['bonus_bman']; // matches _stepBman()'s combined transfer
 
         try {
             if ($dry) {
-                $bmanTx  = 'DRYRUN-bman-'.$o['ref'];
-                $bonusTx = $bonus > 0 ? 'DRYRUN-bonus-'.$o['ref'] : null;
+                $bmanTx = 'DRYRUN-bman-'.$o['ref'];
             } else {
                 $tk = $this->tokens->treasuryPrivateKey();
-                if (!$tk) return [false, 'Treasury key missing.'];
-                $bmanTx  = $this->web3bman->sendToken($tk, $userAddr, (string)$bman, $bmanC)['tx_hash'];
-                $bonusTx = $bonus > 0 ? $this->web3bman->sendToken($tk, $userAddr, (string)$bonus, $bmanC)['tx_hash'] : null;
+                if (!$tk) { $this->_set($orderId, ['bman_tx_hash' => null]); return [false, 'Treasury key missing.']; }
+                $bmanTx = $this->web3bman->sendToken($tk, $userAddr, (string)$total, $bmanC)['tx_hash'];
             }
-            $this->_set($orderId, ['bman_tx_hash' => $bmanTx, 'bonus_tx_hash' => $bonusTx, 'error' => null]);
+            $this->_set($orderId, ['bman_tx_hash' => $bmanTx, 'error' => null]);
 
             // Attach the on-chain delivery hash to the swap's on-chain history rows
             // (created by the Walletledger observer at purchase). Fail-safe.
@@ -262,9 +306,12 @@ class Swapengine_model extends CI_Model
                 $this->octx->attachSwapDelivery($o['ref'], $bmanTx, $o['deposit_tx_hash'] ?? ($o['tx_hash'] ?? null));
             } catch (Throwable $e) { log_message('error', '[swap onchain link] '.$e->getMessage()); }
 
-            return [true, 'BMAN delivered'.($dry ? ' (dry-run)' : '').': '.$bmanTx];
+            return [true, 'BMAN broadcast'.($dry ? ' (dry-run)' : '').': '.$bmanTx
+                .' — the staking purchase cron will confirm it and credit the wallet on its next pass.'];
         } catch (Exception $e) {
-            $this->_set($orderId, ['error' => 'BMAN delivery failed: '.substr($e->getMessage(),0,200)]);
+            // Release the claim so a later retry (ours, or the cron's own
+            // next attempt) isn't permanently blocked by our placeholder.
+            $this->_set($orderId, ['bman_tx_hash' => null, 'error' => 'BMAN delivery failed: '.substr($e->getMessage(),0,200)]);
             return [false, 'BMAN delivery failed: '.$e->getMessage()];
         }
     }
@@ -277,6 +324,7 @@ class Swapengine_model extends CI_Model
         if ((int)($cfg['swap_dry_run'] ?? 1) === 1) return ['processed' => 0, 'delivered' => 0, 'failed' => 0];
 
         $rows = $this->db->where('status', 'completed')->where('bman_amount >', 0)
+                         ->where('usdt_cron_status', 1)
                          ->group_start()->where('bman_tx_hash', null)->or_where('bman_tx_hash', '')->group_end()
                          ->order_by('id','ASC')->limit((int)$limit)->get('staking_swap_orders')->result_array();
         $delivered = 0; $failed = 0;

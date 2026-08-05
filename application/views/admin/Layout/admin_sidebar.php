@@ -42,11 +42,13 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
     @media (min-width:992px){
       #kt_app_sidebar .bman-admin-root-sub .menu-item[data-kt-menu-trigger]:hover>.bman-admin-nested-sub,
       #kt_app_sidebar .bman-admin-root-sub .menu-item[data-kt-menu-trigger].show>.bman-admin-nested-sub,
-      #kt_app_sidebar .bman-admin-root-sub .menu-item[data-kt-menu-trigger].hover>.bman-admin-nested-sub{display:block!important}
+      #kt_app_sidebar .bman-admin-root-sub .menu-item[data-kt-menu-trigger].hover>.bman-admin-nested-sub,
+      #kt_app_sidebar .bman-admin-root-sub .menu-item[data-kt-menu-trigger].bman-hover-open>.bman-admin-nested-sub{display:block!important}
     }
     @media (max-width:991.98px){
       #kt_app_sidebar .bman-admin-root-sub .menu-item.show>.bman-admin-nested-sub,
-      #kt_app_sidebar .bman-admin-root-sub .menu-item.hover>.bman-admin-nested-sub{display:block!important}
+      #kt_app_sidebar .bman-admin-root-sub .menu-item.hover>.bman-admin-nested-sub,
+      #kt_app_sidebar .bman-admin-root-sub .menu-item.bman-hover-open>.bman-admin-nested-sub{display:block!important}
     }
     @media (max-width:991.98px){
       #kt_app_sidebar_logo{height:auto;min-height:76px;padding-top:14px;padding-bottom:14px}
@@ -852,3 +854,43 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
 
 </div>
 <!--end::Sidebar-->
+
+<script>
+(function () {
+  // The nested (2nd/3rd-level) sidebar submenus rely on the plain CSS :hover
+  // pseudo-class to stay open (see .bman-admin-nested-sub above), which has
+  // NO grace period — moving the mouse off the trigger by even a pixel while
+  // heading toward the revealed submenu closes it instantly. This adds a
+  // short, JS-managed delay via a separate .bman-hover-open class (already
+  // wired into the CSS above as an extra "stay open" condition alongside the
+  // existing :hover/.show/.hover) so the submenu stays open briefly after the
+  // mouse leaves, giving the user time to reach it. Deliberately a distinct
+  // class name — this runs alongside KTUI's own menu JS, not in place of it.
+  var sidebar = document.getElementById('kt_app_sidebar');
+  if (!sidebar) return;
+  var CLOSE_DELAY = 350;
+  var timers = new WeakMap();
+
+  function cancelClose(item) {
+    var t = timers.get(item);
+    if (t) { clearTimeout(t); timers.delete(item); }
+  }
+  function scheduleClose(item) {
+    cancelClose(item);
+    timers.set(item, setTimeout(function () {
+      item.classList.remove('bman-hover-open');
+      timers.delete(item);
+    }, CLOSE_DELAY));
+  }
+
+  sidebar.querySelectorAll('.menu-item[data-kt-menu-trigger]').forEach(function (item) {
+    item.addEventListener('mouseenter', function () {
+      cancelClose(item);
+      item.classList.add('bman-hover-open');
+    });
+    item.addEventListener('mouseleave', function () {
+      scheduleClose(item);
+    });
+  });
+})();
+</script>

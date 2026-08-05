@@ -325,8 +325,11 @@ class StakingPurchasecron extends CI_Controller
     {
         if ((int)$order['gas_cron_status'] === 0)   $this->_tally($this->_stepGas($order, $head),   $summary['gas']);
         if ((int)$order['usdt_cron_status'] === 0)  $this->_tally($this->_stepUsdt($order, $head),  $summary['usdt']);
-        if ((int)$order['bonus_cron_status'] === 0) $this->_tally($this->_stepBonus($order, $head), $summary['bonus']);
+        // bman before bonus: bonus is now just a thin mirror of bman's status
+        // (see _stepBonus()) — running bman first lets the mirror observe a
+        // same-pass confirmation instead of needing an extra cron pass.
         if ((int)$order['bman_cron_status'] === 0)  $this->_tally($this->_stepBman($order, $head),  $summary['bman']);
+        if ((int)$order['bonus_cron_status'] === 0) $this->_tally($this->_stepBonus($order, $head), $summary['bonus']);
         $this->_checkAndCompleteOrder($order);
     }
 
@@ -410,37 +413,40 @@ class StakingPurchasecron extends CI_Controller
 
     /* ------------------------------- bonus ------------------------------- */
 
+    /**
+     * No longer broadcasts anything of its own — the instant 25% bonus now
+     * travels in _stepBman()'s combined transfer. This just mirrors bman's
+     * status once confirmed, so staking_swap_orders' 4-column schema and
+     * _checkAndCompleteOrder()'s "all 4 cron_status === 1" check need no
+     * changes. Defensive: never overwrites an already-set bonus_tx_hash —
+     * kept as a pure safety net (e.g. a future manual DB fix) even though
+     * Swapengine_model::deliverBman() no longer writes this column directly;
+     * it only ever sets bman_tx_hash now and lets this mirror follow it.
+     */
     private function _stepBonus(&$order, $head)
     {
-        $bonus = (float)($order['bonus_bman'] ?? 0);
-        if ($bonus <= 0) { $this->_setOrder($order, ['bonus_cron_status' => 1, 'bonus_cron_status_message' => null]); return true; }
-        if ((int)$order['usdt_cron_status'] !== 1) {
-            return $this->_waiting($order['id'], 'bonus', 'Waiting for USDT step first');
+        if ((int)$order['bman_cron_status'] !== 1) {
+            return $this->_waiting($order['id'], 'bonus', 'Combined with the principal BMAN transfer');
         }
-
-        if (!empty($order['bonus_tx_hash'])) {
-            return $this->_verifyLeg($order, 'bonus', $order['bonus_tx_hash'], $head, function () use (&$order, $bonus) {
-                $this->_recordOnchain($order, $order['bonus_tx_hash'], $order['admin_address'], $order['user_address'],
-                    $bonus, 'transfer', 'bonus');
-                $this->_credit($order, 'bonus', $bonus, $order['bonus_tx_hash']);
-                $this->_setOrder($order, ['bonus_cron_status' => 1, 'bonus_cron_status_message' => null]);
-            });
+        if (empty($order['bonus_tx_hash'])) {
+            $this->_setOrder($order, ['bonus_tx_hash' => $order['bman_tx_hash']]);
         }
-
-        $cfg = $this->_cfg();
-        $bmanContract = trim((string)($cfg['bman_contract'] ?? ''));
-        if ($bmanContract === '') return $this->_fail($order['id'], 'bonus', 'BMAN contract not configured');
-
-        return $this->_broadcast($order, 'bonus', function () use ($order, $bonus, $bmanContract) {
-            $key = $this->_treasuryKey();
-            if (!$key) throw new RuntimeException('treasury key unavailable');
-            $r = $this->web3bman->sendToken($key, $order['user_address'], (string)$bonus, $bmanContract);
-            return $r['tx_hash'];
-        }, 'bonus_tx_hash');
+        if ((int)$order['bonus_cron_status'] !== 1) {
+            $this->_setOrder($order, ['bonus_cron_status' => 1, 'bonus_cron_status_message' => null]);
+        }
+        return true;
     }
 
     /* --------------------------- principal BMAN --------------------------- */
 
+    /**
+     * Broadcasts the principal AND the 25% instant package bonus as ONE
+     * combined BEP-20 transfer (saves a whole gas payment vs. two separate
+     * treasury→user sends to the same address — both used to gate only on
+     * usdt_cron_status, so they never actually waited on each other; merging
+     * them costs nothing in wall-clock time, only saves gas). _stepBonus()
+     * becomes a thin mirror of this step's status — see below.
+     */
     private function _stepBman(&$order, $head)
     {
         if ((int)$order['usdt_cron_status'] !== 1) {
@@ -449,10 +455,27 @@ class StakingPurchasecron extends CI_Controller
 
         if (!empty($order['bman_tx_hash'])) {
             return $this->_verifyLeg($order, 'bman', $order['bman_tx_hash'], $head, function () use (&$order) {
+                $instantBonus = (float)($order['bonus_bman'] ?? 0);
+                $totalAmount  = (float)$order['bman_amount'] + $instantBonus;
                 $this->_recordOnchain($order, $order['bman_tx_hash'], $order['admin_address'], $order['user_address'],
-                    $order['bman_amount'], 'transfer', 'exchange');
+                    $totalAmount, 'transfer', 'exchange');
+
                 // INTERNAL split of the principal into the ledger (one custodial address).
-                foreach (['exchange', 'earning', 'staking', 'bonus'] as $wallet) {
+                // The Bonus wallet is special: it can receive BOTH the instant 25%
+                // package bonus AND a coin_distribution_option's bonus SHARE of the
+                // principal (options 2/3/7). These must be ONE _credit() call, not
+                // two — wallet_ledger has a real DB-level UNIQUE(tx_hash, wallet_type)
+                // index, and both would otherwise want the same combined hash.
+                $distShareBonus = $this->_walletShare($order, 'bonus');
+                $totalBonus     = $instantBonus + $distShareBonus;
+                if ($totalBonus > 0) {
+                    $desc = $distShareBonus > 0
+                        ? sprintf('Bonus allocation: %s instant package bonus + %s distribution share = %s BMAN (order %d)',
+                            $instantBonus, $distShareBonus, $totalBonus, $order['id'])
+                        : null; // null → _credit()'s default wording is fine for the common case
+                    $this->_credit($order, 'bonus', $totalBonus, $order['bman_tx_hash'], $desc);
+                }
+                foreach (['exchange', 'earning', 'staking'] as $wallet) {
                     $amount = $this->_walletShare($order, $wallet);
                     if ($amount > 0) $this->_credit($order, $wallet, $amount, $order['bman_tx_hash']);
                 }
@@ -470,10 +493,11 @@ class StakingPurchasecron extends CI_Controller
         $bmanContract = trim((string)($cfg['bman_contract'] ?? ''));
         if ($bmanContract === '') return $this->_fail($order['id'], 'bman', 'BMAN contract not configured');
 
-        return $this->_broadcast($order, 'bman', function () use ($order, $bmanContract) {
+        $total = (float)$order['bman_amount'] + (float)($order['bonus_bman'] ?? 0);
+        return $this->_broadcast($order, 'bman', function () use ($order, $bmanContract, $total) {
             $key = $this->_treasuryKey();
             if (!$key) throw new RuntimeException('treasury key unavailable');
-            $r = $this->web3bman->sendToken($key, $order['user_address'], (string)$order['bman_amount'], $bmanContract);
+            $r = $this->web3bman->sendToken($key, $order['user_address'], (string)$total, $bmanContract);
             return $r['tx_hash'];
         }, 'bman_tx_hash');
     }
@@ -599,7 +623,7 @@ class StakingPurchasecron extends CI_Controller
     }
 
     /** Credit a wallet through the canonical ledger (idempotent on tx_hash+wallet_type). */
-    private function _credit(&$order, $wallet, $amount, $tx_hash)
+    private function _credit(&$order, $wallet, $amount, $tx_hash, $desc = null)
     {
         if ($amount <= 0) return;
         list($ok, $info) = $this->L->credit(
@@ -607,7 +631,7 @@ class StakingPurchasecron extends CI_Controller
             [
                 'tx_hash'      => $tx_hash ?: null,
                 'reference_id' => $order['ref'] ?? ('ORDER-' . $order['id']),
-                'description'  => ucfirst($wallet) . ' allocation ' . $amount . ' BMAN (order ' . $order['id'] . ')',
+                'description'  => $desc ?? (ucfirst($wallet) . ' allocation ' . $amount . ' BMAN (order ' . $order['id'] . ')'),
             ]
         );
         if (!$ok) log_message('error', $this->log_prefix . " ledger credit FAILED $wallet user {$order['user_id']}: $info");

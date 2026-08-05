@@ -159,10 +159,33 @@ class Walletreset extends CI_Controller
         $order = $this->db->get_where('staking_swap_orders', ['id' => $order_id])->row();
         if (!$order) return $this->_json(['status' => 'error', 'message' => 'Order not found'], 404);
 
-        $this->db->where('id', $order_id)->update('staking_swap_orders', ['status' => 'completed', 'cron_status' => 'completed', 'updated_at' => date('Y-m-d H:i:s')]);
-        $this->_log('WALLET_MARK_COMPLETED', $order->user_id, "Marked staking order {$order_id} as completed");
+        // Only fast-track gas/usdt here — neither leg ever credits a wallet
+        // (gas is a BNB funding send, usdt just marks payment received), so
+        // flipping them is safe bookkeeping. bman/bonus are deliberately left
+        // untouched: StakingPurchasecron::_stepBman() is the only place that
+        // credits wallet_ledger for this order, gated on a REAL confirmed
+        // on-chain hash. Force-flipping bman_cron_status here (as the status
+        // column alone might suggest) would let the cron's stuck-completion
+        // sweep activate a real user_stakes row with NO matching ledger
+        // credit — reproducing, via this button, the exact "real value with
+        // no ledger trace" bug this whole change closes for deliverBman().
+        // Leaving usdt_cron_status=1 with bman_tx_hash still empty means the
+        // NEXT StakingPurchasecron run (or an admin's now-guarded "Send
+        // BMAN" click) broadcasts + confirms + credits bman/bonus normally —
+        // same code path, same audit trail, as any other order.
+        $update = [
+            'status' => 'completed', 'cron_status' => 'completed',
+            'gas_cron_status' => 1, 'usdt_cron_status' => 1,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ];
+        if (empty($order->gas_tx_hash))  $update['gas_tx_hash']  = 'ADMIN-COMPLETED';
+        if (empty($order->usdt_tx_hash)) $update['usdt_tx_hash'] = 'ADMIN-COMPLETED';
 
-        return $this->_json(['status' => 'success', 'message' => "Order {$order_id} marked as completed"]);
+        $this->db->where('id', $order_id)->update('staking_swap_orders', $update);
+        $this->_log('WALLET_MARK_COMPLETED', $order->user_id,
+            "Marked staking order {$order_id} as completed (gas/usdt cron flags force-set; bman/bonus left for the normal credited delivery path)");
+
+        return $this->_json(['status' => 'success', 'message' => "Order {$order_id} marked as completed — BMAN will be delivered and credited by the staking purchase cron on its next pass."]);
     }
 
     public function get_activity()
