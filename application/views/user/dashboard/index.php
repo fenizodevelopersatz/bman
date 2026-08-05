@@ -841,9 +841,15 @@
       </style>
 
       <!-- Wallets -->
+      <?php $wallets_withdrawable = $wallets_withdrawable ?? []; ?>
       <div class="wallet-grid">
         <?php foreach ($w_cards as $wc):
-          $bal = (float) ($wallets[$wc['key']] ?? 0);
+          // Withdrawable, not raw total — matches the headline figure on
+          // Payouts/Wallet/Stakings (a wallet can hold maturity-locked funds,
+          // e.g. a bonus not yet vested, that aren't usable yet). USDT has no
+          // maturity concept, so it keeps its plain key.
+          $wKey = $wc['key'] === 'usdt' ? 'usdt' : ($wc['key'] . '_withdrawable');
+          $bal = (float) ($wallets_withdrawable[$wKey] ?? $wallets[$wc['key']] ?? 0);
           ?>
           <a class="wallet-card" href="<?= base_url('user/wallet'); ?>" title="<?= $wc['label']; ?>">
             <div class="wallet-ico" style="background:<?= $wc['bg']; ?>;color:<?= $wc['fg']; ?>">

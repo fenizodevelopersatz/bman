@@ -972,14 +972,6 @@ class Genealogycontroller extends MY_Controller
             'staking'  => (float) ($wallet_breakdown['staking_withdrawable'] ?? 0),
             'bonus'    => (float) ($wallet_breakdown['bonus_withdrawable'] ?? 0),
         ];
-        // Raw totals too, so the view can label the gap when a maturity hold
-        // makes total > withdrawable (e.g. a not-yet-vested staking bonus).
-        $this->data['wallet_bman_total'] = [
-            'exchange' => (float) ($wallet_breakdown['exchange'] ?? 0),
-            'earning'  => (float) ($wallet_breakdown['earning'] ?? 0),
-            'staking'  => (float) ($wallet_breakdown['staking'] ?? 0),
-            'bonus'    => (float) ($wallet_breakdown['bonus'] ?? 0),
-        ];
         $this->data['platform_address'] = $platform_address;
         $this->data['bman_price'] = $bman_price;
         $this->data['bman_rate'] = $bman_rate;

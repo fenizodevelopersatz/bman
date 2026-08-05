@@ -800,23 +800,11 @@
             <div class="wval" id="wallet-usdt-val"><?= number_format($wallet_usdt, 2); ?> <small>USDT</small></div>
           </div>
         </div>
-        <?php
-        $wallet_bman_total = $wallet_bman_total ?? $wallet_bman;
-        $bmanTile = function ($key) use ($wallet_bman, $wallet_bman_total) {
-          $withdrawable = (float) ($wallet_bman[$key] ?? 0);
-          $total = (float) ($wallet_bman_total[$key] ?? $withdrawable);
-          $locked = max(0, $total - $withdrawable);
-          if ($locked > 0.000001) {
-            echo '<div class="wsub">' . number_format($locked, 2) . ' locked</div>';
-          }
-        };
-        ?>
         <div class="wtile">
           <div class="wico" style="background:#6366f11a;color:#6366f1;"><i class="ph ph-swap"></i></div>
           <div>
             <div class="wlbl">Exchange Wallet</div>
             <div class="wval" id="wallet-exchange-val"><?= number_format((float)($wallet_bman['exchange'] ?? 0), 2); ?> <small>BMAN</small></div>
-            <?php $bmanTile('exchange'); ?>
           </div>
         </div>
         <div class="wtile">
@@ -824,7 +812,6 @@
           <div>
             <div class="wlbl">Earning Wallet</div>
             <div class="wval" id="wallet-earning-val"><?= number_format((float)($wallet_bman['earning'] ?? 0), 2); ?> <small>BMAN</small></div>
-            <?php $bmanTile('earning'); ?>
           </div>
         </div>
         <div class="wtile">
@@ -832,7 +819,6 @@
           <div>
             <div class="wlbl">Staking Wallet</div>
             <div class="wval" id="wallet-staking-val"><?= number_format((float)($wallet_bman['staking'] ?? 0), 2); ?> <small>BMAN</small></div>
-            <?php $bmanTile('staking'); ?>
           </div>
         </div>
         <div class="wtile">
@@ -840,7 +826,6 @@
           <div>
             <div class="wlbl">Bonus Wallet</div>
             <div class="wval" id="wallet-bonus-val"><?= number_format((float)($wallet_bman['bonus'] ?? 0), 2); ?> <small>BMAN</small></div>
-            <?php $bmanTile('bonus'); ?>
           </div>
         </div>
       </div>

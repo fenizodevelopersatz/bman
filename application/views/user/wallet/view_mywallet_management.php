@@ -1266,21 +1266,12 @@ function wallet_title_fallback($type)
             <div class="wval"><?= number_format((float) $wallet_usdt, 2) ?> <small>USDT</small></div>
           </div>
         </div>
-        <?php
-        $wallet_bman_total = $wallet_bman_total ?? $wallet_bman;
-        foreach ($all_wallets as $k => $m):
-          $withdrawable = (float) ($wallet_bman[$k] ?? 0);
-          $total = (float) ($wallet_bman_total[$k] ?? $withdrawable);
-          $locked = max(0, $total - $withdrawable);
-        ?>
+        <?php foreach ($all_wallets as $k => $m): ?>
         <div class="wtile">
           <div class="wico" style="background:<?= $m[2] ?>1a;color:<?= $m[2] ?>;"><i class="ph <?= $m[1] ?>"></i></div>
           <div>
             <div class="wlbl"><?= $m[0] ?></div>
-            <div class="wval"><?= number_format($withdrawable, 2) ?> <small>BMAN</small></div>
-            <?php if ($locked > 0.000001): ?>
-              <div class="wsub"><?= number_format($total, 2) ?> total &middot; <?= number_format($locked, 2) ?> locked</div>
-            <?php endif; ?>
+            <div class="wval"><?= number_format((float) ($wallet_bman[$k] ?? 0), 2) ?> <small>BMAN</small></div>
           </div>
         </div>
         <?php endforeach; ?>

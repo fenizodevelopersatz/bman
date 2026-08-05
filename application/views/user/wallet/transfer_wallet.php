@@ -631,18 +631,12 @@
       ];
       foreach ($tile_meta as $key => $meta):
         $bal = $internal_balances[$key] ?? 0;
-        $total = $internal_balances_total[$key] ?? $bal;
-        $locked = max(0, $total - $bal);
       ?>
       <div class="wallet-tile <?= $key ?>" id="tile_<?= $key ?>">
         <div class="wt-icon"><i class="ph-fill <?= $meta['icon'] ?>"></i></div>
         <div class="wt-label"><?= $meta['label'] ?></div>
         <div class="wt-amount" id="bal_<?= $key ?>"><?= number_format($bal, 2) ?></div>
-        <?php if ($locked > 0.000001): ?>
-          <div class="wt-sub"><?= number_format($total, 2) ?> total &middot; <?= number_format($locked, 2) ?> locked</div>
-        <?php else: ?>
-          <div class="wt-sub"><?= $meta['sub'] ?></div>
-        <?php endif; ?>
+        <div class="wt-sub"><?= $meta['sub'] ?></div>
       </div>
       <?php endforeach; ?>
     </div>

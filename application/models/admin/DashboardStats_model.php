@@ -821,24 +821,34 @@ class DashboardStats_model extends CI_Model
             $today      = date('Y-m-d');
             $monthStart = date('Y-m-01');
 
+            // Exclude 'deposit' — the only tx_type where an external, non-
+            // platform wallet is the sender (a member funding their own
+            // account), confirmed by inspecting from_address: deposits come
+            // from arbitrary outside addresses, while every other tx_type
+            // (gas_funding, transfer, transfer_out, wallet_transfer, roi_*,
+            // treasury_direct_send, ...) originates from the platform's own
+            // custodial/treasury addresses. Counting deposit gas here
+            // overstated "system gas fee" with cost the platform never paid.
+            $notDeposit = "tx_type != 'deposit'";
+
             $todayRow = $this->db->query(
                 "SELECT COALESCE(SUM(gas_fee_total),0) AS bnb, COUNT(*) AS cnt
                  FROM onchain_transactions
-                 WHERE DATE(created_at) = ? AND gas_fee_total IS NOT NULL",
+                 WHERE DATE(created_at) = ? AND gas_fee_total IS NOT NULL AND $notDeposit",
                 [$today]
             )->row_array();
 
             $monthRow = $this->db->query(
                 "SELECT COALESCE(SUM(gas_fee_total),0) AS bnb, COUNT(*) AS cnt
                  FROM onchain_transactions
-                 WHERE DATE(created_at) >= ? AND gas_fee_total IS NOT NULL",
+                 WHERE DATE(created_at) >= ? AND gas_fee_total IS NOT NULL AND $notDeposit",
                 [$monthStart]
             )->row_array();
 
             $avgRow = $this->db->query(
                 "SELECT COALESCE(AVG(gas_price / 1000000000),0) AS avg_gwei
                  FROM onchain_transactions
-                 WHERE gas_price IS NOT NULL AND DATE(created_at) >= ?",
+                 WHERE gas_price IS NOT NULL AND DATE(created_at) >= ? AND $notDeposit",
                 [$monthStart]
             )->row_array();
 
