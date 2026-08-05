@@ -1223,18 +1223,8 @@ $hero_progress = 48;
         .lockwallet-card .lw-help{font-size:11px;color:var(--muted,#6b7280);font-weight:700;margin-top:2px;}
         .lockwallet-card .lw-cta{margin-left:auto;font-size:12px;font-weight:900;color:var(--primary);
           white-space:nowrap;display:flex;align-items:center;gap:4px;}
-        .lockwallet-card .lw-cta i{transition:transform .15s;}
-        .lockwallet-card.open .lw-cta i{transform:rotate(180deg);}
-
-        /* Inline detail panel — expands in place under the card, not a popup.
-           Kept fully separate from "Recent Staking Activity" (staking_swap_orders,
-           transaction-status focused) since this is user_stakes-sourced package
-           detail and must show every locked package regardless of purchase path. */
-        .lockwallet-detail{display:none;margin:-4px 0 16px;border:1px solid rgba(15,23,42,.08);
-          border-top:none;border-radius:0 0 18px 18px;padding:16px 20px;background:#fbfbff;}
-        .lockwallet-detail.open{display:block;}
       </style>
-      <div class="lockwallet-card" id="lockWalletCard" onclick="toggleLockWalletDetails()" role="button" tabindex="0">
+      <div class="lockwallet-card" onclick="scrollToStakingActivity()" role="button" tabindex="0">
         <div class="lw-ico"><i class="ph-fill ph-lock-key"></i></div>
         <div>
           <div class="lw-lbl">Lock Wallet</div>
@@ -1242,12 +1232,6 @@ $hero_progress = 48;
           <div class="lw-help">Total BMAN currently locked in active staking packages.</div>
         </div>
         <div class="lw-cta">View Details <i class="ph ph-caret-down"></i></div>
-      </div>
-      <div class="lockwallet-detail" id="lockWalletDetail">
-        <div style="text-align:center;padding:30px;">
-          <div class="spinner-border text-primary"></div>
-          <p style="margin-top:12px;color:#666;">Loading details...</p>
-        </div>
       </div>
       <div class="wstrip">
         <!-- USDT — the wallet staking purchases are funded from -->
@@ -1298,7 +1282,7 @@ $hero_progress = 48;
       </div>
 
       <?php if (!empty($recent_staking_activity) || !empty($roi_history)): ?>
-      <div class="card" style="margin-top: 18px; border-radius: 28px;">
+      <div class="card" id="recent-staking-activity" style="margin-top: 18px; border-radius: 28px;">
         <div class="card-h" style="padding:18px 22px;border-bottom:1px solid #f0f0f7;margin:0;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;">
           <h3 style="font-size:16px;font-weight:1100;margin:0;">Recent Staking Activity</h3>
           <span class="chip"><i class="ph ph-clock-counter-clockwise"></i> On-chain Swaps</span>
@@ -1307,13 +1291,14 @@ $hero_progress = 48;
           <div class="table-scroll">
             <table class="table resp-card" style="border-spacing:0 8px;">
               <thead>
-                <tr><th>Date</th><th>Type</th><th>USDT</th><th>BMAN</th><th>Status</th><th>Description</th><th>Action</th></tr>
+                <tr><th>S.No</th><th>Date</th><th>Type</th><th>USDT</th><th>BMAN</th><th>Maturity Date</th><th>Remaining Days</th><th>Status</th><th>Description</th><th>Action</th></tr>
               </thead>
               <tbody>
                 <?php if (empty($recent_staking_activity)): ?>
-                  <tr><td colspan="7" style="text-align:center;color:#9ca3af;padding:18px;">No recent staking activity found.</td></tr>
-                <?php else: foreach ($recent_staking_activity as $row): ?>
+                  <tr><td colspan="10" style="text-align:center;color:#9ca3af;padding:18px;">No recent staking activity found.</td></tr>
+                <?php else: foreach ($recent_staking_activity as $i => $row): ?>
                   <tr style="cursor:pointer;transition:background 0.2s;" onclick="showSwapDetails(<?= (int)($row->order_id ?? 0) ?>)" onmouseover="this.style.background='#f9f9fb'" onmouseout="this.style.background=''">
+                    <td data-label="S.No"><?= (int)$i + 1 ?></td>
                     <td data-label="Date" style="font-size:12px;"><?= htmlspecialchars((string)($row->history_date ?? '—')) ?></td>
                     <td data-label="Type">
                       <b><?= htmlspecialchars(ucwords(str_replace('_', ' ', (string)($row->type ?? '—')))) ?></b>
@@ -1323,6 +1308,8 @@ $hero_progress = 48;
                     </td>
                     <td data-label="USDT"><?= number_format((float)($row->amount ?? 0), 2) ?></td>
                     <td data-label="BMAN"><?= number_format((float)($row->token_amount ?? 0), 0) ?></td>
+                    <td data-label="Maturity Date" style="font-size:12px;"><?= htmlspecialchars((string)($row->maturity_date ?? '—')) ?></td>
+                    <td data-label="Remaining Days"><?= $row->remaining_days !== null ? (int)$row->remaining_days : '—' ?></td>
                     <td data-label="Status">
                       <?php
                         $status = $row->status ?? '—';
@@ -2049,72 +2036,11 @@ $hero_progress = 48;
     }
 
     // Lock Wallet "View Details" — scrolls to Recent Staking Activity below,
-    // which already lists each locked package's details; no separate popup.
-    // --------------------- Lock Wallet Detail Panel (inline, not a popup) ---------------------
-    let lockWalletLoaded = false;
-    function toggleLockWalletDetails() {
-      const card = document.getElementById('lockWalletCard');
-      const panel = document.getElementById('lockWalletDetail');
-      if (!card || !panel) return;
-
-      const opening = !panel.classList.contains('open');
-      panel.classList.toggle('open', opening);
-      card.classList.toggle('open', opening);
-      if (!opening || lockWalletLoaded) return;
-
-      lockWalletLoaded = true;
-      fetch('<?= base_url("user/lending/lock_wallet_detail"); ?>', {
-        method: 'POST',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({})
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (!data.status) {
-          panel.innerHTML = `<div style="color:red;text-align:center;">Error: ${data.message}</div>`;
-          return;
-        }
-        const rows = data.data || [];
-        if (!rows.length) {
-          panel.innerHTML = `<div style="text-align:center;padding:20px;color:#666;">No active staking packages are currently locked.</div>`;
-          return;
-        }
-        // package_name is admin-set text (staking_packages.name) — escape it;
-        // everything else here is a number, a date, or an enum-derived label.
-        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
-        const rowsHtml = rows.map(r => `
-          <tr>
-            <td data-label="Package">${esc(r.package_name)}</td>
-            <td data-label="Plan Type">${esc(r.plan_label)}</td>
-            <td data-label="Package Type">${esc(r.package_type)}</td>
-            <td data-label="Stake Amount">${Number(r.stake_amount).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</td>
-            <td data-label="Purchase Date">${esc(r.start_date)}</td>
-            <td data-label="Maturity Date">${esc(r.maturity_date)}</td>
-            <td data-label="Remaining Days">${esc(r.remaining_days)}</td>
-            <td data-label="Status">${esc(r.status_label)}</td>
-            <td data-label="Current Locked Amount">${Number(r.locked_amount).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</td>
-          </tr>`).join('');
-        panel.innerHTML = `
-          <div style="margin-bottom:14px;font-size:13px;color:#666;">
-            Total Locked: <b>${Number(data.total_locked).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b> across ${rows.length} package(s)
-          </div>
-          <div class="table-scroll">
-            <table class="table resp-card" style="width:100%;border-spacing:0 8px;">
-              <thead>
-                <tr><th>Package</th><th>Plan Type</th><th>Package Type</th><th>Stake Amount</th><th>Purchase Date</th><th>Maturity Date</th><th>Remaining Days</th><th>Status</th><th>Current Locked Amount</th></tr>
-              </thead>
-              <tbody>${rowsHtml}</tbody>
-            </table>
-          </div>`;
-      })
-      .catch(err => {
-        console.error(err);
-        lockWalletLoaded = false; // allow retry on next open
-        panel.innerHTML = `<div style="color:red;text-align:center;">Failed to load details</div>`;
-      });
+    // which lists each locked package's details (Maturity Date / Remaining
+    // Days included); no separate popup or inline panel.
+    function scrollToStakingActivity() {
+      const el = document.getElementById('recent-staking-activity');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     // Switch between tabs

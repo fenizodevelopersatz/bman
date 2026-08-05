@@ -820,18 +820,31 @@ class Lendingcontroller extends CI_Controller
         $orderIds = array_map(function ($o) { return (int)$o['id']; }, $orders);
 
         $specialByOrder = [];
+        // Maturity Date / Remaining Days / stake lock-status per order — same
+        // lookup pattern as is_special above (user_stakes rows keyed by
+        // swap_order_id). NOT available for an order still in flight (no
+        // stake row yet) or for a stake created via the legacy internal
+        // Staking_model::purchaseStake() path (no staking_swap_orders row at
+        // all, so it never reaches this method in the first place — see
+        // Staking_model::lockWalletBalance() for the complete, path-agnostic
+        // figure this table intentionally does not attempt to replace).
+        $stakeByOrder = [];
         if ($orderIds && $this->db->table_exists('user_stakes')
             && $this->db->field_exists('is_special', 'user_stakes')
             && $this->db->field_exists('swap_order_id', 'user_stakes')) {
-            $stakes = $this->db->select('swap_order_id, is_special')
+            $stakes = $this->db->select('swap_order_id, is_special, maturity_date, status')
                 ->where_in('swap_order_id', $orderIds)
                 ->where('swap_order_id IS NOT NULL', null, false)
                 ->get('user_stakes')->result_array();
             foreach ($stakes as $s) {
                 // A combo purchase can produce more than one stake row for an
-                // order; treat the order as special if any of them is.
+                // order; treat the order as special if any of them is, and
+                // show the soonest maturity date among them.
                 $sid = (int)$s['swap_order_id'];
                 $specialByOrder[$sid] = !empty($specialByOrder[$sid]) || !empty($s['is_special']);
+                if (!isset($stakeByOrder[$sid]) || $s['maturity_date'] < $stakeByOrder[$sid]['maturity_date']) {
+                    $stakeByOrder[$sid] = $s;
+                }
             }
         }
 
@@ -845,6 +858,12 @@ class Lendingcontroller extends CI_Controller
         // Format for display (convert to objects matching view expectations)
         $result = [];
         foreach ($orders as $o) {
+            $stakeInfo = $stakeByOrder[(int)$o['id']] ?? null;
+            $maturityDate = $stakeInfo['maturity_date'] ?? null;
+            $remainingDays = $maturityDate !== null
+                ? max(0, (int) floor((strtotime($maturityDate) - time()) / 86400))
+                : null;
+
             $result[] = (object)[
                 'id' => $o['id'],
                 'ref' => $o['ref'],
@@ -876,6 +895,10 @@ class Lendingcontroller extends CI_Controller
                 'is_special' => array_key_exists((int)$o['id'], $specialByOrder)
                     ? ($specialByOrder[(int)$o['id']] ? 1 : 0)
                     : (isset($specialPkgIds[(int)$o['package_id']]) ? 1 : 0),
+                // Stake-lifecycle fields (null while the order is still in
+                // flight — the stake doesn't exist yet, so it has no maturity).
+                'maturity_date'  => $maturityDate,
+                'remaining_days' => $remainingDays,
             ];
         }
 
@@ -1046,24 +1069,6 @@ class Lendingcontroller extends CI_Controller
                 'error' => $o['error'],
             ],
         ]);
-    }
-
-    /**
-     * AJAX: Lock Wallet detail — per-package breakdown of BMAN currently
-     * locked in this user's active staking packages. Read-only, always
-     * computed live (see Staking_model::lockWalletDetail()); nothing is
-     * stored. Session-scoped — always the logged-in user, no params needed.
-     */
-    public function lock_wallet_detail()
-    {
-        $userId = (int) $this->session->userdata('user_userid');
-        if (!$userId) { echo json_encode(['status'=>false,'message'=>'Unauthorized']); return; }
-
-        $this->load->model('Staking_model');
-        $rows  = $this->Staking_model->lockWalletDetail($userId);
-        $total = array_sum(array_column($rows, 'stake_amount'));
-
-        echo json_encode(['status' => true, 'total_locked' => $total, 'data' => $rows]);
     }
 
     private function _coinDistributionPercentages($optionId)
