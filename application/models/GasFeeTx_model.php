@@ -31,6 +31,7 @@ class GasFeeTx_model extends CI_Model
             $s = $f['search'];
             $this->db->group_start()
                 ->like('o.tx_hash', $s)
+                ->or_like('o.reference_id', $s)
                 ->or_like('o.from_address', $s)
                 ->or_like('o.to_address', $s)
                 ->or_like('u.username', $s);
@@ -53,6 +54,7 @@ class GasFeeTx_model extends CI_Model
         $this->applyFilters($f);
         return $this->db
             ->select('o.id, o.tx_hash, o.user_id, u.username, o.network, o.wallet_type, o.tx_type,
+                      o.reference_type, o.reference_id,
                       o.gas_used, (o.gas_price / 1000000000) AS gas_price_gwei, o.gas_fee_total, o.status,
                       o.block_number, o.amount, o.token_symbol, o.from_address, o.to_address,
                       o.created_at', false)

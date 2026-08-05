@@ -74,8 +74,6 @@ class Cronlab extends CI_Controller
             'jobs' => [
                 ['key' => 'stakingpurchase', 'label' => 'Staking Purchase', 'type' => 'swap', 'endpoint' => 'staking-purchase-cron', 'method' => 'GET', 'description' => 'Process multi-step USDT→BMAN swaps with gas fee detection, USDT payment, and BMAN distribution per coin_distribution_option (1-7).'],
                 ['key' => 'roi_distribution', 'label' => 'ROI Distribution (Monthly + Maturity)', 'type' => 'roi', 'endpoint' => 'roi-distribution-cron', 'method' => 'GET', 'description' => 'Runs both ROI legs in the correct order: Monthly first (so Maturity can complete regular/combo records in the same pass), then Maturity. Use this for the normal daily run.'],
-                ['key' => 'roi_monthly', 'label' => 'ROI Monthly Distribution (leg only)', 'type' => 'roi', 'endpoint' => 'roi-monthly-distribution-process', 'method' => 'GET', 'description' => 'Just the monthly leg — credits Regular/Combo records whose next_payment_date has arrived. Use this for targeted debugging; the combined button above already includes it.'],
-                ['key' => 'roi_maturity', 'label' => 'ROI Maturity Payment (leg only)', 'type' => 'roi', 'endpoint' => 'roi-maturity-payment-process', 'method' => 'GET', 'description' => 'Just the maturity leg — pays the fixed lump ROI and returns principal for Fixed/Combo records whose fixed_maturity_date has arrived. Use this for targeted debugging; the combined button above already includes it.'],
                 ['key' => 'wallet_maturity', 'label' => 'Wallet Maturity Unlock', 'type' => 'wallet', 'endpoint' => 'wallet-maturity-cron', 'method' => 'GET', 'description' => 'Daily flip of is_matured on wallet_ledger credits whose maturity_date has passed. Required for withdrawal eligibility calculations.'],
                 ['key' => 'binary_matching_payout', 'label' => 'Binary Matching Payout (Engine + On-Chain)', 'type' => 'binary', 'endpoint' => 'binary-matching-payout-cron', 'method' => 'GET', 'description' => 'Runs the binary matching engine (queue-tracked via binary_matching_queue), enqueues one on-chain BMAN payout per newly-matched user, drains the treasury-balance-checked broadcast queue, and confirms pending transfers. Idempotent — safe to click repeatedly. See Matching History / Payout Queue for the resulting audit trail.'],
                 ['key' => 'rank_achievement', 'label' => 'Rank Achievement (Permanent Ranks)', 'type' => 'rank', 'endpoint' => 'rank-achievement-cron', 'method' => 'GET', 'description' => 'Evaluates every active member against the 11-rank qualification matrix (§10) and promotes those who qualify, then issues the rank reward via the wallet ledger and mints the certificate. Members are processed deepest-first so a whole chain of promotions settles in one pass. Ranks are PERMANENT — this job can only ever promote, never demote. Idempotent: unique indexes on rank_rewards / rank_certificates make double-payment impossible, and a previously failed payout is retried. Run hourly. See Rank Management ▸ Rank History for the audit trail.'],
@@ -96,19 +94,9 @@ class Cronlab extends CI_Controller
 
         try {
             switch ($job) {
-                case 'bonus':
-                    $this->load->model('Bonusreduction_model', 'reduction');
-                    $res = $this->reduction->run(['triggered_by' => 'cron']);
-                    return $this->_json(['status' => !empty($res['status']) && $res['status'] === 'success' ? 'success' : 'success', 'message' => $res['message'] ?? 'done', 'data' => $res]);
                 case 'roi_distribution':
                     $res = $this->_runViaHttp('roi-distribution-cron');
                     return $this->_json(['status' => 'success', 'message' => 'ROI distribution (monthly + maturity) executed', 'data' => $res]);
-                case 'roi_monthly':
-                    $res = $this->_runViaHttp('roi-monthly-distribution-process');
-                    return $this->_json(['status' => 'success', 'message' => 'ROI monthly distribution executed', 'data' => $res]);
-                case 'roi_maturity':
-                    $res = $this->_runViaHttp('roi-maturity-payment-process');
-                    return $this->_json(['status' => 'success', 'message' => 'ROI maturity payment executed', 'data' => $res]);
                 case 'stakingpurchase':
                     $res = $this->_runViaHttp('staking-purchase-cron');
                     return $this->_json(['status' => 'success', 'message' => 'staking purchase cron executed', 'data' => $res]);

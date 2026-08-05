@@ -3,31 +3,87 @@
 Every other cron doc in `docs/` predates this file and they contradict each other
 (20+ files, conflicting cadences, several dead endpoints). **This file wins.**
 
-Cadences below come from the controllers' own header comments, which are the
-only cron documentation that has stayed in sync with the code.
+Cadences below come from the controllers' own header comments (the only cron
+documentation that has stayed in sync with the code), reconciled on
+2026-08-05 against the final keep/merge/manual decision for each job. See
+§0 for what changed in that pass.
 
 ---
 
-## 1. Live crons
+## 0. 2026-08-05 changes
 
-| # | Job | Route (HTTP) | Cadence | Sends on-chain? |
-|---|-----|--------------|---------|-----------------|
-| 1 | Staking Purchase (gas → USDT → BMAN → bonus) | `staking-purchase-cron` | every 1 min | **yes — Treasury** |
-| 2 | Deposit credit (incoming USDT → USDT wallet) | `credit-deposits-cron` | every 1–3 min | no (read-only) |
-| 3 | Chain sync (balances + pending-tx confirmations) | `chain-sync-cron` | every 1–5 min | no (read-only) |
-| 4 | Binary Matching Payout (engine + on-chain drain) | `binary-matching-payout-cron` | every 5 min | **yes — Treasury** |
-| 5 | Wallet Transfer Settlement | `wallet-transfer-settlement-cron` | every few min | **yes — Treasury** |
-| 6 | Member Bulk Upload — opening BMAN | `member-bulk-bman-cron` | every few min | **yes — Treasury** |
-| 7 | Rank Achievement (permanent ranks, §10) | `rank-achievement-cron` | hourly | no |
-| 8 | ROI Distribution (monthly → maturity) | `roi-distribution-cron` | daily | no |
-| 9 | Rank Power (60-day cycle, §11) | `rank-power-cron` | daily | no |
-| 10 | Wallet Maturity Unlock (`is_matured` flip) | `wallet-maturity-cron` | daily | no |
-| 11 | Bonus Wallet 60-day reduction | `bonus-reduction-cron` | daily | optional |
+- **ROI Monthly / ROI Maturity "(leg only)" cards removed from Cron Lab.**
+  Cron Lab now shows only the major/combined crons — one card per feature
+  area — dropping the two granular debug-only ROI legs (jobs 5a/5b below)
+  now that the combined "ROI Distribution (Monthly + Maturity)" card is the
+  documented normal-run path. The underlying routes
+  (`roi-monthly-distribution-process`, `roi-maturity-payment-process`)
+  still exist and still work if you need to retry one leg directly — just
+  hit them by URL (with `?token=`) or from ROI Distribution History; there's
+  no other caller in the codebase that depended on the Cron Lab button, so
+  removing the button and its `run()` case was a clean deletion, same as
+  the bonus handler below. Rank Achievement / Rank Power were **not**
+  touched the same way — they're each a first-class, independent stage (no
+  "debug-only" version to drop), so both cards stay.
+- **Bonus Wallet Reduction removed from Cron Lab.** `Cronlab::run()` had an
+  orphaned `case 'bonus':` handler with no corresponding button in the
+  `jobs` array — reachable only by POSTing `job=bonus` directly, not by
+  anything in the UI. Confirmed nothing else in the codebase does that, so
+  the handler was deleted outright. The feature itself is untouched: it has
+  its own dedicated route (`bonus-reduction-cron`) and its own admin page
+  (`admin/dashboard/bonus-reduction` → `Dashboard::bonus_reduction`) — manage
+  it there, not through Cron Lab. See §1, job 11.
+- **Rank Achievement + Rank Power now scheduled together, once daily.**
+  Documentation/scheduling change only — **no PHP was changed.** The two
+  endpoints (`rank-achievement-cron`, `rank-power-cron`) still exist
+  separately and Cron Lab still shows two buttons; only the *recommended
+  crontab cadence* changed; Achievement moves from hourly to daily so both
+  run back-to-back, the same pattern already used for the four treasury
+  broadcasters. Consequence: a new permanent-rank promotion now surfaces
+  within a day instead of within an hour — idempotent either way, this is
+  a latency trade-off only, not a correctness change. If you have an
+  existing hourly crontab entry for `rank-achievement-cron`, replace it
+  with the daily line in §2.
+- **Binary Matching Payout split onto its own 5-min crontab line** (still
+  under the same `flock` lock as the other treasury broadcasters, so it
+  still can never overlap them). It was previously inside the 1-min
+  treasury line, which ran it 5× more often than its own documented
+  cadence.
+- **Member Bulk Upload BMAN delivery taken off the automatic crontab.**
+  It's manual/on-demand only now: trigger it from Cron Lab's "Run now" or
+  the bulk-upload batch detail page's re-queue action when there's an
+  actual batch to deliver for. It was previously in the 1-min treasury
+  line, polling for work that (by nature — bulk uploads are infrequent
+  admin actions) is almost never there.
+- **Wallet Transfer Settlement's documented cadence corrected to every
+  1 min**, matching what the crontab already actually ran it at (its own
+  code comment said "every few minutes," which underrated the real polling
+  frequency — the underlying logic already no-ops when there's nothing to
+  settle).
 
-Jobs 8's two legs (`roi-monthly-distribution-process`,
-`roi-maturity-payment-process`) also have their own routes. They exist for
-targeted retry from ROI Distribution History — **do not schedule them
-separately**, job 8 already runs both in the required order.
+---
+
+## 1. Final schedule
+
+| # | Job | Route (HTTP) | Cadence | Sends on-chain? | Notes |
+|---|-----|--------------|---------|-----------------|-------|
+| 1 | Staking Purchase (gas → USDT → BMAN → bonus) | `staking-purchase-cron` | every 1 min | **yes — Treasury** | Sole authority for crediting staking-purchase wallets. |
+| 2 | Deposit credit (incoming USDT → USDT wallet) | `credit-deposits-cron` | every 1–3 min | no (read-only) | Not in Cron Lab's button list; still live infrastructure. |
+| 3 | Chain sync (balances + pending-tx confirmations) | `chain-sync-cron` | every 1–5 min | no (read-only) | Backfills real gas_used/gas_price so Gas Fee Transactions shows real numbers. |
+| 4 | Binary Matching Payout (engine + on-chain drain) | `binary-matching-payout-cron` | every 5 min | **yes — Treasury** | Idempotent, safe to click repeatedly. |
+| 5 | ROI Distribution (Monthly → Maturity, in that order) | `roi-distribution-cron` | daily | no | Already one merged endpoint — runs both legs correctly ordered. The two leg-only routes below exist for targeted debugging only. |
+| 5a | ↳ ROI Monthly (leg only) | `roi-monthly-distribution-process` | not scheduled | no | **Not in Cron Lab** (see §0) — debug/retry only, hit by URL. The combined job above already includes it. |
+| 5b | ↳ ROI Maturity (leg only) | `roi-maturity-payment-process` | not scheduled | no | **Not in Cron Lab** (see §0) — debug/retry only, hit by URL. The combined job above already includes it. |
+| 6 | Rank Calculation — Achievement (permanent ranks, §10) | `rank-achievement-cron` | **daily** (was hourly — see §0) | no | Scheduled together with Rank Power, back-to-back. Can only promote, never demote. |
+| 6a | ↳ Rank Power (60-day cycle, §11) | `rank-power-cron` | daily | no | Must run **after** Achievement — see §3 ordering rule. |
+| 7 | Lock Wallet Unlock (`is_matured` flip on `wallet_ledger`) | `wallet-maturity-cron` | daily | no | Required for withdrawal eligibility. |
+| 8 | Wallet Settlement (on-chain transfer sweep) | `wallet-transfer-settlement-cron` | every 1 min | **yes — Treasury** | Disabled + dry-run by default — flip `wallet_transfer_settlement_settings.enabled`/`dry_run` to go live. |
+| 9 | Bulk Upload — opening BMAN delivery | `member-bulk-bman-cron` | **manual / on-demand only** (was every 1 min — see §0) | **yes — Treasury** | Disabled + dry-run by default. Run from Cron Lab or the batch detail page only when a bulk-upload batch actually needs delivering. |
+| 10 | Bonus Wallet 60-day reduction | `bonus-reduction-cron` | daily | optional | **Not in Cron Lab** (see §0) — managed at `admin/dashboard/bonus-reduction`. |
+
+Jobs 5a/5b exist purely for targeted retry from ROI Distribution History —
+**do not schedule them separately**, job 5 already runs both in the required
+order. Same logic applies to 6/6a: schedule both, but never *only* 6a.
 
 ---
 
@@ -41,23 +97,28 @@ case-sensitive filesystem (`RoiDistribution_cron.php` vs `Roidistribution_cron`)
 Replace `HOST` and `TOKEN` (`$config['cron_token']`).
 
 ```
-# --- Treasury broadcasters: ONE lock, sequential, never overlapping ---------
-# All four sign from the same Treasury address. See §4 — they must not run
-# concurrently or they collide on the account nonce.
-* * * * * flock -n /tmp/nexman-treasury.lock -c 'curl -s "HOST/staking-purchase-cron?token=TOKEN"; curl -s "HOST/binary-matching-payout-cron?token=TOKEN"; curl -s "HOST/wallet-transfer-settlement-cron?token=TOKEN"; curl -s "HOST/member-bulk-bman-cron?token=TOKEN"' >> cronlogs/treasury.log 2>&1
+# --- Treasury broadcasters: ONE lock file, shared across ALL of them -------
+# All sign from the same Treasury address. See §4 — none of these may ever
+# run concurrently with another, regardless of their own cadence, or they
+# collide on the account nonce. flock -n makes a skipped run a no-op, not a
+# queued one, so the faster line never waits on the slower one.
+* * * * * flock -n /tmp/nexman-treasury.lock -c 'curl -s "HOST/staking-purchase-cron?token=TOKEN"; curl -s "HOST/wallet-transfer-settlement-cron?token=TOKEN"' >> cronlogs/treasury.log 2>&1
+*/5 * * * * flock -n /tmp/nexman-treasury.lock -c 'curl -s "HOST/binary-matching-payout-cron?token=TOKEN"' >> cronlogs/binary.log 2>&1
 
 # --- Read-only chain pollers (safe to run alongside anything) --------------
 */2 * * * * curl -s "HOST/credit-deposits-cron?token=TOKEN" >> cronlogs/deposits.log 2>&1
 */3 * * * * curl -s "HOST/chain-sync-cron?token=TOKEN" >> cronlogs/chainsync.log 2>&1
 
-# --- Hourly ----------------------------------------------------------------
-0 * * * * curl -s "HOST/rank-achievement-cron?token=TOKEN" >> cronlogs/rank.log 2>&1
-
-# --- Daily (order matters: credits first, maturity flip last) --------------
+# --- Daily (order matters within each pair) ---------------------------------
 0 1 * * * curl -s "HOST/roi-distribution-cron?token=TOKEN"        >> cronlogs/roi.log 2>&1
-0 2 * * * curl -s "HOST/rank-power-cron?token=TOKEN"              >> cronlogs/rankpower.log 2>&1
+0 2 * * * curl -s "HOST/rank-achievement-cron?token=TOKEN"        >> cronlogs/rank.log 2>&1
+0 2 * * * sleep 60 && curl -s "HOST/rank-power-cron?token=TOKEN"  >> cronlogs/rankpower.log 2>&1
 0 3 * * * curl -s "HOST/bonus-reduction-cron?token=TOKEN"         >> cronlogs/bonus.log 2>&1
 0 4 * * * curl -s "HOST/wallet-maturity-cron?token=TOKEN"         >> cronlogs/walletmaturity.log 2>&1
+
+# --- Manual only — do NOT add a crontab line for this ------------------------
+# member-bulk-bman-cron: trigger from Cron Lab or the bulk-upload batch page
+# only when a batch actually needs its opening BMAN delivered.
 ```
 
 If `flock` is unavailable on the host, keep the single-line sequential form and
@@ -77,9 +138,9 @@ Depositcron ──► USDT wallet
                    │                    │              │
                    ▼                    ▼              ▼
         BinaryMatchingPayout      RoiDistribution   Rank Achievement
-                   │              (monthly→maturity)  Rank Power
-                   ▼                    ▼              ▼
-                   └────────► wallet_ledger credits ◄──┘
+                   │              (monthly→maturity)      │
+                   ▼                    ▼                 ▼
+                   └────────► wallet_ledger credits   Rank Power
                                         │
                                         ▼
                               WalletMaturity_cron (is_matured flip)
@@ -91,14 +152,20 @@ Depositcron ──► USDT wallet
 Chainsynccron sits beside all of it, refreshing balances and advancing
 confirmations for whatever is in flight.
 
-Two ordering rules actually matter:
+Three ordering rules actually matter:
 
 1. **Monthly ROI before Maturity ROI.** Maturity skips regular/combo records
    whose monthly schedule is unfinished. `roi-distribution-cron` already
    enforces this — that is its whole purpose.
-2. **Rank Power rolls the cycle before it computes power.** Enforced inside
-   `Rankcron_model::runPower()`. Rank Achievement is independent of it and
-   never touches `user_ranks` from the power side.
+2. **Rank Achievement before Rank Power.** Not enforced by the code (they're
+   still two independent endpoints — see §0) — enforced by *scheduling*
+   them in that order, one minute apart, as shown in §2. Power computes
+   from current-cycle staking volume and doesn't depend on same-day
+   promotions to be correct, but running Achievement first means a same-day
+   promotion is reflected everywhere consistently instead of looking stale
+   for the rest of that day.
+3. **Rank Power rolls the cycle before it computes power.** Enforced inside
+   `Rankcron_model::runPower()`.
 
 Everything else is order-independent and idempotent.
 
@@ -112,16 +179,15 @@ Everything else is order-independent and idempotent.
 $nonce = $this->rpc('eth_getTransactionCount', [$from, 'pending']);
 ```
 
-There is no local nonce reservation and no lock. Four crons sign from the same
-Treasury address (jobs 1, 4, 5, 6). If two broadcast in the same window they
-both read the same pending nonce; the second transaction is then rejected or
-silently replaces the first. The database records "sent, hash X" for a
-transaction that never lands.
+There is no local nonce reservation and no lock. Three crons sign from the same
+Treasury address (jobs 1, 4, 8 — job 9 too, on the rare occasion it's run
+manually while one of the others is mid-broadcast). If two broadcast in the
+same window they both read the same pending nonce; the second transaction is
+then rejected or silently replaces the first. The database records "sent, hash
+X" for a transaction that never lands.
 
-Their natural cadences collide on the minute — every-1-min against every-5-min
-means a guaranteed overlap at :00, :05, :10 and so on.
-
-The crontab above fixes this operationally with one `flock`. The durable fix is
+The crontab in §2 fixes this operationally with one shared `flock` lock file
+across every treasury-signing line, regardless of cadence. The durable fix is
 a shared advisory lock around treasury broadcasts, following the pattern already
 used in `Matchingqueue_model` (`SELECT GET_LOCK(...)`).
 
@@ -136,6 +202,8 @@ used in `Matchingqueue_model` (`SELECT GET_LOCK(...)`).
 | `roi-maturity-process`, `roi-maturity-test` | Legacy `RoiMaturityCron`. **Double-pay risk — see below.** |
 | `cron/roi_maturity/process` | Same legacy logic, second copy under `controllers/cron/`. |
 | `cron binarymatchingcron_simple process` | Superseded by `binary-matching-payout-cron`. Still advertised in the admin Binary Matching dashboard UI. |
+| `deliver-bman-cron`, admin "Send BMAN" button | Legacy pre-4-step-cron delivery path (`Swapengine_model::deliverBman()`). Guarded as of 2026-08-05 to refuse unless `staking-purchase-cron` has already confirmed payment, and no longer credits any wallet itself — but it's still not something to put on a schedule; `staking-purchase-cron` (job 1) already delivers BMAN. |
+| Cron Lab `job=bonus` | Removed 2026-08-05 (§0) — was never wired to a button, and is superseded by the dedicated `bonus-reduction-cron` route (job 10). |
 | `php index.php ... run` for the two ROI legs | Those controllers expose `process()`, not `run()`. Every doc showing `run` is wrong. |
 
 ### The double-pay risk
@@ -171,3 +239,21 @@ Not routed, not referenced by any controller, model or view:
 - `application/controllers/RoiMaturityCron.php` — plus its two routes
 
 `Cron.php` is empty; delete it together with its three dead routes.
+
+---
+
+## 7. Cron Lab reachability vs. this schedule
+
+Cron Lab (`admin/wallet/cron-lab`) is a developer testing surface, not the
+schedule itself — it has "Run now" buttons for most, but not all, of §1:
+
+- **Not in Cron Lab at all**: Deposit Credit (job 2), Chain Sync (job 3),
+  ROI Monthly / ROI Maturity legs (jobs 5a/5b, intentionally — see §0),
+  Bonus Wallet Reduction (job 10, intentionally — see §0). Trigger these
+  from the crontab, their own dedicated page, or CLI/URL.
+- **In Cron Lab but not on any automatic crontab line**: Member Bulk Upload
+  BMAN delivery (job 9) is deliberately manual-only.
+- **`case 'match':`** in `Cronlab::run()` (`Stakingmatching_model::run()`)
+  has no corresponding card in the `jobs` array either — same shape as the
+  bonus handler that was just removed. Left untouched since it wasn't part
+  of this pass; worth a follow-up look if it's confirmed unused.

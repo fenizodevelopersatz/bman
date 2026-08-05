@@ -198,6 +198,7 @@
                                         <th>User</th>
                                         <th>Network</th>
                                         <th>Type</th>
+                                        <th>Reference</th>
                                         <th class="text-end">Gas Used</th>
                                         <th class="text-end">Gas Price</th>
                                         <th class="text-end">Gas Fee</th>
@@ -206,7 +207,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="gf-body" class="text-gray-700 fw-semibold">
-                                    <tr><td colspan="10" class="text-muted py-6 text-center">Loading…</td></tr>
+                                    <tr><td colspan="11" class="text-muted py-6 text-center">Loading…</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -259,6 +260,15 @@
 
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const short = (s, n = 10) => s ? (s.length > n + 6 ? esc(s.slice(0,n)) + '…' + esc(s.slice(-4)) : esc(s)) : '<span class="text-muted">—</span>';
+    // Reference IDs are usually short order refs (e.g. "SWP-20260805-48D6BAB1") but can
+    // be a full tx hash for imported rows — truncate only past a generous threshold so
+    // normal refs stay fully readable at a glance.
+    const refCell = (id, type) => {
+        if (!id) return '<span class="text-muted">—</span>';
+        const label = id.length > 26 ? esc(id.slice(0,18)) + '…' + esc(id.slice(-4)) : esc(id);
+        return `<span class="gf-mono" title="${esc(id)}">${label}</span>` +
+               (type ? `<div class="text-muted fs-9 text-uppercase">${esc(type)}</div>` : '');
+    };
     const fmtBnb = v => (v == null || v === '') ? '—' : Number(v).toFixed(8);
     const fmtGwei = v => (v == null || v === '') ? '—' : Number(v).toFixed(2);
     const fmtGasUsed = v => (v == null || v === '') ? '—' : Number(v).toLocaleString();
@@ -290,7 +300,7 @@
     async function load(p) {
         page = p || 1;
         const body = document.getElementById('gf-body');
-        body.innerHTML = '<tr><td colspan="10" class="text-muted py-6 text-center">Loading…</td></tr>';
+        body.innerHTML = '<tr><td colspan="11" class="text-muted py-6 text-center">Loading…</td></tr>';
         let j = {};
         try {
             const res = await fetch(base + 'admin/finance/gas-fee-transactions/list', {
@@ -299,14 +309,14 @@
             });
             j = await res.json();
         } catch(e) {
-            body.innerHTML = '<tr><td colspan="10" class="text-danger py-6 text-center">Load error.</td></tr>';
+            body.innerHTML = '<tr><td colspan="11" class="text-danger py-6 text-center">Load error.</td></tr>';
             return;
         }
-        if (!j.status) { body.innerHTML = `<tr><td colspan="10" class="text-danger py-6 text-center">${esc(j.message||'Error')}</td></tr>`; return; }
+        if (!j.status) { body.innerHTML = `<tr><td colspan="11" class="text-danger py-6 text-center">${esc(j.message||'Error')}</td></tr>`; return; }
 
         totalPages = j.pages || 1;
         if (!j.rows || !j.rows.length) {
-            body.innerHTML = '<tr><td colspan="10" class="text-muted py-6 text-center">No gas fee transactions found.</td></tr>';
+            body.innerHTML = '<tr><td colspan="11" class="text-muted py-6 text-center">No gas fee transactions found.</td></tr>';
         } else {
             body.innerHTML = j.rows.map(r => {
                 const txCell = r.tx_hash
@@ -318,6 +328,7 @@
                     <td><span class="badge badge-light">#${esc(r.user_id)}</span>${r.username ? ` <span class="text-muted fs-9">${esc(r.username)}</span>` : ''}</td>
                     <td class="fs-8">${esc(r.network||'—')}</td>
                     <td class="fs-8">${esc(r.tx_type||'—')}</td>
+                    <td class="fs-8">${refCell(r.reference_id, r.reference_type)}</td>
                     <td class="text-end gf-mono fs-8">${fmtGasUsed(r.gas_used)}</td>
                     <td class="text-end gf-mono fs-8">${fmtGwei(r.gas_price_gwei)} <span class="text-muted fs-9">Gwei</span></td>
                     <td class="text-end fw-bold">${bnbBadge(r.gas_fee_total)}</td>
@@ -349,6 +360,7 @@
         h += kv('User', `#${esc(r.user_id)} ${r.username ? esc(r.username) : ''}`);
         h += kv('Network', esc(r.network));
         h += kv('Type', esc(r.tx_type));
+        h += kv('Reference', r.reference_id ? `<span class="gf-mono">${esc(r.reference_id)}</span>${r.reference_type ? ` <span class="text-muted fs-9 text-uppercase">${esc(r.reference_type)}</span>` : ''}` : null);
         h += kv('Status', statusBadge(r.status));
         h += kv('Block', esc(r.block_number));
         h += `<div class="fw-bold fs-8 text-uppercase text-muted mt-3 mb-1">Gas Details</div>`;

@@ -165,6 +165,8 @@ class Gasfeepage extends CI_Controller
             'tx_hash'       => 'Tx Hash',
             'network'       => 'Network',
             'tx_type'       => 'Type',
+            'reference_type'=> 'Reference Type',
+            'reference_id'  => 'Reference ID',
             'gas_used'      => 'Gas Used',
             'gas_price_gwei'=> 'Gas Price (Gwei)',
             'gas_fee_total' => 'Gas Fee (BNB)',
