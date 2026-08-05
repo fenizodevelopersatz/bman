@@ -69,7 +69,6 @@ class Cronlab extends CI_Controller
             'card_tilte' => 'Developer Testing Page for Crons + Transaction Audit',
             'is_super' => $this->is_super,
             'balances' => $this->tx->walletTotals(),
-            'options' => $this->tx->filterOptions(),
             'cron_token' => $this->config->item('cron_token'),
             'jobs' => [
                 ['key' => 'stakingpurchase', 'label' => 'Staking Purchase', 'type' => 'swap', 'endpoint' => 'staking-purchase-cron', 'method' => 'GET', 'description' => 'Process multi-step USDT→BMAN swaps with gas fee detection, USDT payment, and BMAN distribution per coin_distribution_option (1-7).'],
