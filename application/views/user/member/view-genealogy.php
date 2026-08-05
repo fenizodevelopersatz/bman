@@ -457,11 +457,14 @@
     }
 
     .tree-canvas {
-      height: 72vh;
+      height: 74vh;
       min-height: 640px;
       overflow: auto;
       position: relative;
-      padding: 28px 20px 20px;
+      padding: 32px 24px 24px;
+      background-color: #fafaff;
+      background-image: radial-gradient(rgba(110, 86, 207, 0.12) 1.5px, transparent 1.5px);
+      background-size: 24px 24px;
     }
 
     /* big draggable area */
@@ -472,26 +475,26 @@
       transform-origin: 0 0;
     }
 
-    /* Tree lines */
+    /* Tree lines & connectors */
     .tree {
       display: flex;
       justify-content: center;
     }
 
     .tree ul {
-      padding-top: 40px;
+      padding-top: 36px;
       position: relative;
       transition: .2s;
       display: flex;
       justify-content: center;
-      gap: 34px;
+      gap: 20px;
     }
 
     .tree li {
       list-style-type: none;
       text-align: center;
       position: relative;
-      padding: 40px 10px 0 10px;
+      padding: 36px 6px 0 6px;
     }
 
     /* connectors */
@@ -501,15 +504,15 @@
       position: absolute;
       top: 0;
       right: 50%;
-      border-top: 2px solid #ebeaff;
+      border-top: 2px solid #dcd7fe;
       width: 50%;
-      height: 40px;
+      height: 36px;
     }
 
     .tree li::after {
       right: auto;
       left: 50%;
-      border-left: 2px solid #ebeaff;
+      border-left: 2px solid #dcd7fe;
     }
 
     .tree li:only-child::after,
@@ -527,7 +530,7 @@
     }
 
     .tree li:last-child::before {
-      border-right: 2px solid #ebeaff;
+      border-right: 2px solid #dcd7fe;
       border-radius: 0 12px 0 0;
     }
 
@@ -540,206 +543,367 @@
       position: absolute;
       top: 0;
       left: 50%;
-      border-left: 2px solid #ebeaff;
+      border-left: 2px solid #dcd7fe;
       width: 0;
-      height: 40px;
+      height: 36px;
     }
 
-    /* Node */
+    /* Node Card - Compact, Sleek & Delightful */
     .node {
       display: inline-flex;
       flex-direction: column;
-      gap: 10px;
-      width: 224px;
-      background: linear-gradient(180deg, #ffffff 0%, #fbfbff 100%);
-      border: 1px solid #ececf5;
-      border-radius: 24px;
-      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
-      padding: 14px;
+      gap: 8px;
+      width: 196px;
+      background: #ffffff;
+      border: 1px solid #e8e6fb;
+      border-radius: 18px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+      padding: 11px 12px;
       cursor: pointer;
-      transition: .15s;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       position: relative;
       overflow: hidden;
+      text-align: left;
     }
 
     .node:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 18px 42px rgba(67, 56, 202, 0.12);
+      transform: translateY(-4px) scale(1.02);
+      border-color: #a79bf2;
+      box-shadow: 0 16px 36px -6px rgba(110, 86, 207, 0.22);
+      z-index: 10;
     }
 
-    /* Left leg — blue accent */
+    /* Left leg — Indigo accent */
     .node-left {
-      border-left: 4px solid #4f46e5;
+      border-left: 3.5px solid #6366f1;
     }
-
     .node-left:hover {
-      background: #f0f4ff;
+      background: linear-gradient(180deg, #f5f3ff 0%, #ffffff 100%);
     }
 
-    /* Right leg — green accent */
+    /* Right leg — Emerald accent */
     .node-right {
-      border-right: 4px solid #22c55e;
+      border-right: 3.5px solid #10b981;
     }
-
     .node-right:hover {
-      background: #f0fff4;
+      background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%);
     }
 
     .node-top {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 8px;
     }
 
     .node-user {
       display: flex;
-      align-items: flex-start;
-      gap: 10px;
+      align-items: center;
+      gap: 8px;
       min-width: 0;
       flex: 1 1 auto;
     }
 
     .av {
-      width: 42px;
-      height: 42px;
-      border-radius: 14px;
-      background: #f2f2f7;
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      background: #f1f1f8;
       object-fit: cover;
       flex-shrink: 0;
-      border: 2px solid #fff;
-      box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
+      border: 1.5px solid #fff;
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
     }
 
     .nm {
-      font-size: 12.5px;
-      font-weight: 1000;
-      white-space: normal;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      line-height: 1.25;
+      line-height: 1.2;
+      color: #0f172a;
     }
 
     .id {
-      font-size: 11px;
-      color: var(--text-muted);
-      font-weight: 900;
-      margin-top: 3px;
+      font-size: 10px;
+      color: #64748b;
+      font-weight: 800;
+      margin-top: 1px;
     }
 
     .rank {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 7px 11px;
+      gap: 4px;
+      padding: 3px 7px;
       border-radius: 999px;
-      font-size: 10px;
-      font-weight: 1000;
-      border: 1px solid #eeecff;
-      background: #efedfb;
-      color: var(--primary);
+      font-size: 9.5px;
+      font-weight: 900;
+      border: 1px solid #e2d9fe;
+      background: #f4f0ff;
+      color: #6e56cf;
       white-space: nowrap;
       flex-shrink: 0;
     }
 
+    /* Pulsing status indicator dot */
     .st {
       position: absolute;
       top: 10px;
-      left: 10px;
-      width: 10px;
-      height: 10px;
+      right: 10px;
+      left: auto;
+      width: 9px;
+      height: 9px;
       border-radius: 999px;
-      background: #22c55e;
-      box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
+      background: #10b981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    }
+    .st::after {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 999px;
+      background: inherit;
+      opacity: 0.6;
+      animation: stPulse 2s infinite ease-in-out;
+    }
+    @keyframes stPulse {
+      0%, 100% { transform: scale(1); opacity: 0.6; }
+      50% { transform: scale(1.8); opacity: 0; }
     }
 
-    .node.inactive .st {
-      background: #f97316;
-      box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.15);
-    }
+    .node.inactive .st { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2); }
+    .node.blocked .st { background: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2); }
+    .node.empty .st { background: #cbd5e1; box-shadow: 0 0 0 3px rgba(203, 213, 225, 0.2); }
 
-    .node.blocked .st {
-      background: #ef4444;
-      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15);
-    }
-
-    .node.empty .st {
-      background: #d4d4d8;
-      box-shadow: 0 0 0 4px rgba(212, 212, 216, 0.20);
-    }
-
-    .node-mid {
+    .node-mid-compact {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      padding-top: 2px;
+      gap: 6px;
+      margin-top: 2px;
     }
 
-    .kv {
-      background: #f7f7fb;
-      border: 1px solid #f1f1f6;
-      border-radius: 14px;
-      padding: 9px 10px;
+    .kv-compact {
+      background: #f8fafc;
+      border: 1px solid #f1f5f9;
+      border-radius: 10px;
+      padding: 5px 7px;
       text-align: left;
     }
-
-    .kv small {
+    .kv-compact small {
       display: block;
-      font-size: 10px;
-      color: var(--text-muted);
+      font-size: 9px;
+      color: #64748b;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+    }
+    .kv-compact b {
+      display: block;
+      font-size: 11px;
       font-weight: 900;
+      color: #1e293b;
+      margin-top: 1px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .kv b {
-      display: block;
-      font-size: 12px;
-      margin-top: 3px;
-    }
-
-    .kv b .tagv {
-      font-size: 10px;
-      font-weight: 1000;
-      color: var(--primary);
-      margin-left: 6px;
-    }
-
-    .node-btm {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-      padding-top: 2px;
-    }
-
-    .pill {
+    .node-btm-compact {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 8px 10px;
+      justify-content: space-between;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .pill-sm {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
       border-radius: 999px;
-      border: 1px solid #f1f1f6;
-      background: #fff;
-      font-size: 10px;
-      font-weight: 1000;
-      color: #111827;
-      min-width: 0;
+      font-size: 9.5px;
+      font-weight: 900;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      color: #334155;
     }
-
-    .pill i {
-      color: var(--primary);
-    }
-
-    .pill-eligible {
-      background: #ecfdf3;
-      border-color: #b7ecc8;
+    .pill-sm.pill-eligible {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
       color: #15803d;
     }
-    .pill-eligible i { color: #15803d; }
-    .pill-ineligible {
-      background: #fff8e6;
-      border-color: #ffe3a3;
-      color: #92610a;
+    .pill-sm.pill-ineligible {
+      background: #fffbe6;
+      border-color: #fef08a;
+      color: #854d0e;
     }
-    .pill-ineligible i { color: #92610a; }
+
+    /* ===== Floating member card — hover popover on desktop, tap-to-pin on touch ===== */
+    #treeNodeTooltip {
+      position: fixed;
+      z-index: 99999;
+      pointer-events: none;
+      display: none;
+      opacity: 0;
+      transform: translateY(6px) scale(0.96);
+      transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      width: 320px;
+      background: #fff;
+      border: 1px solid #eef0f6;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18), 0 4px 14px rgba(15, 23, 42, 0.08);
+      border-radius: 22px;
+      color: #1e293b;
+      overflow: hidden;
+    }
+
+    #treeNodeTooltip.active {
+      display: block;
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    /* Pinned = touch tap mode: centred fixed card + dim backdrop instead of
+       following the pointer (there is no pointer to follow on a touchscreen). */
+    #treeNodeTooltip.pinned {
+      pointer-events: auto;
+      left: 50% !important;
+      top: 50% !important;
+      transform: translate(-50%, -50%) scale(0.96);
+      width: min(340px, calc(100vw - 32px));
+      max-height: calc(100vh - 64px);
+      overflow-y: auto;
+    }
+    #treeNodeTooltip.pinned.active { transform: translate(-50%, -50%) scale(1); }
+
+    #ttBackdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 99998;
+      background: rgba(15, 23, 42, 0.45);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    #ttBackdrop.active { opacity: 1; pointer-events: auto; }
+
+    .tt-accent { height: 5px; width: 100%; background: #10b981; }
+
+    .tt-close {
+      display: none;
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 2;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: #f1f5f9;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    #treeNodeTooltip.pinned .tt-close { display: flex; }
+
+    .tt-body { padding: 16px; }
+
+    .tt-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 14px;
+      border-bottom: 1px dashed #eef0f6;
+    }
+    .tt-av-wrap { position: relative; flex: 0 0 auto; }
+    .tt-av {
+      width: 52px;
+      height: 52px;
+      border-radius: 16px;
+      object-fit: cover;
+      background: #f1f5f9;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px #eef0f6;
+    }
+    .tt-av-badge {
+      position: absolute;
+      right: -6px;
+      bottom: -6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #f6c453, #d97706);
+      color: #fff;
+      font-size: 11px;
+      border: 2px solid #fff;
+      box-shadow: 0 2px 6px rgba(217, 119, 6, 0.4);
+    }
+    .tt-user { min-width: 0; flex: 1; }
+    .tt-name { font-size: 14.5px; font-weight: 900; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tt-uid { font-size: 11px; color: #64748b; font-weight: 700; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tt-badges { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+    .tt-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 9.5px; font-weight: 900; padding: 3px 8px; border-radius: 99px; background: #f1f5f9; color: #475569; text-transform: uppercase; letter-spacing: .3px; }
+    .tt-badge.tt-active { background: #dcfce7; color: #15803d; }
+    .tt-badge.tt-inactive { background: #fef3c7; color: #92400e; }
+    .tt-badge.tt-rank { background: #eef2ff; color: #4338ca; text-transform: none; }
+
+    .tt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+    .tt-card { background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 14px; padding: 10px 12px; }
+    .tt-card.tt-full { grid-column: 1 / -1; }
+    .tt-card.tt-highlight { background: #f5f3ff; border-color: #ede9fe; }
+    .tt-card.tt-held { background: #fffbeb; border-color: #fef3c7; }
+    .tt-card label { display: flex; align-items: center; gap: 5px; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.3px; color: #64748b; font-weight: 800; }
+    .tt-card val { display: block; font-size: 14px; font-weight: 900; color: #0f172a; margin-top: 4px; }
+    .tt-card val span { font-size: 10px; color: #6e56cf; font-weight: 800; margin-left: 3px; }
+
+    .tt-bar { margin-top: 8px; height: 6px; border-radius: 999px; background: #ede9fe; overflow: hidden; }
+    .tt-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #8b5cf6, #6e56cf); width: 0%; transition: width .3s ease; }
+
+    .tt-mini-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+    .tt-mini { background: #fff; border: 1px solid #f1f5f9; border-radius: 10px; padding: 6px 8px; text-align: center; }
+    .tt-mini label { display: block; font-size: 8.5px; text-transform: uppercase; letter-spacing: .3px; color: #94a3b8; font-weight: 800; }
+    .tt-mini val { display: block; font-size: 11px; font-weight: 900; color: #334155; margin-top: 2px; }
+
+    .tt-rows { margin-top: 8px; }
+    .tt-row { display: flex; align-items: center; gap: 7px; font-size: 11.5px; font-weight: 700; color: #475569; padding: 5px 2px; }
+    .tt-row i { color: #94a3b8; font-size: 14px; }
+
+    .tt-eligible {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 900;
+      background: #f0fdf4;
+      color: #15803d;
+      border: 1px solid #bbf7d0;
+    }
+    .tt-eligible.ineligible { background: #fffbeb; color: #92400e; border-color: #fef08a; }
+
+    .tt-footer {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px dashed #eef0f6;
+      font-size: 10.5px;
+      color: #94a3b8;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      text-align: center;
+    }
 
     /* Side: Member Details */
     .profile {
@@ -1427,8 +1591,79 @@
           Got it <i class="ph ph-check"></i>
         </button>
       </div>
+  </div>
+
+  <!-- Floating member card: hover on desktop, tap-to-pin on touch (see "Node Card Logic" JS) -->
+  <div id="treeNodeTooltip">
+    <button type="button" class="tt-close" onclick="closeTooltipPinned()" aria-label="Close details"><i class="ph ph-x"></i></button>
+    <div class="tt-accent" id="ttAccent"></div>
+    <div class="tt-body">
+      <div class="tt-header">
+        <div class="tt-av-wrap">
+          <img id="ttAvatar" class="tt-av" src="" alt="" onerror="this.onerror=null;this.src='<?= default_avatar_url(); ?>';">
+          <span class="tt-av-badge" id="ttRankBadge"><i class="ph ph-user"></i></span>
+        </div>
+        <div class="tt-user">
+          <div id="ttName" class="tt-name">User Name</div>
+          <div id="ttEmail" class="tt-uid">UID: —</div>
+          <div class="tt-badges">
+            <span id="ttStatus" class="tt-badge tt-active">ACTIVE</span>
+            <span id="ttRank" class="tt-badge tt-rank"><i class="ph ph-medal"></i> —</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tt-grid">
+        <div class="tt-card">
+          <label><i class="ph ph-arrow-circle-left"></i> Left Invest</label>
+          <val id="ttLinv">0 <span>BMAN</span></val>
+        </div>
+        <div class="tt-card">
+          <label><i class="ph ph-arrow-circle-right"></i> Right Invest</label>
+          <val id="ttRinv">0 <span>BMAN</span></val>
+        </div>
+        <div class="tt-card tt-full tt-highlight">
+          <label><i class="ph ph-wallet"></i> Own Investment (Exchange)</label>
+          <val id="ttExchange">0 <span>BMAN</span></val>
+        </div>
+        <div class="tt-card tt-full">
+          <label><i class="ph ph-coins"></i> Own Active Stake</label>
+          <val id="ttOwnStake">0 <span>BMAN</span></val>
+        </div>
+      </div>
+
+      <div class="tt-mini-row">
+        <div class="tt-mini"><label>Earning</label><val id="ttEarning">0</val></div>
+        <div class="tt-mini"><label>Staking</label><val id="ttStaking">0</val></div>
+        <div class="tt-mini"><label>Bonus</label><val id="ttBonus">0</val></div>
+      </div>
+
+      <div class="tt-grid" style="margin-top:8px;">
+        <div class="tt-card tt-full">
+          <label><i class="ph ph-trend-up"></i> Matching Ceiling (Remaining / Total)</label>
+          <val id="ttCeiling">0 / 0 <span>BMAN</span></val>
+          <div class="tt-bar"><div class="tt-bar-fill" id="ttCeilingBar"></div></div>
+        </div>
+        <div class="tt-card tt-full tt-held" id="ttHeldRow" style="display:none;">
+          <label><i class="ph ph-lock"></i> Ceiling Wallet Held</label>
+          <val id="ttHeld">0 <span>BMAN</span></val>
+        </div>
+      </div>
+
+      <div class="tt-rows">
+        <div class="tt-row"><i class="ph ph-calendar"></i> Joined <span id="ttJoin">—</span></div>
+      </div>
+
+      <div class="tt-eligible" id="ttEligiblePill">
+        <i class="ph ph-check-circle" id="ttEligibleIcon"></i> <span id="ttEligibleText">Matching Eligible</span>
+      </div>
+
+      <div class="tt-footer" id="ttFooter">
+        <i class="ph ph-cursor-click"></i> <span>Click card to select &amp; view member profile</span>
+      </div>
     </div>
   </div>
+  <div id="ttBackdrop"></div>
 
   <script src="<?php echo base_url(); ?>/assets/user_v2/js/script.js?ver=2.9"></script>
 
@@ -1743,17 +1978,25 @@
       const leftInvest = sumExchange(n.left);
       const rightInvest = sumExchange(n.right);
 
+      const email = n.email ? n.email : "";
+      const posLabel = position ? position.toLowerCase() : (n.position || "").toLowerCase();
+      const statusLabel = (n.status || "ACTIVE").toLowerCase();
+
       return `
       <a class="node ${sc} node-${position.toLowerCase()}"
          data-id="${escapeHtml(n.id || 0)}"
          data-uid="${escapeHtml(uid)}"
          data-name="${escapeHtml(name)}"
+         data-email="${escapeHtml(email)}"
          data-rank="${escapeHtml(rank)}"
          data-status="${escapeHtml((n.status || "ACTIVE"))}"
          data-join="${escapeHtml((n.join_date || "—"))}"
          data-lbv="${escapeHtml((n.left_bv || 0))}"
          data-rbv="${escapeHtml((n.right_bv || 0))}"
          data-inv="${escapeHtml((n.exchange || 0))}"
+         data-earning="${escapeHtml((n.earning || 0))}"
+         data-staking="${escapeHtml((n.staking || n.own_stake_amount || 0))}"
+         data-bonus="${escapeHtml((n.bonus || 0))}"
          data-linv="${escapeHtml(leftInvest)}"
          data-rinv="${escapeHtml(rightInvest)}"
          data-avatar="${escapeHtml(avatar)}"
@@ -1777,37 +2020,187 @@
           <div class="rank"><i class="ph ${nodeIcon(rank)}"></i> ${escapeHtml(rank)}</div>
         </div>
 
-        <div class="node-mid">
-          <div class="kv">
-            <small>Left Invest</small>
-            <b>${fmt(leftInvest)} <span class="tagv">BMAN</span></b>
+        <div class="node-mid-compact">
+          <div class="kv-compact">
+            <small>Left Leg</small>
+            <b>${fmt(leftInvest)}</b>
           </div>
-          <div class="kv">
-            <small>Right Invest</small>
-            <b>${fmt(rightInvest)} <span class="tagv">BMAN</span></b>
-          </div>
-          <div class="kv" style="grid-column:1 / -1;">
-            <small>Own Investment</small>
-            <b>${fmt(n.exchange || 0)} <span class="tagv">BMAN</span></b>
-          </div>
-          <div class="kv" style="grid-column:1 / -1;" title="Own active staking (${fmt(n.own_stake_amount || 0)} BMAN) sets this member's matching ceiling. Already paid: ${fmt(n.ceiling_paid || 0)} BMAN.">
-            <small>Matching Ceiling (remaining / total)</small>
-            <b>${fmt(n.ceiling_remaining || 0)} <span class="tagv">/ ${fmt(n.ceiling_amount || 0)} BMAN</span></b>
+          <div class="kv-compact">
+            <small>Right Leg</small>
+            <b>${fmt(rightInvest)}</b>
           </div>
         </div>
 
-        <div class="node-btm">
-          <div class="pill"><i class="ph ph-calendar"></i> ${escapeHtml(n.join_date || "—")}</div>
-          <div class="pill"><i class="ph ph-activity"></i> ${escapeHtml((n.status || "ACTIVE"))}</div>
-          <div class="pill ${n.matching_eligible ? "pill-eligible" : "pill-ineligible"}"
-               title="${n.matching_eligible ? "Has an active stake — eligible to receive binary matching bonus." : "No active stake yet — matching bonus is on hold until this member stakes."}">
+        <div class="node-btm-compact">
+          <div class="pill-sm ${n.matching_eligible ? "pill-eligible" : "pill-ineligible"}">
             <i class="ph ${n.matching_eligible ? "ph-check-circle" : "ph-warning-circle"}"></i>
-            ${n.matching_eligible ? "Matching Eligible" : "Needs Stake"}
+            ${n.matching_eligible ? "Eligible" : "Needs Stake"}
           </div>
-          ${(n.ceiling_wallet_held || 0) > 0 ? `<div class="pill" title="Held in the backend Ceiling Wallet — excess bonus above this member's ceiling, admin-releasable."><i class="ph ph-lock"></i> Held ${fmt(n.ceiling_wallet_held)} BMAN</div>` : ""}
+          <div class="pill-sm" style="font-size:9px;">
+            <i class="ph ph-wallet"></i> ${fmt(n.exchange || 0)} BMAN
+          </div>
         </div>
       </a>
     `;
+    }
+
+    // ======= Node Card Logic — hover popover (desktop) / tap-to-pin (touch) =======
+    const tooltip = document.getElementById('treeNodeTooltip');
+    const ttBackdrop = document.getElementById('ttBackdrop');
+
+    // No real hover device (phone/tablet) -> the card pins centre-screen on tap
+    // instead of following a pointer that doesn't exist. Re-checked live (not
+    // cached) so it still gets this right on a hybrid touch+mouse laptop.
+    function isTouchMode() {
+      return !window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    }
+
+    let tooltipPinned = false;
+    let pinnedNodeEl = null;
+    const STATUS_ACCENT = { ACTIVE: '#10b981', INACTIVE: '#f59e0b', BLOCKED: '#ef4444', EMPTY: '#cbd5e1' };
+
+    document.addEventListener('mouseover', (e) => {
+      if (isTouchMode() || tooltipPinned) return;
+      const nodeEl = e.target.closest('.node[data-id]');
+      if (!nodeEl || nodeEl.classList.contains('more-node')) return;
+      showTooltip(nodeEl, e);
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (tooltipPinned || !tooltip || tooltip.style.display !== 'block') return;
+      const nodeEl = e.target.closest('.node[data-id]');
+      if (nodeEl && !nodeEl.classList.contains('more-node')) {
+        positionTooltip(e);
+      } else {
+        hideTooltip();
+      }
+    });
+
+    document.addEventListener('mouseout', (e) => {
+      if (tooltipPinned) return;
+      const nodeEl = e.target.closest('.node[data-id]');
+      if (nodeEl && !e.relatedTarget?.closest('.node[data-id]')) {
+        hideTooltip();
+      }
+    });
+
+    // Touch: tap a card to pin the same details card centre-screen. The two
+    // drill-in child cells of the compact mobile focus view (renderCompactMobile)
+    // are skipped — tapping those descends the tree instead (drillIntoEl), and
+    // popping a card right before that navigation would just leave it stranded
+    // on screen showing a node that is no longer on screen.
+    document.addEventListener('click', (e) => {
+      if (!isTouchMode()) return;
+      const nodeEl = e.target.closest('.node[data-id]');
+      if (!nodeEl || nodeEl.classList.contains('more-node')) return;
+      if (nodeEl.closest('.tc-children')) return;
+      if (tooltipPinned && pinnedNodeEl === nodeEl) { closeTooltipPinned(); return; }
+      showTooltipPinned(nodeEl);
+    });
+
+    if (ttBackdrop) ttBackdrop.addEventListener('click', closeTooltipPinned);
+
+    function fillTooltip(el) {
+      if (!tooltip) return;
+      const d = el.dataset;
+      document.getElementById('ttAvatar').src = d.avatar || DEFAULT_AVATAR;
+      document.getElementById('ttName').innerText = ucfirstWords(d.name) || 'User';
+      document.getElementById('ttEmail').innerText = d.email || ('UID: ' + (d.uid || '—'));
+
+      const st = (d.status || 'ACTIVE').toUpperCase();
+      const stEl = document.getElementById('ttStatus');
+      stEl.innerText = st;
+      stEl.className = 'tt-badge ' + (st === 'ACTIVE' ? 'tt-active' : 'tt-inactive');
+      document.getElementById('ttAccent').style.background = STATUS_ACCENT[st] || STATUS_ACCENT.ACTIVE;
+
+      const rank = d.rank || '—';
+      const rankIcon = nodeIcon(rank);
+      document.getElementById('ttRank').innerHTML = `<i class="ph ${rankIcon}"></i> ${escapeHtml(rank)}`;
+      document.getElementById('ttRankBadge').innerHTML = `<i class="ph ${rankIcon}"></i>`;
+
+      document.getElementById('ttExchange').innerHTML = `${fmt(d.inv || 0)} <span>BMAN</span>`;
+      document.getElementById('ttOwnStake').innerHTML = `${fmt(d.ownStake || 0)} <span>BMAN</span>`;
+      document.getElementById('ttEarning').innerText = fmt(d.earning || 0);
+      document.getElementById('ttStaking').innerText = fmt(d.staking || 0);
+      document.getElementById('ttBonus').innerText = fmt(d.bonus || 0);
+      document.getElementById('ttLinv').innerHTML = `${fmt(d.linv || 0)} <span>BMAN</span>`;
+      document.getElementById('ttRinv').innerHTML = `${fmt(d.rinv || 0)} <span>BMAN</span>`;
+      document.getElementById('ttJoin').innerText = d.join || '—';
+
+      const ceiling = parseFloat(d.ceiling || 0);
+      const ceilingRemaining = parseFloat(d.ceilingRemaining || 0);
+      document.getElementById('ttCeiling').innerHTML = `${fmt(ceilingRemaining)} / ${fmt(ceiling)} <span>BMAN</span>`;
+      const usedPct = ceiling > 0 ? Math.min(100, Math.max(0, ((ceiling - ceilingRemaining) / ceiling) * 100)) : 0;
+      document.getElementById('ttCeilingBar').style.width = usedPct + '%';
+
+      const held = parseFloat(d.ceilingHeld || 0);
+      const heldRow = document.getElementById('ttHeldRow');
+      if (held > 0) {
+        document.getElementById('ttHeld').innerHTML = `${fmt(held)} <span>BMAN</span>`;
+        heldRow.style.display = 'block';
+      } else {
+        heldRow.style.display = 'none';
+      }
+
+      const eligible = d.eligible === '1';
+      document.getElementById('ttEligiblePill').classList.toggle('ineligible', !eligible);
+      document.getElementById('ttEligibleIcon').className = 'ph ' + (eligible ? 'ph-check-circle' : 'ph-warning-circle');
+      document.getElementById('ttEligibleText').innerText = eligible ? 'Matching Eligible' : 'Needs Stake';
+
+      document.getElementById('ttFooter').innerHTML = tooltipPinned
+        ? '<i class="ph ph-x"></i> <span>Tap outside or the × to close</span>'
+        : '<i class="ph ph-cursor-click"></i> <span>Click card to select &amp; view member profile</span>';
+    }
+
+    function showTooltip(el, e) {
+      fillTooltip(el);
+      if (!tooltip) return;
+      tooltip.style.display = 'block';
+      requestAnimationFrame(() => tooltip.classList.add('active'));
+      positionTooltip(e);
+    }
+
+    function showTooltipPinned(el) {
+      if (!tooltip) return;
+      pinnedNodeEl = el;
+      tooltipPinned = true;
+      fillTooltip(el);
+      tooltip.classList.add('pinned');
+      tooltip.style.display = 'block';
+      if (ttBackdrop) ttBackdrop.classList.add('active');
+      requestAnimationFrame(() => tooltip.classList.add('active'));
+    }
+
+    function closeTooltipPinned() {
+      if (!tooltipPinned) return;
+      tooltipPinned = false;
+      pinnedNodeEl = null;
+      tooltip.classList.remove('pinned');
+      if (ttBackdrop) ttBackdrop.classList.remove('active');
+      hideTooltip();
+    }
+
+    function positionTooltip(e) {
+      if (!tooltip || tooltipPinned) return;
+      const pad = 16;
+      let x = e.clientX + pad;
+      let y = e.clientY + pad;
+      const ttW = tooltip.offsetWidth || 300;
+      const ttH = tooltip.offsetHeight || 280;
+
+      if (x + ttW > window.innerWidth) x = e.clientX - ttW - pad;
+      if (y + ttH > window.innerHeight) y = e.clientY - ttH - pad;
+
+      tooltip.style.left = Math.max(10, x) + 'px';
+      tooltip.style.top = Math.max(10, y) + 'px';
+    }
+
+    function hideTooltip() {
+      if (!tooltip || tooltipPinned) return;
+      tooltip.classList.remove('active');
+      setTimeout(() => {
+        if (!tooltip.classList.contains('active')) tooltip.style.display = 'none';
+      }, 150);
     }
 
     // ✅ Build UL/LI but only add children section if any child exists
@@ -2100,7 +2493,7 @@
       if (e.target && e.target.id === "modalBack") closeModal();
     });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeModal();
+      if (e.key === "Escape") { closeModal(); closeTooltipPinned(); }
     });
 
     // ======= Search =======

@@ -52,6 +52,7 @@ class BinaryModel extends CI_Model
         $this->db->where('users.id', $user_id);
         $direct_user = $this->db->get()->row();
 
+        $rootW = $this->getUserWallets($direct_user->id);
         $downline[] = [
             'id' => $direct_user->id,
             'mid' => null,
@@ -60,12 +61,27 @@ class BinaryModel extends CI_Model
             'register_date' => date('Y-m-d', strtotime($direct_user->register_date)),
             'position' => ucfirst($direct_user->position),
             'placement_type' => ucfirst($direct_user->placement_type),
+            'exchange' => $rootW['exchange'],
+            'earning' => $rootW['earning'],
+            'staking' => $rootW['staking'],
+            'bonus' => $rootW['bonus'],
             'profile_img' => $direct_user->profile_img,
             'image' => $direct_user->image,
         ];
 
         $this->fetchDownline($user_id, $downline, 1, $maxDepth);
         return $downline;
+    }
+
+    private function getUserWallets($user_id)
+    {
+        $row = $this->db->get_where('user_wallets', ['user_id' => (int)$user_id])->row();
+        return [
+            'exchange' => (float)($row->exchange_balance ?? 0),
+            'earning'  => (float)($row->earning_balance ?? 0),
+            'staking'  => (float)($row->staking_balance ?? 0),
+            'bonus'    => (float)($row->bonus_balance ?? 0),
+        ];
     }
 
     private function fetchDownline($parent_id, &$downline, $level = 1, $maxDepth = null)
@@ -93,6 +109,7 @@ class BinaryModel extends CI_Model
 
         foreach ($members as $member) {
             $my_investment = $this->getTotalInvestment($member->id);
+            $w = $this->getUserWallets($member->id);
             $downline[] = [
                 'id' => $member->id,
                 'mid' => ($member->parent_id == $member->id) ? null : $member->parent_id,
@@ -101,7 +118,10 @@ class BinaryModel extends CI_Model
                 'register_date' => date('Y-m-d', strtotime($member->register_date)),
                 'position' => ucfirst($member->position) . " ( " . currency_format($my_investment) . " )",
                 'placement_type' => ucfirst($member->placement_type),
-                'exchange' => $this->getTotalExchangeWallet([$member->id]), // BMAN investment
+                'exchange' => $w['exchange'],
+                'earning' => $w['earning'],
+                'staking' => $w['staking'],
+                'bonus' => $w['bonus'],
                 'profile_img' => $member->profile_img,
                 'image' => $member->image,
             ];
