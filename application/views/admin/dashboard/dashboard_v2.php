@@ -400,6 +400,7 @@ data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" class=
                 count('dash-stakes-reached-maturity', d.reached_maturity);
                 count('dash-stakes-withdrawn', d.withdrawn);
                 count('dash-stakes-avg', d.average_stake);
+                count('dash-stakes-locked', d.locked_bman);
             });
         }
 

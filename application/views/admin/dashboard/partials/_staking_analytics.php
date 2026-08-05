@@ -33,6 +33,17 @@
             <div class="fs-7 text-muted">Average Stake (BMAN)</div>
           </div>
         </div>
+        <!-- Lock Wallet: BMAN principal still locked, platform-wide. A different
+             kind of figure than the 4 lifecycle counts above (a currency sum, not
+             a count), and deliberately excludes packages already past maturity —
+             unlike "total_staking_bman"/"locked_in_staking" shown elsewhere on
+             this dashboard, which don't apply that filter. Full-width on purpose. -->
+        <div class="col-12">
+          <div class="border border-gray-300 border-dashed rounded p-4 text-center">
+            <div class="fs-2 fw-bold text-primary counted" id="dash-stakes-locked" data-kt-initialized="1">0</div>
+            <div class="fs-7 text-muted">Lock Wallet (BMAN) — excludes packages that already reached maturity</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

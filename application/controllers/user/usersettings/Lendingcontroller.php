@@ -70,6 +70,12 @@ class Lendingcontroller extends CI_Controller
         $conv = $this->tokens->convertUsdtToBman($this->data['wallet_usdt']);
         $this->data['wallet_usdt_in_bman'] = ($conv === null) ? null : (float) $conv;
 
+        // Lock Wallet — read-only, virtual: BMAN currently locked in active
+        // staking packages (not yet matured). Always computed live from
+        // user_stakes, never stored. See Staking_model::lockWalletBalance().
+        $this->load->model('Staking_model');
+        $this->data['lock_wallet_balance'] = $this->Staking_model->lockWalletBalance($userid);
+
         // On-chain swap mode flag (Token Settings). When ON, package purchase is
         // a real USDT<->BMAN on-chain swap; when OFF, the internal staking flow.
         $ts = $this->db->select('swap_enabled')->get_where('token_settings', ['status'=>1])->row_array();
@@ -1040,6 +1046,24 @@ class Lendingcontroller extends CI_Controller
                 'error' => $o['error'],
             ],
         ]);
+    }
+
+    /**
+     * AJAX: Lock Wallet detail — per-package breakdown of BMAN currently
+     * locked in this user's active staking packages. Read-only, always
+     * computed live (see Staking_model::lockWalletDetail()); nothing is
+     * stored. Session-scoped — always the logged-in user, no params needed.
+     */
+    public function lock_wallet_detail()
+    {
+        $userId = (int) $this->session->userdata('user_userid');
+        if (!$userId) { echo json_encode(['status'=>false,'message'=>'Unauthorized']); return; }
+
+        $this->load->model('Staking_model');
+        $rows  = $this->Staking_model->lockWalletDetail($userId);
+        $total = array_sum(array_column($rows, 'stake_amount'));
+
+        echo json_encode(['status' => true, 'total_locked' => $total, 'data' => $rows]);
     }
 
     private function _coinDistributionPercentages($optionId)

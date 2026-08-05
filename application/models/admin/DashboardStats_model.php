@@ -102,12 +102,18 @@ class DashboardStats_model extends CI_Model
         $reachedMaturity = (int) $this->db->where_in('status', ['active', 'processing'])
             ->where('maturity_date <=', date('Y-m-d'))
             ->count_all_results('user_stakes');
-        $stillActive = (int) $this->db->where_in('status', ['active', 'processing'])
+        // Same "still locked" predicate as $reachedMaturity's mirror, but also
+        // SUMs stake_amount in the same query — this is the Lock Wallet total,
+        // platform-wide (see Staking_model::lockWalletBalance() for the per-user
+        // version; both share this exact WHERE clause).
+        $locked = $this->db->select('COUNT(*) AS n, COALESCE(SUM(stake_amount),0) AS total', false)
+            ->where_in('status', ['active', 'processing'])
             ->where('maturity_date >', date('Y-m-d'))
-            ->count_all_results('user_stakes');
+            ->get('user_stakes')->row_array();
 
         return [
-            'active'            => $stillActive,
+            'active'            => (int) ($locked['n'] ?? 0),
+            'locked_bman'       => (float) ($locked['total'] ?? 0),
             'reached_maturity'  => $reachedMaturity,
             'withdrawn'         => (int) ($byStatus['withdrawn'] ?? 0),
             'cancelled'         => (int) ($byStatus['cancelled'] ?? 0),

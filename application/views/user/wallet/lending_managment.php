@@ -1204,7 +1204,51 @@ $hero_progress = 48;
           display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
         .wstrip .wval{font-size:18px;font-weight:1200;color:#0b1220;line-height:1.1;}
         .wstrip .wval small{font-size:11px;font-weight:900;color:var(--muted,#6b7280);}
+
+        /* LOCK WALLET — read-only, virtual: BMAN currently locked in active
+           staking packages. Standalone (not one of the .wstrip tiles) since it's
+           clickable and conceptually different from the 5 real balances above. */
+        .lockwallet-card{display:flex;align-items:center;gap:16px;cursor:pointer;
+          background:linear-gradient(135deg,color-mix(in srgb, var(--primary) 8%, #fff),#fff);
+          border:1.5px solid color-mix(in srgb, var(--primary) 35%, transparent);
+          border-radius:18px;padding:16px 20px;margin:4px 0 16px;transition:box-shadow .15s;}
+        .lockwallet-card:hover{box-shadow:0 8px 24px rgba(15,23,42,.08);}
+        .lockwallet-card .lw-ico{width:48px;height:48px;border-radius:14px;flex:0 0 auto;
+          background:color-mix(in srgb, var(--primary) 14%, #fff);color:var(--primary);
+          display:grid;place-items:center;font-size:22px;}
+        .lockwallet-card .lw-lbl{font-size:11.5px;font-weight:900;color:var(--primary);
+          text-transform:uppercase;letter-spacing:.4px;}
+        .lockwallet-card .lw-val{font-size:20px;font-weight:1200;color:#0b1220;line-height:1.2;}
+        .lockwallet-card .lw-val small{font-size:11px;font-weight:900;color:var(--muted,#6b7280);}
+        .lockwallet-card .lw-help{font-size:11px;color:var(--muted,#6b7280);font-weight:700;margin-top:2px;}
+        .lockwallet-card .lw-cta{margin-left:auto;font-size:12px;font-weight:900;color:var(--primary);
+          white-space:nowrap;display:flex;align-items:center;gap:4px;}
+        .lockwallet-card .lw-cta i{transition:transform .15s;}
+        .lockwallet-card.open .lw-cta i{transform:rotate(180deg);}
+
+        /* Inline detail panel — expands in place under the card, not a popup.
+           Kept fully separate from "Recent Staking Activity" (staking_swap_orders,
+           transaction-status focused) since this is user_stakes-sourced package
+           detail and must show every locked package regardless of purchase path. */
+        .lockwallet-detail{display:none;margin:-4px 0 16px;border:1px solid rgba(15,23,42,.08);
+          border-top:none;border-radius:0 0 18px 18px;padding:16px 20px;background:#fbfbff;}
+        .lockwallet-detail.open{display:block;}
       </style>
+      <div class="lockwallet-card" id="lockWalletCard" onclick="toggleLockWalletDetails()" role="button" tabindex="0">
+        <div class="lw-ico"><i class="ph-fill ph-lock-key"></i></div>
+        <div>
+          <div class="lw-lbl">Lock Wallet</div>
+          <div class="lw-val"><?= number_format((float)($lock_wallet_balance ?? 0), 2) ?> <small>BMAN</small></div>
+          <div class="lw-help">Total BMAN currently locked in active staking packages.</div>
+        </div>
+        <div class="lw-cta">View Details <i class="ph ph-caret-down"></i></div>
+      </div>
+      <div class="lockwallet-detail" id="lockWalletDetail">
+        <div style="text-align:center;padding:30px;">
+          <div class="spinner-border text-primary"></div>
+          <p style="margin-top:12px;color:#666;">Loading details...</p>
+        </div>
+      </div>
       <div class="wstrip">
         <!-- USDT — the wallet staking purchases are funded from -->
         <div class="wtile usdt">
@@ -2002,6 +2046,75 @@ $hero_progress = 48;
     function closeSwapDetails() {
       const modal = document.getElementById('swapDetailsModal');
       if (modal) modal.style.display = 'none';
+    }
+
+    // Lock Wallet "View Details" — scrolls to Recent Staking Activity below,
+    // which already lists each locked package's details; no separate popup.
+    // --------------------- Lock Wallet Detail Panel (inline, not a popup) ---------------------
+    let lockWalletLoaded = false;
+    function toggleLockWalletDetails() {
+      const card = document.getElementById('lockWalletCard');
+      const panel = document.getElementById('lockWalletDetail');
+      if (!card || !panel) return;
+
+      const opening = !panel.classList.contains('open');
+      panel.classList.toggle('open', opening);
+      card.classList.toggle('open', opening);
+      if (!opening || lockWalletLoaded) return;
+
+      lockWalletLoaded = true;
+      fetch('<?= base_url("user/lending/lock_wallet_detail"); ?>', {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({})
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.status) {
+          panel.innerHTML = `<div style="color:red;text-align:center;">Error: ${data.message}</div>`;
+          return;
+        }
+        const rows = data.data || [];
+        if (!rows.length) {
+          panel.innerHTML = `<div style="text-align:center;padding:20px;color:#666;">No active staking packages are currently locked.</div>`;
+          return;
+        }
+        // package_name is admin-set text (staking_packages.name) — escape it;
+        // everything else here is a number, a date, or an enum-derived label.
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+        const rowsHtml = rows.map(r => `
+          <tr>
+            <td data-label="Package">${esc(r.package_name)}</td>
+            <td data-label="Plan Type">${esc(r.plan_label)}</td>
+            <td data-label="Package Type">${esc(r.package_type)}</td>
+            <td data-label="Stake Amount">${Number(r.stake_amount).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</td>
+            <td data-label="Purchase Date">${esc(r.start_date)}</td>
+            <td data-label="Maturity Date">${esc(r.maturity_date)}</td>
+            <td data-label="Remaining Days">${esc(r.remaining_days)}</td>
+            <td data-label="Status">${esc(r.status_label)}</td>
+            <td data-label="Current Locked Amount">${Number(r.locked_amount).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</td>
+          </tr>`).join('');
+        panel.innerHTML = `
+          <div style="margin-bottom:14px;font-size:13px;color:#666;">
+            Total Locked: <b>${Number(data.total_locked).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b> across ${rows.length} package(s)
+          </div>
+          <div class="table-scroll">
+            <table class="table resp-card" style="width:100%;border-spacing:0 8px;">
+              <thead>
+                <tr><th>Package</th><th>Plan Type</th><th>Package Type</th><th>Stake Amount</th><th>Purchase Date</th><th>Maturity Date</th><th>Remaining Days</th><th>Status</th><th>Current Locked Amount</th></tr>
+              </thead>
+              <tbody>${rowsHtml}</tbody>
+            </table>
+          </div>`;
+      })
+      .catch(err => {
+        console.error(err);
+        lockWalletLoaded = false; // allow retry on next open
+        panel.innerHTML = `<div style="color:red;text-align:center;">Failed to load details</div>`;
+      });
     }
 
     // Switch between tabs

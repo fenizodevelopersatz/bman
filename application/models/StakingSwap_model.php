@@ -307,12 +307,10 @@ class StakingSwap_model extends CI_Model
                     'status' => 'swap_completed',
                     'updated_at' => date('Y-m-d H:i:s'),
                 ]);
+                $order['bman_tx_hash'] = $tx_hash;
 
-                // Create staking record (activate immediately)
-                $this->_createStakingRecord($order['user_id'], $order['package_id'], $order['bman_amount'], $order['bonus_bman']);
-
-                // Credit BMAN balance to user wallet
-                $this->_creditBmanBalance($order['user_id'], $order['bman_amount'] + $order['bonus_bman']);
+                // Create the stake record + credit the wallet split.
+                $this->_completeStakePurchase($order);
 
                 log_message('info', "BMAN transfer detected for order {$order_id}: {$tx_hash}, staking activated");
                 return true;
@@ -323,45 +321,133 @@ class StakingSwap_model extends CI_Model
     }
 
     /**
-     * Create staking record when swap completes
+     * Create the user_stakes row + credit the wallet split for a completed
+     * swap order. Idempotent on swap_order_id: StakingPurchasecron's cron can
+     * independently complete the same order (it drives the same state
+     * machine via on-chain confirmation polling rather than Etherscan), so
+     * this must never double-create the stake or double-credit the wallets.
+     *
+     * Column names here match the CURRENT user_stakes/wallet_ledger schema —
+     * this previously wrote bman_amount/bonus_bman/activated_at (none of
+     * which exist on user_stakes) and raw-incremented a wallet_ledger.staking
+     * column (wallet_ledger has no such column; it's a per-row credit/debit
+     * ledger keyed by wallet_type). Both silently could not succeed.
      */
-    private function _createStakingRecord($user_id, $package_id, $bman_amount, $bonus_bman)
+    private function _completeStakePurchase(array $order)
     {
-        $staking_data = [
-            'user_id' => $user_id,
-            'package_id' => $package_id,
-            'bman_amount' => $bman_amount,
-            'bonus_bman' => $bonus_bman,
-            'status' => 'active',
-            'activated_at' => date('Y-m-d H:i:s'),
-            'created_at' => date('Y-m-d H:i:s'),
+        $orderId = (int) $order['id'];
+        if ((int) $this->db->where('swap_order_id', $orderId)->count_all_results('user_stakes') > 0) {
+            return; // already completed (e.g. by StakingPurchasecron) — never double-create
+        }
+
+        $userId        = (int) $order['user_id'];
+        $packageId     = (int) $order['package_id'];
+        $planCode      = in_array($order['plan_code'] ?? '', ['fixed', 'regular', 'combo'], true) ? $order['plan_code'] : 'fixed';
+        $durationYears = (int) ($order['duration_years'] ?: 1);
+        $bmanAmount    = (float) $order['bman_amount'];
+        $bonusBman     = (float) ($order['bonus_bman'] ?? 0);
+
+        $this->load->model('Staking_model');
+        $roi = $this->Staking_model->resolveRoi($packageId, $planCode, $durationYears);
+        if ($planCode === 'combo') {
+            $roiPercent = (float) ($roi['fixed']['roi_percent'] ?? 0);
+            $roiBasis   = 'total';
+        } else {
+            $roiPercent = (float) ($roi['roi_percent'] ?? 0);
+            $roiBasis   = $roi['roi_basis'] ?? 'total';
+        }
+        if (!$roi) {
+            log_message('error', "[StakingSwap] order {$orderId}: no ROI configured for package {$packageId}/{$planCode}/{$durationYears}y — stake created with 0% ROI, needs admin follow-up.");
+        }
+
+        // Snapshot is_special at purchase time (never re-priced by a later
+        // admin edit) — same principle as Staking_model::purchaseStake().
+        $isSpecial = 0;
+        if ($this->db->field_exists('is_special', 'user_stakes') && $this->db->field_exists('is_special', 'staking_packages')) {
+            $pkg = $this->db->select('is_special')->get_where('staking_packages', ['id' => $packageId])->row_array();
+            $isSpecial = (int) ($pkg['is_special'] ?? 0);
+        }
+
+        $startDate    = date('Y-m-d');
+        $maturityDate = date('Y-m-d', strtotime("+{$durationYears} years"));
+        $ref          = $order['ref'] ?? ('SSO-' . $orderId);
+        $bmanTxHash   = $order['bman_tx_hash'] ?? null;
+
+        $this->db->trans_begin();
+
+        $this->db->insert('user_stakes', [
+            'user_id'                => $userId,
+            'package_id'              => $packageId,
+            'plan_id'                 => (int) ($order['plan_id'] ?? 0),
+            'plan_code'               => $planCode,
+            'duration_years'          => $durationYears,
+            'stake_amount'            => $bmanAmount,
+            'roi_percent'             => $roiPercent,
+            'roi_basis'               => $roiBasis,
+            'is_special'              => $isSpecial,
+            'bonus_amount'            => $bonusBman,
+            'distribution_option_id'  => (int) ($order['coin_distribution_option'] ?? 1),
+            'start_date'              => $startDate,
+            'maturity_date'           => $maturityDate,
+            'status'                  => 'active',
+            'tx_hash'                 => $bmanTxHash,
+            'chain_status'            => 'confirmed',
+            'swap_order_id'           => $orderId,
+            'created_at'              => date('Y-m-d H:i:s'),
+        ]);
+
+        $this->load->model('Walletledger_model', 'ledger');
+
+        // Principal split across exchange/earning/staking/bonus per the
+        // buyer's chosen coin_distribution_option — coin_distribution_options
+        // is the same admin-configurable source of truth used elsewhere
+        // (Lendingcontroller::_coinDistributionPercentages(),
+        // StakingPurchasecron::_walletShare()).
+        $pct = $this->db->select('exchange_percentage, earning_percentage, staking_percentage, bonus_percentage')
+            ->get_where('coin_distribution_options', ['id' => (int) ($order['coin_distribution_option'] ?? 1)])
+            ->row_array();
+        if (!$pct) $pct = ['exchange_percentage' => 100, 'earning_percentage' => 0, 'staking_percentage' => 0, 'bonus_percentage' => 0];
+
+        $shares = [
+            'exchange' => $bmanAmount * ((float) $pct['exchange_percentage'] / 100),
+            'earning'  => $bmanAmount * ((float) $pct['earning_percentage'] / 100),
+            'staking'  => $bmanAmount * ((float) $pct['staking_percentage'] / 100),
         ];
+        foreach ($shares as $wallet => $amount) {
+            if ($amount <= 0) continue;
+            list($ok) = $this->ledger->credit($userId, $wallet, $amount, 'stake_purchase', [
+                'reference_id' => $ref, 'tx_hash' => $bmanTxHash,
+                'description'  => ucfirst($wallet) . ' allocation ' . $amount . ' BMAN (order ' . $orderId . ')',
+            ]);
+            if (!$ok) { $this->db->trans_rollback(); log_message('error', "[StakingSwap] order {$orderId}: {$wallet} credit failed"); return; }
+        }
 
-        $this->db->insert('user_stakes', $staking_data);
+        // Bonus wallet: the 25% instant purchase bonus PLUS the distribution
+        // option's own bonus share of the principal, combined into ONE credit.
+        // Unlike StakingPurchasecron (which has separate bman_tx_hash/
+        // bonus_tx_hash for two distinct on-chain legs), this legacy Etherscan
+        // flow only ever observes a single combined BMAN transfer — crediting
+        // these as two separate ledger rows against the same tx_hash would
+        // collide with Walletledger_model::post()'s (tx_hash, wallet_type)
+        // idempotency guard, silently dropping the second one.
+        $bonusShare = $bmanAmount * ((float) $pct['bonus_percentage'] / 100);
+        $totalBonus = $bonusBman + $bonusShare;
+        if ($totalBonus > 0) {
+            $desc = $bonusBman > 0 && $bonusShare > 0
+                ? 'Staking bonus + Bonus allocation (order ' . $orderId . ')'
+                : ($bonusBman > 0 ? 'Staking bonus (order ' . $orderId . ')' : 'Bonus allocation ' . $bonusShare . ' BMAN (order ' . $orderId . ')');
+            list($okBonus) = $this->ledger->credit($userId, 'bonus', $totalBonus, 'stake_purchase', [
+                'reference_id' => $ref, 'tx_hash' => $bmanTxHash, 'description' => $desc,
+            ]);
+            if (!$okBonus) { $this->db->trans_rollback(); log_message('error', "[StakingSwap] order {$orderId}: bonus credit failed"); return; }
+        }
 
-        // Credit staking balance
-        $this->_creditStakingBalance($user_id, $bman_amount);
-    }
-
-    /**
-     * Credit BMAN exchange balance to user wallet
-     */
-    private function _creditBmanBalance($user_id, $amount)
-    {
-        // Update wallet balance
-        $this->db->where('user_id', $user_id)
-            ->set('exchange', "exchange + {$amount}", false)
-            ->update('wallet_ledger');
-    }
-
-    /**
-     * Credit BMAN staking balance
-     */
-    private function _creditStakingBalance($user_id, $amount)
-    {
-        $this->db->where('user_id', $user_id)
-            ->set('staking', "staking + {$amount}", false)
-            ->update('wallet_ledger');
+        if ($this->db->trans_status() === false) {
+            $this->db->trans_rollback();
+            log_message('error', "[StakingSwap] order {$orderId}: completion rolled back (DB error)");
+            return;
+        }
+        $this->db->trans_commit();
     }
 
     /**

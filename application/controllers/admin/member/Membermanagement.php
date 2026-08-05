@@ -729,7 +729,18 @@ class  Membermanagement extends CI_Controller {
             $duration = max(1, strtotime($row['maturity_date']) - strtotime($row['start_date']));
             $row['maturity_percent'] = min(100, max(0, ((time() - strtotime($row['start_date'])) / $duration) * 100));
         }
-        $this->_profileJson(['status' => true, 'data' => $rows]);
+
+        // Lock Wallet total for this member — a separate aggregate query (not a
+        // sum of the $rows above, which are capped at limit(100)) so a member
+        // with more than 100 stakes is still totalled correctly. Same "still
+        // locked" predicate as Staking_model::lockWalletBalance().
+        $lockedTotal = (float) ($this->db->select_sum('stake_amount', 's')
+            ->where('user_id', (int) $id)
+            ->where_in('status', ['active', 'processing'])
+            ->where('maturity_date >', date('Y-m-d'))
+            ->get('user_stakes')->row()->s ?: 0);
+
+        $this->_profileJson(['status' => true, 'summary' => ['locked_bman' => $lockedTotal], 'data' => $rows]);
     }
 
     public function profile_matching($id)
