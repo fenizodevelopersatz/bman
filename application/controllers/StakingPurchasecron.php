@@ -143,10 +143,17 @@ class StakingPurchasecron extends CI_Controller
     private function _isEnabled() { return (int)($this->_cfg()['swap_enabled'] ?? 0) === 1; }
     private function _minConfirmations() { $n = (int)($this->_cfg()['minimum_confirmations'] ?? 0); return $n > 0 ? $n : 12; }
 
-    /** BNB needed for one BEP-20 transfer (gas_limit × gas_price gwei × buffer). */
+    /**
+     * BNB needed for one BEP-20 transfer (gas_limit × gas_price gwei × buffer).
+     * This funds the USER's upcoming token-transfer broadcast (the usdt step),
+     * so it must read the 'token_transfer' profile — NOT 'gas_funding', which
+     * describes the treasury's OWN plain-value-transfer send that delivers
+     * this funding (21000 gas) and is a completely different, much cheaper
+     * transaction than the BEP-20 send it's paying for (210000 gas).
+     */
     private function _gasNeededBnb()
     {
-        $p = $this->gasSettings->resolve('gas_funding');
+        $p = $this->gasSettings->resolve('token_transfer');
         $gwei = $p['gas_price_gwei'];
         if ($gwei === null) { $cfg = $this->_cfg(); $gwei = (float)($cfg['gas_price'] ?: 5); }
         return $p['gas_limit'] * $gwei * 1e-9 * $p['buffer_multiplier'];
