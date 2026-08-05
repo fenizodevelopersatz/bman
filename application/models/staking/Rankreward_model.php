@@ -124,8 +124,9 @@ class Rankreward_model extends CI_Model
 
         $wallet = ($type === 'usdt') ? 'usdt' : 'earning';
         list($ok, $res) = $this->ledger->credit($user_id, $wallet, $amount, 'rank_reward', [
-            'reference_id' => $reward_id,
-            'description'  => $rank['name'] . ' rank reward',
+            'reference_id'  => $reward_id,
+            'description'   => $rank['name'] . ' rank reward',
+            'skip_maturity' => true,
         ]);
 
         if (!$ok) {

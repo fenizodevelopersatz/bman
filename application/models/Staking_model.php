@@ -855,8 +855,22 @@ class Staking_model extends CI_Model
             if (!$okB) { $this->db->trans_rollback(); return [false, 'Could not credit the Bonus wallet.']; }
         }
 
-        // 6e. ROI schedule → staking_roi_payouts (pending)
-        $this->_generateRoiSchedule($stakeId, $userId, $bman, $planCode, $years, $roi, $plan, $start, $maturity);
+        // 6e. ROI schedule — on the one real, scheduled system
+        // (roi_staking_management), linked via user_stakes_id since this path
+        // has no staking_swap_orders row. Previously wrote to
+        // staking_roi_payouts, whose only consumer is unreachable from any
+        // live schedule — that schedule looked correct but never paid.
+        $this->load->model('staking/StakingLifecycle_model', 'lifecycle');
+        $fixedPct   = $planCode === 'combo' ? (float)$roi['fixed']['roi_percent']   : ($planCode === 'fixed'   ? (float)$roi['roi_percent'] : 0);
+        $monthlyPct = $planCode === 'combo' ? (float)$roi['regular']['roi_percent'] : ($planCode === 'regular' ? (float)$roi['roi_percent'] : 0);
+        $this->lifecycle->createRoiRecord($ref, $userId, $planCode, [
+            'principal_amount' => $bman,
+            'fixed_percent'    => $fixedPct,
+            'monthly_percent'  => $monthlyPct,
+            'duration_years'   => $years,
+            'created_at'       => date('Y-m-d H:i:s'),
+            'maturity_date'    => $maturity,
+        ], null, $stakeId);
 
         // 6f. binary business volume (consumed by the rank / matching cron)
         if ($this->db->table_exists('binary_volume_ledger')) {
@@ -999,8 +1013,22 @@ class Staking_model extends CI_Model
             if (!$okB) { $this->db->trans_rollback(); return [false, 'Could not credit the Bonus wallet.']; }
         }
 
-        // 4. ROI schedule → staking_roi_payouts (pending).
-        $this->_generateRoiSchedule($stakeId, $userId, $bman, $planCode, $years, $roi, $plan, $start, $maturity);
+        // 4. ROI schedule — on the one real, scheduled system
+        // (roi_staking_management), linked via user_stakes_id since this path
+        // has no staking_swap_orders row. Previously wrote to
+        // staking_roi_payouts, whose only consumer is unreachable from any
+        // live schedule — that schedule looked correct but never paid.
+        $this->load->model('staking/StakingLifecycle_model', 'lifecycle');
+        $fixedPct   = $planCode === 'combo' ? (float)$roi['fixed']['roi_percent']   : ($planCode === 'fixed'   ? (float)$roi['roi_percent'] : 0);
+        $monthlyPct = $planCode === 'combo' ? (float)$roi['regular']['roi_percent'] : ($planCode === 'regular' ? (float)$roi['roi_percent'] : 0);
+        $this->lifecycle->createRoiRecord($ref, $userId, $planCode, [
+            'principal_amount' => $bman,
+            'fixed_percent'    => $fixedPct,
+            'monthly_percent'  => $monthlyPct,
+            'duration_years'   => $years,
+            'created_at'       => date('Y-m-d H:i:s'),
+            'maturity_date'    => $maturity,
+        ], null, $stakeId);
 
         // 5. binary business volume (consumed by the rank / matching cron).
         if ($this->db->table_exists('binary_volume_ledger')) {

@@ -101,7 +101,7 @@ class RoiStakingManagement_model extends CI_Model
         }
 
         $recordData = [
-            'staking_swap_orders_id' => $stakingOrderId,
+            'staking_swap_orders_id' => $stakingOrderId ?: null,
             'user_id' => $userId,
             'ref' => $orderRef . '-ROI',
             'plan_type' => $planType,

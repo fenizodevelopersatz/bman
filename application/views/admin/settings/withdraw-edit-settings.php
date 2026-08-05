@@ -252,6 +252,21 @@
                                <?php endforeach; ?>
 
                                <div class="row mb-6">
+                               <label class="col-lg-4 col-form-label fw-semibold fs-6">Staking Maturity Release Wallet</label>
+                               <div class="col-lg-8 fv-row">
+                               <select name="maturity_release_wallet" class="form-select form-select-lg form-select-solid">
+                                   <?php
+                                   $releaseOptions = ['exchange' => 'Exchange Wallet', 'earning' => 'Earning Wallet', 'staking' => 'Staking Wallet'];
+                                   $currentRelease = $maturity_release_wallet ?? 'exchange';
+                                   foreach ($releaseOptions as $rk => $rl): ?>
+                                   <option value="<?= $rk; ?>" <?= $currentRelease === $rk ? 'selected' : ''; ?>><?= $rl; ?></option>
+                                   <?php endforeach; ?>
+                               </select>
+                               <small class="text-muted">Where a matured staking principal is credited when a lock period ends.</small>
+                               </div>
+                               </div>
+
+                               <div class="row mb-6">
                                <label class="col-lg-4 col-form-label fw-semibold fs-6">Withdraw Daily Limit <span class="text-danger"> * </span></label>
                                <div class="col-lg-8 fv-row">
                                <div class="input-group mb-5">

@@ -419,9 +419,8 @@ class StakingPurchasecron extends CI_Controller
      * status once confirmed, so staking_swap_orders' 4-column schema and
      * _checkAndCompleteOrder()'s "all 4 cron_status === 1" check need no
      * changes. Defensive: never overwrites an already-set bonus_tx_hash —
-     * kept as a pure safety net (e.g. a future manual DB fix) even though
-     * Swapengine_model::deliverBman() no longer writes this column directly;
-     * it only ever sets bman_tx_hash now and lets this mirror follow it.
+     * the legacy Swapengine_model::deliverBman() admin path can independently
+     * set this column; if it ever races in first, its real hash must win.
      */
     private function _stepBonus(&$order, $head)
     {
@@ -475,9 +474,29 @@ class StakingPurchasecron extends CI_Controller
                         : null; // null → _credit()'s default wording is fine for the common case
                     $this->_credit($order, 'bonus', $totalBonus, $order['bman_tx_hash'], $desc);
                 }
-                foreach (['exchange', 'earning', 'staking'] as $wallet) {
-                    $amount = $this->_walletShare($order, $wallet);
-                    if ($amount > 0) $this->_credit($order, $wallet, $amount, $order['bman_tx_hash']);
+                // Principal: whatever the distribution option would have split
+                // across Exchange/Earning/Staking now folds into ONE locked
+                // credit, tagged to this stake's own maturity date — not three
+                // separate, immediately-spendable credits. The stake row
+                // already exists (Lendingcontroller::swap_purchase() created
+                // it, status='processing') for any order submitted after this
+                // shipped; fall back to computing the maturity date fresh for
+                // an order that was already in flight when this deployed.
+                $principal = $this->_walletShare($order, 'exchange')
+                           + $this->_walletShare($order, 'earning')
+                           + $this->_walletShare($order, 'staking');
+                if ($principal > 0) {
+                    $stakeRow = $this->db->select('maturity_date')->where('swap_order_id', (int)$order['id'])
+                                         ->get('user_stakes')->row_array();
+                    $maturityDate = $stakeRow
+                        ? date('Y-m-d H:i:s', strtotime($stakeRow['maturity_date']))
+                        : date('Y-m-d H:i:s', strtotime('+' . (int)($order['duration_years'] ?: 1) . ' years'));
+                    $this->load->model('staking/StakingLifecycle_model', 'lifecycle');
+                    $this->lifecycle->creditLockedPrincipal((int)$order['user_id'], $principal, $maturityDate, [
+                        'tx_hash'      => $order['bman_tx_hash'],
+                        'reference_id' => $order['ref'] ?? ('ORDER-' . $order['id']),
+                        'description'  => 'Locked principal ' . $principal . ' BMAN (order ' . $order['id'] . ')',
+                    ]);
                 }
                 $this->_setOrder($order, ['bman_cron_status' => 1, 'bman_cron_status_message' => null]);
 
@@ -606,34 +625,34 @@ class StakingPurchasecron extends CI_Controller
     }
 
     /** Percentage of the PRINCIPAL for a wallet, per coin_distribution_option. */
+    /** Reads coin_distribution_options live — this used to be a hardcoded
+     *  mirror of that table, so an admin edit to the percentages silently had
+     *  no effect on this cron even though restakeFromWallets() and the
+     *  matching Etherscan-flow model both already read it live. */
     private function _walletShare(&$order, $wallet)
     {
-        $pct = [
-            1 => ['exchange' => 100, 'earning' => 0,  'staking' => 0,  'bonus' => 0],
-            2 => ['exchange' => 90,  'earning' => 0,  'staking' => 0,  'bonus' => 10],
-            3 => ['exchange' => 80,  'earning' => 10, 'staking' => 0,  'bonus' => 10],
-            4 => ['exchange' => 80,  'earning' => 10, 'staking' => 10, 'bonus' => 0],
-            5 => ['exchange' => 90,  'earning' => 10, 'staking' => 0,  'bonus' => 0],
-            6 => ['exchange' => 90,  'earning' => 0,  'staking' => 10, 'bonus' => 0],
-            7 => ['exchange' => 70,  'earning' => 10, 'staking' => 10, 'bonus' => 10],
-        ];
         $opt = (int)($order['coin_distribution_option'] ?? 1);
-        $row = $pct[$opt] ?? $pct[1];
-        return (float)$order['bman_amount'] * (($row[$wallet] ?? 0) / 100);
+        $row = $this->db->select('exchange_percentage, earning_percentage, staking_percentage, bonus_percentage')
+                        ->get_where('coin_distribution_options', ['id' => $opt])->row_array();
+        if (!$row) $row = ['exchange_percentage' => 100, 'earning_percentage' => 0, 'staking_percentage' => 0, 'bonus_percentage' => 0];
+        $pct = (float)($row[$wallet . '_percentage'] ?? 0);
+        return (float)$order['bman_amount'] * ($pct / 100);
     }
 
     /** Credit a wallet through the canonical ledger (idempotent on tx_hash+wallet_type). */
     private function _credit(&$order, $wallet, $amount, $tx_hash, $desc = null)
     {
         if ($amount <= 0) return;
-        list($ok, $info) = $this->L->credit(
-            (int)$order['user_id'], $wallet, $amount, 'stake_purchase',
-            [
-                'tx_hash'      => $tx_hash ?: null,
-                'reference_id' => $order['ref'] ?? ('ORDER-' . $order['id']),
-                'description'  => $desc ?? (ucfirst($wallet) . ' allocation ' . $amount . ' BMAN (order ' . $order['id'] . ')'),
-            ]
-        );
+        $opts = [
+            'tx_hash'      => $tx_hash ?: null,
+            'reference_id' => $order['ref'] ?? ('ORDER-' . $order['id']),
+            'description'  => $desc ?? (ucfirst($wallet) . ' allocation ' . $amount . ' BMAN (order ' . $order['id'] . ')'),
+        ];
+        // Bonus-wallet credits here are always bonus money (instant 25% package
+        // bonus plus any distribution-option bonus share, never principal) — never
+        // maturity-locked, regardless of the platform-wide bonus wallet default.
+        if ($wallet === 'bonus') $opts['skip_maturity'] = true;
+        list($ok, $info) = $this->L->credit((int)$order['user_id'], $wallet, $amount, 'stake_purchase', $opts);
         if (!$ok) log_message('error', $this->log_prefix . " ledger credit FAILED $wallet user {$order['user_id']}: $info");
         else      log_message('info',  $this->log_prefix . " credited $wallet (+$amount BMAN) user {$order['user_id']} [$info]");
     }
@@ -673,9 +692,33 @@ class StakingPurchasecron extends CI_Controller
              && (int)$order['bonus_cron_status'] === 1 && (int)$order['bman_cron_status'] === 1;
         if (!$done || $order['status'] === 'swap_completed') return;
 
-        // Activate the stake once (idempotent on swap_order_id). ROI terms live in
-        // roi_staking_management (created at purchase); mirror them into user_stakes.
-        if ((int)$this->db->where('swap_order_id', (int)$order['id'])->count_all_results('user_stakes') === 0) {
+        $existing = $this->db->where('swap_order_id', (int)$order['id'])->get('user_stakes')->row_array();
+
+        if ($existing && (string)$existing['status'] === 'processing') {
+            // Normal path: Lendingcontroller::swap_purchase() already created
+            // this row at submission time (status='processing', linked via
+            // user_stakes_id on its roi_staking_management row) — just
+            // activate it. Idempotent: only ever matches a still-'processing'
+            // row, so a retry after this already ran finds nothing here.
+            $isSpecial = 0;
+            if ($this->db->field_exists('is_special', 'staking_packages')) {
+                $pkg = $this->db->select('is_special')->get_where('staking_packages', ['id' => (int)$existing['package_id']])->row_array();
+                $isSpecial = (int)($pkg['is_special'] ?? 0);
+            }
+            $this->db->where('id', $existing['id'])->update('user_stakes', [
+                'status'       => 'active',
+                'is_special'   => $isSpecial,
+                'tx_hash'      => $order['bman_tx_hash'] ?? null,
+                'network'      => $this->_cfg()['network'] ?? 'mainnet',
+                'chain_status' => 'confirmed',
+            ]);
+            $this->db->where('user_stakes_id', $existing['id'])->update('roi_staking_management', ['overall_status' => 'active']);
+        } elseif (!$existing) {
+            // Fallback only: an order whose swap_purchase() ran before this
+            // change shipped, so no 'processing' row was ever created for it.
+            // Preserves the exact original insert-on-completion behavior so
+            // any such order still completes correctly. ROI terms live in
+            // roi_staking_management (created at purchase); mirror them here.
             $roi = $this->db->where('staking_swap_orders_id', (int)$order['id'])
                             ->get('roi_staking_management')->row_array();
             $planCode = in_array((string)($order['plan_code'] ?? ''), ['fixed', 'regular', 'combo'], true)
@@ -709,6 +752,7 @@ class StakingPurchasecron extends CI_Controller
             ]);
             if ($roi) $this->db->where('id', $roi['id'])->update('roi_staking_management', ['overall_status' => 'active']);
         }
+        // else: $existing is already active/matured/etc — already handled, nothing to do.
 
         $this->_setOrder($order, ['status' => 'swap_completed', 'cron_status' => 'completed']);
         log_message('info', $this->log_prefix . " order {$order['id']} COMPLETED — stake activated.");

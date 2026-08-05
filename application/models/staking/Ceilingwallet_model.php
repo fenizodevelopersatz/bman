@@ -95,9 +95,10 @@ class Ceilingwallet_model extends CI_Model
         if ($creditWallet) {
             $this->load->model('Walletledger_model', 'L');
             list($cok, $cmsg) = $this->L->credit($user_id, $creditWallet, $amount, 'ceiling_release', [
-                'reference_id' => $opts['reference_id'] ?? null,
-                'description'  => $opts['description'] ?? 'Ceiling wallet release',
-                'created_by'   => $opts['created_by'] ?? null,
+                'reference_id'  => $opts['reference_id'] ?? null,
+                'description'   => $opts['description'] ?? 'Ceiling wallet release',
+                'created_by'    => $opts['created_by'] ?? null,
+                'skip_maturity' => true,
             ]);
             if (!$cok) { $this->db->trans_rollback(); return [false, $cmsg]; }
         }

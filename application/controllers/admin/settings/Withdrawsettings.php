@@ -25,6 +25,7 @@ class  Withdrawsettings extends CI_Controller {
 
         $this->load->model('settings/Payment_model');
         $this->load->model('WalletMaturity_model', 'maturity');
+        $this->load->model('staking/StakingLifecycle_model', 'lifecycle');
     }
 
     private function _adminId()
@@ -65,6 +66,7 @@ class  Withdrawsettings extends CI_Controller {
         $this->data['maturity_days_earning'] = site_settings('wallet_maturity_settings','maturity_days_earning');
         $this->data['maturity_days_staking'] = site_settings('wallet_maturity_settings','maturity_days_staking');
         $this->data['maturity_days_bonus'] = site_settings('wallet_maturity_settings','maturity_days_bonus');
+        $this->data['maturity_release_wallet'] = $this->lifecycle->maturityReleaseWallet();
 
         $this->data['currency_info'] = currency_info();
         $this->data['token_info'] = token_info();
@@ -177,6 +179,9 @@ class  Withdrawsettings extends CI_Controller {
                     'maturity_days_staking'  => $this->input->post('maturity_days_staking'),
                     'maturity_days_bonus'    => $this->input->post('maturity_days_bonus'),
                 ]);
+
+                $releaseWallet = $this->input->post('maturity_release_wallet');
+                if ($releaseWallet) $this->lifecycle->saveMaturityReleaseWallet($releaseWallet);
 
                 echo json_encode(['status' => true, 'message' => "withdraw Settings update successfully"]);
                 exit;

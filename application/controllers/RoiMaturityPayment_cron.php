@@ -23,6 +23,7 @@ class RoiMaturityPayment_cron extends CI_Controller
         parent::__construct();
         $this->load->model('Walletledger_model', 'L');
         $this->load->model('Tokenmaster_model', 'tokens');
+        $this->load->model('staking/StakingLifecycle_model', 'lifecycle');
         $this->load->library('web3bman');
     }
 
@@ -101,27 +102,41 @@ class RoiMaturityPayment_cron extends CI_Controller
             $paidLump   = $fixedAmt;
         }
 
-        // 2) return PRINCIPAL -> staking wallet
-        //
-        // NOT always the full principal. For COMBO only the REGULAR half comes
-        // back: the fixed half's payout is gross (principal x fixed% = 4x your
-        // money, principal included), so returning it again would pay that half
-        // twice. principal_return_amount holds the right figure per plan —
-        // fixed/regular still return the whole stake.
-        //
-        // COALESCE keeps rows written before the split migration working: they
-        // have principal_return_amount = 0, so they fall back to the full
-        // principal, which is exactly what they were priced for.
-        $principalReturn = (float)($r['principal_return_amount'] ?? 0);
-        if ($principalReturn <= 0) $principalReturn = $principal;
+        // 2) return PRINCIPAL — only for stakes using the new locked-at-purchase
+        // model (principal_release_mode='credited_at_maturity'). A legacy
+        // stake already received its full principal immediately at purchase
+        // time, untagged — crediting it again here would double-pay it; that
+        // was a live, confirmed bug before this check existed. The stake may
+        // not yet be linked via user_stakes_id (rows created before this
+        // refactor shipped) — fall back to the original staking_swap_orders_id
+        // relationship for those.
+        $stake = null;
+        if (!empty($r['user_stakes_id'])) {
+            $stake = $this->db->get_where('user_stakes', ['id' => (int)$r['user_stakes_id']])->row_array();
+        } elseif (!empty($r['staking_swap_orders_id'])) {
+            $stake = $this->db->get_where('user_stakes', ['swap_order_id' => (int)$r['staking_swap_orders_id']])->row_array();
+        }
 
-        $txP = 'ROI-' . $r['ref'] . '-PRINCIPAL';
-        list($okP, $infoP) = $this->L->credit($uid, 'staking', $principalReturn, 'stake_maturity', [
-            'tx_hash' => $txP, 'reference_id' => $r['ref'],
-            'description' => "Principal returned {$principalReturn} BMAN at maturity (order {$r['staking_swap_orders_id']})",
-        ]);
-        if (!$okP) throw new RuntimeException('principal return failed: ' . $infoP);
-        $this->_recordOnchain($r, $txP, $principalReturn, 'principal_return', 'staking');
+        if ($stake && $stake['principal_release_mode'] === 'credited_at_maturity') {
+            // NOT always the full principal. For COMBO only the REGULAR half
+            // comes back: the fixed half's payout is gross (principal x
+            // fixed% = 4x your money, principal included), so returning it
+            // again would pay that half twice. principal_return_amount holds
+            // the right figure per plan — fixed/regular still return the
+            // whole stake. COALESCE keeps rows written before the split
+            // migration working: they have principal_return_amount = 0, so
+            // they fall back to the full principal, which is exactly what
+            // they were priced for.
+            $principalReturn = (float)($r['principal_return_amount'] ?? 0);
+            if ($principalReturn <= 0) $principalReturn = $principal;
+
+            $txP = 'ROI-' . $r['ref'] . '-PRINCIPAL';
+            list($okP, $infoP) = $this->lifecycle->releaseMaturedPrincipal($uid, (int)$stake['id'], $principalReturn, $r['ref']);
+            if (!$okP) throw new RuntimeException('principal release failed: ' . $infoP);
+            $this->_recordOnchain($r, $txP, $principalReturn, 'principal_return', $this->lifecycle->maturityReleaseWallet());
+        } else {
+            log_message('info', "[ROI_MATURITY] record {$r['id']}: principal already credited at purchase (legacy model) — skipping release to avoid double-crediting.");
+        }
 
         // 3) finalize record — fixed_tx_hash was already persisted (real or dry-run)
         //    at send time above; do not overwrite it here.

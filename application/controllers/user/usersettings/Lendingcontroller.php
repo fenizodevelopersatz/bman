@@ -300,15 +300,39 @@ class Lendingcontroller extends CI_Controller
                 error_log('WARNING: Failed to update staking order '.$res['id'].' with plan details');
             }
 
-            // ✅ Create ROI Staking Management record. One engine for every
-            // package now — the special-badged ones included.
+            // Create the stake record NOW, status='processing' — visible in the
+            // Lock Wallet total and portfolio immediately, before the on-chain
+            // BMAN transfer even broadcasts. StakingPurchasecron's own
+            // _checkAndCompleteOrder() flips this to 'active' once all four
+            // legs confirm; it never inserts a fresh row for orders created
+            // this way. principal_amount/maturity_date are already final here
+            // (Swapengine_model::execute() prices bman_amount off the
+            // package's fixed face value — no market-rate drift on the BMAN
+            // side), so there is no reconciliation risk in creating this early.
             try {
-                $this->load->model('RoiStakingManagement_model', 'roi_mgmt');
-                $roiRecordId = $this->roi_mgmt->createROIRecord(
-                    $res['id'],
-                    $userId,
-                    'ORDER-' . $res['id'],
-                    $planType,
+                $insertData = [
+                    'user_id' => $userId, 'package_id' => $packageId, 'plan_id' => $planId,
+                    'plan_code' => $planCode, 'duration_years' => $durationYears,
+                    'stake_amount' => $bmanAmount, 'roi_percent' => $roiRate,
+                    'roi_basis' => $planCode === 'fixed' ? 'total' : 'monthly',
+                    'bonus_amount' => (float)($res['bonus_bman'] ?? 0),
+                    'distribution_option_id' => $coinDistOptionId,
+                    'start_date' => date('Y-m-d', strtotime($createdAt)),
+                    'maturity_date' => date('Y-m-d', strtotime($maturityDate)),
+                    'status' => 'processing', 'chain_status' => 'pending',
+                    'swap_order_id' => (int)$res['id'], 'created_at' => date('Y-m-d H:i:s'),
+                ];
+                $this->db->insert('user_stakes', $insertData);
+                $stakeId = (int)$this->db->insert_id();
+
+                // ROI schedule, on the one real, scheduled system
+                // (roi_staking_management) — linked to BOTH the swap order
+                // (existing relationship, unchanged) and the stake row
+                // (new — lets the maturity cron key off user_stakes_id
+                // regardless of which purchase path created the stake).
+                $this->load->model('staking/StakingLifecycle_model', 'lifecycle');
+                $roiRecordId = $this->lifecycle->createRoiRecord(
+                    'ORDER-' . $res['id'], $userId, $planType,
                     [
                         'principal_amount' => $bmanAmount,
                         'roi_rate_percent' => $roiRate,
@@ -317,16 +341,16 @@ class Lendingcontroller extends CI_Controller
                         'duration_years'   => $durationYears,
                         'created_at'       => $createdAt,
                         'maturity_date'    => $maturityDate,
-                    ]
+                    ],
+                    $res['id'], $stakeId ?: null
                 );
 
-                // Store the ROI staking management ID in the staking order
                 if ($roiRecordId) {
                     $this->db->where('id', $res['id'])
                              ->update('staking_swap_orders', ['roi_staking_management_id' => $roiRecordId]);
                 }
             } catch (Exception $e) {
-                error_log('ERROR creating ROI record: ' . $e->getMessage());
+                error_log('ERROR creating stake / ROI record: ' . $e->getMessage());
             }
         }
 

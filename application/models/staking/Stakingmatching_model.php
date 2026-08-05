@@ -184,15 +184,17 @@ class Stakingmatching_model extends CI_Model
             $this->db->trans_begin();
             if ($payEarn > 0) {
                 list($ok1) = $this->L->credit($uid, 'earning', $payEarn, 'binary_matching', [
-                    'reference_id' => $runRef,
-                    'description'  => 'Binary matching '.$earningPct.'% on '.number_format($match).' matched BV',
+                    'reference_id'  => $runRef,
+                    'description'   => 'Binary matching '.$earningPct.'% on '.number_format($match).' matched BV',
+                    'skip_maturity' => true,
                 ]);
                 if (!$ok1) { $this->db->trans_rollback(); continue; }
             }
             if ($payStk > 0) {
                 list($ok2) = $this->L->credit($uid, 'staking', $payStk, 'binary_matching', [
-                    'reference_id' => $runRef,
-                    'description'  => 'Binary matching '.$stakingPct.'% on '.number_format($match).' matched BV',
+                    'reference_id'  => $runRef,
+                    'description'   => 'Binary matching '.$stakingPct.'% on '.number_format($match).' matched BV',
+                    'skip_maturity' => true,
                 ]);
                 if (!$ok2) { $this->db->trans_rollback(); continue; }
             }
