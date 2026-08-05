@@ -15,6 +15,8 @@ class Gasfeepage extends CI_Controller
         $this->load->helper(['url', 'security']);
         $this->load->model('Admin_model');
         $this->load->model('GasFeeTx_model', 'gas');
+        $this->load->model('GasFeeSettings_model', 'gasSettings');
+        $this->load->model('GasFeeLedger_model', 'gasLedger');
 
         if (!$this->session->userdata('admin_logged_in')) {
             redirect('admin/login');
@@ -34,6 +36,49 @@ class Gasfeepage extends CI_Controller
         $this->output->set_status_header($code)
                      ->set_content_type('application/json')
                      ->set_output(json_encode($data));
+    }
+
+    private function _adminId()
+    {
+        return (int) $this->session->userdata('admin_userid');
+    }
+
+    /* ------------------------- Gas Fee Settings (policy) ------------------------- */
+
+    public function settings()
+    {
+        $data['title']       = 'Gas Fee Settings';
+        $data['policies']    = $this->gasSettings->all();
+        $data['total_spent'] = $this->gasLedger->totalNativeSpent();
+        $this->load->view('admin/wallet/gas_fee_settings', $data);
+    }
+
+    public function save_settings()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+
+        $gwei = $this->input->post('gas_price_gwei', true);
+        $fields = [
+            'gas_limit'         => (int) $this->input->post('gas_limit'),
+            'gas_price_gwei'    => ($gwei !== null && $gwei !== '') ? (float) $gwei : null,
+            'buffer_multiplier' => (float) $this->input->post('buffer_multiplier'),
+            'is_active'         => $this->input->post('is_active') ? 1 : 0,
+        ];
+        $ok = $this->gasSettings->save((int) $this->input->post('id'), $fields, $this->_adminId());
+        $this->_json(['status' => (bool) $ok, 'message' => $ok ? 'Saved.' : 'Policy not found.']);
+    }
+
+    /** AJAX: recent gas_fee_settings changes (module-scoped slice of the generic admin_settings_audit trail). */
+    public function settings_audit()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $rows = $this->db->select('a.*, adm.admin_name')
+                          ->from('admin_settings_audit a')
+                          ->join('admin_members adm', 'adm.id = a.changed_by', 'left')
+                          ->where('a.module', 'gas_fee_settings')
+                          ->order_by('a.created_at', 'DESC')->limit(200)
+                          ->get()->result_array();
+        $this->_json(['status' => true, 'rows' => $rows]);
     }
 
     /* ----------------------------- page ------------------------------ */

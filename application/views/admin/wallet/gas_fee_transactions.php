@@ -108,6 +108,9 @@
                             </div>
                         </div>
                         <div class="card-toolbar gap-2">
+                            <a href="<?php echo base_url('admin/finance/gas-fee-settings'); ?>" class="btn btn-sm btn-light-warning">
+                                <i class="ki-duotone ki-setting-2 fs-4"><span class="path1"></span><span class="path2"></span></i> Gas Policy
+                            </a>
                             <button class="btn btn-sm btn-light-primary" id="gf-filter-toggle">
                                 <i class="ki-duotone ki-filter fs-4"><span class="path1"></span><span class="path2"></span></i> Filters
                             </button>

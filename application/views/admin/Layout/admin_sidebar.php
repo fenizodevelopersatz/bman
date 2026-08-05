@@ -232,12 +232,12 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                         </a>
                       </div> -->
 
-                        <div class="menu-item">
+                        <!-- <div class="menu-item">
                           <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet-monitor">
                             <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                               class="menu-title">Wallet Monitor</span>
                           </a>
-                        </div>
+                        </div> -->
                     </div>
                   </div>
                 </div>

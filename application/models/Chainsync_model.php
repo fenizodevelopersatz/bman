@@ -34,6 +34,7 @@ class Chainsync_model extends CI_Model
     {
         parent::__construct();
         $this->load->model('Onchaintx_model', 'octx');
+        $this->load->model('GasFeeLedger_model', 'gasLedger');
     }
 
     private function cfg()
@@ -172,6 +173,20 @@ class Chainsync_model extends CI_Model
         if ($status === 'confirmed' && empty($row['finalized_at'])) $fields['finalized_at'] = date('Y-m-d H:i:s');
 
         $this->db->where('id', $row['id'])->update('onchain_transactions', $fields);
+
+        // Mirror the same real gas numbers into gas_fee_ledger, if this row
+        // has a linked entry (only StakingPurchasecron's broadcasts create
+        // one today). Only once the platform itself considers the tx
+        // 'confirmed' — gasUsed/gasPrice are already final the moment the tx
+        // is mined, but gas_fee_ledger's own 'confirmed' status should mean
+        // exactly what onchain_transactions' does, not "mined but not yet
+        // past minimum_confirmations".
+        if ($status === 'confirmed') {
+            $ledgerRow = $this->gasLedger->findByOnchainTxId($row['id']);
+            if ($ledgerRow) {
+                $this->gasLedger->recordConfirmed($ledgerRow['tx_hash'], $gasUsed, $gasPrice, $fields['gas_fee_total']);
+            }
+        }
 
         // audit event with the RPC endpoint that produced the change
         if ((string)$row['status'] !== $status || $reorg) {

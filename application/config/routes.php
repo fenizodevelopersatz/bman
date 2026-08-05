@@ -103,6 +103,9 @@ $route['admin/finance/gas-fee-transactions/list'] = 'admin/wallet/Gasfeepage/lis
 $route['admin/finance/gas-fee-transactions/live-gas'] = 'admin/wallet/Gasfeepage/live_gas';
 $route['admin/finance/gas-fee-transactions/stats'] = 'admin/wallet/Gasfeepage/stats';
 $route['admin/finance/gas-fee-transactions/export/(:any)'] = 'admin/wallet/Gasfeepage/export/$1';
+$route['admin/finance/gas-fee-settings'] = 'admin/wallet/Gasfeepage/settings';
+$route['admin/finance/gas-fee-settings/save'] = 'admin/wallet/Gasfeepage/save_settings';
+$route['admin/finance/gas-fee-settings/audit'] = 'admin/wallet/Gasfeepage/settings_audit';
 
 
 

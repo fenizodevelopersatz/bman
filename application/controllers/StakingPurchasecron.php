@@ -61,6 +61,8 @@ class StakingPurchasecron extends CI_Controller
         $this->load->model('Walletledger_model', 'L');
         $this->load->model('Tokenmaster_model', 'tokens');
         $this->load->model('member/StakingBonusIntegration_model', 'bonus_integration');
+        $this->load->model('GasFeeSettings_model', 'gasSettings');
+        $this->load->model('GasFeeLedger_model', 'gasLedger');
         $this->load->library('web3bman');
 
         $watch = is_cli() && $mode === 'watch';
@@ -141,13 +143,13 @@ class StakingPurchasecron extends CI_Controller
     private function _isEnabled() { return (int)($this->_cfg()['swap_enabled'] ?? 0) === 1; }
     private function _minConfirmations() { $n = (int)($this->_cfg()['minimum_confirmations'] ?? 0); return $n > 0 ? $n : 12; }
 
-    /** BNB needed for one BEP-20 transfer (gas_limit × gas_price gwei × 1.5 buffer). */
+    /** BNB needed for one BEP-20 transfer (gas_limit × gas_price gwei × buffer). */
     private function _gasNeededBnb()
     {
-        $cfg = $this->_cfg();
-        $gasLimit = (float)($cfg['gas_limit'] ?: 210000);
-        $gwei     = (float)($cfg['gas_price'] ?: 5);
-        return $gasLimit * $gwei * 1e-9 * 1.5;
+        $p = $this->gasSettings->resolve('gas_funding');
+        $gwei = $p['gas_price_gwei'];
+        if ($gwei === null) { $cfg = $this->_cfg(); $gwei = (float)($cfg['gas_price'] ?: 5); }
+        return $p['gas_limit'] * $gwei * 1e-9 * $p['buffer_multiplier'];
     }
 
     private function _apiUrl(array $params)
@@ -341,6 +343,8 @@ class StakingPurchasecron extends CI_Controller
         // Already broadcast → verify confirmations
         if (!empty($order['gas_tx_hash'])) {
             return $this->_verifyLeg($order, 'gas', $order['gas_tx_hash'], $head, function () use (&$order) {
+                $this->_recordOnchain($order, $order['gas_tx_hash'], $order['admin_address'] ?? null, $order['user_address'] ?? null,
+                    $this->_gasNeededBnb() * 2, 'gas_funding', 'gas');
                 $this->_setOrder($order, ['gas_cron_status' => 1, 'gas_cron_status_message' => null, 'status' => 'pending_usdt']);
             });
         }
@@ -524,6 +528,19 @@ class StakingPurchasecron extends CI_Controller
             $this->_setOrder($order, [$hashCol => $hash, $step . '_cron_status_message' => 'Broadcast sent, awaiting confirmations']);
             log_message('info', $this->log_prefix . " $step BROADCAST order {$order['id']}: $hash");
 
+            // Gas fee ledger: every leg broadcasts a real transaction that
+            // consumes real gas, not only the leg literally named "gas".
+            // 'gas' = native BNB send (treasury→user); usdt/bonus/bman = BEP-20
+            // token sends — two different gas profiles, same tracking record.
+            $policy = $this->gasSettings->resolve($step === 'gas' ? 'gas_funding' : 'token_transfer');
+            $fromTo = ($step === 'usdt')
+                ? [$order['user_address'] ?? null, $order['admin_address'] ?? null]
+                : [$order['admin_address'] ?? null, $order['user_address'] ?? null];
+            $this->gasLedger->recordBroadcast(
+                $step, 'stake_purchase', $order['ref'] ?? ('ORDER-' . $order['id']), $order['user_id'],
+                $hash, $fromTo[0], $fromTo[1], $policy
+            );
+
             // In dry-run the hash "confirms" instantly — process it in the same run.
             if ($this->_isDryRun()) {
                 switch ($step) {
@@ -590,7 +607,16 @@ class StakingPurchasecron extends CI_Controller
         else      log_message('info',  $this->log_prefix . " credited $wallet (+$amount BMAN) user {$order['user_id']} [$info]");
     }
 
-    /** Append an audit row to onchain_transactions (history only). */
+    /**
+     * Append an audit row to onchain_transactions. Inserted as 'processing'
+     * (NOT 'confirmed', even though this cron's own polling already saw
+     * enough confirmations) so Chainsync_model::finalizeConfirmations()'s
+     * sweep (WHERE status IN ('pending','processing','broadcasting')) picks
+     * this row up on its next pass and backfills the REAL gas_used/gas_price/
+     * gas_fee_total from the actual receipt — this cron never computes those
+     * itself. Safe: the chain only moves forward, so Chainsync_model will see
+     * at least as many confirmations moments later and settle to 'confirmed'.
+     */
     private function _recordOnchain(&$order, $hash, $from, $to, $amount, $txType, $walletType)
     {
         if ($hash) {
@@ -598,12 +624,16 @@ class StakingPurchasecron extends CI_Controller
             if ($dupe > 0) return;
         }
         $this->db->insert('onchain_transactions', [
-            'tx_hash' => $hash, 'wallet_type' => $walletType, 'tx_type' => $txType, 'status' => 'confirmed',
+            'tx_hash' => $hash, 'wallet_type' => $walletType, 'tx_type' => $txType, 'status' => 'processing',
             'from_address' => strtolower((string)$from), 'to_address' => strtolower((string)$to),
             'user_id' => $order['user_id'], 'amount' => $amount,
             'reference_type' => 'stake_purchase', 'reference_id' => $order['ref'] ?? ('ORDER-' . $order['id']),
             'created_at' => date('Y-m-d H:i:s'),
         ]);
+        $onchainId = (int) $this->db->insert_id();
+        if ($onchainId && $hash) {
+            $this->gasLedger->linkOnchainTx($hash, $onchainId);
+        }
     }
 
     private function _checkAndCompleteOrder(&$order)
