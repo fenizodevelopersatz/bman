@@ -158,6 +158,24 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
+                                <label class="form-label fs-8 text-muted">For (Transaction)</label>
+                                <select class="form-select form-select-sm" data-gf="reference_type">
+                                    <option value="">All</option>
+                                    <?php foreach ($options['reference_types'] as $rt): ?>
+                                    <option value="<?php echo htmlspecialchars($rt); ?>"><?php echo htmlspecialchars($reference_labels[$rt] ?? $rt); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label fs-8 text-muted">Gas Status</label>
+                                <select class="form-select form-select-sm" data-gf="has_gas">
+                                    <option value="">All</option>
+                                    <?php foreach ($options['has_gas'] as $val => $lbl): ?>
+                                    <option value="<?php echo htmlspecialchars($val); ?>"><?php echo htmlspecialchars($lbl); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
                                 <label class="form-label fs-8 text-muted">Date From</label>
                                 <input type="date" class="form-control form-control-sm" data-gf="date_from">
                             </div>
@@ -196,9 +214,9 @@
                                         <th>Tx Hash</th>
                                         <th>Date</th>
                                         <th>User</th>
+                                        <th>For (Transaction)</th>
                                         <th>Network</th>
-                                        <th>Type</th>
-                                        <th>Reference</th>
+                                        <th>Leg</th>
                                         <th class="text-end">Gas Used</th>
                                         <th class="text-end">Gas Price</th>
                                         <th class="text-end">Gas Fee</th>
@@ -250,7 +268,6 @@
 </div>
 
 <?php $this->load->view('admin/Layout/common_script'); ?>
-<script src="<?php echo base_url(); ?>/assets/admin/plugins/global/plugins.bundle.js"></script>
 <script>
 (function () {
     const base = '<?php echo base_url(); ?>';
@@ -260,15 +277,6 @@
 
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const short = (s, n = 10) => s ? (s.length > n + 6 ? esc(s.slice(0,n)) + '…' + esc(s.slice(-4)) : esc(s)) : '<span class="text-muted">—</span>';
-    // Reference IDs are usually short order refs (e.g. "SWP-20260805-48D6BAB1") but can
-    // be a full tx hash for imported rows — truncate only past a generous threshold so
-    // normal refs stay fully readable at a glance.
-    const refCell = (id, type) => {
-        if (!id) return '<span class="text-muted">—</span>';
-        const label = id.length > 26 ? esc(id.slice(0,18)) + '…' + esc(id.slice(-4)) : esc(id);
-        return `<span class="gf-mono" title="${esc(id)}">${label}</span>` +
-               (type ? `<div class="text-muted fs-9 text-uppercase">${esc(type)}</div>` : '');
-    };
     const fmtBnb = v => (v == null || v === '') ? '—' : Number(v).toFixed(8);
     const fmtGwei = v => (v == null || v === '') ? '—' : Number(v).toFixed(2);
     const fmtGasUsed = v => (v == null || v === '') ? '—' : Number(v).toLocaleString();
@@ -282,6 +290,33 @@
     function bnbBadge(v) {
         if (v == null || v === '') return '<span class="text-muted">—</span>';
         return `<span class="bnb-badge"><svg width="10" height="10" viewBox="0 0 32 32" fill="currentColor" style="margin-right:1px"><path d="M16 0l3.9 3.9-9.9 9.9L6.1 9.9 16 0z"/><path d="M25.9 9.9l3.9 3.9-3.9 3.9-3.9-3.9 3.9-3.9z"/><path d="M6.1 9.9L2.2 13.8l3.9 3.9 3.9-3.9-3.9-3.9z"/><path d="M16 0L6.1 9.9l3.9 3.9L16 7.8l5.9 5.9 3.9-3.9L16 0z"/><path d="M12.1 13.8L16 17.7l3.9-3.9-3.9-3.9-3.9 3.9z"/><path d="M16 24.2l-9.9-9.9-3.9 3.9L16 32l13.8-13.8-3.9-3.9-9.9 9.9z"/></svg>${fmtBnb(v)}</span>`;
+    }
+
+    /* Three real states, not two: a transaction can have a confirmed gas fee,
+       still be awaiting confirmation (pending/processing, no number yet), or
+       be a terminal transaction the platform never tracked gas for at all
+       (e.g. a user-paid swap leg detected from the chain, not broadcast by
+       the treasury) — collapsing the last two into one blank "—" is exactly
+       what made it impossible to tell "no gas" from "gas not confirmed yet". */
+    function gasCell(r) {
+        if (r.gas_fee_total != null && r.gas_fee_total !== '') return bnbBadge(r.gas_fee_total);
+        if (['pending', 'processing'].includes(r.status)) {
+            return '<span class="badge badge-light-warning fs-8" title="Broadcast, awaiting on-chain confirmation">Pending</span>';
+        }
+        if (['failed', 'reverted', 'cancelled'].includes(r.status)) {
+            return '<span class="text-muted fs-8" title="Transaction did not confirm">—</span>';
+        }
+        return '<span class="text-muted fs-8" title="Confirmed, but gas was not tracked for this leg (e.g. a user-paid transaction the platform did not broadcast)">Not tracked</span>';
+    }
+
+    /* Which real business transaction (order/purchase/deposit/etc.) this gas
+       fee belongs to — resolved server-side via WalletTracker_model so the
+       label matches the All Transactions page. */
+    function sourceCell(r) {
+        if (!r.reference_label) return '<span class="text-muted fs-8">—</span>';
+        const ref = r.source && (r.source.ref || r.source.request_no || r.source.run_ref);
+        return `<div class="fs-8 fw-bold">${esc(r.reference_label)}</div>` +
+            (ref ? `<div class="fs-9 text-muted gf-mono">${esc(ref)}</div>` : '');
     }
 
     function filters() {
@@ -326,12 +361,12 @@
                     <td>${txCell}</td>
                     <td class="text-muted fs-8">${esc((r.created_at||'').slice(0,16))}</td>
                     <td><span class="badge badge-light">#${esc(r.user_id)}</span>${r.username ? ` <span class="text-muted fs-9">${esc(r.username)}</span>` : ''}</td>
+                    <td>${sourceCell(r)}</td>
                     <td class="fs-8">${esc(r.network||'—')}</td>
                     <td class="fs-8">${esc(r.tx_type||'—')}</td>
-                    <td class="fs-8">${refCell(r.reference_id, r.reference_type)}</td>
                     <td class="text-end gf-mono fs-8">${fmtGasUsed(r.gas_used)}</td>
                     <td class="text-end gf-mono fs-8">${fmtGwei(r.gas_price_gwei)} <span class="text-muted fs-9">Gwei</span></td>
-                    <td class="text-end fw-bold">${bnbBadge(r.gas_fee_total)}</td>
+                    <td class="text-end fw-bold">${gasCell(r)}</td>
                     <td>${statusBadge(r.status)}</td>
                     <td class="text-end gf-mono fs-8">${r.block_number||'—'}</td>
                 </tr>`;
@@ -359,19 +394,32 @@
         h += kv('Date', esc(r.created_at));
         h += kv('User', `#${esc(r.user_id)} ${r.username ? esc(r.username) : ''}`);
         h += kv('Network', esc(r.network));
-        h += kv('Type', esc(r.tx_type));
-        h += kv('Reference', r.reference_id ? `<span class="gf-mono">${esc(r.reference_id)}</span>${r.reference_type ? ` <span class="text-muted fs-9 text-uppercase">${esc(r.reference_type)}</span>` : ''}` : null);
+        h += kv('Leg', esc(r.tx_type));
         h += kv('Status', statusBadge(r.status));
         h += kv('Block', esc(r.block_number));
         h += `<div class="fw-bold fs-8 text-uppercase text-muted mt-3 mb-1">Gas Details</div>`;
         h += kv('Gas Used', fmtGasUsed(r.gas_used));
         h += kv('Gas Price', `${fmtGwei(r.gas_price_gwei)} <span class="text-muted fs-9">Gwei</span>`);
-        h += kv('Total Gas Fee (BNB)', `<strong>${bnbBadge(r.gas_fee_total)}</strong>`);
-        h += `<div class="fw-bold fs-8 text-uppercase text-muted mt-3 mb-1">Transaction</div>`;
+        h += kv('Total Gas Fee (BNB)', `<strong>${gasCell(r)}</strong>`);
+        h += `<div class="fw-bold fs-8 text-uppercase text-muted mt-3 mb-1">What This Gas Was For</div>`;
+        h += kv('Transaction Type', r.reference_label ? esc(r.reference_label) : '<span class="text-muted">Unlinked / not resolved</span>');
+        if (r.source) {
+            const ref = r.source.ref || r.source.request_no || r.source.run_ref;
+            if (ref) h += kv('Reference', `<span class="gf-mono">${esc(ref)}</span>`);
+            if (r.source.status) h += kv('Order Status', esc(r.source.status));
+            if (r.source.bman_amount != null) h += kv('BMAN Amount', esc(r.source.bman_amount));
+            if (r.source.usdt_amount != null) h += kv('USDT Amount', esc(r.source.usdt_amount));
+            if (r.source.matched_volume != null) h += kv('Matched Volume', esc(r.source.matched_volume));
+            if (r.source.plan_type) h += kv('Plan Type', esc(r.source.plan_type));
+        }
+        h += `<div class="fw-bold fs-8 text-uppercase text-muted mt-3 mb-1">On-Chain Detail</div>`;
         h += kv('Amount', `${esc(r.amount)} ${esc(r.token_symbol||'')}`);
         h += kv('Wallet', esc(r.wallet_type));
         h += kv('From', `<span class="gf-mono">${esc(r.from_address||'—')}</span>`);
         h += kv('To', `<span class="gf-mono">${esc(r.to_address||'—')}</span>`);
+        if (r.failure_reason || r.revert_message) {
+            h += kv('Failure Reason', esc(r.failure_reason || r.revert_message));
+        }
         if (r.tx_hash) {
             h += `<div class="d-flex gap-2 mt-3">
                 <button class="btn btn-sm btn-light-primary" onclick="navigator.clipboard.writeText('${esc(r.tx_hash)}');this.textContent='Copied'">Copy Hash</button>

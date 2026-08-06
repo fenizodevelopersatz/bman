@@ -637,9 +637,14 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
 
         $this->load->model('Wallet_model', 'wallet');
         $this->load->model('Custodialwallet_model', 'cw');
+        $this->load->model('Staking_model');
 
         $this->data['title'] = "View My wallet";
         $this->data['card_title'] = "Wallet information";
+
+        // Total BMAN currently locked in active staking packages — same
+        // path-agnostic source as the Lending page. See Staking_model::lockWalletBalance().
+        $this->data['lock_wallet_balance'] = $this->Staking_model->lockWalletBalance($user_id);
 
         // Filters from UI
         $filters = [

@@ -87,9 +87,17 @@ class BinaryMatchingPayoutCron extends CI_Controller
         $enqueue = $this->_enqueuePayouts();
         $drain   = $this->_drainPending();
         $confirm = $this->_confirmProcessing();
+        // confirm.failed is a real, unambiguous outcome (an on-chain tx
+        // reverted) — unlike drain.held, which also covers normal, self-
+        // resolving backpressure (swaps disabled, transient RPC hiccup,
+        // insufficient treasury balance pending refill), so it stays out of
+        // this check to avoid tagging routine conditions as errors.
+        $hadFailure = (int)($confirm['failed'] ?? 0) > 0;
         return [
-            'status'  => 'success',
-            'message' => 'Binary matching payout cron completed',
+            'status'  => $hadFailure ? 'error' : 'success',
+            'message' => $hadFailure
+                ? 'Binary matching payout cron completed with failures — see confirm.failed detail'
+                : 'Binary matching payout cron completed',
             'mode'    => $this->_isDryRun() ? 'DRY_RUN' : 'LIVE',
             'details' => ['engine' => $engine, 'enqueued' => $enqueue, 'drain' => $drain, 'confirm' => $confirm],
             'ran_at'  => date('Y-m-d H:i:s'),

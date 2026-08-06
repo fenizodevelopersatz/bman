@@ -73,7 +73,13 @@ class StakingBonusIntegration_model extends CI_Model
                 'payout_details' => $payout_queue_result['queued'],
             ];
 
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
+            // Must be Throwable, not Exception: an undefined-method call (as this
+            // confirmed-broken code path always triggers today) raises \Error, which
+            // \Exception does NOT catch in PHP 7+. Catching only Exception left this
+            // trans_start() unresolved, corrupting the DB transaction depth for the
+            // rest of the request — silently swallowing writes made by unrelated
+            // code (StakingPurchasecron's later steps) later in the same run.
             $this->db->trans_rollback();
             log_message('error', "[StakingBonusIntegration] Exception: " . $e->getMessage());
             return [

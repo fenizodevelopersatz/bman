@@ -1,7 +1,5 @@
 <?php $this->load->view('admin/Layout/common_style'); ?>
 
-<link href="<?php echo base_url(); ?>/assets/admin/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css" />
-
 <body id="kt_app_body" data-kt-app-layout="dark-sidebar" data-kt-app-header-fixed="true"
     data-kt-app-sidebar-enabled="true" data-kt-app-sidebar-fixed="true" data-kt-app-sidebar-hoverable="true"
     data-kt-app-sidebar-push-header="true" data-kt-app-sidebar-push-toolbar="true"
@@ -260,13 +258,52 @@
             return '<span class="badge badge-light-' + cls + '">' + esc(categories[cat] || cat) + '</span>';
         }
 
+        /* Platform-perspective flow: is the hot/treasury wallet receiving (IN)
+           or sending (OUT), as opposed to the Amount column's user-wallet
+           credit/debit? Two families, confirmed against every on-chain call
+           site in the codebase:
+             - Family A (deposit/withdrawal/bman_withdrawal): NOT inverted —
+               a user-wallet credit really is the platform receiving (a
+               deposit), a debit really is the platform sending (a withdrawal).
+             - Everything else with a real on-chain leg is INVERTED: a user
+               credit means the treasury just sent funds out (bonus, stake
+               principal, ROI, binary matching); a user debit means the user
+               sent funds to the platform (a swap purchase).
+           Some types never have a real on-chain leg (stake_maturity, ceiling
+           release, and an unsettled wallet_transfer) — those get no arrow. */
+        const FLOW_NOT_INVERTED = new Set(['deposit', 'withdrawal', 'bman_withdrawal']);
+        // Never a real on-chain leg, regardless of credit/debit: stake_maturity
+        // is a bookkeeping-only principal release, ceiling_release never calls
+        // web3, order_reset is a pure ledger reversal (admin correction tooling).
+        const FLOW_ALWAYS_INTERNAL = new Set(['stake_maturity', 'ceiling_release', 'order_reset']);
+        // Conditionally on-chain — whether a real leg exists varies per row
+        // (wallet_transfer only when settlement is enabled; admin_adjustment
+        // splits between a pure ledger grant and a real bulk-upload send) — so
+        // trust the row's own matched onchain data instead of the type alone.
+        const FLOW_ONCHAIN_GATED = new Set(['wallet_transfer', 'admin_adjustment']);
+        function flowDirection(r) {
+            if (FLOW_ALWAYS_INTERNAL.has(r.reference_type)) return null;
+            if (FLOW_ONCHAIN_GATED.has(r.reference_type) && !r.onchain) return null;
+            const isCredit = r.direction === 'credit';
+            const notInverted = FLOW_NOT_INVERTED.has(r.reference_type);
+            if (notInverted) return isCredit ? 'in' : 'out';
+            return isCredit ? 'out' : 'in';
+        }
+        function flowBadge(r) {
+            const dir = flowDirection(r);
+            if (dir === 'in') return '<span class="badge badge-light-success fs-8" title="Platform/hot wallet received funds">&#8595; IN</span>';
+            if (dir === 'out') return '<span class="badge badge-light-danger fs-8" title="Platform/hot wallet sent funds">&#8593; OUT</span>';
+            return '<span class="text-muted fs-8" title="No real on-chain leg — internal bookkeeping only">—</span>';
+        }
+
         function renderWalletRows(rows) {
             const body = document.getElementById('at-wallet-body');
             if (!rows.length) {
                 body.innerHTML = '<div class="text-muted">No transactions found.</div>';
                 return;
             }
-            const trs = rows.map(r => {
+            const startNo = (page - 1) * limit;
+            const trs = rows.map((r, i) => {
                 const amt = (r.direction === 'credit' ? '+' : '−') + fmt(r.amount) + ' ' + esc(r.wallet_type.toUpperCase());
                 const amtCls = r.direction === 'credit' ? 'text-success' : 'text-danger';
                 const onchain = r.onchain
@@ -276,6 +313,7 @@
                     ? fmt(r.onchain.gas_fee_total) + ' BNB'
                     : '<span class="text-muted">—</span>';
                 return '<tr class="at-row" data-id="' + r.ledger_id + '" style="cursor:pointer">' +
+                    '<td class="fs-8 text-muted">' + (startNo + i + 1) + '</td>' +
                     '<td class="fs-8 text-muted">' + esc(r.created_at) + '</td>' +
                     '<td><div class="d-flex align-items-center gap-2">' +
                         avatarImg(r.avatar, 24) +
@@ -283,6 +321,7 @@
                         '</div></td>' +
                     '<td>' + categoryBadge(r.category) + '<div class="fs-8 text-muted">' + esc(r.type_label) + '</div></td>' +
                     '<td class="fw-bold ' + amtCls + '">' + amt + '</td>' +
+                    '<td>' + flowBadge(r) + '</td>' +
                     '<td class="fs-8 text-muted">' + fmt(r.balance_after) + '</td>' +
                     '<td class="fs-8 text-muted mw-200px text-truncate">' + esc(r.description || '—') + '</td>' +
                     '<td class="fs-8" title="' + esc(r.tx_hash || '') + '">' + hashLink(r.tx_hash) + '</td>' +
@@ -291,7 +330,7 @@
                     '</tr>';
             }).join('');
             body.innerHTML = '<table class="table table-row-dashed fs-7"><thead><tr class="fw-bold text-muted">' +
-                '<th>When</th><th>User</th><th>Type</th><th>Amount</th><th>Balance After</th>' +
+                '<th>S.No</th><th>When</th><th>User</th><th>Type</th><th>Amount</th><th>Flow</th><th>Balance After</th>' +
                 '<th>Description</th><th>Tx Hash</th><th>Chain</th><th>Gas Fee</th>' +
                 '</tr></thead><tbody>' + trs + '</tbody></table>';
 

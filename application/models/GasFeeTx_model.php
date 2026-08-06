@@ -15,12 +15,42 @@ class GasFeeTx_model extends CI_Model
     {
         $this->db->from('onchain_transactions o');
         $this->db->join('users u', 'u.id = o.user_id', 'left');
-        $this->db->where('o.gas_fee_total IS NOT NULL', null, false);
+        // A single real broadcast can have more than one onchain_transactions
+        // row under the same tx_hash: the "official" tracking row _recordOnchain()
+        // inserts (later gas-backfilled by Chainsync) plus one or more auto-
+        // created by the generic per-credit capture hook, which never gets
+        // gas-backfilled. Verified empirically (2026-08-06, all 27 real
+        // multi-row tx_hashes in this DB): whichever row has gas data is always
+        // the lowest id for that hash. Dedupe to MIN(id) per tx_hash so a
+        // duplicate never shows as a separate, permanently-"pending" phantom
+        // transaction next to the real, gas-bearing row for the same broadcast.
+        // Parenthesized as one unit — without it, SQL's AND-binds-tighter-than-OR
+        // precedence lets this OR "leak" past every subsequent where()/where_in()
+        // call below, silently defeating has_gas/status/user_id/etc. filters.
+        $this->db->where(
+            "(o.id IN (SELECT MIN(id) FROM onchain_transactions WHERE tx_hash IS NOT NULL AND tx_hash != '' GROUP BY tx_hash) OR o.tx_hash IS NULL OR o.tx_hash = '')",
+            null, false
+        );
+        // Every row here is a real broadcast attempt — it either already has a
+        // confirmed gas_fee_total, or is still pending/processing and WILL cost
+        // gas once confirmed. Previously this hard-filtered to confirmed-only,
+        // making in-flight transactions invisible (indistinguishable from ones
+        // that never touch the chain at all). Show both; the 'has_gas' filter
+        // below lets an admin narrow to just one or the other.
+        if (!empty($f['has_gas'])) {
+            if ($f['has_gas'] === 'confirmed') {
+                $this->db->where('o.gas_fee_total IS NOT NULL', null, false);
+            } elseif ($f['has_gas'] === 'pending') {
+                $this->db->where('o.gas_fee_total IS NULL', null, false)
+                          ->where_in('o.status', ['pending', 'processing']);
+            }
+        }
 
         if (!empty($f['user_id']))     $this->db->where('o.user_id', (int)$f['user_id']);
         if (!empty($f['network']))     $this->db->where('o.network', $f['network']);
         if (!empty($f['status']))      $this->db->where('o.status', $f['status']);
         if (!empty($f['tx_type']))     $this->db->where('o.tx_type', $f['tx_type']);
+        if (!empty($f['reference_type'])) $this->db->where('o.reference_type', $f['reference_type']);
         if (!empty($f['tx_hash']))     $this->db->like('o.tx_hash', $f['tx_hash']);
         if (!empty($f['date_from']))   $this->db->where('DATE(o.created_at) >=', $f['date_from']);
         if (!empty($f['date_to']))     $this->db->where('DATE(o.created_at) <=', $f['date_to']);
@@ -31,7 +61,6 @@ class GasFeeTx_model extends CI_Model
             $s = $f['search'];
             $this->db->group_start()
                 ->like('o.tx_hash', $s)
-                ->or_like('o.reference_id', $s)
                 ->or_like('o.from_address', $s)
                 ->or_like('o.to_address', $s)
                 ->or_like('u.username', $s);
@@ -54,9 +83,9 @@ class GasFeeTx_model extends CI_Model
         $this->applyFilters($f);
         return $this->db
             ->select('o.id, o.tx_hash, o.user_id, u.username, o.network, o.wallet_type, o.tx_type,
-                      o.reference_type, o.reference_id,
                       o.gas_used, (o.gas_price / 1000000000) AS gas_price_gwei, o.gas_fee_total, o.status,
                       o.block_number, o.amount, o.token_symbol, o.from_address, o.to_address,
+                      o.reference_type, o.reference_id, o.method_name, o.failure_reason, o.revert_message,
                       o.created_at', false)
             ->order_by('o.created_at', 'DESC')
             ->limit((int)$limit, (int)$offset)
@@ -126,9 +155,11 @@ class GasFeeTx_model extends CI_Model
             ), function ($v) { return $v !== null && $v !== ''; }));
         };
         return [
-            'networks' => $col('network'),
-            'statuses' => ['pending','processing','confirmed','failed','reverted','partial','cancelled'],
-            'types'    => $col('tx_type'),
+            'networks'        => $col('network'),
+            'statuses'        => ['pending','processing','confirmed','failed','reverted','partial','cancelled'],
+            'types'           => $col('tx_type'),
+            'reference_types' => $col('reference_type'),
+            'has_gas'         => ['confirmed' => 'Gas confirmed', 'pending' => 'Gas pending'],
         ];
     }
 

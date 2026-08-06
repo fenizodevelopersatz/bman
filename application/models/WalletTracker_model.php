@@ -469,7 +469,36 @@ class WalletTracker_model extends CI_Model
                 'wallet_type' => $row['wallet_type'],
             ])->row_array();
         }
+        if (!$oc && !empty($row['tx_hash'])) {
+            // Some broadcasts are combined transfers that split into multiple
+            // wallet_ledger rows of different wallet_type under one tx_hash
+            // (e.g. staking cron's merged principal+bonus send) — the exact
+            // wallet_type match above can legitimately miss. Fall back to
+            // tx_hash alone rather than showing no on-chain data at all.
+            $oc = $this->db->where('tx_hash', $row['tx_hash'])
+                            ->order_by('id', 'DESC')->limit(1)
+                            ->get('onchain_transactions')->row_array();
+        }
         if (!$oc) return null;
+
+        // A combined broadcast can have more than one onchain_transactions row
+        // under the same tx_hash: the "official" one _recordOnchain() inserts
+        // (which Chainsync_model::verifyTx() backfills with real gas numbers)
+        // plus one or more auto-created by the generic per-credit capture hook
+        // (linked via wallet_ledger_id, but never gas-backfilled). If the row
+        // matched above is missing gas data, borrow it from a tx_hash sibling
+        // that has it rather than showing "—" for a fee that really was paid.
+        if (empty($oc['gas_fee_total']) && !empty($row['tx_hash'])) {
+            $withGas = $this->db->where('tx_hash', $row['tx_hash'])
+                                 ->where('gas_fee_total IS NOT NULL')
+                                 ->order_by('id', 'DESC')->limit(1)
+                                 ->get('onchain_transactions')->row_array();
+            if ($withGas) {
+                $oc['gas_used'] = $withGas['gas_used'];
+                $oc['gas_price_gwei'] = $withGas['gas_price_gwei'] ?? null;
+                $oc['gas_fee_total'] = $withGas['gas_fee_total'];
+            }
+        }
 
         return [
             'id'          => (int) $oc['id'],

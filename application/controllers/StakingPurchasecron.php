@@ -456,8 +456,13 @@ class StakingPurchasecron extends CI_Controller
             return $this->_verifyLeg($order, 'bman', $order['bman_tx_hash'], $head, function () use (&$order) {
                 $instantBonus = (float)($order['bonus_bman'] ?? 0);
                 $totalAmount  = (float)$order['bman_amount'] + $instantBonus;
+                // wallet_type here is a dedupe/label tag, not a real match key: this one
+                // combined broadcast splits into TWO wallet_ledger rows below (staking +
+                // bonus) — 'staking' since principal (the larger share) locks there since
+                // the Lifecycle refactor. WalletTracker_model matches by tx_hash, not this
+                // label, precisely because no single wallet_type is ever fully accurate here.
                 $this->_recordOnchain($order, $order['bman_tx_hash'], $order['admin_address'], $order['user_address'],
-                    $totalAmount, 'transfer', 'exchange');
+                    $totalAmount, 'transfer', 'staking');
 
                 // INTERNAL split of the principal into the ledger (one custodial address).
                 // The Bonus wallet is special: it can receive BOTH the instant 25%
@@ -556,6 +561,18 @@ class StakingPurchasecron extends CI_Controller
             log_message('error', $this->log_prefix . " Binary matching bonus error (order {$order['id']}): " . $e->getMessage());
         } finally {
             $this->db->db_debug = $prevDebug;
+            // Defensive backstop: if anything above left a DB transaction open
+            // (e.g. a nested trans_start() that never reached its matching
+            // commit/rollback because of a fatal error), force it closed here.
+            // Otherwise every subsequent write in this request — including
+            // _stepBonus() and _checkAndCompleteOrder() below — silently lands
+            // inside that stale transaction and is lost when the connection
+            // closes, while every log/return value along the way still reports
+            // success. Mirrors the recovery loop CI's own DB_driver::query()
+            // uses for the same failure mode.
+            for ($i = 0; $i < 5 && $this->db->trans_active(); $i++) {
+                $this->db->trans_complete();
+            }
         }
     }
 

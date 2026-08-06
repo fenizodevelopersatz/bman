@@ -42,11 +42,13 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
     @media (min-width:992px){
       #kt_app_sidebar .bman-admin-root-sub .menu-item[data-kt-menu-trigger]:hover>.bman-admin-nested-sub,
       #kt_app_sidebar .bman-admin-root-sub .menu-item[data-kt-menu-trigger].show>.bman-admin-nested-sub,
-      #kt_app_sidebar .bman-admin-root-sub .menu-item[data-kt-menu-trigger].hover>.bman-admin-nested-sub{display:block!important}
+      #kt_app_sidebar .bman-admin-root-sub .menu-item[data-kt-menu-trigger].hover>.bman-admin-nested-sub,
+      #kt_app_sidebar .bman-admin-root-sub .menu-item[data-kt-menu-trigger].bman-hover-open>.bman-admin-nested-sub{display:block!important}
     }
     @media (max-width:991.98px){
       #kt_app_sidebar .bman-admin-root-sub .menu-item.show>.bman-admin-nested-sub,
-      #kt_app_sidebar .bman-admin-root-sub .menu-item.hover>.bman-admin-nested-sub{display:block!important}
+      #kt_app_sidebar .bman-admin-root-sub .menu-item.hover>.bman-admin-nested-sub,
+      #kt_app_sidebar .bman-admin-root-sub .menu-item.bman-hover-open>.bman-admin-nested-sub{display:block!important}
     }
     @media (max-width:991.98px){
       #kt_app_sidebar_logo{height:auto;min-height:76px;padding-top:14px;padding-bottom:14px}
@@ -94,32 +96,32 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
             <span class="menu-link"><span class="menu-icon">
                 <i class="ki-duotone ki-people fs-2"><span class="path1"></span><span class="path2"></span>
                 </i>
-              </span><span class="menu-title">User Management</span><span class="menu-arrow"></span></span>
+              </span><span class="menu-title">Members Management</span><span class="menu-arrow"></span></span>
             <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto">
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>network-member">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">User</span>
+                    class="menu-title">Network Members</span>
                 </a>
               </div>
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>add-user">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Create User</span>
+                    class="menu-title">Create Members</span>
                 </a>
               </div>
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/member/bulk-upload">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">User Bulk Upload</span>
+                    class="menu-title">Bulk Upload</span>
                 </a>
               </div>
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/kyc">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">User KYC</span>
+                    class="menu-title">Members KYC</span>
                   <span class="badge badge-circle badge-danger fs-9 ms-2 d-none" data-dashboard-badge="kyc">0</span>
                 </a>
               </div>
@@ -257,7 +259,13 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                     class="menu-title">ROI History</span>
                 </a>
               </div>
-              
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/all-transaction">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">All Transactions</span>
+                </a>
+              </div>
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/gas-fee-transactions">
@@ -266,36 +274,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div>
 
-             
-
-              <hr class="my-3 mx-2 opacity-25">
-
-              <!-- ============ Remaining items (not part of the organized structure above) ============ -->              
-
-
-
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet/admin-wallet">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Admin Bonus Wallet</span>
-                </a>
-              </div>
-
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/ceiling-wallet">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Ceiling Wallet</span>
-                </a>
-              </div>
-
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet/cron-lab">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Cron Lab</span>
-                </a>
-              </div>
-
-               <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
+              <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
                 class="menu-item">
                 <span class="menu-link">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
@@ -327,6 +306,33 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                     </a>
                   </div>
                 </div>
+              </div>
+
+              <hr class="my-3 mx-2 opacity-25">
+
+              <!-- ============ Remaining items (not part of the organized structure above) ============ -->              
+
+
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet/admin-wallet">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Admin Bonus Wallet</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet/cron-lab">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Cron Lab</span>
+                </a>
+              </div>
+
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/ceiling-wallet">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Ceiling Wallet</span>
+                </a>
               </div>
 
             </div>
@@ -835,7 +841,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
       data-bs-original-title="200+ in-house components and 3rd-party plugins" data-kt-initialized="1">
 
       <div>
-        <img src="<?php echo base_url(); ?>/assets/admin/media/illustrations/misc/upgrade.svg" style="max-height:32px;width:auto;" />
+        <img src="<?php echo base_url(); ?>assets/admin/media/illustrations/misc/upgrade.svg" style="max-height:32px;width:auto;" />
         <br>
         <span class="label">
           <b>Nexman Version 1.0</b>
@@ -848,3 +854,43 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
 
 </div>
 <!--end::Sidebar-->
+
+<script>
+(function () {
+  // The nested (2nd/3rd-level) sidebar submenus rely on the plain CSS :hover
+  // pseudo-class to stay open (see .bman-admin-nested-sub above), which has
+  // NO grace period — moving the mouse off the trigger by even a pixel while
+  // heading toward the revealed submenu closes it instantly. This adds a
+  // short, JS-managed delay via a separate .bman-hover-open class (already
+  // wired into the CSS above as an extra "stay open" condition alongside the
+  // existing :hover/.show/.hover) so the submenu stays open briefly after the
+  // mouse leaves, giving the user time to reach it. Deliberately a distinct
+  // class name — this runs alongside KTUI's own menu JS, not in place of it.
+  var sidebar = document.getElementById('kt_app_sidebar');
+  if (!sidebar) return;
+  var CLOSE_DELAY = 350;
+  var timers = new WeakMap();
+
+  function cancelClose(item) {
+    var t = timers.get(item);
+    if (t) { clearTimeout(t); timers.delete(item); }
+  }
+  function scheduleClose(item) {
+    cancelClose(item);
+    timers.set(item, setTimeout(function () {
+      item.classList.remove('bman-hover-open');
+      timers.delete(item);
+    }, CLOSE_DELAY));
+  }
+
+  sidebar.querySelectorAll('.menu-item[data-kt-menu-trigger]').forEach(function (item) {
+    item.addEventListener('mouseenter', function () {
+      cancelClose(item);
+      item.classList.add('bman-hover-open');
+    });
+    item.addEventListener('mouseleave', function () {
+      scheduleClose(item);
+    });
+  });
+})();
+</script>

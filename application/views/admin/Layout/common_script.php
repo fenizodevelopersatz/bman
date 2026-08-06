@@ -28,8 +28,8 @@
 
 
 </script>
-<script src="<?php echo base_url(); ?>/assets/admin/plugins/global/plugins.bundle.js"></script>
-<script src="<?php echo base_url(); ?>/assets/admin/js/scripts.bundle.js"></script>
+<script src="<?php echo base_url(); ?>assets/admin/plugins/global/plugins.bundle.js"></script>
+<script src="<?php echo base_url(); ?>assets/admin/js/scripts.bundle.js"></script>
 <?php $this->load->view("partials/browser_controls"); ?>
 
 <script>

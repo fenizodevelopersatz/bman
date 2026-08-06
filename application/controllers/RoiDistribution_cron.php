@@ -43,9 +43,20 @@ class RoiDistribution_cron extends CI_Controller
         $start = microtime(true);
         $monthly  = $this->_call('monthly');
         $maturity = $this->_call('maturity');
+        // Each leg reports status:true whenever it ran without a total crash,
+        // even if individual records failed (counted in 'failed') — that's the
+        // right behavior for the leg's own retry-driving response, but this
+        // wrapper's cron-log entry needs the real outcome: a hard failure OR
+        // any nonzero failed-record count both mean the run had real errors.
+        $legOk = function ($leg) {
+            return !empty($leg['status']) && empty($leg['failed']);
+        };
+        $ok = $legOk($monthly) && $legOk($maturity);
         $result = [
-            'status'   => 'success',
-            'message'  => 'ROI distribution (monthly then maturity) completed',
+            'status'   => $ok ? 'success' : 'error',
+            'message'  => $ok
+                ? 'ROI distribution (monthly then maturity) completed'
+                : 'ROI distribution completed with errors — see monthly/maturity detail for which leg/records failed',
             'monthly'  => $monthly,
             'maturity' => $maturity,
             'ran_at'   => date('Y-m-d H:i:s'),

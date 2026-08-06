@@ -397,7 +397,7 @@ class Mlm_model extends CI_Model
             $mail->Port = (int) $config['port'];
             $mail->setFrom($config['from_mail'], $config['from_name']);
             $mail->addAddress($useremail);
-            $mail->addCC('satheeshkumar@fenizotechnologies.com');
+            
 
             $mail->isHTML(true);
             $mail->Subject = $subject;

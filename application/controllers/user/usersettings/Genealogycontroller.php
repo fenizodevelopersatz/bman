@@ -975,6 +975,10 @@ class Genealogycontroller extends MY_Controller
             'bonus'    => (float) ($wallet_breakdown['bonus_withdrawable'] ?? 0),
         ];
         $this->data['platform_address'] = $platform_address;
+        // Total BMAN currently locked in active staking packages — same
+        // path-agnostic source as the Lending/Wallet pages.
+        $this->load->model('Staking_model');
+        $this->data['lock_wallet_balance'] = $this->Staking_model->lockWalletBalance($id);
         $this->data['bman_price'] = $bman_price;
         $this->data['bman_rate'] = $bman_rate;
         $this->data['processing_fee_usdt'] = $processing_fee_usdt;

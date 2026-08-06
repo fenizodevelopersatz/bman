@@ -22,8 +22,8 @@ $keywords = site_settings('meta-settings','site-keyword');
 <meta name="description" content="<?php echo $discription; ?>">
 <meta name="keywords" content="<?php echo $keywords; ?>">
 
-<link href="<?php echo base_url();?>/assets/admin/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css">
-<link href="<?php echo base_url();?>/assets/admin/css/style.bundle.css" rel="stylesheet" type="text/css">
+<link href="<?php echo base_url();?>assets/admin/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css">
+<link href="<?php echo base_url();?>assets/admin/css/style.bundle.css" rel="stylesheet" type="text/css">
 </head>
 
 <script>

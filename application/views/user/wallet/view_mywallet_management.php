@@ -1256,7 +1256,35 @@ function wallet_title_fallback($type)
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
+
+        /* LOCK WALLET — read-only, virtual: BMAN currently locked in active
+           staking packages. Same card as the Lending page; "View Details"
+           links there since this page has no staking activity table of its own. */
+        .lockwallet-card{display:flex;align-items:center;gap:16px;text-decoration:none;
+          background:linear-gradient(135deg,color-mix(in srgb, var(--primary,#6366f1) 8%, #fff),#fff);
+          border:1.5px solid color-mix(in srgb, var(--primary,#6366f1) 35%, transparent);
+          border-radius:18px;padding:16px 20px;margin:0 0 16px;transition:box-shadow .15s;}
+        .lockwallet-card:hover{box-shadow:0 8px 24px rgba(15,23,42,.08);}
+        .lockwallet-card .lw-ico{width:48px;height:48px;border-radius:14px;flex:0 0 auto;
+          background:color-mix(in srgb, var(--primary,#6366f1) 14%, #fff);color:var(--primary,#6366f1);
+          display:grid;place-items:center;font-size:22px;}
+        .lockwallet-card .lw-lbl{font-size:11.5px;font-weight:900;color:var(--primary,#6366f1);
+          text-transform:uppercase;letter-spacing:.4px;}
+        .lockwallet-card .lw-val{font-size:20px;font-weight:900;color:#0b1220;line-height:1.2;}
+        .lockwallet-card .lw-val small{font-size:11px;font-weight:900;color:#6b7280;}
+        .lockwallet-card .lw-help{font-size:11px;color:#6b7280;font-weight:700;margin-top:2px;}
+        .lockwallet-card .lw-cta{margin-left:auto;font-size:12px;font-weight:900;color:var(--primary,#6366f1);
+          white-space:nowrap;display:flex;align-items:center;gap:4px;}
       </style>
+      <a class="lockwallet-card" href="<?= base_url('user/lending') ?>">
+        <div class="lw-ico"><i class="ph-fill ph-lock-key"></i></div>
+        <div>
+          <div class="lw-lbl">Lock Wallet</div>
+          <div class="lw-val"><?= number_format((float)($lock_wallet_balance ?? 0), 2) ?> <small>BMAN</small></div>
+          <div class="lw-help">Total BMAN currently locked in active staking packages.</div>
+        </div>
+        <div class="lw-cta">View Details <i class="ph ph-caret-right"></i></div>
+      </a>
       <div class="allw-strip">
         <!-- USDT Wallet (IN & OUT) -->
         <div class="wtile usdt">

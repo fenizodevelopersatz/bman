@@ -17,6 +17,7 @@ class Gasfeepage extends CI_Controller
         $this->load->model('GasFeeTx_model', 'gas');
         $this->load->model('GasFeeSettings_model', 'gasSettings');
         $this->load->model('GasFeeLedger_model', 'gasLedger');
+        $this->load->model('WalletTracker_model', 'tracker');
 
         if (!$this->session->userdata('admin_logged_in')) {
             redirect('admin/login');
@@ -41,6 +42,25 @@ class Gasfeepage extends CI_Controller
     private function _adminId()
     {
         return (int) $this->session->userdata('admin_userid');
+    }
+
+    /**
+     * Resolve each gas row's reference_type/reference_id back to the real
+     * business transaction it belongs to (which order, purchase, ROI payment,
+     * etc.) — reuses WalletTracker_model's existing catalog/resolver so the
+     * labels match the All Transactions page instead of duplicating them.
+     */
+    private function _enrichRows(array $rows)
+    {
+        $catalog = $this->tracker->reference_types();
+        foreach ($rows as &$r) {
+            $type = $r['reference_type'] ?? '';
+            $meta = $catalog[$type] ?? null;
+            $r['reference_label'] = $meta['label'] ?? ($type !== '' ? ucfirst(str_replace('_', ' ', $type)) : null);
+            $r['source'] = $type !== '' ? $this->tracker->summarize_source($r) : null;
+        }
+        unset($r);
+        return $rows;
     }
 
     /* ------------------------- Gas Fee Settings (policy) ------------------------- */
@@ -85,9 +105,10 @@ class Gasfeepage extends CI_Controller
 
     public function index()
     {
-        $data['title']   = 'Gas Fee Transactions';
-        $data['options'] = $this->gas->filterOptions();
-        $data['stats']   = $this->gas->gasStats();
+        $data['title']            = 'Gas Fee Transactions';
+        $data['options']          = $this->gas->filterOptions();
+        $data['stats']            = $this->gas->gasStats();
+        $data['reference_labels'] = array_map(function ($m) { return $m['label']; }, $this->tracker->reference_types());
         $this->load->view('admin/wallet/gas_fee_transactions', $data);
     }
 
@@ -99,23 +120,25 @@ class Gasfeepage extends CI_Controller
         if (!$this->input->is_ajax_request()) show_404();
 
         $f = [
-            'user_id'   => $this->input->post('user_id', true),
-            'network'   => $this->input->post('network', true),
-            'status'    => $this->input->post('status', true),
-            'tx_type'   => $this->input->post('tx_type', true),
-            'tx_hash'   => $this->input->post('tx_hash', true),
-            'date_from' => $this->input->post('date_from', true),
-            'date_to'   => $this->input->post('date_to', true),
-            'gas_min'   => $this->input->post('gas_min', true),
-            'gas_max'   => $this->input->post('gas_max', true),
-            'search'    => $this->input->post('search', true),
+            'user_id'        => $this->input->post('user_id', true),
+            'network'        => $this->input->post('network', true),
+            'status'         => $this->input->post('status', true),
+            'tx_type'        => $this->input->post('tx_type', true),
+            'reference_type' => $this->input->post('reference_type', true),
+            'has_gas'        => $this->input->post('has_gas', true),
+            'tx_hash'        => $this->input->post('tx_hash', true),
+            'date_from'      => $this->input->post('date_from', true),
+            'date_to'        => $this->input->post('date_to', true),
+            'gas_min'        => $this->input->post('gas_min', true),
+            'gas_max'        => $this->input->post('gas_max', true),
+            'search'         => $this->input->post('search', true),
         ];
         $page  = max(1, (int)$this->input->post('page') ?: 1);
         $limit = min(200, max(10, (int)$this->input->post('limit') ?: 50));
         $offset = ($page - 1) * $limit;
 
         $total = $this->gas->count($f);
-        $rows  = $this->gas->list($f, $limit, $offset);
+        $rows  = $this->_enrichRows($this->gas->list($f, $limit, $offset));
 
         $this->_json([
             'status' => true,
@@ -146,32 +169,39 @@ class Gasfeepage extends CI_Controller
     public function export($format = 'csv')
     {
         $f = [
-            'user_id'   => $this->input->get('user_id', true),
-            'network'   => $this->input->get('network', true),
-            'status'    => $this->input->get('status', true),
-            'tx_hash'   => $this->input->get('tx_hash', true),
-            'date_from' => $this->input->get('date_from', true),
-            'date_to'   => $this->input->get('date_to', true),
-            'search'    => $this->input->get('search', true),
+            'user_id'        => $this->input->get('user_id', true),
+            'network'        => $this->input->get('network', true),
+            'status'         => $this->input->get('status', true),
+            'reference_type' => $this->input->get('reference_type', true),
+            'has_gas'        => $this->input->get('has_gas', true),
+            'tx_hash'        => $this->input->get('tx_hash', true),
+            'date_from'      => $this->input->get('date_from', true),
+            'date_to'        => $this->input->get('date_to', true),
+            'search'         => $this->input->get('search', true),
         ];
 
-        $rows = $this->gas->exportList($f);
+        $rows = $this->_enrichRows($this->gas->exportList($f));
+        foreach ($rows as &$r) {
+            $r['reference_label'] = $r['reference_label'] ?? '';
+            $r['source_ref'] = $r['source']['ref'] ?? ($r['source']['request_no'] ?? ($r['source']['run_ref'] ?? ''));
+        }
+        unset($r);
         $stamp = date('Y-m-d_His');
 
         $cols = [
-            'created_at'    => 'Date',
-            'user_id'       => 'User ID',
-            'username'      => 'Username',
-            'tx_hash'       => 'Tx Hash',
-            'network'       => 'Network',
-            'tx_type'       => 'Type',
-            'reference_type'=> 'Reference Type',
-            'reference_id'  => 'Reference ID',
-            'gas_used'      => 'Gas Used',
-            'gas_price_gwei'=> 'Gas Price (Gwei)',
-            'gas_fee_total' => 'Gas Fee (BNB)',
-            'status'        => 'Status',
-            'block_number'  => 'Block',
+            'created_at'      => 'Date',
+            'user_id'         => 'User ID',
+            'username'        => 'Username',
+            'tx_hash'         => 'Tx Hash',
+            'network'         => 'Network',
+            'tx_type'         => 'Type',
+            'reference_label' => 'For (Transaction)',
+            'source_ref'      => 'Reference',
+            'gas_used'        => 'Gas Used',
+            'gas_price_gwei'  => 'Gas Price (Gwei)',
+            'gas_fee_total'   => 'Gas Fee (BNB)',
+            'status'          => 'Status',
+            'block_number'    => 'Block',
         ];
 
         if ($format === 'csv') {
