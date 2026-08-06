@@ -935,15 +935,15 @@
                 <b>Generate QR for your referral link</b>
                 <small>Users can scan &amp; join instantly. Tap a leg to generate its QR.</small>
                 <div class="ref-actions" style="justify-content:center;margin-top:4px;">
-                  <button class="ref-btn ghost" onclick="showQR('refLeft')">
+                  <button class="ref-btn ghost" id="qrLegBtnLeft" onclick="showQR('refLeft')">
                     <i class="ph ph-qr-code"></i> Left QR
                   </button>
-                  <button class="ref-btn light" onclick="showQR('refRight')">
+                  <button class="ref-btn light" id="qrLegBtnRight" onclick="showQR('refRight')">
                     <i class="ph ph-qr-code"></i> Right QR
                   </button>
                 </div>
-                <button class="ref-btn ghost" style="width:100%;justify-content:center;" onclick="shareLink('refLeft')">
-                  Share Left Link <i class="ph ph-share-network"></i>
+                <button class="ref-btn ghost" id="qrShareBtn" style="width:100%;justify-content:center;" onclick="shareActiveQrLink()">
+                  <span id="qrShareBtnLabel">Share Left Link</span> <i class="ph ph-share-network"></i>
                 </button>
               </div>
             </div>
@@ -1212,13 +1212,34 @@
           toastMini("QR code generated! Right-click to save.");
         }
 
-        // QR box (right column): render the chosen leg's QR right inside the box.
+        // QR box (right column): render the chosen leg's QR right inside the box,
+        // and remember it as the leg the "Share ___ Link" button underneath acts on
+        // — it has one button for both legs, not a separate Left/Right pair.
+        let activeQrLeg = 'refLeft';
+
         function showQR(inputId) {
           const input = document.getElementById(inputId);
           if (!input || !input.value) { toastMini("No referral link available."); return; }
           const box = document.getElementById('qrBox');
           const el = renderQR(box, input.value, 96);
           if (el) { el.style.width = '96px'; el.style.height = '96px'; }
+
+          activeQrLeg = inputId;
+          const label = document.getElementById('qrShareBtnLabel');
+          if (label) label.textContent = inputId === 'refRight' ? 'Share Right Link' : 'Share Left Link';
+
+          const leftBtn = document.getElementById('qrLegBtnLeft');
+          const rightBtn = document.getElementById('qrLegBtnRight');
+          if (leftBtn && rightBtn) {
+            const active = inputId === 'refRight' ? rightBtn : leftBtn;
+            const inactive = inputId === 'refRight' ? leftBtn : rightBtn;
+            active.classList.remove('light'); active.classList.add('ghost');
+            inactive.classList.remove('ghost'); inactive.classList.add('light');
+          }
+        }
+
+        function shareActiveQrLink() {
+          shareLink(activeQrLeg);
         }
 
         document.addEventListener('DOMContentLoaded', initRefSharePopup);
