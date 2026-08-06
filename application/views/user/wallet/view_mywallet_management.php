@@ -1832,6 +1832,20 @@ function wallet_title_fallback($type)
           return;
         }
 
+        // A deposit can be detected AND credited within this same request —
+        // scan() runs server-side before the balance-diff is computed, so a
+        // successful credit can leave `difference` at 0 by the time we get
+        // here (nothing left to reconcile). Without this, the top wallet
+        // summary card and Wallet History table (both server-rendered, never
+        // re-fetched by this button) stay stale until an unrelated manual
+        // page refresh, even though the credit genuinely happened.
+        if ((json.credited > 0) || (json.bman_credited > 0)) {
+          if (state) state.textContent = 'Wallet updated...';
+          if (json.message) toastMini(json.message);
+          setTimeout(() => location.reload(), 800);
+          return;
+        }
+
         if (state) state.textContent = (d.has_pending ? 'Uncredited funds found' : 'Up to date');
         if (json.message) toastMini(json.message);
       } catch (e) {

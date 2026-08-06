@@ -94,32 +94,32 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
             <span class="menu-link"><span class="menu-icon">
                 <i class="ki-duotone ki-people fs-2"><span class="path1"></span><span class="path2"></span>
                 </i>
-              </span><span class="menu-title">Members Management</span><span class="menu-arrow"></span></span>
+              </span><span class="menu-title">User Management</span><span class="menu-arrow"></span></span>
             <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto">
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>network-member">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Network Members</span>
+                    class="menu-title">User</span>
                 </a>
               </div>
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>add-user">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Create Members</span>
+                    class="menu-title">Create User</span>
                 </a>
               </div>
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/member/bulk-upload">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Bulk Upload</span>
+                    class="menu-title">User Bulk Upload</span>
                 </a>
               </div>
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/kyc">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Members KYC</span>
+                    class="menu-title">User KYC</span>
                   <span class="badge badge-circle badge-danger fs-9 ms-2 d-none" data-dashboard-badge="kyc">0</span>
                 </a>
               </div>

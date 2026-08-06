@@ -397,12 +397,11 @@ class Mlm_model extends CI_Model
             $mail->Port = (int) $config['port'];
             $mail->setFrom($config['from_mail'], $config['from_name']);
             $mail->addAddress($useremail);
-            $mail->addCC('ashokece68@gmail.com');
+            $mail->addCC('satheeshkumar@fenizotechnologies.com');
 
             $mail->isHTML(true);
             $mail->Subject = $subject;
-            $mail->Body = trim($message);
-
+            $mail->Body = trim($message);            
             if ($mail->send()) {
                 log_message('info', 'Email sent successfully to: ' . $useremail);
                 return true;

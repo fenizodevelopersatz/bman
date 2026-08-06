@@ -282,11 +282,11 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
       <div class="stkm-left">
         <div style="font-size:20px;font-weight:1200;color:#0b1220;margin-bottom:2px;" id="stkm-name">?</div>
         <div style="font-size:12px;font-weight:900;color:#6b7280;margin-bottom:16px;" id="stkm-amt">?</div>
-        <div class="stkm-steps" id="stkm-steps"><div class="stkm-step active">Package</div><div class="stkm-step">Plan</div><div class="stkm-step">Distribution</div><div class="stkm-step">Preview</div></div>
+        <div class="stkm-steps" id="stkm-steps"><div class="stkm-step active">Package</div><div class="stkm-step">Plan</div><div class="stkm-step">Allocation</div><div class="stkm-step">Preview</div></div>
         <div class="stkm-pane active" data-step="1"><label>Select Package</label><div class="stkm-packages" id="stkm-packages"></div><div class="stkm-note">Choose a package to continue to plan selection.</div></div>
         <div class="stkm-pane" data-step="2"><label>ROI Plan Type</label><div class="stkm-seg" id="stkm-roi-plans"></div><div class="stkm-note">Choose how you want to receive your ROI returns</div><label>Term</label><div class="stkm-seg" id="stkm-terms"></div></div>
       <div class="stkm-pane" data-step="3">
-        <label>Coin Distribution Options</label>
+        <label>Coin Allocation Options</label>
         <div class="stkm-seg" id="stkm-distributions"></div>
         <div style="background:#f8fafc;border:1px solid rgba(15,23,42,.08);border-radius:14px;padding:14px 16px;margin:12px 0;margin-top:16px;">
           <div style="font-size:13px;font-weight:800;color:#334155;line-height:1.6;" id="stkm-distribution-desc">Select an option above</div>
@@ -340,7 +340,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
           <div class="stkm-row roi"><span>ROI (this plan/term)</span><b id="stkm-roi">?</b></div>
           <div class="stkm-row"><span>Cost</span><b id="stkm-cost">? USDT</b></div>
           <div class="stkm-row"><span><?= $isSwap ? 'BMAN ? Exchange Wallet' : 'Locked into Staking Wallet' ?></span><b id="stkm-lock">? BMAN</b></div>
-          <div class="stkm-row"><span>Distribution Bonus Wallet (<span id="stkm-bonus-pct">0</span>%)</span><b id="stkm-bonus">? BMAN</b></div>
+          <div class="stkm-row"><span>Allocation Bonus Wallet (<span id="stkm-bonus-pct">0</span>%)</span><b id="stkm-bonus">? BMAN</b></div>
           <div class="stkm-row"><span>Instant Bonus (25%)</span><b id="stkm-instant">? BMAN</b></div>
           <div class="stkm-row"><span>Your USDT Balance</span><b id="stkm-bal">? USDT</b></div>
           <div class="stkm-warn" id="stkm-warn">Insufficient USDT balance ? deposit USDT first.</div>
@@ -462,7 +462,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         '<div style="margin-top:6px;font-size:12px;line-height:1.7;font-weight:700;">' +
           '<div><b>Package:</b> '+esc(d.package_name)+'</div>' +
           '<div><b>Plan:</b> '+esc(d.plan_label)+' &middot; '+esc(String(d.duration_years))+' Years</div>' +
-          '<div><b>Distribution:</b> '+esc(d.distribution_option_name)+'</div>' +
+          '<div><b>Allocation:</b> '+esc(d.distribution_option_name)+'</div>' +
           (rows ? '<table style="width:100%;margin-top:6px;border-collapse:collapse;">'+rows+'</table>' : '') +
           (Number(d.bonus)>0 ? '<div style="margin-top:6px;"><b>Bonus credited:</b> '+Number(d.bonus).toLocaleString(undefined,{maximumFractionDigits:4})+' BMAN</div>' : '') +
           '<div style="margin-top:6px;"><b>Lock Wallet total now:</b> '+Number(d.lock_wallet_balance).toLocaleString(undefined,{maximumFractionDigits:4})+' BMAN</div>' +

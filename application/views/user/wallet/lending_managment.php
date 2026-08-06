@@ -1753,7 +1753,7 @@ $hero_progress = 48;
           </div>
 
           <div style="border-top:1px solid #e7e7f3;padding-top:12px;margin-bottom:16px;">
-            <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">Coin Distribution — Option ${d.distribution.option}</h5>
+            <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">Coin Allocation — Option ${d.distribution.option}</h5>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
               ${distributionRowsHtml}
             </div>

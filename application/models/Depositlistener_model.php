@@ -380,6 +380,23 @@ class Depositlistener_model extends CI_Model
             $this->db->where('id', $d['id'])->update('wallet_deposits', [
                 'amount_bman' => 0, 'status' => 'credited', 'credited_at' => date('Y-m-d H:i:s'),
             ]);
+
+            // The generic ledger→onchain_transactions hook (_captureOnchain)
+            // has no from/to address to work with, so the mirror row it just
+            // inserted has both as NULL — which silently excludes it from the
+            // Wallet History table (that view filters by address match) unless
+            // the separate, best-effort Etherscan enrichment step happens to
+            // patch it later. Backfill from what we captured at detection time,
+            // same as creditConfirmedBman() already does below.
+            if (!empty($d['from_address'])) {
+                $this->db->where('tx_hash', $d['tx_hash'])
+                    ->where('wallet_type', 'usdt')
+                    ->update('onchain_transactions', [
+                        'from_address' => $d['from_address'],
+                        'to_address' => $d['wallet_address'],
+                    ]);
+            }
+
             $credited++;
         }
         return $credited;

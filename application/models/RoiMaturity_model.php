@@ -239,16 +239,16 @@ class RoiMaturity_model extends CI_Model
             return $wallet['earning_wallet_address'];
         }
 
-        // Fallback: check custodial_wallets table
+        // Fallback: custodial_wallets doesn't exist in this schema —
+        // user_wallet is the real, current per-user wallet-address table.
         $custodial = $this->db
-            ->select('address')
-            ->from('custodial_wallets')
+            ->select('wallet_address')
+            ->from('user_wallet')
             ->where('user_id', $userId)
-            ->where('wallet_type', 'earning')
             ->get()
             ->row_array();
 
-        return $custodial['address'] ?? null;
+        return $custodial['wallet_address'] ?? null;
     }
 
     /**

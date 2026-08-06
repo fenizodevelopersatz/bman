@@ -121,10 +121,10 @@ if (!empty($rkMini['name'])) {
   $displayRank = $rkMini['name'];
 }
 
-// Avatar
-$avatarUrl = !empty($user->profile_img)
-  ? base_url('assets/images/' . $user->profile_img)
-  : 'https://i.pravatar.cc/160?u=' . urlencode(($user->email ?: $user->contact ?: 'user'));
+// Avatar — same local default the header already uses (user_profile_image()
+// falls back to default_avatar_url()/assets/default-user.png), instead of an
+// external stock-photo service keyed off the member's email.
+$avatarUrl = user_profile_image($user->id);
 
 // Rank progress + eligibility from controller
 $rankPercent = isset($rankPercent) ? (int) $rankPercent : 0;

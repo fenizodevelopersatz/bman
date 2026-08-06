@@ -843,10 +843,12 @@ class Genealogycontroller extends MY_Controller
         $available_amount = (float) $available_amount_raw;
         $token_balance = (float) site_token_balance($id);
         $wallet_breakdown = $this->bmanwithdraw->maturity_breakdown($id);
+        // custodial_wallets doesn't exist in this schema — user_wallet is the
+        // real, current wallet-address table (confirmed live elsewhere, e.g.
+        // Swapengine_model::userWallet()). A user with no row here simply
+        // hasn't had an on-chain address generated yet; leave the address blank
+        // rather than querying a nonexistent table (was a hard 500 for any such user).
         $platform_wallet = $this->db->select('wallet_address')->where('user_id', $id)->get('user_wallet')->row();
-        if (empty($platform_wallet)) {
-            $platform_wallet = $this->db->select('address as wallet_address')->where('user_id', $id)->get('custodial_wallets')->row();
-        }
         $platform_address = $platform_wallet->wallet_address ?? '';
         $bman_rate_raw = (string) (token_info()->currency_value ?? '0'); // BMAN per 1 USDT
         $bman_price_raw = Money::cmp($bman_rate_raw, '0') > 0 ? Money::div('1', $bman_rate_raw) : '0'; // USDT per 1 BMAN
