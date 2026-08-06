@@ -24,7 +24,7 @@
 
     <!-- Gas Today -->
     <div class="col-sm-6 col-xl-3">
-        <div class="card card-flush h-md-50 mb-5 mb-xl-5" style="border-top:3px solid #f3ba2f">
+        <div class="card card-flush h-100 mb-5 mb-xl-5" style="border-top:3px solid #f3ba2f">
             <div class="card-body py-4 px-5">
                 <div class="d-flex align-items-center gap-2 mb-1">
                     <i class="ki-duotone ki-dollar fs-2" style="color:#f3ba2f"><span class="path1"></span><span class="path2"></span><span class="path3"></span></i>
@@ -41,7 +41,7 @@
 
     <!-- Gas This Month -->
     <div class="col-sm-6 col-xl-3">
-        <div class="card card-flush h-md-50 mb-5 mb-xl-5" style="border-top:3px solid #10b981">
+        <div class="card card-flush h-100 mb-5 mb-xl-5" style="border-top:3px solid #10b981">
             <div class="card-body py-4 px-5">
                 <div class="d-flex align-items-center gap-2 mb-1">
                     <i class="ki-duotone ki-chart-simple fs-2" style="color:#10b981"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span></i>
@@ -58,7 +58,7 @@
 
     <!-- Avg Gas Price -->
     <div class="col-sm-6 col-xl-3">
-        <div class="card card-flush h-md-50 mb-5 mb-xl-5" style="border-top:3px solid #7239ea">
+        <div class="card card-flush h-100 mb-5 mb-xl-5" style="border-top:3px solid #7239ea">
             <div class="card-body py-4 px-5">
                 <div class="d-flex align-items-center gap-2 mb-1">
                     <i class="ki-duotone ki-graph-up fs-2" style="color:#7239ea"><span class="path1"></span><span class="path2"></span><span class="path3"></span><span class="path4"></span><span class="path5"></span><span class="path6"></span></i>
@@ -75,7 +75,7 @@
 
     <!-- Failed Txs Today -->
     <div class="col-sm-6 col-xl-3">
-        <div class="card card-flush h-md-50 mb-5 mb-xl-5" style="border-top:3px solid #f1416c">
+        <div class="card card-flush h-100 mb-5 mb-xl-5" style="border-top:3px solid #f1416c">
             <div class="card-body py-4 px-5">
                 <div class="d-flex align-items-center gap-2 mb-1">
                     <i class="ki-duotone ki-cross-circle fs-2" style="color:#f1416c"><span class="path1"></span><span class="path2"></span></i>

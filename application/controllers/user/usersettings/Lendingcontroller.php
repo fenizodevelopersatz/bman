@@ -310,6 +310,20 @@ class Lendingcontroller extends CI_Controller
             // package's fixed face value — no market-rate drift on the BMAN
             // side), so there is no reconciliation risk in creating this early.
             try {
+                // Snapshot the package's CURRENT Special-Offer flag at purchase
+                // time — same reasoning as _checkAndCompleteOrder()'s fallback
+                // insert (see getRecentStakingActivityForView()'s docblock):
+                // a later admin toggle must never rewrite an already-placed
+                // order's badge. Setting this on the EAGER insert (not just
+                // relying on _checkAndCompleteOrder() to fix it up once the
+                // order finishes) closes the window where the badge was wrong
+                // while status='processing'.
+                $isSpecial = 0;
+                if ($this->db->field_exists('is_special', 'staking_packages')) {
+                    $pkgRow = $this->db->select('is_special')->get_where('staking_packages', ['id' => $packageId])->row_array();
+                    $isSpecial = (int)($pkgRow['is_special'] ?? 0);
+                }
+
                 $insertData = [
                     'user_id' => $userId, 'package_id' => $packageId, 'plan_id' => $planId,
                     'plan_code' => $planCode, 'duration_years' => $durationYears,
@@ -317,6 +331,7 @@ class Lendingcontroller extends CI_Controller
                     'roi_basis' => $planCode === 'fixed' ? 'total' : 'monthly',
                     'bonus_amount' => (float)($res['bonus_bman'] ?? 0),
                     'distribution_option_id' => $coinDistOptionId,
+                    'is_special' => $isSpecial,
                     'start_date' => date('Y-m-d', strtotime($createdAt)),
                     'maturity_date' => date('Y-m-d', strtotime($maturityDate)),
                     'status' => 'processing', 'chain_status' => 'pending',
@@ -341,6 +356,7 @@ class Lendingcontroller extends CI_Controller
                         'duration_years'   => $durationYears,
                         'created_at'       => $createdAt,
                         'maturity_date'    => $maturityDate,
+                        'is_special'       => $isSpecial,
                     ],
                     $res['id'], $stakeId ?: null
                 );

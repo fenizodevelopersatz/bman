@@ -8,8 +8,6 @@
  * through here for the parts that must behave identically:
  *
  *  - validatePurchase()        shared package/plan/term/ROI lookup
- *  - creditLockedPrincipal()   principal locked to THIS stake's own maturity
- *                              date, never a flat wallet-level day count
  *  - creditImmediateBonus()    any bonus (instant 25%, distribution-option
  *                              bonus share, binary matching, rank reward,
  *                              ceiling release) — always skip_maturity
@@ -60,17 +58,6 @@ class StakingLifecycle_model extends CI_Model
         if ($amount <= 0) return [true, 'nothing to credit'];
         $opts['skip_maturity'] = true;
         return $this->L->credit((int)$userId, $walletType, $amount, $referenceType, $opts);
-    }
-
-    /** Locked principal — tagged to THIS stake's own maturity date via an
-     *  explicit per-row override, not a flat wallet-level day count. Matches
-     *  what Staking_model::purchaseStake() already does correctly today. */
-    public function creditLockedPrincipal($userId, $amount, $maturityDate, $opts = [], $walletType = 'staking')
-    {
-        if ($amount <= 0) return [true, 'nothing to credit'];
-        $opts['maturity_date'] = $maturityDate;
-        $opts['is_matured']    = 0;
-        return $this->L->credit((int)$userId, $walletType, $amount, 'stake_purchase', $opts);
     }
 
     /** Create the ROI/maturity schedule on the one real, live, scheduled

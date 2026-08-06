@@ -896,6 +896,26 @@ class Custodialwallet_model extends CI_Model
     }
 
     /**
+     * A single real broadcast can leave more than one onchain_transactions row
+     * under the same tx_hash: the "official" tracking row plus one or more
+     * auto-created by the generic per-credit capture hook fired from
+     * Walletledger_model::post() (linked via wallet_ledger_id). Both carry the
+     * same to_address/from_address, so without this filter a single real
+     * deposit/withdrawal shows twice in wallet history. Verified empirically
+     * this session (all real multi-row tx_hashes): MIN(id) per tx_hash is
+     * always the row worth keeping. Must be called before any subsequent
+     * where()/group_start() on the same query — the OR inside must stay
+     * parenthesized as one unit or it silently defeats surrounding conditions.
+     */
+    private function _dedupeOnchainByTxHash()
+    {
+        $this->db->where(
+            "(id IN (SELECT MIN(id) FROM onchain_transactions WHERE tx_hash IS NOT NULL AND tx_hash != '' GROUP BY tx_hash) OR tx_hash IS NULL OR tx_hash = '')",
+            null, false
+        );
+    }
+
+    /**
      * ✅ NEW: Fetch wallet history from on-chain transactions ONLY
      * Uses tx_type field from onchain_transactions table
      * Type-wise filter: deposit, transfer, bonus, earn, etc.
@@ -922,6 +942,7 @@ class Custodialwallet_model extends CI_Model
         // Build total count query
         $this->db->from('onchain_transactions');
         $this->db->where('status', 'confirmed');
+        $this->_dedupeOnchainByTxHash();
         $this->db->group_start();
         $this->db->where('to_address', $wallet_addr);
         $this->db->or_where('from_address', $wallet_addr);
@@ -930,18 +951,18 @@ class Custodialwallet_model extends CI_Model
         $pages = ceil($total / $per_page);
 
         // Get paginated results
-        $query = $this->db
-            ->from('onchain_transactions')
-            ->where('status', 'confirmed')
-            ->group_start()
-            ->where('to_address', $wallet_addr)
-            ->or_where('from_address', $wallet_addr)
-            ->group_end()
-            ->order_by('block_number', 'DESC')
-            ->order_by('created_at', 'DESC')
-            ->limit($per_page, $offset);
+        $this->db->from('onchain_transactions');
+        $this->db->where('status', 'confirmed');
+        $this->_dedupeOnchainByTxHash();
+        $this->db->group_start();
+        $this->db->where('to_address', $wallet_addr);
+        $this->db->or_where('from_address', $wallet_addr);
+        $this->db->group_end();
+        $this->db->order_by('block_number', 'DESC');
+        $this->db->order_by('created_at', 'DESC');
+        $this->db->limit($per_page, $offset);
 
-        $rows = $query->get()->result_array();
+        $rows = $this->db->get()->result_array();
 
         // Transform rows for display
         $transactions = [];
@@ -969,20 +990,19 @@ class Custodialwallet_model extends CI_Model
         }
 
         // Count by direction
-        $counts = $this->db
-            ->select('
+        $this->db->select('
                 COUNT(*) as all_count,
                 SUM(CASE WHEN to_address = "'.$wallet_addr.'" THEN 1 ELSE 0 END) as incoming,
                 SUM(CASE WHEN from_address = "'.$wallet_addr.'" THEN 1 ELSE 0 END) as outgoing
-            ')
-            ->from('onchain_transactions')
-            ->where('status', 'confirmed')
-            ->group_start()
-            ->where('to_address', $wallet_addr)
-            ->or_where('from_address', $wallet_addr)
-            ->group_end()
-            ->get()
-            ->row_array();
+            ');
+        $this->db->from('onchain_transactions');
+        $this->db->where('status', 'confirmed');
+        $this->_dedupeOnchainByTxHash();
+        $this->db->group_start();
+        $this->db->where('to_address', $wallet_addr);
+        $this->db->or_where('from_address', $wallet_addr);
+        $this->db->group_end();
+        $counts = $this->db->get()->row_array();
 
         return [
             'rows' => $transactions,

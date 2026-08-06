@@ -33,6 +33,7 @@ class Genealogytree extends CI_Controller
         $this->load->model('member/BinaryModel');
         $this->load->model('staking/Stakingmatching_model', 'MB');
         $this->load->model('staking/Ceilingwallet_model', 'CW');
+        $this->load->model('Staking_model');
     }
 
     private function _requireAdmin()
@@ -227,14 +228,17 @@ class Genealogytree extends CI_Controller
         $ceiling = $this->MB->userCeiling($id);
         $paid = $this->MB->matchingPaidToDate($id);
         $held = (float)($this->CW->balance($id)['held_balance'] ?? 0);
-        $ownStake = (float)($this->db->select_sum('stake_amount')->where('user_id', $id)
-                                      ->where('status', 'active')->get('user_stakes')->row()->stake_amount ?? 0);
+        // Lock Wallet — active AND not-yet-matured principal — same definition
+        // used everywhere else on the platform (Staking_model::lockWalletBalance()).
+        // Previously this queried status='active' only, with no maturity_date
+        // check, so it could disagree with the Lock Wallet figure shown elsewhere.
+        $lockWallet = $this->Staking_model->lockWalletBalance($id);
 
         return [
             'left_carry' => round($left, 4),
             'right_carry' => round($right, 4),
             'potential_match' => round(min($left, $right), 4),
-            'own_stake_amount' => round($ownStake, 4),
+            'own_stake_amount' => round($lockWallet, 4),
             'ceiling_amount' => round($ceiling, 4),
             'ceiling_paid' => round($paid, 4),
             'ceiling_remaining' => round(max(0.0, $ceiling - $paid), 4),

@@ -115,6 +115,11 @@ class RoiStakingManagement_model extends CI_Model
             'remaining_to_pay' => $totalROI,
             'total_paid_amount' => 0,
             'overall_status' => 'active',
+            // Presentation badge only (see Lendingcontroller::getRecentStakingActivityForView()'s
+            // docblock on why user_stakes.is_special is the honest source for
+            // history) — this mirror is what the order-detail popup reads.
+            // Caller is responsible for passing the package's CURRENT flag in.
+            'is_special' => (int)!!($data['is_special'] ?? 0),
             'created_at' => date('Y-m-d H:i:s'),
         ];
 

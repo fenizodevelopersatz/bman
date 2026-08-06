@@ -133,7 +133,7 @@
       return `<div class="gt-card ${isRoot ? 'gt-root' : ''}" onclick="gtSelect(${n.id}, '${esc(n.name)}', '${esc(n.uid)}')">
         <div class="gt-name">${esc(n.name)} <span class="badge badge-light-${n.status === 'ACTIVE' ? 'success' : 'danger'} fs-9 ms-1">${esc(n.status)}</span></div>
         <div class="gt-uid">${esc(n.uid)}</div>
-        <div class="gt-row"><span>Own Stake</span><b>${fmt(n.own_stake_amount)}</b></div>
+        <div class="gt-row"><span>Lock Wallet</span><b>${fmt(n.own_stake_amount)}</b></div>
         <div class="gt-row"><span>Left / Right Carry</span><b>${fmt(n.left_carry)} / ${fmt(n.right_carry)}</b></div>
         <div class="gt-row"><span>Potential Match</span><b>${fmt(n.potential_match)}</b></div>
         <div class="gt-row"><span>Ceiling (remain/total)</span><b>${fmt(n.ceiling_remaining)} / ${fmt(n.ceiling_amount)}</b></div>

@@ -294,12 +294,6 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                     </a>
                   </div>
                   <div class="menu-item">
-                    <a class="menu-link" href="<?php echo base_url(); ?>admin/binary-matching/history">
-                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                        class="menu-title">Bonus Matching History</span>
-                    </a>
-                  </div>
-                  <div class="menu-item">
                     <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/payout-queue">
                       <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                         class="menu-title">Binary Matching Payout Queue</span>

@@ -57,6 +57,18 @@ class Onchaintx_model extends CI_Model
     private function applyFilters(array $f)
     {
         $this->db->from('onchain_transactions o');
+        // A single real broadcast can leave more than one row under the same
+        // tx_hash (the "official" tracking row plus shadow rows auto-created
+        // by the generic per-credit capture hook) — without this, the same
+        // transaction shows multiple times in this grid. MIN(id) per tx_hash
+        // is always the row worth keeping (verified empirically this session).
+        // Note: this can narrow results under a wallet_type filter specifically
+        // — a combined transfer's shadow row may carry a different wallet_type
+        // label than the surviving official row for the same tx_hash.
+        $this->db->where(
+            "(o.id IN (SELECT MIN(id) FROM onchain_transactions WHERE tx_hash IS NOT NULL AND tx_hash != '' GROUP BY tx_hash) OR o.tx_hash IS NULL OR o.tx_hash = '')",
+            null, false
+        );
 
         if (!empty($f['wallet']))      $this->db->where('o.wallet_type', $f['wallet']);
         if (!empty($f['network']))     $this->db->where('o.network', $f['network']);

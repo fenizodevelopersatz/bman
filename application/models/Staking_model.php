@@ -822,13 +822,19 @@ class Staking_model extends CI_Model
             $treasuryPayId = (int)$this->db->insert_id();
         } else { $treasuryPayId = 0; }
 
+        // Snapshot is_special at purchase time — same reasoning as the other
+        // two purchase paths (restakeFromWallets(), swap_purchase()).
+        $isSpecial = $this->db->field_exists('is_special', 'user_stakes')
+            && $this->db->field_exists('is_special', 'staking_packages')
+            ? (int)($pkg['is_special'] ?? 0) : 0;
+
         // 6b. create the stake order
         $this->db->insert('user_stakes', [
             'user_id' => $userId, 'package_id' => $pkgId, 'plan_id' => (int)$plan['id'],
             'plan_code' => $planCode, 'duration_years' => $years,
             'stake_amount' => $bman, 'roi_percent' => $hdrPct, 'roi_basis' => $hdrBasis,
             'bonus_amount' => $bonusBman, 'start_date' => $start, 'maturity_date' => $maturity,
-            'status' => 'active',
+            'status' => 'active', 'is_special' => $isSpecial,
         ]);
         $stakeId = (int)$this->db->insert_id();
         if (!$stakeId) { $this->db->trans_rollback(); return [false, 'Could not create the stake order.']; }
@@ -836,14 +842,12 @@ class Staking_model extends CI_Model
             $this->db->where('id', $treasuryPayId)->update('staking_treasury_payments', ['stake_id' => $stakeId]);
         }
 
-        // 6c. credit LOCKED BMAN into the Staking wallet
-        list($okS) = $this->L->credit($userId, 'staking', $bman, 'stake_purchase', [
-            'reference_id' => $ref,
-            'description'  => 'Locked '.number_format($bman).' BMAN — stake #'.$stakeId,
-            'maturity_date' => $maturity,
-            'is_matured'    => 0,
-        ]);
-        if (!$okS) { $this->db->trans_rollback(); return [false, 'Could not credit the Staking wallet.']; }
+        // 6c. Locked principal stays virtual — reflected only by
+        // lockWalletBalance()'s live SUM over user_stakes (already the source
+        // of every "Lock Wallet" display), not a real wallet credit. Crediting
+        // the Staking wallet here AND releasing to the maturity wallet later
+        // double-counted the same principal, since nothing ever debited this
+        // credit back out — matches the fix applied to StakingPurchasecron.php.
 
         // 6d. 25% Bonus Coin → Bonus wallet
         if ($bonusBman > 0) {
@@ -870,6 +874,7 @@ class Staking_model extends CI_Model
             'duration_years'   => $years,
             'created_at'       => date('Y-m-d H:i:s'),
             'maturity_date'    => $maturity,
+            'is_special'       => $isSpecial,
         ], null, $stakeId);
 
         // 6f. binary business volume (consumed by the rank / matching cron)
@@ -1028,6 +1033,7 @@ class Staking_model extends CI_Model
             'duration_years'   => $years,
             'created_at'       => date('Y-m-d H:i:s'),
             'maturity_date'    => $maturity,
+            'is_special'       => $isSpecial,
         ], null, $stakeId);
 
         // 5. binary business volume (consumed by the rank / matching cron).

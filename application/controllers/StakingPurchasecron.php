@@ -457,9 +457,10 @@ class StakingPurchasecron extends CI_Controller
                 $instantBonus = (float)($order['bonus_bman'] ?? 0);
                 $totalAmount  = (float)$order['bman_amount'] + $instantBonus;
                 // wallet_type here is a dedupe/label tag, not a real match key: this one
-                // combined broadcast splits into TWO wallet_ledger rows below (staking +
-                // bonus) — 'staking' since principal (the larger share) locks there since
-                // the Lifecycle refactor. WalletTracker_model matches by tx_hash, not this
+                // combined broadcast moves principal (virtual — no wallet_ledger row,
+                // see below) plus bonus (one real 'bonus' wallet_ledger row). 'staking'
+                // is kept as the label since principal is still the larger share of the
+                // transfer amount; WalletTracker_model matches by tx_hash, not this
                 // label, precisely because no single wallet_type is ever fully accurate here.
                 $this->_recordOnchain($order, $order['bman_tx_hash'], $order['admin_address'], $order['user_address'],
                     $totalAmount, 'transfer', 'staking');
@@ -480,29 +481,18 @@ class StakingPurchasecron extends CI_Controller
                     $this->_credit($order, 'bonus', $totalBonus, $order['bman_tx_hash'], $desc);
                 }
                 // Principal: whatever the distribution option would have split
-                // across Exchange/Earning/Staking now folds into ONE locked
-                // credit, tagged to this stake's own maturity date — not three
-                // separate, immediately-spendable credits. The stake row
-                // already exists (Lendingcontroller::swap_purchase() created
-                // it, status='processing') for any order submitted after this
-                // shipped; fall back to computing the maturity date fresh for
-                // an order that was already in flight when this deployed.
-                $principal = $this->_walletShare($order, 'exchange')
-                           + $this->_walletShare($order, 'earning')
-                           + $this->_walletShare($order, 'staking');
-                if ($principal > 0) {
-                    $stakeRow = $this->db->select('maturity_date')->where('swap_order_id', (int)$order['id'])
-                                         ->get('user_stakes')->row_array();
-                    $maturityDate = $stakeRow
-                        ? date('Y-m-d H:i:s', strtotime($stakeRow['maturity_date']))
-                        : date('Y-m-d H:i:s', strtotime('+' . (int)($order['duration_years'] ?: 1) . ' years'));
-                    $this->load->model('staking/StakingLifecycle_model', 'lifecycle');
-                    $this->lifecycle->creditLockedPrincipal((int)$order['user_id'], $principal, $maturityDate, [
-                        'tx_hash'      => $order['bman_tx_hash'],
-                        'reference_id' => $order['ref'] ?? ('ORDER-' . $order['id']),
-                        'description'  => 'Locked principal ' . $principal . ' BMAN (order ' . $order['id'] . ')',
-                    ]);
-                }
+                // across Exchange/Earning/Staking is NOT credited to any real
+                // wallet here. It stays purely virtual — reflected only by
+                // Staking_model::lockWalletBalance()'s live SUM over user_stakes
+                // (already the source of every "Lock Wallet" display) — until
+                // RoiMaturityPayment_cron releases it to the one configured
+                // wallet at maturity. Crediting a real 'staking' balance here
+                // AND releasing to 'exchange' at maturity double-counted the
+                // same principal, since nothing ever debited the purchase-time
+                // credit back out — a live, confirmed bug fixed by removing
+                // this block. restakeFromWallets() never had this bug: it only
+                // debits its funding wallet(s) and lets the single maturity
+                // credit be the one and only real money movement.
                 $this->_setOrder($order, ['bman_cron_status' => 1, 'bman_cron_status_message' => null]);
 
                 // Trigger binary matching bonus calculation. No extra dupe-guard needed:
