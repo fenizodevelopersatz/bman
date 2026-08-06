@@ -31,9 +31,15 @@ class BinaryModel extends CI_Model
     // $maxDepth caps how many levels below $user_id are walked (null = unbounded).
     // Bounding this matters once trees get deep/wide: without it every call walks the
     // ENTIRE downline no matter what depth the caller actually wants to display.
+    //
+    // Fetches the whole bounded subtree in a fixed, small number of queries
+    // (one recursive CTE for structure, then one batched lookup each for user
+    // info / wallets / lock wallet / legacy investment) instead of the
+    // previous per-node recursion — that walked one query per parent PLUS two
+    // more per node (wallets, investment), which scales badly on a large team.
     public function getDownlineMembers($user_id, $maxDepth = null)
     {
-        $downline = [];
+        $user_id = (int) $user_id;
 
         $this->db->select('
         users.id,
@@ -51,83 +57,166 @@ class BinaryModel extends CI_Model
         $this->db->join('binary_placement', 'users.id = binary_placement.user_id', 'left');
         $this->db->where('users.id', $user_id);
         $direct_user = $this->db->get()->row();
+        if (!$direct_user) return [];
 
-        $rootW = $this->getUserWallets($direct_user->id);
+        // Bounded subtree structure — one query regardless of team size/depth.
+        $depthLimit = $maxDepth !== null ? (int) $maxDepth : 999999;
+        $sql = "
+            WITH RECURSIVE downline AS (
+                SELECT bp.user_id, bp.parent_id, bp.sponsor_id, bp.position, bp.placement_type, 1 AS depth
+                FROM binary_placement bp
+                WHERE bp.parent_id = ?
+
+                UNION ALL
+
+                SELECT c.user_id, c.parent_id, c.sponsor_id, c.position, c.placement_type, d.depth + 1
+                FROM binary_placement c
+                JOIN downline d ON d.user_id = c.parent_id
+                WHERE d.depth < ?
+            )
+            SELECT user_id, parent_id, sponsor_id, position, placement_type FROM downline
+        ";
+        $members = $this->db->query($sql, [$user_id, $depthLimit])->result();
+
+        $allIds = array_merge([$user_id], array_map(function ($m) { return (int) $m->user_id; }, $members));
+
+        $usersById = [];
+        if ($allIds) {
+            foreach ($this->db->select('id, username, email, register_date, profile_img, image')
+                               ->where_in('id', $allIds)->get('users')->result() as $u) {
+                $usersById[(int) $u->id] = $u;
+            }
+        }
+
+        $walletsById = $this->_batchUserWallets($allIds);
+        $lockWalletById = $this->_batchLockWallet($allIds);
+        $investmentById = $this->_batchTotalInvestment($allIds);
+        // currency_format() (site_helper.php) re-queries currency_config on
+        // every single call — fine for a one-off, but this loop calls it once
+        // per node below. Fetch the same global (not per-user) symbol/decimal
+        // once here instead, matching currency_format()'s own logic exactly.
+        $currencyPrefix = $this->_currencyPrefix();
+
+        $downline = [];
+        $rootUser = $usersById[$user_id] ?? null;
+        $rootW = $walletsById[$user_id] ?? ['exchange' => 0.0, 'earning' => 0.0, 'staking' => 0.0, 'bonus' => 0.0];
         $downline[] = [
-            'id' => $direct_user->id,
+            'id' => $user_id,
             'mid' => null,
-            'name' => $direct_user->username,
-            'email' => $direct_user->email,
-            'register_date' => date('Y-m-d', strtotime($direct_user->register_date)),
-            'position' => ucfirst($direct_user->position),
-            'placement_type' => ucfirst($direct_user->placement_type),
+            'name' => $rootUser->username ?? '',
+            'email' => $rootUser->email ?? '',
+            'register_date' => !empty($rootUser->register_date) ? date('Y-m-d', strtotime($rootUser->register_date)) : '—',
+            'position' => ucfirst((string) ($direct_user->position ?? '')),
+            'placement_type' => ucfirst((string) ($direct_user->placement_type ?? '')),
             'exchange' => $rootW['exchange'],
             'earning' => $rootW['earning'],
             'staking' => $rootW['staking'],
             'bonus' => $rootW['bonus'],
-            'profile_img' => $direct_user->profile_img,
-            'image' => $direct_user->image,
+            'lock_wallet' => $lockWalletById[$user_id] ?? 0.0,
+            'profile_img' => $rootUser->profile_img ?? null,
+            'image' => $rootUser->image ?? null,
         ];
-
-        $this->fetchDownline($user_id, $downline, 1, $maxDepth);
-        return $downline;
-    }
-
-    private function getUserWallets($user_id)
-    {
-        $row = $this->db->get_where('user_wallets', ['user_id' => (int)$user_id])->row();
-        return [
-            'exchange' => (float)($row->exchange_balance ?? 0),
-            'earning'  => (float)($row->earning_balance ?? 0),
-            'staking'  => (float)($row->staking_balance ?? 0),
-            'bonus'    => (float)($row->bonus_balance ?? 0),
-        ];
-    }
-
-    private function fetchDownline($parent_id, &$downline, $level = 1, $maxDepth = null)
-    {
-        if ($maxDepth !== null && $level > $maxDepth) {
-            return;
-        }
-
-        $this->db->select('
-            users.id,
-            users.username,
-            users.email,
-            users.profile_img,
-            users.image,
-            binary_placement.parent_id,
-            binary_placement.sponsor_id,
-            binary_placement.position,
-            binary_placement.placement_type,
-            users.register_date
-        ');
-        $this->db->from('users');
-        $this->db->join('binary_placement', 'users.id = binary_placement.user_id', 'left');
-        $this->db->where('binary_placement.parent_id', $parent_id);
-        $members = $this->db->get()->result();
 
         foreach ($members as $member) {
-            $my_investment = $this->getTotalInvestment($member->id);
-            $w = $this->getUserWallets($member->id);
+            $mid = (int) $member->user_id;
+            $u = $usersById[$mid] ?? null;
+            $w = $walletsById[$mid] ?? ['exchange' => 0.0, 'earning' => 0.0, 'staking' => 0.0, 'bonus' => 0.0];
+            $my_investment = $investmentById[$mid] ?? 0.0;
             $downline[] = [
-                'id' => $member->id,
-                'mid' => ($member->parent_id == $member->id) ? null : $member->parent_id,
-                'name' => $member->username,
-                'email' => $member->email,
-                'register_date' => date('Y-m-d', strtotime($member->register_date)),
-                'position' => ucfirst($member->position) . " ( " . currency_format($my_investment) . " )",
-                'placement_type' => ucfirst($member->placement_type),
+                'id' => $mid,
+                'mid' => ((int) $member->parent_id === $mid) ? null : (int) $member->parent_id,
+                'name' => $u->username ?? '',
+                'email' => $u->email ?? '',
+                'register_date' => !empty($u->register_date) ? date('Y-m-d', strtotime($u->register_date)) : '—',
+                'position' => ucfirst((string) $member->position) . " ( " . $currencyPrefix['prefix'] . number_format($my_investment, $currencyPrefix['decimal']) . " )",
+                'placement_type' => ucfirst((string) $member->placement_type),
                 'exchange' => $w['exchange'],
                 'earning' => $w['earning'],
                 'staking' => $w['staking'],
                 'bonus' => $w['bonus'],
-                'profile_img' => $member->profile_img,
-                'image' => $member->image,
+                'lock_wallet' => $lockWalletById[$mid] ?? 0.0,
+                'profile_img' => $u->profile_img ?? null,
+                'image' => $u->image ?? null,
             ];
-
-            $this->fetchDownline($member->id, $downline, $level + 1, $maxDepth);
         }
+
+        return $downline;
+    }
+
+    /** Same lookup + fallback/clamp logic as the global currency_format()
+     *  helper (site_helper.php) — fetched once here instead of once per node. */
+    private function _currencyPrefix()
+    {
+        $row = $this->db->query("
+            SELECT currency_symbol, `decimal`
+            FROM `currency_config`
+            WHERE `currency_status` = '1'
+            ORDER BY `id` DESC
+            LIMIT 1
+        ")->row();
+
+        $symbol = '';
+        $dec = 2;
+        if ($row) {
+            $symbol = isset($row->currency_symbol) ? trim((string) $row->currency_symbol) : '';
+            if (isset($row->decimal) && is_numeric($row->decimal)) {
+                $dec = (int) $row->decimal;
+            }
+        }
+        if ($dec < 0) $dec = 0;
+        if ($dec > 8) $dec = 8;
+
+        return ['prefix' => ($symbol !== '' ? ($symbol . ' ') : ''), 'decimal' => $dec];
+    }
+
+    /** Batched wallet lookup — one query for any number of users. */
+    private function _batchUserWallets(array $userIds)
+    {
+        $out = [];
+        if (!$userIds) return $out;
+        foreach ($this->db->where_in('user_id', $userIds)->get('user_wallets')->result() as $row) {
+            $out[(int) $row->user_id] = [
+                'exchange' => (float) ($row->exchange_balance ?? 0),
+                'earning'  => (float) ($row->earning_balance ?? 0),
+                'staking'  => (float) ($row->staking_balance ?? 0),
+                'bonus'    => (float) ($row->bonus_balance ?? 0),
+            ];
+        }
+        return $out;
+    }
+
+    /** Batched per-user Lock Wallet (active, unmatured staking principal) — same
+     *  filter as Staking_model::lockWalletBalance(), one query for the whole set. */
+    private function _batchLockWallet(array $userIds)
+    {
+        $out = [];
+        if (!$userIds) return $out;
+        $rows = $this->db->select('user_id, SUM(stake_amount) AS total', false)
+            ->where_in('user_id', $userIds)
+            ->where_in('status', ['active', 'processing'])
+            ->where('maturity_date >', date('Y-m-d'))
+            ->group_by('user_id')
+            ->get('user_stakes')->result();
+        foreach ($rows as $row) {
+            $out[(int) $row->user_id] = (float) $row->total;
+        }
+        return $out;
+    }
+
+    /** Batched version of getTotalInvestment() applied per-user instead of
+     *  summed over a whole leg — same legacy user_investment source, one query. */
+    private function _batchTotalInvestment(array $userIds)
+    {
+        $out = [];
+        if (!$userIds) return $out;
+        $rows = $this->db->select('user_id, SUM(invest_amount) AS total', false)
+            ->where_in('user_id', $userIds)
+            ->group_by('user_id')
+            ->get('user_investment')->result();
+        foreach ($rows as $row) {
+            $out[(int) $row->user_id] = (float) str_replace(',', '', (string) $row->total);
+        }
+        return $out;
     }
 
     // Walks parent_id up from $candidateId and returns true if $ancestorId is on that
@@ -266,7 +355,54 @@ class BinaryModel extends CI_Model
     }
     /*
     |--------------------------------------------------------------------------
-    | Add Calculate Leg Investment 
+    | Lock Wallet leg totals — SUM(user_stakes.stake_amount) across the whole
+    | left/right subtree, restricted to still-locked principal only (status
+    | active/processing AND not yet matured). Same "active, unmatured" filter
+    | as Staking_model::lockWalletBalance(), applied per-leg instead of
+    | per-user. One recursive CTE walks the whole subtree AND sums both legs
+    | in a single round trip — avoids the getLegUsers()-style N+1 (one query
+    | per downline member) for what can be an arbitrarily large team.
+    | Pattern mirrors the existing getTeamSnapshotWeekly() CTE below.
+    |--------------------------------------------------------------------------
+    */
+    public function calculateLegLockWallet($user_id)
+    {
+        $user_id = (int) $user_id;
+        $sql = "
+            WITH RECURSIVE downline AS (
+                SELECT bp.user_id, bp.parent_id, bp.position AS root_leg
+                FROM binary_placement bp
+                WHERE bp.parent_id = ?
+
+                UNION ALL
+
+                SELECT c.user_id, c.parent_id, d.root_leg
+                FROM binary_placement c
+                JOIN downline d ON d.user_id = c.parent_id
+            )
+            SELECT
+                d.root_leg,
+                COALESCE(SUM(s.stake_amount), 0) AS lock_wallet_total
+            FROM downline d
+            JOIN user_stakes s
+                ON s.user_id = d.user_id
+                AND s.status IN ('active', 'processing')
+                AND s.maturity_date > NOW()
+            GROUP BY d.root_leg
+        ";
+        $rows = $this->db->query($sql, [$user_id])->result_array();
+
+        $totals = ['left' => 0.0, 'right' => 0.0];
+        foreach ($rows as $r) {
+            if (isset($totals[$r['root_leg']])) {
+                $totals[$r['root_leg']] = (float) $r['lock_wallet_total'];
+            }
+        }
+        return $totals;
+    }
+    /*
+    |--------------------------------------------------------------------------
+    | Add Calculate Leg Investment
     |--------------------------------------------------------------------------
     */
     public function calculateLegInvestments($user_id)
@@ -287,6 +423,12 @@ class BinaryModel extends CI_Model
         $left_exchange_wallet  = $this->getTotalExchangeWallet($left_users);
         $right_exchange_wallet = $this->getTotalExchangeWallet($right_users);
 
+        // Lock Wallet (active, unmatured staking principal) totals — the real
+        // basis for the Left/Right Leg Investment cards. Independent single-
+        // query subtree walk (see calculateLegLockWallet()), not reusing
+        // $left_users/$right_users above.
+        $lockWallet = $this->calculateLegLockWallet($user_id);
+
         return [
             'left_leg_users' => $left_users,
             'left_leg_investment' => $left_investment,
@@ -298,6 +440,8 @@ class BinaryModel extends CI_Model
             'my_investment_token' => $my_investment_token,
             'left_exchange_wallet' => $left_exchange_wallet,
             'right_exchange_wallet' => $right_exchange_wallet,
+            'left_lock_wallet' => $lockWallet['left'],
+            'right_lock_wallet' => $lockWallet['right'],
         ];
     }
 

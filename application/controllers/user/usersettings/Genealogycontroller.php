@@ -117,9 +117,11 @@ class Genealogycontroller extends MY_Controller
             'left_cf' => (float) ($leftCF ?? 0),
             'right_cf' => (float) ($rightCF ?? 0),
             'pairs' => $pairs_lifetime ?? 0,
-            // Exchange Wallet (BMAN) totals of each leg's downline team.
-            'left_exchange' => (float) ($binary_info['left_exchange_wallet'] ?? 0),
-            'right_exchange' => (float) ($binary_info['right_exchange_wallet'] ?? 0),
+            // Lock Wallet (active, unmatured staking principal) totals of each
+            // leg's whole downline team — NOT a wallet balance. See
+            // BinaryModel::calculateLegLockWallet().
+            'left_lock' => (float) ($binary_info['left_lock_wallet'] ?? 0),
+            'right_lock' => (float) ($binary_info['right_lock_wallet'] ?? 0),
         ];
 
         // ✅ Do NOT inject TREE from PHP now. We'll load via AJAX.
@@ -198,6 +200,7 @@ class Genealogycontroller extends MY_Controller
                 'left_bv' => (float) (is_array($r) ? ($r['left_bv'] ?? 0) : ($r->left_bv ?? 0)),
                 'right_bv' => (float) (is_array($r) ? ($r['right_bv'] ?? 0) : ($r->right_bv ?? 0)),
                 'exchange' => (float) (is_array($r) ? ($r['exchange'] ?? 0) : ($r->exchange ?? 0)),
+                'lock_wallet' => (float) (is_array($r) ? ($r['lock_wallet'] ?? 0) : ($r->lock_wallet ?? 0)),
                 'mid' => $mid,
                 'position' => (stripos($posRaw, 'right') !== false) ? 'RIGHT' : 'LEFT',
                 'left' => null,
@@ -222,6 +225,7 @@ class Genealogycontroller extends MY_Controller
                 'left_bv' => 0,
                 'right_bv' => 0,
                 'exchange' => 0,
+                'lock_wallet' => 0,
                 'mid' => 0,
                 'position' => '',
                 'left' => null,

@@ -1396,8 +1396,8 @@
           <div class="sum-ic sum-info"><i class="ph ph-arrow-circle-left"></i></div>
           <div class="sum-meta">
             <small>Left Leg Investment</small>
-            <strong><?= number_format($user->left_exchange ?? 0, 2); ?> BMAN</strong>
-            <span>Exchange Wallet · Left downline</span>
+            <strong><?= number_format($user->left_lock ?? 0, 2); ?> BMAN</strong>
+            <span>Lock Wallet · Left downline</span>
           </div>
         </div>
 
@@ -1405,8 +1405,8 @@
           <div class="sum-ic sum-warn"><i class="ph ph-arrow-circle-right"></i></div>
           <div class="sum-meta">
             <small>Right Leg Investment</small>
-            <strong><?= number_format($user->right_exchange ?? 0, 2); ?> BMAN</strong>
-            <span>Exchange Wallet · Right downline</span>
+            <strong><?= number_format($user->right_lock ?? 0, 2); ?> BMAN</strong>
+            <span>Lock Wallet · Right downline</span>
           </div>
         </div>
 
@@ -1527,8 +1527,8 @@
               <b id="sideRBV">0 BMAN</b>
             </div>
             <div class="tile" style="grid-column:1 / -1;">
-              <small>Own Investment (Exchange Wallet)</small>
-              <b id="sideInv"><?= number_format($tree['exchange'] ?? 0, 2); ?> BMAN</b>
+              <small>Own Investment (Lock Wallet)</small>
+              <b id="sideInv"><?= number_format($tree['lock_wallet'] ?? 0, 2); ?> BMAN</b>
             </div>
             <div class="tile">
               <small>Own Active Stake</small>
@@ -1854,11 +1854,11 @@
         data-name="${escapeHtml(n.name || 'User')}" data-rank="${escapeHtml(n.rank || '—')}"
         data-status="${escapeHtml(n.status || 'ACTIVE')}" data-join="${escapeHtml(n.join_date || '—')}"
         data-lbv="${escapeHtml(n.left_bv || 0)}" data-rbv="${escapeHtml(n.right_bv || 0)}"
-        data-inv="${escapeHtml(n.exchange || 0)}" data-avatar="${escapeHtml(avatar)}"
+        data-inv="${escapeHtml(n.lock_wallet || 0)}" data-avatar="${escapeHtml(avatar)}"
         onclick="selectNode(this)">
         <img class="mc-av" src="${avatar}" alt="" onerror="this.onerror=null;this.src='${DEFAULT_AVATAR}';">
         <div class="mc-meta"><b>${escapeHtml(ucfirstWords(n.name || 'User'))}</b><small>UID: ${escapeHtml(n.uid || '—')}</small></div>
-        <div class="mc-inv"><small>Investment</small><b>${fmt(n.exchange || 0)} BMAN</b></div>
+        <div class="mc-inv"><small>Lock Wallet</small><b>${fmt(n.lock_wallet || 0)} BMAN</b></div>
       </div>`;
     }
 
@@ -1901,7 +1901,7 @@
       if (!levels.length) { root.innerHTML = '<div class="alt-empty">No team members yet.</div>'; return; }
       root.innerHTML = '<div class="alt-levels">' + levels.map(l => {
         const label = asGeneration ? `Generation ${l}` : `Level ${l}`;
-        const sum = byLevel[l].reduce((s, x) => s + (parseFloat(x.exchange) || 0), 0);
+        const sum = byLevel[l].reduce((s, x) => s + (parseFloat(x.lock_wallet) || 0), 0);
         return `<div class="alt-lvl"><div class="alt-h">${label}
           <span class="alt-badge">${byLevel[l].length} members · ${fmt(sum)} BMAN</span></div>
           <div class="alt-grid">${byLevel[l].map(miniCard).join('')}</div></div>`;
@@ -1937,27 +1937,29 @@
       root.innerHTML = html ? `<ul class="geneal-list">${html}</ul>` : '<div class="alt-empty">No team members yet.</div>';
     }
 
-    // Total Exchange Wallet (BMAN) investment across a whole subtree (inclusive).
+    // Total Lock Wallet (active, unmatured staking principal) across a whole
+    // subtree (inclusive) — bounded to whatever depth is currently loaded in
+    // the browser, same limitation this had when it summed exchange wallet.
     // Memoised via a single post-order pass (precomputeSums) so rendering a deep
     // tree stays O(n) instead of O(n^2) — this is what keeps big trees lag-free.
-    let EX_SUM = new Map();
+    let LOCK_SUM = new Map();
     function precomputeSums(node) {
-      EX_SUM = new Map();
+      LOCK_SUM = new Map();
       (function walk(n) {
         if (!n || Object.keys(n).length === 0) return 0;
         const st = (n.status || "").toUpperCase();
-        const own = (SHOW_EMPTY || st !== "EMPTY") ? (parseFloat(n.exchange) || 0) : 0;
+        const own = (SHOW_EMPTY || st !== "EMPTY") ? (parseFloat(n.lock_wallet) || 0) : 0;
         const total = own + walk(n.left) + walk(n.right);
-        EX_SUM.set(n, total);
+        LOCK_SUM.set(n, total);
         return total;
       })(node);
     }
-    function sumExchange(node) {
+    function sumLockWallet(node) {
       if (!node || Object.keys(node).length === 0) return 0;
-      if (EX_SUM.has(node)) return EX_SUM.get(node);
+      if (LOCK_SUM.has(node)) return LOCK_SUM.get(node);
       const st = (node.status || "").toUpperCase();
-      let s = (SHOW_EMPTY || st !== "EMPTY") ? (parseFloat(node.exchange) || 0) : 0;
-      s += sumExchange(node.left) + sumExchange(node.right);
+      let s = (SHOW_EMPTY || st !== "EMPTY") ? (parseFloat(node.lock_wallet) || 0) : 0;
+      s += sumLockWallet(node.left) + sumLockWallet(node.right);
       return s;
     }
 
@@ -1974,9 +1976,9 @@
       const uid = n.uid ? n.uid : "—";
       const name = n.name ? n.name : "User";
 
-      // Left/Right downline investment (Exchange Wallet BMAN) totals for this node.
-      const leftInvest = sumExchange(n.left);
-      const rightInvest = sumExchange(n.right);
+      // Left/Right downline investment (Lock Wallet BMAN) totals for this node.
+      const leftInvest = sumLockWallet(n.left);
+      const rightInvest = sumLockWallet(n.right);
 
       const email = n.email ? n.email : "";
       const posLabel = position ? position.toLowerCase() : (n.position || "").toLowerCase();
@@ -1993,7 +1995,7 @@
          data-join="${escapeHtml((n.join_date || "—"))}"
          data-lbv="${escapeHtml((n.left_bv || 0))}"
          data-rbv="${escapeHtml((n.right_bv || 0))}"
-         data-inv="${escapeHtml((n.exchange || 0))}"
+         data-inv="${escapeHtml((n.lock_wallet || 0))}"
          data-earning="${escapeHtml((n.earning || 0))}"
          data-staking="${escapeHtml((n.staking || n.own_stake_amount || 0))}"
          data-bonus="${escapeHtml((n.bonus || 0))}"
@@ -2036,8 +2038,8 @@
             <i class="ph ${n.matching_eligible ? "ph-check-circle" : "ph-warning-circle"}"></i>
             ${n.matching_eligible ? "Eligible" : "Needs Stake"}
           </div>
-          <div class="pill-sm" style="font-size:9px;">
-            <i class="ph ph-wallet"></i> ${fmt(n.exchange || 0)} BMAN
+          <div class="pill-sm" style="font-size:9px;" title="Lock Wallet — active, unmatured staking principal">
+            <i class="ph ph-lock-key"></i> ${fmt(n.lock_wallet || 0)} BMAN
           </div>
         </div>
       </a>
