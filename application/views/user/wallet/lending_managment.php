@@ -507,6 +507,28 @@ $hero_progress = 48;
       padding: 14px 16px;
     }
 
+    /* Details/history popup (showSwapDetails/showRestakeDetails) builds its
+       cards with inline grid-template-columns (JS template literals — not
+       worth 13 separate class edits for one breakpoint). Target them here by
+       matching the inline value directly via attribute selector; !important
+       is required since inline style otherwise always wins over an external
+       rule for the same property, media query or not. Collapses the 3-column
+       "BMAN summary"/"ROI milestone" cards and 2-column detail grids to fewer
+       columns so numbers get room to breathe on a phone instead of being
+       squeezed into ~110px-wide cells. */
+    @media (max-width: 480px) {
+      #swapDetailsContent [style*="grid-template-columns:repeat(3,1fr)"] {
+        grid-template-columns: 1fr 1fr !important;
+      }
+      #swapDetailsContent [style*="grid-template-columns:repeat(2,1fr)"],
+      #swapDetailsContent [style*="grid-template-columns:1fr 1fr;"] {
+        grid-template-columns: 1fr !important;
+      }
+      #swapDetailsContent [style*="grid-template-columns:1fr 1fr 1fr"] {
+        grid-template-columns: 1fr 1fr !important;
+      }
+    }
+
     .row2 {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -1291,11 +1313,11 @@ $hero_progress = 48;
           <div class="table-scroll">
             <table class="table resp-card" style="border-spacing:0 8px;">
               <thead>
-                <tr><th>S.No</th><th>Date</th><th>Type</th><th>USDT</th><th>BMAN</th><th>Maturity Date</th><th>Remaining Days</th><th>Status</th><th>Description</th><th>Action</th></tr>
+                <tr><th>S.No</th><th>Date</th><th>Type</th><th>USDT</th><th>BMAN</th><th>Expected ROI</th><th>Maturity Date</th><th>Remaining Days</th><th>Status</th><th>Description</th><th>Action</th></tr>
               </thead>
               <tbody>
                 <?php if (empty($recent_staking_activity)): ?>
-                  <tr><td colspan="10" style="text-align:center;color:#9ca3af;padding:18px;">No recent staking activity found.</td></tr>
+                  <tr><td colspan="11" style="text-align:center;color:#9ca3af;padding:18px;">No recent staking activity found.</td></tr>
                 <?php else: foreach ($recent_staking_activity as $i => $row):
                   $hasOrder = !empty($row->order_id);
                   $hasRestake = !$hasOrder && !empty($row->restake_id);
@@ -1313,6 +1335,7 @@ $hero_progress = 48;
                     </td>
                     <td data-label="USDT"><?= number_format((float)($row->amount ?? 0), 2) ?></td>
                     <td data-label="BMAN"><?= number_format((float)($row->token_amount ?? 0), 0) ?></td>
+                    <td data-label="Expected ROI" style="color:#22c55e;font-weight:900;"><?= $row->expected_roi !== null ? number_format((float)$row->expected_roi, 2) : '—' ?></td>
                     <td data-label="Maturity Date" style="font-size:12px;"><?= htmlspecialchars((string)($row->maturity_date ?? '—')) ?></td>
                     <td data-label="Remaining Days"><?= $row->remaining_days !== null ? (int)$row->remaining_days : '—' ?></td>
                     <td data-label="Status">
@@ -1689,6 +1712,11 @@ $hero_progress = 48;
         // Show EVERY wallet the chosen option allocates to (any pct > 0), not
         // just the 10% ones — otherwise Option 7's 70% Exchange slice vanishes.
         const instantBonus = Number(d.distribution?.instant_bonus_bman ?? d.amounts?.bonus_bman ?? 0);
+        // The package's REAL configured bonus % (e.g. 20 for a package an
+        // admin set to 20%, not always 25) — derived server-side from what
+        // was actually credited on this order, not a live re-read of
+        // staking_packages.bonus_percent, which drifts with later edits.
+        const instantBonusPct = Number(d.amounts?.instant_bonus_pct ?? 25);
         const distributionRows = [
           { label: 'Exchange Wallet', pct: Number(d.distribution?.exchange_pct || 0), amount: Number(d.distribution?.exchange_bman || 0), note: '' },
           { label: 'Earning Wallet', pct: Number(d.distribution?.earning_pct || 0), amount: Number(d.distribution?.earning_bman || 0), note: '' },
@@ -1773,11 +1801,11 @@ $hero_progress = 48;
               ${distributionRowsHtml}
             </div>
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;margin-top:10px;background:#fef3c7;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;">
-              <span style="color:#92400e;font-weight:1000;">Instant Bonus (25%)</span>
+              <span style="color:#92400e;font-weight:1000;">Instant Bonus (${instantBonusPct}%)</span>
               <b style="color:#b45309;">+ ${instantBonus.toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b>
             </div>
             <div style="font-size:11px;font-weight:800;color:#64748b;line-height:1.45;margin-top:10px;background:#f8fafc;border:1px solid #e7e7f3;border-radius:10px;padding:9px 10px;">
-              Your BMAN principal is split across the wallets above per your chosen option (Staking &amp; Bonus slices are locked). The 25% instant package bonus is separate and lands in your Bonus Wallet.
+              Your BMAN principal is split across the wallets above per your chosen option (Staking &amp; Bonus slices are locked). The ${instantBonusPct}% instant package bonus is separate and lands in your Bonus Wallet.
             </div>
           </div>
 
@@ -1927,27 +1955,31 @@ $hero_progress = 48;
               </div>
             </div>`;
           } else if (planType === 'regular') {
-            // Regular: 3 monthly payments
-            const payments = [
-              { day: 5, amount: roi.payment_day_5_amount, status: roi.payment_day_5_status },
-              { day: 15, amount: roi.payment_day_15_amount, status: roi.payment_day_15_status },
-              { day: 25, amount: roi.payment_day_25_amount, status: roi.payment_day_25_status }
-            ];
+            // Regular: monthly payments, split across whatever days the
+            // admin configured (Staking Plans -> "Monthly ROI credit days")
+            // — NOT hardcoded to 5/15/25. roi.payment_days comes from the
+            // real roi_regular_payment_days schedule (or a same-math preview
+            // if this cycle hasn't opened yet); empty only for old
+            // credit_mode='flat' stakes, which never had a per-day split.
+            const payments = roi.payment_days || [];
+            if (!payments.length) {
+              html += `<div style="font-size:12px;font-weight:800;color:#666;padding:8px 0;">Credited once a month (this stake predates per-day splitting). Next payment: ${roi.next_payment_date ? new Date(roi.next_payment_date).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}) : 'N/A'}</div>`;
+            } else {
             const completedCount = payments.filter(p => p.status === 'completed').length;
 
-            html += `<div style="margin-bottom:8px;font-size:10px;color:#666;font-weight:900;">Progress: ${completedCount} of 3 payments completed</div>
+            html += `<div style="margin-bottom:8px;font-size:10px;color:#666;font-weight:900;">Progress: ${completedCount} of ${payments.length} payments completed this month</div>
               <div style="display:flex;gap:8px;margin-bottom:12px;">
                 <div style="flex:1;height:6px;background:#e7e7f3;border-radius:3px;overflow:hidden;">
-                  <div style="height:100%;background:linear-gradient(90deg,#667eea,#22c55e);width:${(completedCount/3)*100}%;"></div>
+                  <div style="height:100%;background:linear-gradient(90deg,#667eea,#22c55e);width:${(completedCount/payments.length)*100}%;"></div>
                 </div>
               </div>
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">`;
+              <div style="display:grid;grid-template-columns:repeat(${Math.min(payments.length,4)},1fr);gap:8px;">`;
 
             payments.forEach(p => {
               const isCompleted = p.status === 'completed';
               html += `<div style="background:#fff;border:${isCompleted ? '2px solid #22c55e' : '1px solid #e7e7f3'};border-radius:10px;padding:10px;text-align:center;">
                 <div style="font-size:10px;font-weight:900;color:#666;margin-bottom:4px;">Day ${p.day}</div>
-                <div style="font-size:14px;font-weight:1100;color:${isCompleted ? '#22c55e' : '#667eea'};">${p.amount.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+                <div style="font-size:14px;font-weight:1100;color:${isCompleted ? '#22c55e' : '#667eea'};">${p.amount.toLocaleString('en-US', {maximumFractionDigits: 4})}</div>
                 <div style="font-size:8px;color:#999;margin-bottom:4px;">BMAN</div>
                 <div style="padding:4px 6px;background:${isCompleted ? '#dcfce7' : '#fef3c7'};border-radius:4px;font-size:9px;font-weight:900;color:${isCompleted ? '#15803d' : '#92400e'};text-transform:uppercase;">
                   ${isCompleted ? '✓' : '○'}
@@ -1956,37 +1988,40 @@ $hero_progress = 48;
             });
 
             html += `</div>`;
+            }
           } else if (planType === 'combo') {
-            // Combo: 3 monthly + 1 maturity
-            const monthlyPayments = [
-              { day: 5, amount: roi.payment_day_5_amount, status: roi.payment_day_5_status },
-              { day: 15, amount: roi.payment_day_15_amount, status: roi.payment_day_15_status },
-              { day: 25, amount: roi.payment_day_25_amount, status: roi.payment_day_25_status }
-            ];
+            // Combo: monthly payments (same real per-day split as above) + 1 maturity
+            const monthlyPayments = roi.payment_days || [];
             const maturityPayment = { amount: roi.fixed_payment_amount, status: roi.fixed_status, date: roi.fixed_maturity_date };
+            const totalCount = monthlyPayments.length + 1;
             const completedCount = monthlyPayments.filter(p => p.status === 'completed').length + (maturityPayment.status === 'completed' ? 1 : 0);
 
-            html += `<div style="margin-bottom:8px;font-size:10px;color:#666;font-weight:900;">Progress: ${completedCount} of 4 payments completed</div>
+            html += `<div style="margin-bottom:8px;font-size:10px;color:#666;font-weight:900;">Progress: ${completedCount} of ${totalCount} payments completed</div>
               <div style="display:flex;gap:8px;margin-bottom:12px;">
                 <div style="flex:1;height:6px;background:#e7e7f3;border-radius:3px;overflow:hidden;">
-                  <div style="height:100%;background:linear-gradient(90deg,#667eea,#22c55e);width:${(completedCount/4)*100}%;"></div>
+                  <div style="height:100%;background:linear-gradient(90deg,#667eea,#22c55e);width:${(completedCount/totalCount)*100}%;"></div>
                 </div>
-              </div>
-              <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:8px;">`;
+              </div>`;
+            if (!monthlyPayments.length) {
+              html += `<div style="font-size:12px;font-weight:800;color:#666;padding:4px 0 8px;">Regular half credited once a month (this stake predates per-day splitting). Next payment: ${roi.next_payment_date ? new Date(roi.next_payment_date).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}) : 'N/A'}</div>`;
+            } else {
+            html += `<div style="display:grid;grid-template-columns:repeat(${Math.min(monthlyPayments.length,3)},1fr);gap:8px;margin-bottom:8px;">`;
 
             monthlyPayments.forEach(p => {
               const isCompleted = p.status === 'completed';
               html += `<div style="background:#fff;border:${isCompleted ? '2px solid #22c55e' : '1px solid #e7e7f3'};border-radius:10px;padding:10px;text-align:center;">
                 <div style="font-size:10px;font-weight:900;color:#666;margin-bottom:4px;">Monthly (Day ${p.day})</div>
-                <div style="font-size:14px;font-weight:1100;color:${isCompleted ? '#22c55e' : '#667eea'};">${p.amount.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+                <div style="font-size:14px;font-weight:1100;color:${isCompleted ? '#22c55e' : '#667eea'};">${p.amount.toLocaleString('en-US', {maximumFractionDigits: 4})}</div>
                 <div style="font-size:8px;color:#999;margin-bottom:4px;">BMAN</div>
                 <div style="padding:4px 6px;background:${isCompleted ? '#dcfce7' : '#fef3c7'};border-radius:4px;font-size:9px;font-weight:900;color:${isCompleted ? '#15803d' : '#92400e'};text-transform:uppercase;">
                   ${isCompleted ? '✓' : '○'}
                 </div>
               </div>`;
             });
+            html += `</div>`;
+            }
 
-            html += `</div><div style="background:#fff;border:${maturityPayment.status === 'completed' ? '2px solid #22c55e' : '1px solid #e7e7f3'};border-radius:10px;padding:10px;text-align:center;">
+            html += `<div style="background:#fff;border:${maturityPayment.status === 'completed' ? '2px solid #22c55e' : '1px solid #e7e7f3'};border-radius:10px;padding:10px;text-align:center;">
               <div style="font-size:10px;font-weight:900;color:#666;margin-bottom:4px;">Maturity</div>
               <div style="font-size:14px;font-weight:1100;color:${maturityPayment.status === 'completed' ? '#22c55e' : '#667eea'};">${maturityPayment.amount.toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
               <div style="font-size:8px;color:#999;margin-bottom:4px;">BMAN</div>
@@ -2135,7 +2170,7 @@ $hero_progress = 48;
               ${distributionRowsHtml}
             </div>
             <div style="font-size:11px;font-weight:800;color:#64748b;line-height:1.45;margin-top:10px;background:#f8fafc;border:1px solid #e7e7f3;border-radius:10px;padding:9px 10px;">
-              This purchase was funded entirely from BMAN you already held — the amounts above were debited straight from those wallets. The 25% instant bonus above is new, separate from this split.
+              This purchase was funded entirely from BMAN you already held — the amounts above were debited straight from those wallets. The ${Number(d.amounts.instant_bonus_pct ?? 25)}% instant bonus above is new, separate from this split.
             </div>
           </div>
 
@@ -2188,22 +2223,24 @@ $hero_progress = 48;
             </div>`;
           }
           if (planType === 'regular' || planType === 'combo') {
-            const payments = [
-              { day: 5, amount: roi.payment_day_5_amount, status: roi.payment_day_5_status },
-              { day: 15, amount: roi.payment_day_15_amount, status: roi.payment_day_15_status },
-              { day: 25, amount: roi.payment_day_25_amount, status: roi.payment_day_25_status },
-            ];
-            html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">`;
+            // Real per-day split from the admin's configured credit days —
+            // see the identical fix + comment in showSwapDetails() above.
+            const payments = roi.payment_days || [];
+            if (!payments.length) {
+              html += `<div style="font-size:12px;font-weight:800;color:#666;padding:4px 0 8px;">Credited once a month (this stake predates per-day splitting). Next payment: ${roi.next_payment_date ? new Date(roi.next_payment_date).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'}) : 'N/A'}</div>`;
+            } else {
+            html += `<div style="display:grid;grid-template-columns:repeat(${Math.min(payments.length,4)},1fr);gap:8px;">`;
             payments.forEach(p => {
               const isCompleted = p.status === 'completed';
               html += `<div style="background:#fff;border:${isCompleted ? '2px solid #22c55e' : '1px solid #e7e7f3'};border-radius:10px;padding:10px;text-align:center;">
                 <div style="font-size:10px;font-weight:900;color:#666;margin-bottom:4px;">Day ${p.day}</div>
-                <div style="font-size:14px;font-weight:1100;color:${isCompleted ? '#22c55e' : '#667eea'};">${Number(p.amount).toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+                <div style="font-size:14px;font-weight:1100;color:${isCompleted ? '#22c55e' : '#667eea'};">${Number(p.amount).toLocaleString('en-US', {maximumFractionDigits: 4})}</div>
                 <div style="font-size:8px;color:#999;margin-bottom:4px;">BMAN</div>
                 <div style="padding:4px 6px;background:${isCompleted ? '#dcfce7' : '#fef3c7'};border-radius:4px;font-size:9px;font-weight:900;color:${isCompleted ? '#15803d' : '#92400e'};text-transform:uppercase;">${isCompleted ? '✓' : '○'}</div>
               </div>`;
             });
             html += `</div>`;
+            }
           }
 
           html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid #e7e7f3;">

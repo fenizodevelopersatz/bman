@@ -292,7 +292,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
           <div style="font-size:13px;font-weight:800;color:#334155;line-height:1.6;" id="stkm-distribution-desc">Select an option above</div>
         </div>
         <div class="stkm-warn" id="stkm-dist-warn"></div>
-        <div class="stkm-note">Choose how your principal is split across wallets. The 25% package bonus is separate and is shown as Instant Bonus.</div>
+        <div class="stkm-note">Choose how your principal is split across wallets. The <span id="stkm-step3-instant-pct">?</span>% package bonus is separate and is shown as Instant Bonus.</div>
       </div>
       <div class="stkm-pane" data-step="4">
         <!-- ROI Details Section -->
@@ -345,7 +345,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
           <div class="stkm-row" data-usdt-only><span>Cost</span><b id="stkm-cost">? USDT</b></div>
           <div class="stkm-row"><span><?= $isSwap ? 'BMAN ? Exchange Wallet' : 'Locked into Staking Wallet' ?></span><b id="stkm-lock">? BMAN</b></div>
           <div class="stkm-row"><span>Allocation Bonus Wallet (<span id="stkm-bonus-pct">0</span>%)</span><b id="stkm-bonus">? BMAN</b></div>
-          <div class="stkm-row"><span>Instant Bonus (25%)</span><b id="stkm-instant">? BMAN</b></div>
+          <div class="stkm-row"><span>Instant Bonus (<span id="stkm-instant-pct">?</span>%)</span><b id="stkm-instant">? BMAN</b></div>
           <div class="stkm-row" data-usdt-only><span>Your USDT Balance</span><b id="stkm-bal">? USDT</b></div>
           <div class="stkm-warn" id="stkm-warn">Insufficient USDT balance ? deposit USDT first.</div>
           <div id="stkm-funding" style="display:none;border-top:1px dashed rgba(15,23,42,.12);margin-top:8px;padding-top:8px;">
@@ -353,11 +353,17 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
             <div id="stkm-funding-rows"></div>
             <div class="stkm-warn" id="stkm-fund-warn"></div>
           </div>
-          <div style="border-top:1px dashed rgba(15,23,42,.12);margin-top:8px;padding-top:8px;">
+          <?php /* Option 1 is always 100% Exchange / 0% everything else, by
+                   definition — this whole breakdown is redundant for it
+                   (the "BMAN -> Exchange Wallet" row above already says the
+                   same thing) and showing 0-BMAN "(locked)" rows that never
+                   apply to a real purchase is just confusing. Only the
+                   re-stake options (2-8) actually split across wallets, so
+                   only they get this section — see renderLive(). */ ?>
+          <div id="stkm-allocation-preview" style="border-top:1px dashed rgba(15,23,42,.12);margin-top:8px;padding-top:8px;">
             <div style="font-size:10.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.4px;color:#94a3b8;margin-bottom:4px;">Live allocation preview</div>
             <div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>Exchange</span><b id="stkm-bw-exchange">?</b></div>
-            <div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>Staking (locked)</span><b id="stkm-bw-staking">?</b></div>
-            <div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>Bonus allocation (locked)</span><b id="stkm-bw-bonus">?</b></div>
+            <div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>Staking &amp; Bonus allocation (locked)</span><b id="stkm-bw-staking-bonus">?</b></div>
             <div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>Earning</span><b id="stkm-bw-earning">?</b></div>
           </div>
         </div>
@@ -563,7 +569,11 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
       }
     }
   }
-  function calcDist(amount){ const m=DISTS[cur.dist]||DISTS[7]; const exchange=amount*m.exchange/100, earning=amount*m.earning/100, staking=amount*m.staking/100, bonus=amount*m.bonus/100, instant=amount*0.25; return {m,exchange,earning,staking,bonus,instant,totalBonus:bonus+instant}; }
+  // Instant package bonus is per-PACKAGE (staking_packages.bonus_percent —
+  // admin-configurable per package, e.g. 20% on a Special Offer package, not
+  // always 25%). cur.pkg.bonus_pct carries the real value (see PKGS below) —
+  // never hardcode this.
+  function calcDist(amount){ const m=DISTS[cur.dist]||DISTS[7]; const exchange=amount*m.exchange/100, earning=amount*m.earning/100, staking=amount*m.staking/100, bonus=amount*m.bonus/100, instant=amount*((+cur.pkg?.bonus_pct||0)/100); return {m,exchange,earning,staking,bonus,instant,totalBonus:bonus+instant}; }
   function renderROIDetails(){
     if(!cur.pkg || !cur.roi_plan || !cur.years) return;
     const principal = +cur.pkg.stake||0;
@@ -616,20 +626,30 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     $('stkm-roi-return').textContent = Number(totalROI).toLocaleString();
     $('stkm-roi-rate').textContent = ratePercent + '%';
     $('stkm-roi-duration').textContent = years + ' Year' + (years>1?'s':'');
-    $('stkm-roi-bonus').textContent = Number(principal*0.25).toLocaleString();
+    $('stkm-roi-bonus').textContent = Number(principal*((+cur.pkg?.bonus_pct||0)/100)).toLocaleString();
 
   }
   function renderLive(){
     if(!cur.pkg) return;
     const amount=+cur.pkg.stake||0;
     const dist=calcDist(amount);
+    // Option 1 is always 100% Exchange / 0% everything else — this whole
+    // breakdown is redundant for it and just hidden.
+    const allocBox = $('stkm-allocation-preview');
+    if(allocBox) allocBox.style.display = isRestakeMode() ? 'block' : 'none';
     if($('stkm-bw-exchange')) $('stkm-bw-exchange').textContent=Number(dist.exchange).toLocaleString()+' BMAN';
-    if($('stkm-bw-staking')) $('stkm-bw-staking').textContent=Number(dist.staking).toLocaleString()+' BMAN';
-    if($('stkm-bw-bonus')) $('stkm-bw-bonus').textContent=Number(dist.bonus).toLocaleString()+' BMAN';
+    // Staking and Bonus wallet slices are both "locked" — merged into one
+    // row rather than two, matching how the rest of the app already talks
+    // about them together (e.g. the order-details popup's "Staking & Bonus
+    // slices are locked" note).
+    if($('stkm-bw-staking-bonus')) $('stkm-bw-staking-bonus').textContent=Number(dist.staking+dist.bonus).toLocaleString()+' BMAN';
     if($('stkm-bw-earning')) $('stkm-bw-earning').textContent=Number(dist.earning).toLocaleString()+' BMAN';
     if($('stkm-bonus')) $('stkm-bonus').textContent=Number(dist.bonus).toLocaleString()+' BMAN';
     if($('stkm-bonus-pct')) $('stkm-bonus-pct').textContent=fmtPct(dist.m.bonus);
     if($('stkm-instant')) $('stkm-instant').textContent=Number(dist.instant).toLocaleString()+' BMAN';
+    const instantPct = fmtPct(cur.pkg.bonus_pct);
+    if($('stkm-instant-pct')) $('stkm-instant-pct').textContent = instantPct;
+    if($('stkm-step3-instant-pct')) $('stkm-step3-instant-pct').textContent = instantPct;
     renderROIDetails();
   }
   function fmtPct(v){ v = Math.round((Number(v)||0) * 100) / 100; return String(v); }
@@ -646,8 +666,17 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     if(!desc) return;
     const selected = DISTS[cur.dist];
     if(selected) {
-      desc.innerHTML = getDistDescription(selected) +
-        '<div style="font-size:11px;font-weight:800;color:#64748b;margin-top:6px;">Remaining principal stays in Exchange Wallet. Instant 25% package bonus is shown separately.</div>';
+      const instantPct = fmtPct(cur.pkg?.bonus_pct);
+      // Option 1 is a real USDT->BMAN on-chain purchase, not an internal
+      // wallet split — say so plainly instead of the generic "100%
+      // Exchange" wording used for the re-stake options, which reads like
+      // principal is being moved around internally rather than bought.
+      const headline = isRestakeMode() ? getDistDescription(selected) : 'USDT &rarr; BMAN Conversion';
+      const note = isRestakeMode()
+        ? 'Remaining principal stays in Exchange Wallet. Instant '+instantPct+'% package bonus is shown separately.'
+        : 'You pay in USDT; the BMAN you receive lands in your Exchange Wallet. Instant '+instantPct+'% package bonus is shown separately.';
+      desc.innerHTML = headline +
+        '<div style="font-size:11px;font-weight:800;color:#64748b;margin-top:6px;">'+note+'</div>';
     }
   }
   // Live pre-check mirroring the server-side gate in Lendingcontroller::swap_purchase():

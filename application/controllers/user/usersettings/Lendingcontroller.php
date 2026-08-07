@@ -1007,6 +1007,22 @@ class Lendingcontroller extends CI_Controller
             }
         }
 
+        // Expected ROI per order — the stake's total_roi_amount over its full
+        // term (same figure the purchase modal's own "EXPECTED ROI" card
+        // shows before buying), read from the one real source of truth
+        // (roi_staking_management), never recomputed here. Batched by
+        // staking_swap_orders_id to avoid a per-row query.
+        $roiByOrder = [];
+        if ($orderIds && $this->db->table_exists('roi_staking_management')) {
+            $roiRows = $this->db->select('staking_swap_orders_id, total_roi_amount')
+                ->where_in('staking_swap_orders_id', $orderIds)
+                ->get('roi_staking_management')->result_array();
+            foreach ($roiRows as $rr) {
+                $sid = (int)$rr['staking_swap_orders_id'];
+                $roiByOrder[$sid] = ($roiByOrder[$sid] ?? 0) + (float)$rr['total_roi_amount'];
+            }
+        }
+
         // Fallback for in-flight orders only.
         $specialPkgIds = [];
         if ($this->db->table_exists('staking_packages') && $this->db->field_exists('is_special', 'staking_packages')) {
@@ -1036,6 +1052,7 @@ class Lendingcontroller extends CI_Controller
                                 ($o['duration_years'] ? $o['duration_years'] : 1) . 'y) — ' .
                                 ($o['status'] === 'swap_completed' ? 'Completed' : ucfirst(str_replace('_', ' ', $o['status']))),
                 'hash_id' => $o['gas_tx_hash'],
+                'expected_roi' => $roiByOrder[(int)$o['id']] ?? null,
                 // Additional fields for popup details
                 'order_id' => $o['id'],
                 'restake_id' => 0, // on-chain row — Details routes to swap_order_details() via order_id above
@@ -1086,6 +1103,20 @@ class Lendingcontroller extends CI_Controller
                 $opts = $this->db->select('id, option_name')->where_in('id', $optIds)->get('coin_distribution_options')->result_array();
                 foreach ($opts as $op) { $optNames[(int)$op['id']] = $op['option_name']; }
 
+                // Same expected-ROI lookup as the on-chain orders above, just
+                // keyed by user_stakes_id (re-stakes have no swap order row).
+                $roiByStake = [];
+                $restakeIds = array_map(function ($r) { return (int)$r['id']; }, $restakes);
+                if ($this->db->table_exists('roi_staking_management')) {
+                    $roiRows = $this->db->select('user_stakes_id, total_roi_amount')
+                        ->where_in('user_stakes_id', $restakeIds)
+                        ->get('roi_staking_management')->result_array();
+                    foreach ($roiRows as $rr) {
+                        $sid = (int)$rr['user_stakes_id'];
+                        $roiByStake[$sid] = ($roiByStake[$sid] ?? 0) + (float)$rr['total_roi_amount'];
+                    }
+                }
+
                 foreach ($restakes as $r) {
                     $maturityDate = $r['maturity_date'] ?? null;
                     $remainingDays = $maturityDate !== null
@@ -1106,6 +1137,7 @@ class Lendingcontroller extends CI_Controller
                                         ($r['plan_code'] ?: 'fixed') . '/' . ($r['duration_years'] ?: 1) . 'y) — ' .
                                         $optName . ' — ' . ucfirst((string)$r['status']),
                         'hash_id' => null,
+                        'expected_roi' => $roiByStake[(int)$r['id']] ?? null,
                         // No staking_swap_orders row exists for a re-stake — nothing
                         // on-chain to look up, so order_id stays 0 (the view routes
                         // Details to restake_id/restake_details() instead).
@@ -1216,6 +1248,16 @@ class Lendingcontroller extends CI_Controller
                     'usdt' => (float)$o['usdt_amount'],
                     'bman' => (float)$o['bman_amount'],
                     'bonus_bman' => (float)$o['bonus_bman'],
+                    // Derived from what was ACTUALLY credited on this order,
+                    // never re-read from staking_packages.bonus_percent live
+                    // — that column is admin-editable and this order's real
+                    // rate must never drift with a later edit (same "snapshot
+                    // at purchase" rule as everywhere else in this codebase).
+                    // Distinct key from distribution.bonus_pct below, which
+                    // is a different thing entirely (the coin-split option's
+                    // Bonus-WALLET percentage, e.g. Option 3's 10%).
+                    'instant_bonus_pct' => (float)$o['bman_amount'] > 0
+                        ? round(((float)$o['bonus_bman'] / (float)$o['bman_amount']) * 100, 4) : 0,
                 ],
                 'distribution' => [
                     'option' => (int)$o['coin_distribution_option'],
@@ -1248,12 +1290,17 @@ class Lendingcontroller extends CI_Controller
                     'fixed_payment_amount' => (float)($roiData['fixed_payment_amount'] ?? 0),
                     'fixed_maturity_date' => $roiData['fixed_maturity_date'],
                     'fixed_status' => $roiData['fixed_status'],
-                    'payment_day_5_amount' => (float)($roiData['payment_day_5_amount'] ?? 0),
-                    'payment_day_5_status' => $roiData['payment_day_5_status'],
-                    'payment_day_15_amount' => (float)($roiData['payment_day_15_amount'] ?? 0),
-                    'payment_day_15_status' => $roiData['payment_day_15_status'],
-                    'payment_day_25_amount' => (float)($roiData['payment_day_25_amount'] ?? 0),
-                    'payment_day_25_status' => $roiData['payment_day_25_status'],
+                    // Real per-day breakdown (whatever days the admin has
+                    // configured — not hardcoded to 3), replacing the old
+                    // dead payment_day_5/15/25_* columns nothing writes to
+                    // anymore. Empty for credit_mode='flat' records (every
+                    // pre-existing stake) — the JS falls back to the single
+                    // next_payment_date for those, same as before.
+                    'payment_days' => $this->_regularPaymentDaysFor($roiData),
+                    'credit_mode' => $roiData['credit_mode'] ?? 'flat',
+                    'regular_payment_amount' => (float)($roiData['regular_payment_amount'] ?? 0),
+                    'regular_payment_count' => (int)($roiData['regular_payment_count'] ?? 0),
+                    'regular_payments_completed' => (int)($roiData['regular_payments_completed'] ?? 0),
                     'overall_status' => $roiData['overall_status'],
                     'total_paid_amount' => (float)($roiData['total_paid_amount'] ?? 0),
                     'next_payment_date' => $roiData['next_payment_date'],
@@ -1393,6 +1440,10 @@ class Lendingcontroller extends CI_Controller
                 'amounts' => [
                     'bman' => $bman,
                     'bonus_bman' => (float)$s['bonus_amount'],
+                    // Derived from what was actually credited, never a live
+                    // staking_packages.bonus_percent re-read — see the same
+                    // comment in swap_order_details().
+                    'instant_bonus_pct' => $bman > 0 ? round(((float)$s['bonus_amount'] / $bman) * 100, 4) : 0,
                 ],
                 'distribution' => [
                     'option_id' => $optId,
@@ -1414,12 +1465,17 @@ class Lendingcontroller extends CI_Controller
                     'fixed_payment_amount' => (float)($roiData['fixed_payment_amount'] ?? 0),
                     'fixed_maturity_date' => $roiData['fixed_maturity_date'],
                     'fixed_status' => $roiData['fixed_status'],
-                    'payment_day_5_amount' => (float)($roiData['payment_day_5_amount'] ?? 0),
-                    'payment_day_5_status' => $roiData['payment_day_5_status'],
-                    'payment_day_15_amount' => (float)($roiData['payment_day_15_amount'] ?? 0),
-                    'payment_day_15_status' => $roiData['payment_day_15_status'],
-                    'payment_day_25_amount' => (float)($roiData['payment_day_25_amount'] ?? 0),
-                    'payment_day_25_status' => $roiData['payment_day_25_status'],
+                    // Real per-day breakdown (whatever days the admin has
+                    // configured — not hardcoded to 3), replacing the old
+                    // dead payment_day_5/15/25_* columns nothing writes to
+                    // anymore. Empty for credit_mode='flat' records (every
+                    // pre-existing stake) — the JS falls back to the single
+                    // next_payment_date for those, same as before.
+                    'payment_days' => $this->_regularPaymentDaysFor($roiData),
+                    'credit_mode' => $roiData['credit_mode'] ?? 'flat',
+                    'regular_payment_amount' => (float)($roiData['regular_payment_amount'] ?? 0),
+                    'regular_payment_count' => (int)($roiData['regular_payment_count'] ?? 0),
+                    'regular_payments_completed' => (int)($roiData['regular_payments_completed'] ?? 0),
                     'overall_status' => $roiData['overall_status'],
                     'total_paid_amount' => (float)($roiData['total_paid_amount'] ?? 0),
                     'next_payment_date' => $roiData['next_payment_date'],
@@ -1474,6 +1530,66 @@ class Lendingcontroller extends CI_Controller
             'status'   => $confirmed ? 'confirmed' : 'pending',
             'explorer' => (!empty($hash) && strlen($hash) > 20) ? $explorer.'/tx/'.$hash : null,
         ];
+    }
+
+    /**
+     * Real per-day payment breakdown for a roi_staking_management row's
+     * CURRENT cycle — for the details popup's "Payment Schedule" card.
+     * Replaces the old hardcoded Day 5/15/25 card, which read dead columns
+     * (payment_day_5/15/25_*) nothing has written since the escalating
+     * "Special ROI" engine was retired — every regular/combo record showed
+     * the same three fake dates regardless of what the admin actually
+     * configured in Staking Plans.
+     *
+     * Two cases:
+     *  - credit_mode='per_day' with real roi_regular_payment_days rows for
+     *    the in-progress cycle already open → return those (authoritative:
+     *    real scheduled_date/status/tx_hash).
+     *  - Not yet opened (cron hasn't reached this cycle) but the record IS
+     *    per_day → compute a read-only PREVIEW using credit_days_snapshot,
+     *    same split-evenly-with-remainder-on-last-day math openCycleDays()
+     *    itself uses, so the preview always matches what will actually post.
+     *  - credit_mode='flat' (every pre-existing record) → empty array; the
+     *    JS falls back to the single next_payment_date it already shows,
+     *    same as before this feature existed for these records.
+     *
+     * @return array<int, array{day:int, amount:float, status:string}>
+     */
+    private function _regularPaymentDaysFor($roiRow)
+    {
+        if (empty($roiRow) || ($roiRow['credit_mode'] ?? 'flat') !== 'per_day') return [];
+
+        $roiId = (int)$roiRow['id'];
+        $completed = (int)$roiRow['regular_payments_completed'];
+        $count = (int)$roiRow['regular_payment_count'];
+        if ($completed >= $count) return []; // regular leg already fully paid
+
+        $cycleNo = $completed + 1;
+        $rows = $this->db->select('day_of_month, amount, status')
+            ->where('roi_staking_management_id', $roiId)->where('cycle_no', $cycleNo)
+            ->order_by('day_of_month', 'ASC')->get('roi_regular_payment_days')->result_array();
+
+        if ($rows) {
+            return array_map(function ($r) {
+                return ['day' => (int)$r['day_of_month'], 'amount' => (float)$r['amount'], 'status' => $r['status']];
+            }, $rows);
+        }
+
+        // Not opened yet — preview only, nothing persisted, all "pending".
+        $this->load->model('RoiStakingManagement_model', 'roiMgmt');
+        $days = $this->roiMgmt->parseCreditDays($roiRow['credit_days_snapshot'] ?? null);
+        if (!$days) return [];
+        $total = (float)$roiRow['regular_payment_amount'];
+        $n = count($days);
+        $each = round($total / $n, 8);
+        $running = 0.0;
+        $preview = [];
+        foreach ($days as $i => $day) {
+            $amt = ($i === $n - 1) ? round($total - $running, 8) : $each;
+            $running += $amt;
+            $preview[] = ['day' => (int)$day, 'amount' => $amt, 'status' => 'pending'];
+        }
+        return $preview;
     }
 
     /**

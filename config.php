@@ -1,4 +1,18 @@
 <?php
+// ---------------------------------------------------------------------------
+//  Timezone — every ROI/maturity/rank date in this app is computed in PHP
+//  (date(), strtotime()), and this app is India-only. php.ini on this server
+//  defaults to Europe/Berlin (an XAMPP default, never configured for this
+//  site) — left as-is, every date computed anywhere in the app would be off
+//  from real IST by whatever CEST/CET's offset is that day (~3.5h in
+//  summer), which near midnight can flip which CALENDAR DAY a payment lands
+//  on. Set explicitly here (loaded before anything else, including CLI/cron
+//  — see require order in index.php) rather than editing the shared
+//  server-wide php.ini, which would affect every other site on this XAMPP
+//  instance, not just this app.
+// ---------------------------------------------------------------------------
+date_default_timezone_set('Asia/Kolkata');
+
 define('DB_HOST', "localhost");
 define('DB_USERNAME', "root");
 define('DB_PASS', "");
