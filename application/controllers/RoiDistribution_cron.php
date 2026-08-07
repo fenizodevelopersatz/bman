@@ -39,6 +39,7 @@ class RoiDistribution_cron extends CI_Controller
                 show_404();
             }
         }
+        @set_time_limit(0);
 
         $start = microtime(true);
         $monthly  = $this->_call('monthly');

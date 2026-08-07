@@ -24,6 +24,7 @@ class RoiMonthlyDistribution_cron extends CI_Controller
         parent::__construct();
         $this->load->model('Walletledger_model', 'L');
         $this->load->model('Tokenmaster_model', 'tokens');
+        $this->load->model('RoiStakingManagement_model', 'roiMgmt');
         $this->load->library('web3bman');
     }
 
@@ -34,23 +35,42 @@ class RoiMonthlyDistribution_cron extends CI_Controller
             $qsId = $this->input->get('record_id');
             if ($qsId !== null && $qsId !== '') $onlyId = (int)$qsId;
         }
+        @set_time_limit(0);
 
         $now = date('Y-m-d H:i:s');
         try {
+            $hasCreditMode = $this->db->field_exists('credit_mode', 'roi_staking_management');
             $this->db
                 ->where_in('plan_type', ['regular', 'combo'])
                 ->where('overall_status IN (\'active\',\'in_progress\')', null, false)
                 ->where('regular_payment_count >', 0)
-                ->where('regular_payments_completed < regular_payment_count', null, false)
-                ->where('next_payment_date <=', $now)
-                ->where('next_payment_date IS NOT NULL', null, false);
+                ->where('regular_payments_completed < regular_payment_count', null, false);
+            if ($hasCreditMode) {
+                // credit_mode='per_day' records are always "in scope" here —
+                // next_payment_date isn't kept in lockstep with a multi-day
+                // schedule (see _payDueDays()), so the real due-or-not check
+                // happens per-row inside that method instead of at the SQL
+                // level. 'flat' records keep the original single-date gate.
+                $this->db->group_start()
+                    ->where('credit_mode', 'per_day')
+                    ->or_group_start()
+                        ->where('next_payment_date IS NOT NULL', null, false)
+                        ->where('next_payment_date <=', $now)
+                    ->group_end()
+                ->group_end();
+            } else {
+                $this->db->where('next_payment_date IS NOT NULL', null, false)
+                          ->where('next_payment_date <=', $now);
+            }
             if ($onlyId) $this->db->where('id', (int)$onlyId);
             $records = $this->db->get('roi_staking_management')->result_array();
 
             $processed = 0; $failed = 0; $details = [];
             foreach ($records as $r) {
                 try {
-                    $paid = $this->_payDueMonths($r, $now);
+                    $paid = ((string)($r['credit_mode'] ?? 'flat') === 'per_day')
+                        ? $this->_payDueDays($r, $now)
+                        : $this->_payDueMonths($r, $now);
                     $processed += $paid['credited'];
                     if ($paid['credited'] > 0) $details[] = $paid['summary'];
                 } catch (Exception $e) {
@@ -158,6 +178,109 @@ class RoiMonthlyDistribution_cron extends CI_Controller
             'summary'  => ['id' => (int)$r['id'], 'user_id' => (int)$r['user_id'],
                            'months_credited' => $credited, 'completed' => $completed . '/' . $count,
                            'amount_each' => $amount],
+        ];
+    }
+
+    /**
+     * credit_mode='per_day' — splits the monthly rate across the plan's
+     * configured credit_days (e.g. "7,8,9") and credits on each real
+     * calendar day, instead of _payDueMonths()'s single once-a-month credit.
+     * A single call catches up every day that's due across every not-yet-
+     * fully-paid cycle (handles missed runs / backdated testing, same as
+     * _payDueMonths()).
+     */
+    private function _payDueDays($r, $now)
+    {
+        $recordId  = (int)$r['id'];
+        $completed = (int)$r['regular_payments_completed'];
+        $count     = (int)$r['regular_payment_count'];
+        $totalAmount = (float)$r['regular_payment_amount'];
+        $totalPaid = (float)$r['total_paid_amount'];
+        $remaining = (float)$r['remaining_to_pay'];
+        $credited  = 0;
+        $creditError = null;
+
+        while ($completed < $count) {
+            $cycleNo = $completed + 1;
+            $this->roiMgmt->openCycleDays($recordId, $cycleNo, $r['created_at'], $r['credit_days_snapshot'] ?? null, $totalAmount);
+
+            $dueRows = $this->roiMgmt->pendingDueDays($recordId, $cycleNo, $now);
+            if (!$dueRows) break; // nothing in THIS cycle due yet — never peek ahead at a future cycle
+
+            foreach ($dueRows as $row) {
+                $dayRef = $r['ref'] . '-M' . $cycleNo . '-D' . $row['day_of_month'];
+                $amount = (float)$row['amount'];
+                try {
+                    $txHash = $this->_resolveOrSendRoiTx((int)$r['user_id'], $dayRef, $amount, 'roi_monthly');
+                } catch (Throwable $e) {
+                    log_message('error', '[ROI_MONTHLY] on-chain send failed rec ' . $recordId . ' cycle ' . $cycleNo . ' day ' . $row['day_of_month'] . ': ' . $e->getMessage());
+                    $creditError = "Cycle {$cycleNo} day {$row['day_of_month']} on-chain send failed: " . $e->getMessage();
+                    break 2;
+                }
+
+                list($ok, $info) = $this->L->credit((int)$r['user_id'], 'exchange', $amount, 'roi', [
+                    'tx_hash'      => $txHash,
+                    'reference_id' => $r['ref'],
+                    'description'  => "Monthly ROI day {$row['day_of_month']} (cycle {$cycleNo}/{$count}) — {$amount} BMAN (order {$r['staking_swap_orders_id']})" . (strpos($txHash, 'DRYRUN') === 0 ? ' [DRY-RUN]' : ''),
+                ]);
+                if (!$ok) {
+                    log_message('error', '[ROI_MONTHLY] ledger credit failed rec ' . $recordId . ' cycle ' . $cycleNo . ' day ' . $row['day_of_month'] . ': ' . $info);
+                    $creditError = "Cycle {$cycleNo} day {$row['day_of_month']} credit failed: {$info}";
+                    break 2;
+                }
+
+                $this->roiMgmt->markDayPaid($row['id'], $txHash);
+                $totalPaid += $amount;
+                $remaining  = max(0, $remaining - $amount);
+                $credited++;
+
+                // Reflect this payment on the summary row IMMEDIATELY, not
+                // only once the whole cycle finishes — the wallet credit
+                // above already happened for real; total_paid_amount lagging
+                // behind it (even briefly) would show a stale ROI progress
+                // figure to anyone reading roi_staking_management between
+                // now and the cycle's last day (e.g. the restake-details
+                // popup, admin ROI history).
+                $this->db->where('id', $recordId)->update('roi_staking_management', [
+                    'total_paid_amount' => $totalPaid,
+                    'remaining_to_pay'  => $remaining,
+                    'overall_status'    => 'in_progress',
+                    'error_message'     => null,
+                    'updated_at'        => date('Y-m-d H:i:s'),
+                ]);
+            }
+
+            if ($this->roiMgmt->remainingInCycle($recordId, $cycleNo) > 0) break; // days left in THIS cycle not yet due
+
+            // Every configured day for this cycle is paid — roll the month forward.
+            $completed = $cycleNo;
+            $allPaid = $completed >= $count;
+            $nextDate = $r['fixed_maturity_date'];
+            if (!$allPaid) {
+                // Frozen snapshot again — NOT a live staking_plans lookup.
+                $days = $this->roiMgmt->parseCreditDays($r['credit_days_snapshot'] ?? null);
+                $anchor = date('Y-m-d H:i:s', strtotime('+' . ($completed + 1) . ' months', strtotime($r['created_at'])));
+                $nextDate = $days ? $this->roiMgmt->dayInMonth($anchor, $days[0]) : $anchor;
+            }
+            // total_paid_amount/remaining_to_pay are already current — every
+            // day-credit above updates them immediately. This just advances
+            // the cycle marker now that every configured day is done.
+            $this->db->where('id', $recordId)->update('roi_staking_management', [
+                'regular_payments_completed' => $completed,
+                'next_payment_date'          => $nextDate,
+                'updated_at'                 => date('Y-m-d H:i:s'),
+            ]);
+        }
+
+        if ($creditError !== null) {
+            $this->db->where('id', $recordId)->update('roi_staking_management', ['error_message' => substr($creditError, 0, 500)]);
+            throw new RuntimeException($creditError);
+        }
+
+        return [
+            'credited' => $credited,
+            'summary'  => ['id' => $recordId, 'user_id' => (int)$r['user_id'],
+                           'days_credited' => $credited, 'completed' => $completed . '/' . $count],
         ];
     }
 

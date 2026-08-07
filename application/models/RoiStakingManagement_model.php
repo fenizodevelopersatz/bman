@@ -152,10 +152,151 @@ class RoiStakingManagement_model extends CI_Model
                 break;
         }
 
+        // Per-day crediting opt-in: only when the plan has real configured
+        // credit days AND the column exists (defensive — matches the
+        // field_exists guard pattern used elsewhere for a pending migration).
+        // Falls back to 'flat' (the only behavior that existed before this
+        // shipped) whenever a plan has no days configured, so an admin who
+        // hasn't set credit_days yet never accidentally breaks new purchases.
+        if (in_array($planType, ['regular', 'combo'], true) && $this->db->field_exists('credit_mode', $this->table)) {
+            $creditDays = $this->creditDaysFor($planType);
+            $recordData['credit_mode'] = $creditDays ? 'per_day' : 'flat';
+            if ($creditDays) {
+                // Freeze the exact days in effect RIGHT NOW onto the record —
+                // every cycle for this stake's whole life reads THIS snapshot,
+                // never staking_plans.credit_days again. A later admin edit
+                // must never reshape an already-active stake mid-term (same
+                // rule already enforced for combo split %, ROI rate, etc.).
+                if ($this->db->field_exists('credit_days_snapshot', $this->table)) {
+                    $recordData['credit_days_snapshot'] = implode(',', $creditDays);
+                }
+                $recordData['next_payment_date'] = $this->dayInMonth($firstMonthDate, $creditDays[0]);
+            }
+        }
+
         if ($this->db->insert($this->table, $recordData)) {
             return $this->db->insert_id();
         }
         return false;
+    }
+
+    /* =============== Dynamic per-day ROI crediting (Regular/Combo) ===============
+     * Splits a plan's monthly rate evenly across however many days the admin
+     * configures (staking_plans.credit_days, e.g. "7,8,9" — any count, not
+     * hardcoded), crediting on each real calendar day instead of once a month.
+     * Days are snapshotted per cycle so a later admin edit never reshapes an
+     * in-flight schedule. Used by RoiMonthlyDistribution_cron for records
+     * whose credit_mode = 'per_day'.
+     */
+
+    /**
+     * staking_plans.credit_days for 'regular'/'combo' — the LIVE, currently-
+     * configured value. Only ever call this at PURCHASE time (to decide
+     * credit_mode and build the one-time credit_days_snapshot) or from admin
+     * preview UI. Never call this while processing an existing stake's
+     * cycles — use parseCreditDays($record['credit_days_snapshot']) instead,
+     * or a later admin edit here would reshape an already-active stake.
+     */
+    public function creditDaysFor($planType)
+    {
+        $row = $this->db->select('credit_days')->get_where('staking_plans', ['code' => $planType])->row_array();
+        return $this->parseCreditDays($row['credit_days'] ?? null);
+    }
+
+    /** Parse a raw "7,8,9" CSV (live config OR a record's frozen credit_days_snapshot) into a sorted, deduped list of valid days (1-31). */
+    public function parseCreditDays($csv)
+    {
+        $days = [];
+        if ($csv !== null && $csv !== '') {
+            foreach (explode(',', $csv) as $d) {
+                $d = (int)trim($d);
+                if ($d >= 1 && $d <= 31) $days[$d] = true;
+            }
+        }
+        $days = array_keys($days);
+        sort($days);
+        return $days;
+    }
+
+    /** $day within $monthAnchor's month, clamped to that month's real last day (e.g. day 31 in a 30-day month -> the 30th). */
+    public function dayInMonth($monthAnchor, $day)
+    {
+        $ts = strtotime($monthAnchor);
+        $lastDay = (int)date('t', $ts);
+        $day = max(1, min((int)$day, $lastDay));
+        return date('Y-m-', $ts) . str_pad((string)$day, 2, '0', STR_PAD_LEFT) . ' ' . date('H:i:s', $ts);
+    }
+
+    /**
+     * Ensure roi_regular_payment_days rows exist for one cycle of a per_day
+     * record — creates them the first time this cycle is touched, using the
+     * days FROZEN onto the record at purchase time ($creditDaysCsv, i.e.
+     * $record['credit_days_snapshot']) — NEVER a live staking_plans lookup,
+     * or an admin editing credit_days mid-term would reshape an already-
+     * active stake's remaining cycles. INSERT IGNORE + the table's
+     * UNIQUE(record,cycle,day) key make this safe under a concurrent/retried
+     * call — matches the idempotency pattern used elsewhere in this codebase
+     * (rank_rewards, user_notifications) rather than relying on a run-lock.
+     * No-ops (silently) if the snapshot is empty — shouldn't happen for a
+     * credit_mode='per_day' record, but failing open (no crash, no payment)
+     * is safer than failing closed on live money code.
+     */
+    public function openCycleDays($roiRecordId, $cycleNo, $createdAt, $creditDaysCsv, $totalAmount)
+    {
+        $exists = $this->db->where('roi_staking_management_id', (int)$roiRecordId)
+            ->where('cycle_no', (int)$cycleNo)->count_all_results('roi_regular_payment_days');
+        if ($exists > 0) return;
+
+        $days = $this->parseCreditDays($creditDaysCsv);
+        if (!$days) return;
+
+        $monthAnchor = date('Y-m-d H:i:s', strtotime('+' . (int)$cycleNo . ' months', strtotime($createdAt)));
+        $n = count($days);
+        $each = bcdiv((string)$totalAmount, (string)$n, 8);
+        $running = '0';
+        $rows = [];
+        foreach ($days as $i => $day) {
+            // Last day absorbs the rounding remainder so the cycle's rows
+            // always sum EXACTLY to $totalAmount — never a fraction short.
+            $amt = ($i === $n - 1) ? bcsub((string)$totalAmount, $running, 8) : $each;
+            $running = bcadd($running, $amt, 8);
+            $rows[] = [
+                (int)$roiRecordId, (int)$cycleNo, (int)$day,
+                $this->db->escape($this->dayInMonth($monthAnchor, $day)), $amt,
+            ];
+        }
+        $values = implode(',', array_map(function ($r) {
+            return '(' . $r[0] . ',' . $r[1] . ',' . $r[2] . ',' . $r[3] . ',' . $r[4] . ",'pending')";
+        }, $rows));
+        $this->db->query(
+            "INSERT IGNORE INTO roi_regular_payment_days
+                (roi_staking_management_id, cycle_no, day_of_month, scheduled_date, amount, status)
+             VALUES {$values}"
+        );
+    }
+
+    /** Pending day-rows for one cycle whose scheduled_date has arrived. */
+    public function pendingDueDays($roiRecordId, $cycleNo, $now)
+    {
+        return $this->db->where('roi_staking_management_id', (int)$roiRecordId)
+            ->where('cycle_no', (int)$cycleNo)->where('status', 'pending')
+            ->where('scheduled_date <=', $now)
+            ->order_by('day_of_month', 'ASC')->get('roi_regular_payment_days')->result_array();
+    }
+
+    /** Whether any pending (not-yet-due-or-not-yet-credited) rows remain for a cycle. */
+    public function remainingInCycle($roiRecordId, $cycleNo)
+    {
+        return (int)$this->db->where('roi_staking_management_id', (int)$roiRecordId)
+            ->where('cycle_no', (int)$cycleNo)->where('status', 'pending')
+            ->count_all_results('roi_regular_payment_days');
+    }
+
+    public function markDayPaid($dayRowId, $txHash)
+    {
+        $this->db->where('id', (int)$dayRowId)->update('roi_regular_payment_days', [
+            'status' => 'completed', 'paid_date' => date('Y-m-d H:i:s'), 'tx_hash' => $txHash,
+        ]);
     }
 
     /**

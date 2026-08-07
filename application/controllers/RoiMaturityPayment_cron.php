@@ -34,6 +34,7 @@ class RoiMaturityPayment_cron extends CI_Controller
             $qsId = $this->input->get('record_id');
             if ($qsId !== null && $qsId !== '') $onlyId = (int)$qsId;
         }
+        @set_time_limit(0);
 
         $now = date('Y-m-d H:i:s');
         try {
