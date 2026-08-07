@@ -580,6 +580,7 @@ $route['user/lending/swap_purchase']['post']  = 'user/usersettings/lendingcontro
 $route['user/lending/restake_purchase']['post'] = 'user/usersettings/lendingcontroller/restake_purchase';
 $route['user/lending/swap_status']['post']    = 'user/usersettings/lendingcontroller/swap_status';
 $route['user/lending/swap_order_details']['post'] = 'user/usersettings/lendingcontroller/swap_order_details';
+$route['user/lending/restake_details']['post']    = 'user/usersettings/lendingcontroller/restake_details';
 $route['user/lending/swap_history']['post']   = 'user/usersettings/lendingcontroller/swap_history';
 
 $route['user/genealogy'] = 'user/usersettings/genealogycontroller';

@@ -927,13 +927,14 @@ class Staking_model extends CI_Model
         $planCode     = (string)($ctx['plan_code'] ?? '');
         $years        = (int)($ctx['duration_years'] ?? 0);
         $distOptionId = (int)($ctx['distribution_option_id'] ?? 0);
-        $skipKyc      = !empty($ctx['skip_kyc']);
 
-        // ---- 1. account + KYC ----
-        $user = $this->db->select('status, kyc_status')->get_where('users', ['id' => $userId])->row_array();
+        // ---- 1. account ----
+        // No KYC gate here (unlike purchaseStake()'s Option-1 path below):
+        // this re-stakes BMAN the user already holds inside the platform —
+        // no new USDT/BMAN enters or leaves, nothing on-chain — so there's
+        // no new money movement for KYC to gate.
+        $user = $this->db->select('status')->get_where('users', ['id' => $userId])->row_array();
         if (!$user || (string)$user['status'] !== '1') return [false, 'Your account is not active.'];
-        if (!$skipKyc && strtolower((string)($user['kyc_status'] ?? '')) !== 'approved')
-            return [false, 'KYC must be approved before purchasing a stake.'];
 
         // ---- 2. package ----
         $pkg = $this->db->get_where('staking_packages', ['id' => $pkgId, 'is_active' => 1])->row_array();

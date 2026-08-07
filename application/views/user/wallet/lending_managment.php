@@ -1296,8 +1296,13 @@ $hero_progress = 48;
               <tbody>
                 <?php if (empty($recent_staking_activity)): ?>
                   <tr><td colspan="10" style="text-align:center;color:#9ca3af;padding:18px;">No recent staking activity found.</td></tr>
-                <?php else: foreach ($recent_staking_activity as $i => $row): $hasOrder = !empty($row->order_id); ?>
-                  <tr style="cursor:<?= $hasOrder ? 'pointer' : 'default' ?>;transition:background 0.2s;" <?= $hasOrder ? 'onclick="showSwapDetails(' . (int)$row->order_id . ')"' : '' ?> onmouseover="this.style.background='#f9f9fb'" onmouseout="this.style.background=''">
+                <?php else: foreach ($recent_staking_activity as $i => $row):
+                  $hasOrder = !empty($row->order_id);
+                  $hasRestake = !$hasOrder && !empty($row->restake_id);
+                  $rowClick = $hasOrder ? 'showSwapDetails(' . (int)$row->order_id . ')'
+                            : ($hasRestake ? 'showRestakeDetails(' . (int)$row->restake_id . ')' : null);
+                ?>
+                  <tr style="cursor:<?= $rowClick ? 'pointer' : 'default' ?>;transition:background 0.2s;" <?= $rowClick ? 'onclick="' . $rowClick . '"' : '' ?> onmouseover="this.style.background='#f9f9fb'" onmouseout="this.style.background=''">
                     <td data-label="S.No"><?= (int)$i + 1 ?></td>
                     <td data-label="Date" style="font-size:12px;"><?= htmlspecialchars((string)($row->history_date ?? '—')) ?></td>
                     <td data-label="Type">
@@ -1324,7 +1329,15 @@ $hero_progress = 48;
                       </span>
                     </td>
                     <td data-label="Description" style="font-size:11px;color:#666;"><?= htmlspecialchars((string)($row->description ?? '—')) ?></td>
-                    <td data-label=""><?php if ($hasOrder): ?><button class="btn-soft" onclick="event.stopPropagation();showSwapDetails(<?= (int)$row->order_id ?>)" style="padding:6px 10px;font-size:11px;">Details</button><?php else: ?><span style="font-size:11px;color:#9ca3af;">Wallet re-stake</span><?php endif; ?></td>
+                    <td data-label="">
+                      <?php if ($hasOrder): ?>
+                        <button class="btn-soft" onclick="event.stopPropagation();showSwapDetails(<?= (int)$row->order_id ?>)" style="padding:6px 10px;font-size:11px;">Details</button>
+                      <?php elseif ($hasRestake): ?>
+                        <button class="btn-soft" onclick="event.stopPropagation();showRestakeDetails(<?= (int)$row->restake_id ?>)" style="padding:6px 10px;font-size:11px;">Details</button>
+                      <?php else: ?>
+                        <span style="font-size:11px;color:#9ca3af;">Wallet re-stake</span>
+                      <?php endif; ?>
+                    </td>
                   </tr>
                 <?php endforeach; endif; ?>
               </tbody>
@@ -1338,7 +1351,7 @@ $hero_progress = 48;
       <div class="modal-backdrop" id="swapDetailsModal" style="display:none;z-index:2000;">
         <div class="modal" style="max-width:800px;max-height:90vh;overflow-y:auto;">
           <div class="modal-h">
-            <b>Staking Purchase Details</b>
+            <b id="swapDetailsTitle">Staking Purchase Details</b>
             <button class="xbtn" onclick="closeSwapDetails()" style="cursor:pointer;"><i class="ph ph-x"></i></button>
           </div>
 
@@ -1641,8 +1654,10 @@ $hero_progress = 48;
 
       const modal = document.getElementById('swapDetailsModal');
       const content = document.getElementById('swapDetailsContent');
+      const title = document.getElementById('swapDetailsTitle');
 
       if (!modal || !content) return;
+      if (title) title.textContent = 'Staking Purchase Details';
 
       modal.style.display = 'flex';
 
@@ -2033,6 +2048,182 @@ $hero_progress = 48;
     function closeSwapDetails() {
       const modal = document.getElementById('swapDetailsModal');
       if (modal) modal.style.display = 'none';
+    }
+
+    // Details popup for a wallet re-stake (Options 2-8 — no blockchain leg,
+    // so this is a smaller sibling of showSwapDetails() above: no gas/USDT/
+    // cron-step section, since none of that applies to a purely internal
+    // purchase). Reuses the same modal shell/backdrop.
+    function showRestakeDetails(stakeId) {
+      if (!stakeId) { toastMini("Invalid stake ID"); return; }
+
+      const modal = document.getElementById('swapDetailsModal');
+      const content = document.getElementById('swapDetailsContent');
+      const title = document.getElementById('swapDetailsTitle');
+
+      if (!modal || !content) return;
+      if (title) title.textContent = 'Re-stake Details';
+
+      modal.style.display = 'flex';
+      content.innerHTML = `<div style="text-align:center;padding:40px;"><div class="spinner-border text-primary"></div><p style="margin-top:12px;color:#666;">Loading details...</p></div>`;
+
+      fetch('<?= base_url("user/lending/restake_details"); ?>', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ stake_id: stakeId })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.status) {
+          content.innerHTML = `<div style="color:red;text-align:center;">Error: ${data.message}</div>`;
+          return;
+        }
+
+        const d = data.data;
+        const statusLabel = d.current_status === 'active' ? 'Active' : (d.current_status || '—').replace(/_/g, ' ');
+        const statusColor = d.current_status === 'active' || d.current_status === 'swap_completed' ? '#22c55e'
+                           : (String(d.current_status || '').includes('fail') ? '#ef4444' : '#667eea');
+
+        const specialBadge = d.is_special
+          ? '<span style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:900;font-size:10px;letter-spacing:.4px;padding:4px 10px;border-radius:999px;margin-left:8px;vertical-align:middle;">★ SPECIAL OFFER</span>'
+          : '';
+
+        const distributionRows = [
+          { label: 'Exchange Wallet', pct: Number(d.distribution.exchange_pct || 0), amount: Number(d.distribution.exchange_bman || 0) },
+          { label: 'Earning Wallet',  pct: Number(d.distribution.earning_pct  || 0), amount: Number(d.distribution.earning_bman  || 0) },
+          { label: 'Staking Wallet',  pct: Number(d.distribution.staking_pct  || 0), amount: Number(d.distribution.staking_bman  || 0), note: 'locked' },
+          { label: 'Bonus Wallet',    pct: Number(d.distribution.bonus_pct    || 0), amount: Number(d.distribution.bonus_bman    || 0), note: 'locked' },
+        ].filter(row => row.pct > 0);
+        const distributionRowsHtml = distributionRows.length
+          ? distributionRows.map(row => `
+              <div><span style="color:#666;">${row.label}:</span> <b>-${row.amount.toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</b> <small style="color:#64748b;font-weight:900;">(${row.pct.toFixed(0)}%${row.note ? ' ' + row.note : ''})</small></div>
+            `).join('')
+          : '<div style="grid-column:1/-1;color:#64748b;font-weight:900;">No allocation recorded.</div>';
+
+        let html = `
+          <div style="margin-bottom:20px;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+              <div style="font-size:24px;color:${statusColor};"><i class="ph ph-arrows-clockwise"></i></div>
+              <div>
+                <h4 style="margin:0;font-weight:1000;color:#111;text-transform:capitalize;">${statusLabel}${specialBadge}</h4>
+                <p style="margin:4px 0 0;font-size:12px;color:#666;">Stake #${d.stake_id}${d.ref ? ` &middot; <code>${d.ref}</code>` : ''}</p>
+              </div>
+            </div>
+            <div style="background:#f9f9fb;border-radius:12px;padding:12px;margin-bottom:16px;">
+              <p style="margin:0;font-size:11px;color:#666;">Created: <b>${d.created_at}</b></p>
+              <p style="margin:4px 0 0;font-size:11px;color:#666;">Package: <b>${d.package_name}</b></p>
+            </div>
+          </div>
+
+          <!-- BMAN Values Summary -->
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:16px;">
+            <div class="card" style="box-shadow:none;border:2px solid #22c55e;background:#f0fdf4;">
+              <div style="font-size:10px;color:#15803d;font-weight:900;margin-bottom:6px;text-transform:uppercase;">🔒 Principal Staked</div>
+              <div style="font-size:18px;font-weight:1100;color:#22c55e;">${Number(d.amounts.bman).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</div>
+              <div style="font-size:9px;color:#15803d;margin-top:4px;">from your existing wallets — no USDT, no blockchain</div>
+            </div>
+            <div class="card" style="box-shadow:none;border:1px solid #e7e7f3;background:#fef3c7;">
+              <div style="font-size:10px;color:#666;font-weight:900;margin-bottom:6px;text-transform:uppercase;">Instant Bonus BMAN</div>
+              <div style="font-size:18px;font-weight:1100;color:#b45309;">+ ${Number(d.amounts.bonus_bman).toLocaleString(undefined,{maximumFractionDigits:4})}</div>
+              <div style="font-size:9px;color:#999;margin-top:4px;">credited to Bonus Wallet</div>
+            </div>
+          </div>
+
+          <div style="border-top:1px solid #e7e7f3;padding-top:12px;margin-bottom:16px;">
+            <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">Wallet Deductions — ${d.distribution.option_name}</h5>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
+              ${distributionRowsHtml}
+            </div>
+            <div style="font-size:11px;font-weight:800;color:#64748b;line-height:1.45;margin-top:10px;background:#f8fafc;border:1px solid #e7e7f3;border-radius:10px;padding:9px 10px;">
+              This purchase was funded entirely from BMAN you already held — the amounts above were debited straight from those wallets. The 25% instant bonus above is new, separate from this split.
+            </div>
+          </div>
+
+          <div style="border-top:1px solid #e7e7f3;padding-top:12px;margin-bottom:16px;">
+            <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">Plan Details</h5>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;">
+              <div><span style="color:#666;">Plan:</span> <b style="text-transform:capitalize;">${d.plan.code}</b></div>
+              <div><span style="color:#666;">Duration:</span> <b>${d.plan.duration_years} year(s)</b></div>
+              <div><span style="color:#666;">Maturity Date:</span> <b>${d.maturity_date || 'N/A'}</b></div>
+              <div><span style="color:#666;">Remaining Days:</span> <b>${d.remaining_days ?? '—'}</b></div>
+            </div>
+          </div>
+        `;
+
+        if (d.ledger && d.ledger.length) {
+          html += `
+          <div style="border-top:1px solid #e7e7f3;padding-top:12px;margin-bottom:16px;">
+            <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">Ledger Entries</h5>
+            <div style="font-size:11px;">
+              ${d.ledger.map(lr => {
+                const isCredit = Number(lr.credit) > 0;
+                const amt = isCredit ? Number(lr.credit) : Number(lr.debit);
+                return `<div style="display:flex;justify-content:space-between;gap:8px;padding:7px 8px;background:#f9f9fb;border-radius:6px;margin-bottom:6px;">
+                  <span style="color:#666;">${lr.description}</span>
+                  <b style="white-space:nowrap;color:${isCredit ? '#22c55e' : '#ef4444'};">${isCredit ? '+' : '-'}${amt.toLocaleString(undefined,{maximumFractionDigits:4})}</b>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>`;
+        }
+
+        if (d.roi_details) {
+          const roi = d.roi_details;
+          const planType = roi.plan_type || 'fixed';
+          html += `<div style="border-top:1px solid #e7e7f3;padding-top:12px;margin-bottom:16px;">
+            <h5 style="margin:0 0 10px;font-size:13px;font-weight:1000;color:#111;">ROI Schedule</h5>
+            <div style="padding:14px;background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(34,197,94,.08));border:1px solid #d1d5db;border-radius:12px;">
+              <div style="font-size:11px;font-weight:900;color:#4338ca;margin-bottom:12px;text-transform:uppercase;display:flex;align-items:center;gap:8px;">
+                <i class="ph ph-${planType === 'fixed' ? 'lock-key' : planType === 'regular' ? 'calendar-dots' : 'shuffle'}"></i>
+                ${planType === 'fixed' ? 'Fixed Plan' : planType === 'regular' ? 'Regular Plan' : 'Combo Plan'}
+              </div>`;
+
+          if (planType === 'fixed' || planType === 'combo') {
+            const isCompleted = roi.fixed_status === 'completed';
+            html += `<div style="background:#fff;border:${isCompleted ? '2px solid #22c55e' : '1px solid #e7e7f3'};border-radius:10px;padding:12px;margin-bottom:8px;">
+              <div style="font-size:11px;font-weight:900;color:#666;margin-bottom:6px;text-transform:uppercase;">💰 Maturity Payment</div>
+              <div style="font-size:16px;font-weight:1100;color:${isCompleted ? '#22c55e' : '#667eea'};">${Number(roi.fixed_payment_amount).toLocaleString('en-US', {maximumFractionDigits: 2})} BMAN</div>
+              <div style="font-size:10px;color:#999;margin-top:4px;">Due: ${roi.fixed_maturity_date ? new Date(roi.fixed_maturity_date).toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'}) : 'N/A'}</div>
+              <div style="margin-top:8px;padding:6px 8px;background:${isCompleted ? '#dcfce7' : '#fef3c7'};border-radius:6px;font-size:10px;font-weight:900;color:${isCompleted ? '#15803d' : '#92400e'};text-transform:uppercase;">${isCompleted ? '✓ Completed' : '○ Pending'}</div>
+            </div>`;
+          }
+          if (planType === 'regular' || planType === 'combo') {
+            const payments = [
+              { day: 5, amount: roi.payment_day_5_amount, status: roi.payment_day_5_status },
+              { day: 15, amount: roi.payment_day_15_amount, status: roi.payment_day_15_status },
+              { day: 25, amount: roi.payment_day_25_amount, status: roi.payment_day_25_status },
+            ];
+            html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">`;
+            payments.forEach(p => {
+              const isCompleted = p.status === 'completed';
+              html += `<div style="background:#fff;border:${isCompleted ? '2px solid #22c55e' : '1px solid #e7e7f3'};border-radius:10px;padding:10px;text-align:center;">
+                <div style="font-size:10px;font-weight:900;color:#666;margin-bottom:4px;">Day ${p.day}</div>
+                <div style="font-size:14px;font-weight:1100;color:${isCompleted ? '#22c55e' : '#667eea'};">${Number(p.amount).toLocaleString('en-US', {maximumFractionDigits: 0})}</div>
+                <div style="font-size:8px;color:#999;margin-bottom:4px;">BMAN</div>
+                <div style="padding:4px 6px;background:${isCompleted ? '#dcfce7' : '#fef3c7'};border-radius:4px;font-size:9px;font-weight:900;color:${isCompleted ? '#15803d' : '#92400e'};text-transform:uppercase;">${isCompleted ? '✓' : '○'}</div>
+              </div>`;
+            });
+            html += `</div>`;
+          }
+
+          html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;padding-top:12px;border-top:1px solid #e7e7f3;">
+            <div><span style="color:#666;font-size:11px;">Total ROI:</span> <b style="font-size:12px;">${Number(roi.total_roi_amount).toLocaleString(undefined,{maximumFractionDigits:2})} BMAN</b></div>
+            <div><span style="color:#666;font-size:11px;">Overall Status:</span> <b style="font-size:12px;text-transform:capitalize;">${roi.overall_status || 'active'}</b></div>
+          </div>`;
+
+          html += `</div></div>`;
+        }
+
+        html += `<div style="margin-top:16px;padding-top:12px;border-top:1px solid #e7e7f3;">
+          <button class="btn-soft" onclick="closeSwapDetails()" style="width:100%;padding:10px;cursor:pointer;">Close</button>
+        </div>`;
+
+        content.innerHTML = html;
+      })
+      .catch(err => {
+        console.error(err);
+        content.innerHTML = `<div style="color:red;text-align:center;">Failed to load details</div>`;
+      });
     }
 
     // Lock Wallet "View Details" — scrolls to Recent Staking Activity below,

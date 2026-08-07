@@ -1038,6 +1038,7 @@ class Lendingcontroller extends CI_Controller
                 'hash_id' => $o['gas_tx_hash'],
                 // Additional fields for popup details
                 'order_id' => $o['id'],
+                'restake_id' => 0, // on-chain row — Details routes to swap_order_details() via order_id above
                 'bonus_bman' => (float)$o['bonus_bman'],
                 'coin_distribution_option' => $o['coin_distribution_option'],
                 'gas_tx_hash' => $o['gas_tx_hash'],
@@ -1106,9 +1107,10 @@ class Lendingcontroller extends CI_Controller
                                         $optName . ' — ' . ucfirst((string)$r['status']),
                         'hash_id' => null,
                         // No staking_swap_orders row exists for a re-stake — nothing
-                        // on-chain to look up, so order_id stays 0 (the view hides
-                        // the Details action rather than link to a dead lookup).
+                        // on-chain to look up, so order_id stays 0 (the view routes
+                        // Details to restake_id/restake_details() instead).
                         'order_id' => 0,
+                        'restake_id' => (int)$r['id'],
                         'bonus_bman' => (float)$r['bonus_amount'],
                         'coin_distribution_option' => $optId,
                         'gas_tx_hash' => null, 'usdt_tx_hash' => null, 'bonus_tx_hash' => null, 'bman_tx_hash' => null,
@@ -1290,6 +1292,147 @@ class Lendingcontroller extends CI_Controller
                     'bman_bonus'    => $this->_swapTxCell($dist['bonus']['tx'] ?: $bmanTx, $bmanDone, $explorer),
                 ],
                 'error' => $o['error'],
+            ],
+        ]);
+    }
+
+    /**
+     * AJAX: details for a wallet re-stake (Options 2-8 — Staking_model::
+     * restakeFromWallets()). These have no staking_swap_orders row (no
+     * on-chain leg), so this is a separate, lighter endpoint from
+     * swap_order_details() rather than forcing them through the same
+     * gas/USDT/cron-step shape, which is meaningless for a purely internal
+     * purchase.
+     *
+     * The exact wallet_ledger rows this purchase posted aren't directly
+     * findable — restakeFromWallets()'s generated ref is never persisted
+     * onto user_stakes. Its 25% bonus credit row's description embeds the
+     * stake id ("...— stake #<id>"), so we recover the ref from THAT row
+     * (all rows from the same purchase share one reference_id) and use it to
+     * pull the real ledger trail. Packages with bonus_percent=0 have no such
+     * row to anchor on; the wallet split then falls back to a deterministic
+     * recompute off the option's stored percentages — same formula
+     * restakeFromWallets() itself used, so the figures are exact either way,
+     * just not literally sourced from a matched ledger row in that case.
+     */
+    public function restake_details()
+    {
+        $userId = (int)$this->session->userdata('user_userid');
+        if (!$userId) { echo json_encode(['status'=>false,'message'=>'Unauthorized']); return; }
+
+        $stakeId = (int)$this->input->post('stake_id');
+        if (!$stakeId) { echo json_encode(['status'=>false,'message'=>'Invalid stake ID']); return; }
+
+        $s = $this->db->select('*')
+            ->where('id', $stakeId)
+            ->where('user_id', $userId)
+            ->where('swap_order_id IS NULL', null, false)
+            ->get('user_stakes')->row_array();
+        if (!$s) { echo json_encode(['status'=>false,'message'=>'Re-stake not found']); return; }
+
+        $optId = (int)($s['distribution_option_id'] ?? 0);
+        $opt = $optId ? $this->db->get_where('coin_distribution_options', ['id' => $optId])->row_array() : null;
+        $distPct = $this->_coinDistributionPercentages($optId);
+
+        $pkg = $this->db->select('name')->get_where('staking_packages', ['id' => (int)$s['package_id']])->row_array();
+
+        $bman = (float)$s['stake_amount'];
+
+        // Recover the real ledger trail via the bonus row's stake-id-tagged description.
+        $ledgerRows = [];
+        $ref = null;
+        // Suffix match ("...stake #55" ends with "stake #55" but NOT with
+        // "stake #5") — 'before' prepends the %, so this can't cross-match
+        // stake #5 vs #55 vs #555.
+        $bonusRow = $this->db->select('reference_id')
+            ->where('user_id', $userId)->where('reference_type', 'bonus')
+            ->like('description', 'stake #'.$stakeId, 'before')
+            ->get('wallet_ledger')->row_array();
+        if ($bonusRow) $ref = $bonusRow['reference_id'];
+        if ($ref) {
+            $ledgerRows = $this->db->select('wallet_type, credit, debit, reference_type, description, created_at')
+                ->where('user_id', $userId)->where('reference_id', $ref)
+                ->order_by('id', 'ASC')->get('wallet_ledger')->result_array();
+        }
+
+        $dist = [];
+        foreach (['exchange', 'earning', 'staking', 'bonus'] as $w) {
+            $pct = (float)($distPct[$w] ?? 0);
+            $fromLedger = null;
+            foreach ($ledgerRows as $lr) {
+                if ($lr['wallet_type'] === $w && $lr['reference_type'] === 'stake_purchase' && (float)$lr['debit'] > 0) {
+                    $fromLedger = (float)$lr['debit'];
+                    break;
+                }
+            }
+            $dist[$w] = ['pct' => $pct, 'amount' => $fromLedger ?? round($bman * $pct / 100, 4)];
+        }
+
+        // ROI schedule — linked via user_stakes_id (restakeFromWallets() never
+        // creates a staking_swap_orders row, so there is no ...id to route
+        // through the way swap_order_details() does).
+        $roiData = $this->db->where('user_stakes_id', $stakeId)->get('roi_staking_management')->row_array();
+
+        $maturityDate = $s['maturity_date'] ?? null;
+        $remainingDays = $maturityDate !== null
+            ? max(0, (int) floor((strtotime($maturityDate) - time()) / 86400)) : null;
+
+        echo json_encode([
+            'status' => true,
+            'data' => [
+                'stake_id' => $stakeId,
+                'ref' => $ref, // null only for a bonus_percent=0 package (no anchor row)
+                'created_at' => $s['created_at'] ?? $s['start_date'],
+                'current_status' => $s['status'],
+                'is_special' => !empty($s['is_special']),
+                'package_name' => $pkg['name'] ?? ('Package #'.$s['package_id']),
+                'plan' => [
+                    'code' => $s['plan_code'],
+                    'duration_years' => (int)$s['duration_years'],
+                ],
+                'amounts' => [
+                    'bman' => $bman,
+                    'bonus_bman' => (float)$s['bonus_amount'],
+                ],
+                'distribution' => [
+                    'option_id' => $optId,
+                    'option_name' => $opt['option_name'] ?? ('Option #'.$optId),
+                    'exchange_pct' => $dist['exchange']['pct'], 'exchange_bman' => $dist['exchange']['amount'],
+                    'earning_pct'  => $dist['earning']['pct'],  'earning_bman'  => $dist['earning']['amount'],
+                    'staking_pct'  => $dist['staking']['pct'],  'staking_bman'  => $dist['staking']['amount'],
+                    'bonus_pct'    => $dist['bonus']['pct'],    'bonus_bman'    => $dist['bonus']['amount'],
+                    'instant_bonus_bman' => (float)$s['bonus_amount'],
+                ],
+                'maturity_date' => $maturityDate,
+                'remaining_days' => $remainingDays,
+                'roi_rate' => (float)($s['roi_percent'] ?? 0),
+                'roi_basis' => $s['roi_basis'] ?? 'total',
+                'roi_details' => $roiData ? [
+                    'plan_type' => $roiData['plan_type'],
+                    'principal_amount' => (float)$roiData['principal_amount'],
+                    'total_roi_amount' => (float)$roiData['total_roi_amount'],
+                    'fixed_payment_amount' => (float)($roiData['fixed_payment_amount'] ?? 0),
+                    'fixed_maturity_date' => $roiData['fixed_maturity_date'],
+                    'fixed_status' => $roiData['fixed_status'],
+                    'payment_day_5_amount' => (float)($roiData['payment_day_5_amount'] ?? 0),
+                    'payment_day_5_status' => $roiData['payment_day_5_status'],
+                    'payment_day_15_amount' => (float)($roiData['payment_day_15_amount'] ?? 0),
+                    'payment_day_15_status' => $roiData['payment_day_15_status'],
+                    'payment_day_25_amount' => (float)($roiData['payment_day_25_amount'] ?? 0),
+                    'payment_day_25_status' => $roiData['payment_day_25_status'],
+                    'overall_status' => $roiData['overall_status'],
+                    'total_paid_amount' => (float)($roiData['total_paid_amount'] ?? 0),
+                    'next_payment_date' => $roiData['next_payment_date'],
+                ] : null,
+                'ledger' => array_map(function ($lr) {
+                    return [
+                        'wallet_type' => $lr['wallet_type'],
+                        'credit' => (float)$lr['credit'],
+                        'debit' => (float)$lr['debit'],
+                        'description' => $lr['description'],
+                        'created_at' => $lr['created_at'],
+                    ];
+                }, $ledgerRows),
             ],
         ]);
     }
