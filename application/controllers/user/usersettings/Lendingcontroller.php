@@ -1012,14 +1012,24 @@ class Lendingcontroller extends CI_Controller
         // shows before buying), read from the one real source of truth
         // (roi_staking_management), never recomputed here. Batched by
         // staking_swap_orders_id to avoid a per-row query.
+        //
+        // total_roi_amount is ROI ONLY — principal_return_amount is a
+        // SEPARATE field, credited back at maturity on top of the ROI
+        // (principal_release_mode='credited_at_maturity' — the principal sits
+        // virtual/locked until then, it's never zero just because the term
+        // hasn't matured yet). "Total Return" = the two summed, so the table
+        // can show both what you earn and what you actually walk away with.
         $roiByOrder = [];
+        $totalReturnByOrder = [];
         if ($orderIds && $this->db->table_exists('roi_staking_management')) {
-            $roiRows = $this->db->select('staking_swap_orders_id, total_roi_amount')
+            $roiRows = $this->db->select('staking_swap_orders_id, total_roi_amount, principal_return_amount')
                 ->where_in('staking_swap_orders_id', $orderIds)
                 ->get('roi_staking_management')->result_array();
             foreach ($roiRows as $rr) {
                 $sid = (int)$rr['staking_swap_orders_id'];
                 $roiByOrder[$sid] = ($roiByOrder[$sid] ?? 0) + (float)$rr['total_roi_amount'];
+                $totalReturnByOrder[$sid] = ($totalReturnByOrder[$sid] ?? 0)
+                    + (float)$rr['total_roi_amount'] + (float)$rr['principal_return_amount'];
             }
         }
 
@@ -1053,6 +1063,7 @@ class Lendingcontroller extends CI_Controller
                                 ($o['status'] === 'swap_completed' ? 'Completed' : ucfirst(str_replace('_', ' ', $o['status']))),
                 'hash_id' => $o['gas_tx_hash'],
                 'expected_roi' => $roiByOrder[(int)$o['id']] ?? null,
+                'total_return' => $totalReturnByOrder[(int)$o['id']] ?? null,
                 // Additional fields for popup details
                 'order_id' => $o['id'],
                 'restake_id' => 0, // on-chain row — Details routes to swap_order_details() via order_id above
@@ -1103,17 +1114,21 @@ class Lendingcontroller extends CI_Controller
                 $opts = $this->db->select('id, option_name')->where_in('id', $optIds)->get('coin_distribution_options')->result_array();
                 foreach ($opts as $op) { $optNames[(int)$op['id']] = $op['option_name']; }
 
-                // Same expected-ROI lookup as the on-chain orders above, just
-                // keyed by user_stakes_id (re-stakes have no swap order row).
+                // Same expected-ROI + total-return lookup as the on-chain
+                // orders above, just keyed by user_stakes_id (re-stakes have
+                // no swap order row).
                 $roiByStake = [];
+                $totalReturnByStake = [];
                 $restakeIds = array_map(function ($r) { return (int)$r['id']; }, $restakes);
                 if ($this->db->table_exists('roi_staking_management')) {
-                    $roiRows = $this->db->select('user_stakes_id, total_roi_amount')
+                    $roiRows = $this->db->select('user_stakes_id, total_roi_amount, principal_return_amount')
                         ->where_in('user_stakes_id', $restakeIds)
                         ->get('roi_staking_management')->result_array();
                     foreach ($roiRows as $rr) {
                         $sid = (int)$rr['user_stakes_id'];
                         $roiByStake[$sid] = ($roiByStake[$sid] ?? 0) + (float)$rr['total_roi_amount'];
+                        $totalReturnByStake[$sid] = ($totalReturnByStake[$sid] ?? 0)
+                            + (float)$rr['total_roi_amount'] + (float)$rr['principal_return_amount'];
                     }
                 }
 
@@ -1138,6 +1153,7 @@ class Lendingcontroller extends CI_Controller
                                         $optName . ' — ' . ucfirst((string)$r['status']),
                         'hash_id' => null,
                         'expected_roi' => $roiByStake[(int)$r['id']] ?? null,
+                        'total_return' => $totalReturnByStake[(int)$r['id']] ?? null,
                         // No staking_swap_orders row exists for a re-stake — nothing
                         // on-chain to look up, so order_id stays 0 (the view routes
                         // Details to restake_id/restake_details() instead).

@@ -1313,11 +1313,11 @@ $hero_progress = 48;
           <div class="table-scroll">
             <table class="table resp-card" style="border-spacing:0 8px;">
               <thead>
-                <tr><th>S.No</th><th>Date</th><th>Type</th><th>USDT</th><th>BMAN</th><th>Expected ROI</th><th>Maturity Date</th><th>Remaining Days</th><th>Status</th><th>Description</th><th>Action</th></tr>
+                <tr><th>S.No</th><th>Date</th><th>Type</th><th>USDT</th><th>BMAN</th><th>Expected ROI</th><th>Total Return</th><th>Maturity Date</th><th>Remaining Days</th><th>Status</th><th>Description</th><th>Action</th></tr>
               </thead>
               <tbody>
                 <?php if (empty($recent_staking_activity)): ?>
-                  <tr><td colspan="11" style="text-align:center;color:#9ca3af;padding:18px;">No recent staking activity found.</td></tr>
+                  <tr><td colspan="12" style="text-align:center;color:#9ca3af;padding:18px;">No recent staking activity found.</td></tr>
                 <?php else: foreach ($recent_staking_activity as $i => $row):
                   $hasOrder = !empty($row->order_id);
                   $hasRestake = !$hasOrder && !empty($row->restake_id);
@@ -1336,6 +1336,7 @@ $hero_progress = 48;
                     <td data-label="USDT"><?= number_format((float)($row->amount ?? 0), 2) ?></td>
                     <td data-label="BMAN"><?= number_format((float)($row->token_amount ?? 0), 0) ?></td>
                     <td data-label="Expected ROI" style="color:#22c55e;font-weight:900;"><?= $row->expected_roi !== null ? number_format((float)$row->expected_roi, 2) : '—' ?></td>
+                    <td data-label="Total Return" style="color:#4338ca;font-weight:1100;" title="Expected ROI + principal returned at maturity"><?= $row->total_return !== null ? number_format((float)$row->total_return, 2) : '—' ?></td>
                     <td data-label="Maturity Date" style="font-size:12px;"><?= htmlspecialchars((string)($row->maturity_date ?? '—')) ?></td>
                     <td data-label="Remaining Days"><?= $row->remaining_days !== null ? (int)$row->remaining_days : '—' ?></td>
                     <td data-label="Status">
