@@ -828,14 +828,21 @@ class Staking_model extends CI_Model
             && $this->db->field_exists('is_special', 'staking_packages')
             ? (int)($pkg['is_special'] ?? 0) : 0;
 
-        // 6b. create the stake order
-        $this->db->insert('user_stakes', [
+        // 6b. create the stake order. This legacy fallback path (used only
+        // when the on-chain swap is disabled — see swap_purchase()'s docblock)
+        // debits USDT and creates the stake synchronously with no real
+        // broadcast/gas of its own, so it's marked onchain-intent but not
+        // gas-required — it doesn't route through GasExecution_model's
+        // distribution-option split at all (this endpoint takes no
+        // coin_distribution_option_id).
+        $this->load->model('staking/GasExecution_model', 'gasExec');
+        $this->db->insert('user_stakes', array_merge([
             'user_id' => $userId, 'package_id' => $pkgId, 'plan_id' => (int)$plan['id'],
             'plan_code' => $planCode, 'duration_years' => $years,
             'stake_amount' => $bman, 'roi_percent' => $hdrPct, 'roi_basis' => $hdrBasis,
             'bonus_amount' => $bonusBman, 'start_date' => $start, 'maturity_date' => $maturity,
             'status' => 'active', 'is_special' => $isSpecial,
-        ]);
+        ], $this->gasExec->hasColumns() ? ['execution_mode' => 'onchain', 'gas_required' => 0] : []));
         $stakeId = (int)$this->db->insert_id();
         if (!$stakeId) { $this->db->trans_rollback(); return [false, 'Could not create the stake order.']; }
         if (!empty($treasuryPayId)) {
@@ -945,8 +952,16 @@ class Staking_model extends CI_Model
         $roi = $this->resolveRoi($pkgId, $planCode, $years);
         if (!$roi) return [false, 'ROI is not configured for this package / plan / term.'];
 
-        // ---- 5. distribution option (2-7 only) ----
-        if ($distOptionId < 2 || $distOptionId > 7) return [false, 'Invalid distribution option for re-staking.'];
+        // ---- 5. distribution option (must be execution_mode='internal') ----
+        // GasExecution_model reads this off the option row itself, not a
+        // hardcoded id range — internal options are no longer a contiguous
+        // range once Option 2 (100% Exchange, internal) exists at whatever id
+        // auto-increment gave it.
+        $this->load->model('staking/GasExecution_model', 'gasExec');
+        $decision = $this->gasExec->decide($distOptionId);
+        if (!$decision['ok'] || $decision['mode'] !== GasExecution_model::MODE_INTERNAL) {
+            return [false, 'Invalid distribution option for re-staking.'];
+        }
         $distOption = $this->db->get_where('coin_distribution_options', ['id' => $distOptionId, 'status' => 1])->row_array();
         if (!$distOption) return [false, 'Selected distribution option is not available.'];
 
@@ -961,6 +976,26 @@ class Staking_model extends CI_Model
         // misconfigured option rather than silently locking the wrong amount.
         if (abs(array_sum($shares) - $bman) > 0.01) {
             return [false, 'This distribution option is misconfigured (percentages do not total 100%) — contact admin.'];
+        }
+
+        // ---- 5b. hold-aware sufficiency ----
+        // Walletledger_model::debit() below only guards against overdrawing the
+        // RAW wallet balance — it knows nothing about BMAN already reserved for
+        // an in-flight withdrawal (bman_wallet_ledger 'lock' rows /
+        // wallet_withdraw_holds). Without this check a user with a pending
+        // withdrawal could re-stake the very coins that withdrawal is about to
+        // pay out, and one of the two would later fail with the money gone.
+        // Same figure the purchase modal gates Confirm on (stake_quote's
+        // bman_spendable), so the client and the server never disagree.
+        $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
+        $bal = $this->bmanwithdraw->maturity_breakdown($userId);
+        foreach ($shares as $wallet => $amount) {
+            $spendable = (float)($bal[$wallet] ?? 0) - (float)($bal[$wallet . '_holds'] ?? 0);
+            if ($spendable + 0.00000001 < $amount) {
+                return [false, ucfirst($wallet).' wallet: needs '.rtrim(rtrim(number_format($amount, 4, '.', ''), '0'), '.').
+                               ' BMAN but only '.rtrim(rtrim(number_format(max(0, $spendable), 4, '.', ''), '0'), '.').
+                               ' BMAN is available (the rest is reserved for a pending withdrawal).'];
+            }
         }
 
         $bonusPct  = (float)$pkg['bonus_percent'];
@@ -994,15 +1029,18 @@ class Staking_model extends CI_Model
             if (!$okDebit) { $this->db->trans_rollback(); return [false, ucfirst($wallet).' wallet: '.$msg]; }
         }
 
-        // 2. Create the stake order.
-        $insertData = [
+        // 2. Create the stake order. No blockchain, no gas — GasExecution_model
+        // is the single authority for those columns, matched by the exact
+        // same distOptionId the controller already gated on 2-7.
+        $this->load->model('staking/GasExecution_model', 'gasExec');
+        $insertData = array_merge([
             'user_id' => $userId, 'package_id' => $pkgId, 'plan_id' => (int)$plan['id'],
             'plan_code' => $planCode, 'duration_years' => $years,
             'stake_amount' => $bman, 'roi_percent' => $hdrPct, 'roi_basis' => $hdrBasis,
             'bonus_amount' => $bonusBman, 'distribution_option_id' => $distOptionId,
             'start_date' => $start, 'maturity_date' => $maturity, 'status' => 'active',
             'chain_status' => 'confirmed',
-        ];
+        ], $this->gasExec->internalStakeColumns());
         if ($hasSpecialCol) $insertData['is_special'] = $isSpecial;
         $this->db->insert('user_stakes', $insertData);
         $stakeId = (int)$this->db->insert_id();
@@ -1103,13 +1141,17 @@ class Staking_model extends CI_Model
 
         $this->db->trans_begin();
 
-        $this->db->insert('user_stakes', [
+        $this->load->model('staking/GasExecution_model', 'gasExec');
+        $this->db->insert('user_stakes', array_merge([
             'user_id' => $userId, 'package_id' => $pkgId, 'plan_id' => (int)$plan['id'],
             'plan_code' => $planCode, 'duration_years' => $years,
             'stake_amount' => $bman, 'roi_percent' => $hdrPct, 'roi_basis' => $hdrBasis,
             'bonus_amount' => $bonusBman, 'start_date' => $start, 'maturity_date' => $maturity,
             'status' => $status,
-            // On-chain tracking (a purchase is backed by a real blockchain tx).
+            // On-chain tracking — this helper only exists to materialize a
+            // stake for BMAN "being acquired elsewhere" (the on-chain swap),
+            // so it's always execution_mode='onchain'/gas_required=1 per
+            // GasExecution_model's onchainStakeColumns() below.
             'tx_hash'       => $ctx['tx_hash']       ?? null,
             'block_number'  => $ctx['block_number']  ?? null,
             'confirmations' => (int)($ctx['confirmations'] ?? 0),
@@ -1118,7 +1160,7 @@ class Staking_model extends CI_Model
             'chain_status'  => $ctx['chain_status']  ?? 'pending',
             'onchain_tx_id' => $ctx['onchain_tx_id'] ?? null,
             'swap_order_id' => $ctx['swap_order_id'] ?? null,
-        ]);
+        ], $this->gasExec->onchainStakeColumns()));
         $stakeId = (int)$this->db->insert_id();
         if (!$stakeId) { $this->db->trans_rollback(); return [false, 'Could not create the stake order.']; }
 

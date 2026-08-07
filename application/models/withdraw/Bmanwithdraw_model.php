@@ -58,7 +58,10 @@ class Bmanwithdraw_model extends CI_Model
 
     /**
      * Ledger-based balances per wallet (source of truth for withdrawal).
-     * Returns total, locked, matured, withdrawable for each BMAN wallet.
+     * Returns total, locked, matured, holds and withdrawable for each BMAN
+     * wallet. `_holds` is exposed so callers that spend INSIDE the platform
+     * (re-staking) can subtract pending-withdrawal holds without also
+     * subtracting the maturity lock, which only gates withdrawals off-platform.
      */
     public function maturity_breakdown($user_id)
     {
@@ -68,6 +71,7 @@ class Bmanwithdraw_model extends CI_Model
             $flat[$wallet] = $b['total'];
             $flat[$wallet . '_locked'] = $b['locked'];
             $flat[$wallet . '_matured'] = $b['matured'];
+            $flat[$wallet . '_holds'] = $b['holds'];
             $flat[$wallet . '_withdrawable'] = $b['withdrawable'];
         }
         // Keep usdt for display (not a BMAN withdraw source)

@@ -135,6 +135,25 @@ class Lendingcontroller extends CI_Controller
         // quoted as spendable for a new stake purchase — same balance a user
         // could actually afford.
         $bal = $this->bmanwithdraw->maturity_breakdown($userId);
+
+        // Two different figures, for two different questions:
+        //
+        //  bman_wallets   = *withdrawable* (matured, minus holds). What the user
+        //                   could take OFF the platform today. Display only.
+        //  bman_spendable = *total minus holds*. What Options 2-7 can actually
+        //                   re-stake, because that is exactly what the server
+        //                   allows: Staking_model::restakeFromWallets() debits
+        //                   through Walletledger_model::debit(), whose overdraw
+        //                   guard reads the raw user_wallets balance and never
+        //                   consults maturity. Quoting `withdrawable` here made
+        //                   the modal STRICTER than the server and silently
+        //                   blocked Confirm on balance that was perfectly
+        //                   spendable in-platform.
+        $spendable = function ($wallet) use ($bal) {
+            $total = (float) ($bal[$wallet] ?? 0);
+            $holds = (float) ($bal[$wallet . '_holds'] ?? 0);
+            return max(0, round($total - $holds, 8));
+        };
         echo json_encode([
             'status'      => true,
             'bman'        => $bman,
@@ -147,6 +166,12 @@ class Lendingcontroller extends CI_Controller
                 'staking'  => (float) ($bal['staking_withdrawable'] ?? 0),
                 'bonus'    => (float) ($bal['bonus_withdrawable'] ?? 0),
                 'earning'  => (float) ($bal['earning_withdrawable'] ?? 0),
+            ],
+            'bman_spendable' => [
+                'exchange' => $spendable('exchange'),
+                'staking'  => $spendable('staking'),
+                'bonus'    => $spendable('bonus'),
+                'earning'  => $spendable('earning'),
             ],
             'name'        => $pkg['name'],
         ]);
@@ -220,8 +245,12 @@ class Lendingcontroller extends CI_Controller
         // This is the real USDT->BMAN on-chain purchase — it only ever funds
         // the Exchange wallet, so it only ever supports Option 1 (100%
         // Exchange). Options 2-7 re-stake EXISTING wallet balance instead
-        // (no USDT, no blockchain leg) — see restake_purchase().
-        if ($coinDistOptionId !== 1) {
+        // (no USDT, no blockchain leg) — see restake_purchase(). GasExecution_
+        // model is the single authority for this split; both purchase gates
+        // and the user_stakes execution_mode columns read off it.
+        $this->load->model('staking/GasExecution_model', 'gasExec');
+        $decision = $this->gasExec->decide($coinDistOptionId);
+        if (!$decision['ok'] || $decision['mode'] !== GasExecution_model::MODE_ONCHAIN) {
             echo json_encode(['status'=>false,'message'=>'This purchase flow only supports Option 1 (100% Exchange). Choose a different option to re-stake from your existing wallet balances instead — no USDT payment needed.']); return;
         }
         $distOption = $this->db->get_where('coin_distribution_options', ['id' => 1, 'status' => 1])->row_array();
@@ -324,7 +353,7 @@ class Lendingcontroller extends CI_Controller
                     $isSpecial = (int)($pkgRow['is_special'] ?? 0);
                 }
 
-                $insertData = [
+                $insertData = array_merge([
                     'user_id' => $userId, 'package_id' => $packageId, 'plan_id' => $planId,
                     'plan_code' => $planCode, 'duration_years' => $durationYears,
                     'stake_amount' => $bmanAmount, 'roi_percent' => $roiRate,
@@ -336,7 +365,11 @@ class Lendingcontroller extends CI_Controller
                     'maturity_date' => date('Y-m-d', strtotime($maturityDate)),
                     'status' => 'processing', 'chain_status' => 'pending',
                     'swap_order_id' => (int)$res['id'], 'created_at' => date('Y-m-d H:i:s'),
-                ];
+                // execution_mode/gas_required: this row is only ever reached
+                // after the Option-1-only gate above, so it's always onchain.
+                // gas_fee is left for StakingPurchasecron/GasFeeLedger to
+                // backfill once the broadcast's real cost is known.
+                ], $this->gasExec->onchainStakeColumns());
                 $this->db->insert('user_stakes', $insertData);
                 $stakeId = (int)$this->db->insert_id();
 
@@ -417,7 +450,9 @@ class Lendingcontroller extends CI_Controller
             $planCode = $planType;
         }
 
-        if ($coinDistOptionId < 2 || $coinDistOptionId > 7) {
+        $this->load->model('staking/GasExecution_model', 'gasExec');
+        $decision = $this->gasExec->decide($coinDistOptionId);
+        if (!$decision['ok'] || $decision['mode'] !== GasExecution_model::MODE_INTERNAL) {
             echo json_encode(['status'=>false,'message'=>'This flow only supports Options 2-7 (re-staking from existing wallet balances). Choose Option 1 to buy new BMAN with USDT instead.']); return;
         }
 

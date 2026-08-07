@@ -32,7 +32,7 @@ class Coindistribution_model extends CI_Model
                      ->or_like('description', $filters['q'])
                      ->group_end();
         }
-        return $this->db->order_by('id', 'ASC')->get('coin_distribution_options')->result_array();
+        return $this->_orderBySortOrder()->get('coin_distribution_options')->result_array();
     }
 
     public function option($id)
@@ -40,12 +40,25 @@ class Coindistribution_model extends CI_Model
         return $this->db->get_where('coin_distribution_options', ['id' => (int)$id])->row_array();
     }
 
-    /** Active options for the purchase screen (default first). */
+    /** Active options for the purchase screen (default first, then display order). */
     public function activeOptions()
     {
-        return $this->db->where('status', 1)
-                        ->order_by('is_default', 'DESC')->order_by('id', 'ASC')
-                        ->get('coin_distribution_options')->result_array();
+        $this->db->where('status', 1)->order_by('is_default', 'DESC');
+        return $this->_orderBySortOrder()->get('coin_distribution_options')->result_array();
+    }
+
+    /**
+     * sort_order ASC, id ASC as a tiebreak — sort_order may not exist yet in
+     * an environment that hasn't run db/coin_distribution_option2_internal.sql,
+     * so this degrades to plain id ordering (the previous behaviour) rather
+     * than a hard SQL error.
+     */
+    private function _orderBySortOrder()
+    {
+        if ($this->db->field_exists('sort_order', 'coin_distribution_options')) {
+            return $this->db->order_by('sort_order', 'ASC')->order_by('id', 'ASC');
+        }
+        return $this->db->order_by('id', 'ASC');
     }
 
     public function defaultOption()
@@ -135,6 +148,12 @@ class Coindistribution_model extends CI_Model
         $row['status']     = isset($data['status']) ? (int)!!$data['status'] : 1;
         $row['is_default'] = 0; // set below via the single-default path
         $row['created_by'] = (int)$admin_id;
+        // New options sort after everything existing, not before (the column
+        // default of 0 would otherwise jump a fresh option ahead of Option 1).
+        if ($this->db->field_exists('sort_order', 'coin_distribution_options')) {
+            $max = $this->db->select_max('sort_order')->get('coin_distribution_options')->row_array();
+            $row['sort_order'] = (int)($max['sort_order'] ?? 0) + 10;
+        }
         $this->db->trans_start();
         $this->db->insert('coin_distribution_options', $row);
         $new_id = (int)$this->db->insert_id();

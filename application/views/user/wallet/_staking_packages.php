@@ -336,14 +336,23 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
         </div>
 
         <!-- Original Quote Section -->
+        <?php /* The USDT rows below only apply to Option 1 (the real USDT->BMAN
+                 on-chain purchase). Options 2-7 re-stake BMAN the user already
+                 holds, so they are hidden by renderFunding() and replaced with
+                 the per-wallet debit breakdown. */ ?>
         <div class="stkm-quote">
           <div class="stkm-row roi"><span>ROI (this plan/term)</span><b id="stkm-roi">?</b></div>
-          <div class="stkm-row"><span>Cost</span><b id="stkm-cost">? USDT</b></div>
+          <div class="stkm-row" data-usdt-only><span>Cost</span><b id="stkm-cost">? USDT</b></div>
           <div class="stkm-row"><span><?= $isSwap ? 'BMAN ? Exchange Wallet' : 'Locked into Staking Wallet' ?></span><b id="stkm-lock">? BMAN</b></div>
           <div class="stkm-row"><span>Allocation Bonus Wallet (<span id="stkm-bonus-pct">0</span>%)</span><b id="stkm-bonus">? BMAN</b></div>
           <div class="stkm-row"><span>Instant Bonus (25%)</span><b id="stkm-instant">? BMAN</b></div>
-          <div class="stkm-row"><span>Your USDT Balance</span><b id="stkm-bal">? USDT</b></div>
+          <div class="stkm-row" data-usdt-only><span>Your USDT Balance</span><b id="stkm-bal">? USDT</b></div>
           <div class="stkm-warn" id="stkm-warn">Insufficient USDT balance ? deposit USDT first.</div>
+          <div id="stkm-funding" style="display:none;border-top:1px dashed rgba(15,23,42,.12);margin-top:8px;padding-top:8px;">
+            <div style="font-size:10.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.4px;color:#94a3b8;margin-bottom:4px;">Paid from your wallets (no USDT needed)</div>
+            <div id="stkm-funding-rows"></div>
+            <div class="stkm-warn" id="stkm-fund-warn"></div>
+          </div>
           <div style="border-top:1px dashed rgba(15,23,42,.12);margin-top:8px;padding-top:8px;">
             <div style="font-size:10.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.4px;color:#94a3b8;margin-bottom:4px;">Live allocation preview</div>
             <div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>Exchange</span><b id="stkm-bw-exchange">?</b></div>
@@ -394,22 +403,34 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     ];
     return $carry;
   }, [])) ?> || {};
+  // The server already returns options in display order (Coindistribution_
+  // model::activeOptions() — default first, then sort_order). That order is
+  // NOT preserved by RAW_DISTS itself: every key in it is a numeric-looking
+  // string ("1","24","2",...), and JS objects always enumerate integer-index
+  // keys in ascending NUMERIC order regardless of insertion order — so
+  // Object.entries(DISTS)/Object.keys(DISTS) silently reshuffled a freshly
+  // added option (e.g. id 24, sort_order 20 — meant to render 2nd) to the
+  // END of the button list. DIST_ORDER carries the real order separately;
+  // anything that renders/iterates options must walk DIST_ORDER, not DISTS
+  // directly — DISTS itself stays just an id->config lookup map.
+  const DIST_ORDER = <?= json_encode(array_values(array_map(function($opt){ return (int)$opt['id']; }, $coin_distribution_options ?? []))) ?>;
   const FALLBACK_DISTS = {
     1:{name:'Option 1',exchange:100,earning:0,staking:0,bonus:0,is_default:1},
     2:{name:'Option 2',exchange:90,earning:0,staking:0,bonus:10,is_default:0},
     3:{name:'Option 3',exchange:80,earning:10,staking:0,bonus:10,is_default:0},
     7:{name:'Option 7',exchange:70,earning:10,staking:10,bonus:10,is_default:0}
   };
+  const FALLBACK_ORDER = [1,2,3,7];
   // Every active option the admin has configured is selectable here — this
   // flow used to hide anything without exactly 10% Bonus Wallet, which
   // silently dropped Options 1/4/5/6 even though nothing server-side
   // restricts them (Lendingcontroller::swap_purchase() only range-checks
   // 1-7 and reads each option's real percentages, never assumes 10%).
   const DISTS = Object.keys(RAW_DISTS).length ? RAW_DISTS : FALLBACK_DISTS;
+  const ORDER = DIST_ORDER.length ? DIST_ORDER : FALLBACK_ORDER;
   function distDefaultKey(){
-    const entries = Object.entries(DISTS);
-    const def = entries.find(([, v]) => v.is_default);
-    return Number((def || entries[0] || [7])[0]);
+    const def = ORDER.find(id => DISTS[id] && DISTS[id].is_default);
+    return def !== undefined ? Number(def) : Number(ORDER[0] ?? 7);
   }
   // Plan descriptions only (which plans are actually offered — and what
   // durations each one offers — comes from PLANS, server-filtered to
@@ -499,6 +520,11 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     $('stkm-back').style.display = cur.step===1 ? 'none' : 'block';
     $('stkm-next').style.display = cur.step===4 ? 'none' : 'block';
     $('stkm-go').style.display = cur.step===4 ? 'block' : 'none';
+    // Landing on the confirmation step re-quotes, so the balances Confirm is
+    // judged against are the ones live RIGHT NOW — not whatever they were when
+    // the package was picked several steps ago. quote() ends in syncGoButton(),
+    // which re-runs the affordability gate and re-renders the funding rows.
+    if(cur.step===4 && cur.pkg) quote();
   }
   function renderRoi(){
     const roiMap=cur.pkg?.roi||{};
@@ -632,44 +658,96 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
   // so this never disagrees with what the server checks. Returns true/false only —
   // does not touch stkm-go itself, since that button also depends on the independent
   // USDT-balance check quote() runs; syncGoButton() combines both.
+  // True when the selected option re-stakes existing BMAN (Options 2-7) rather
+  // than buying new BMAN with USDT (Option 1). Drives BOTH which endpoint
+  // stkConfirm() posts to and which balance actually gates Confirm.
+  function isRestakeMode(){ return +cur.dist !== 1; }
+  // The per-wallet requirement for the selected option, e.g. Option 2 (90/10)
+  // on a 1 BMAN package => [{wallet:'exchange',required:0.9,...},
+  // {wallet:'bonus',required:0.1,...}]. Same percentages the server reads out
+  // of coin_distribution_options in Staking_model::restakeFromWallets().
+  const WALLET_LABELS={exchange:'Exchange Wallet', earning:'Earning Wallet', staking:'Staking Wallet', bonus:'Bonus Wallet'};
+  function fundingPlan(){
+    const selected=DISTS[cur.dist];
+    if(!selected || !cur.pkg) return [];
+    const amount=+cur.pkg.stake||0;
+    // Balance the SERVER can actually debit (raw wallet balance minus pending
+    // withdrawal holds). Not `bman_wallets`, which is the maturity-gated
+    // withdrawable figure and only governs taking BMAN off-platform.
+    const bw=(cur.quote && (cur.quote.bman_spendable || cur.quote.bman_wallets)) || null;
+    return ['exchange','earning','staking','bonus'].filter(function(w){ return (+selected[w]||0) > 0; })
+      .map(function(w){
+        const pct=+selected[w]||0;
+        return {
+          wallet: w,
+          label: WALLET_LABELS[w],
+          pct: pct,
+          required: amount*pct/100,
+          available: bw ? (+bw[w]||0) : null,
+        };
+      });
+  }
   function checkDistBalance(){
-    const warnEl=$('stkm-dist-warn');
-    if(!warnEl) return true;
+    const warnEls=[$('stkm-dist-warn'), $('stkm-fund-warn')].filter(Boolean);
+    if(!warnEls.length) return true;
+    const hide=function(){ warnEls.forEach(function(el){ el.style.display='none'; el.textContent=''; }); };
     // Option 1 (100% Exchange) is a new USDT->BMAN purchase — it funds
     // Exchange itself, so it needs no pre-existing wallet balance at all.
     // Options 2-7 re-stake EXISTING balance instead, so every wallet they
     // draw on (Exchange included) must already hold enough.
-    if(+cur.dist===1){ warnEl.style.display='none'; return true; }
-    const selected=DISTS[cur.dist];
-    if(!selected || !cur.pkg || !cur.quote || !cur.quote.bman_wallets){ warnEl.style.display='none'; return true; }
-    const amount=+cur.pkg.stake||0, bw=cur.quote.bman_wallets;
-    const labels={exchange:'Exchange Wallet', earning:'Earning Wallet', staking:'Staking Wallet', bonus:'Bonus Wallet'};
-    const shortfalls=[];
-    Object.keys(labels).forEach(function(w){
-      const pct=+selected[w]||0;
-      if(pct<=0) return;
-      const required=amount*pct/100, available=+bw[w]||0;
-      if(available+1e-8<required) shortfalls.push(labels[w]+' needs '+required.toLocaleString(undefined,{maximumFractionDigits:4})+' BMAN (has '+available.toLocaleString(undefined,{maximumFractionDigits:4})+')');
-    });
+    if(!isRestakeMode()){ hide(); return true; }
+    const plan=fundingPlan();
+    // No quote yet => no balances to judge against; don't block on unknowns
+    // (the server re-checks every debit anyway and is the real authority).
+    if(!plan.length || plan[0].available === null){ hide(); return true; }
+    const shortfalls=plan.filter(function(p){ return p.available + 1e-8 < p.required; })
+      .map(function(p){ return p.label+' needs '+p.required.toLocaleString(undefined,{maximumFractionDigits:4})+' BMAN (has '+p.available.toLocaleString(undefined,{maximumFractionDigits:4})+')'; });
     if(shortfalls.length){
-      warnEl.textContent='Insufficient balance for this option — '+shortfalls.join('; ')+'.';
-      warnEl.style.display='block';
+      warnEls.forEach(function(el){
+        el.textContent='Insufficient balance for this option — '+shortfalls.join('; ')+'.';
+        el.style.display='block';
+      });
       return false;
     }
-    warnEl.style.display='none';
+    hide();
     return true;
+  }
+  // Renders the Preview step's funding section and hides the USDT-only rows
+  // when the selected option is wallet-funded.
+  function renderFunding(){
+    const restake=isRestakeMode();
+    document.querySelectorAll('#stkm [data-usdt-only]').forEach(function(el){ el.style.display = restake ? 'none' : ''; });
+    const box=$('stkm-funding'), rows=$('stkm-funding-rows');
+    if(!box || !rows) return;
+    if(!restake){ box.style.display='none'; rows.innerHTML=''; return; }
+    box.style.display='block';
+    rows.innerHTML = fundingPlan().map(function(p){
+      const have = p.available === null ? '' :
+        '<span style="font-weight:800;color:#64748b;"> (balance '+p.available.toLocaleString(undefined,{maximumFractionDigits:4})+')</span>';
+      return '<div class="stkm-row" style="font-size:12px;padding:2px 0;"><span>'+esc(p.label)+' ('+fmtPct(p.pct)+'%)'+have+'</span>'+
+             '<b>-'+p.required.toLocaleString(undefined,{maximumFractionDigits:4})+' BMAN</b></div>';
+    }).join('');
   }
   // Combines the USDT-balance check (quote() sets cur.usdtShort) with the
   // distribution-wallet check above — Confirm stays disabled if either fails.
   function syncGoButton(){
     const goBtn=$('stkm-go');
     // checkDistBalance() must always run — it has a side effect (updates the
-    // dist-warn box) — so it can't sit on the right of || where a truthy
-    // usdtShort would short-circuit past it and leave that box stale.
+    // warn boxes) — so it can't sit on the right of || where a truthy
+    // usdtShort would short-circuit past it and leave those boxes stale.
     const distOk=checkDistBalance();
-    if(goBtn) goBtn.disabled = !!cur.usdtShort || !distOk;
+    renderFunding();
+    // The USDT balance is IRRELEVANT to Options 2-7: they pay entirely out of
+    // BMAN the user already holds and never touch the chain. Gating them on it
+    // is what left Confirm dead for a user with 0 USDT but plenty of Exchange +
+    // Bonus BMAN. Only Option 1 spends USDT, so only Option 1 is gated on it.
+    const usdtBlocks = !isRestakeMode() && !!cur.usdtShort;
+    // The USDT shortfall warning is likewise Option-1-only.
+    const warnEl=$('stkm-warn');
+    if(warnEl) warnEl.style.display = usdtBlocks ? 'block' : 'none';
+    if(goBtn) goBtn.disabled = usdtBlocks || !distOk;
   }
-  function renderDistButtons(){ $('stkm-distributions').innerHTML=''; Object.entries(DISTS).forEach(([k,v])=>{ const b=document.createElement('button'); b.type='button'; b.textContent=v.name; b.dataset.dist=k; b.onclick=()=>{ cur.dist=+k; document.querySelectorAll('#stkm-distributions button').forEach(x=>x.classList.toggle('active', +x.dataset.dist===+k)); renderDistDescription(); renderLive(); syncGoButton(); renderStep(3); }; $('stkm-distributions').appendChild(b); }); document.querySelectorAll('#stkm-distributions button').forEach(b=>b.classList.toggle('active', +b.dataset.dist===cur.dist)); renderDistDescription(); }
+  function renderDistButtons(){ $('stkm-distributions').innerHTML=''; ORDER.filter(k => DISTS[k]).forEach(k => { const v = DISTS[k]; const b=document.createElement('button'); b.type='button'; b.textContent=v.name; b.dataset.dist=k; b.onclick=()=>{ cur.dist=+k; document.querySelectorAll('#stkm-distributions button').forEach(x=>x.classList.toggle('active', +x.dataset.dist===+k)); renderDistDescription(); renderLive(); syncGoButton(); renderStep(3); }; $('stkm-distributions').appendChild(b); }); document.querySelectorAll('#stkm-distributions button').forEach(b=>b.classList.toggle('active', +b.dataset.dist===cur.dist)); renderDistDescription(); }
   function stkPickTerm(y){
     cur.years=y;
     document.querySelectorAll('#stkm-terms button').forEach(b=>b.classList.toggle('active', +b.dataset.y===+y));
@@ -728,7 +806,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
     renderStep(1);
   };
   window.stkClose = ()=> $('stkm').classList.remove('open');
-  function quote(){ const fd=new FormData(); fd.append('package_id',cur.pkg.id); fetch(BASE+'user/lending/stake_quote',{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{ if(!j.status){ $('stkm-cost').textContent=j.message||'?'; return; } cur.usdt=j.usdt; cur.bal=j.usdt_balance; cur.quote=j; $('stkm-cost').textContent = Number(j.usdt).toLocaleString(undefined,{maximumFractionDigits:4})+' USDT'; $('stkm-lock').textContent = Number(j.bman).toLocaleString()+' BMAN'; $('stkm-bal').textContent  = Number(j.usdt_balance).toLocaleString(undefined,{maximumFractionDigits:2})+' USDT'; const bw = j.bman_wallets||{}; ['exchange','staking','bonus','earning'].forEach(function(w){ const el=$('stkm-bw-'+w); if(el) el.textContent=Number(bw[w]||0).toLocaleString()+' BMAN'; }); cur.usdtShort = j.usdt_balance + 1e-8 < j.usdt; $('stkm-warn').style.display = cur.usdtShort?'block':'none'; renderLive(); syncGoButton(); }).catch(()=>{ $('stkm-cost').textContent='Quote failed'; }); }
+  function quote(){ const fd=new FormData(); fd.append('package_id',cur.pkg.id); fetch(BASE+'user/lending/stake_quote',{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{ if(!j.status){ $('stkm-cost').textContent=j.message||'?'; return; } cur.usdt=j.usdt; cur.bal=j.usdt_balance; cur.quote=j; $('stkm-cost').textContent = Number(j.usdt).toLocaleString(undefined,{maximumFractionDigits:4})+' USDT'; $('stkm-lock').textContent = Number(j.bman).toLocaleString()+' BMAN'; $('stkm-bal').textContent  = Number(j.usdt_balance).toLocaleString(undefined,{maximumFractionDigits:2})+' USDT'; const bw = j.bman_wallets||{}; ['exchange','staking','bonus','earning'].forEach(function(w){ const el=$('stkm-bw-'+w); if(el) el.textContent=Number(bw[w]||0).toLocaleString()+' BMAN'; }); cur.usdtShort = j.usdt_balance + 1e-8 < j.usdt; renderLive(); syncGoButton(); }).catch(()=>{ $('stkm-cost').textContent='Quote failed'; }); }
   $('stkm-back').onclick = function(){ if(cur.step>1) renderStep(cur.step-1); };
   $('stkm-next').onclick = function(){ if(cur.step<4) renderStep(cur.step+1); };
   window.stkConfirm = function(){
@@ -748,7 +826,7 @@ $plan_icon = ['fixed' => 'ph-lock-key', 'regular' => 'ph-calendar-dots', 'combo'
 
     // Option 1 (100% Exchange) is a new USDT->BMAN purchase — on-chain flow.
     // Options 2-7 re-stake EXISTING wallet balances — no USDT/blockchain leg.
-    const isRestake = +cur.dist !== 1;
+    const isRestake = isRestakeMode();
     const endpoint = isRestake ? 'user/lending/restake_purchase' : (SWAP_ON ? 'user/lending/swap_purchase' : 'user/lending/purchase_stake');
     fetch(BASE+endpoint,{method:'POST',body:fd,headers:{'X-Requested-With':'XMLHttpRequest'}}).then(r=>r.json()).then(j=>{
       if(j.status){

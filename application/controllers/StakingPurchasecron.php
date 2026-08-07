@@ -735,7 +735,11 @@ class StakingPurchasecron extends CI_Controller
                 ? date('Y-m-d', strtotime($roi['fixed_maturity_date']))
                 : date('Y-m-d', strtotime("+{$years} years"));
 
-            $this->db->insert('user_stakes', [
+            // This cron only ever settles Option-1 (USDT->BMAN) orders — see
+            // this file's header docblock — so a fallback-inserted row here is
+            // always execution_mode='onchain'/gas_required=1.
+            $this->load->model('staking/GasExecution_model', 'gasExec');
+            $this->db->insert('user_stakes', array_merge([
                 'user_id'                => (int)$order['user_id'],
                 'package_id'             => (int)($order['package_id'] ?? 0),
                 'plan_id'                => (int)($order['plan_id'] ?? 0),
@@ -756,7 +760,7 @@ class StakingPurchasecron extends CI_Controller
                 'chain_status'           => 'confirmed',
                 'swap_order_id'          => (int)$order['id'],
                 'created_at'             => date('Y-m-d H:i:s'),
-            ]);
+            ], $this->gasExec->onchainStakeColumns()));
             if ($roi) $this->db->where('id', $roi['id'])->update('roi_staking_management', ['overall_status' => 'active']);
         }
         // else: $existing is already active/matured/etc — already handled, nothing to do.
