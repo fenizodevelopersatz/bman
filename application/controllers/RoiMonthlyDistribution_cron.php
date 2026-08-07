@@ -259,7 +259,7 @@ class RoiMonthlyDistribution_cron extends CI_Controller
             if (!$allPaid) {
                 // Frozen snapshot again — NOT a live staking_plans lookup.
                 $days = $this->roiMgmt->parseCreditDays($r['credit_days_snapshot'] ?? null);
-                $anchor = date('Y-m-d H:i:s', strtotime('+' . ($completed + 1) . ' months', strtotime($r['created_at'])));
+                $anchor = $this->roiMgmt->cycleAnchorMonth($r['created_at'], $completed + 1, $days);
                 $nextDate = $days ? $this->roiMgmt->dayInMonth($anchor, $days[0]) : $anchor;
             }
             // total_paid_amount/remaining_to_pay are already current — every

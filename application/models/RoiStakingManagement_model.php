@@ -170,7 +170,11 @@ class RoiStakingManagement_model extends CI_Model
                 if ($this->db->field_exists('credit_days_snapshot', $this->table)) {
                     $recordData['credit_days_snapshot'] = implode(',', $creditDays);
                 }
-                $recordData['next_payment_date'] = $this->dayInMonth($firstMonthDate, $creditDays[0]);
+                // Buying on/before the earliest configured day means that
+                // day hasn't happened yet THIS month — cycle 1 opens now,
+                // not a month from now. See cycleAnchorMonth()'s docblock.
+                $cycle1Anchor = $this->cycleAnchorMonth($createdAt, 1, $creditDays);
+                $recordData['next_payment_date'] = $this->dayInMonth($cycle1Anchor, $creditDays[0]);
             }
         }
 
@@ -228,6 +232,32 @@ class RoiStakingManagement_model extends CI_Model
     }
 
     /**
+     * Which month cycle #$cycleNo's day-rows belong to.
+     *
+     * If the purchase happened ON OR BEFORE the plan's earliest configured
+     * credit day (e.g. buy on the 5th or 7th, days=7,8,9 — the 7th hasn't
+     * passed yet), cycle 1 opens in the PURCHASE month itself: buy on the
+     * 7th and you get day 7's credit the SAME DAY, not a month later.
+     * Otherwise (bought after the earliest day already passed this month —
+     * including bought partway through the set, e.g. on the 8th, or well
+     * after, e.g. the 20th) cycle 1 waits for next month, same as before
+     * this existed — there is no partial/prorated first cycle; a day that's
+     * already passed this month is never retroactively credited, and the
+     * next cycle always uses the FULL configured day set, never a subset.
+     * Every cycle after the first advances by exactly one month from
+     * whichever month cycle 1 landed in.
+     */
+    public function cycleAnchorMonth($createdAt, $cycleNo, array $days)
+    {
+        $cycleNo = (int)$cycleNo;
+        if (!$days) return date('Y-m-d H:i:s', strtotime('+' . $cycleNo . ' months', strtotime($createdAt)));
+        $purchaseDay = (int)date('j', strtotime($createdAt));
+        $startsSameMonth = $purchaseDay <= min($days);
+        $monthOffset = $startsSameMonth ? ($cycleNo - 1) : $cycleNo;
+        return date('Y-m-d H:i:s', strtotime('+' . $monthOffset . ' months', strtotime($createdAt)));
+    }
+
+    /**
      * Ensure roi_regular_payment_days rows exist for one cycle of a per_day
      * record — creates them the first time this cycle is touched, using the
      * days FROZEN onto the record at purchase time ($creditDaysCsv, i.e.
@@ -250,7 +280,7 @@ class RoiStakingManagement_model extends CI_Model
         $days = $this->parseCreditDays($creditDaysCsv);
         if (!$days) return;
 
-        $monthAnchor = date('Y-m-d H:i:s', strtotime('+' . (int)$cycleNo . ' months', strtotime($createdAt)));
+        $monthAnchor = $this->cycleAnchorMonth($createdAt, $cycleNo, $days);
         $n = count($days);
         $each = bcdiv((string)$totalAmount, (string)$n, 8);
         $running = '0';
