@@ -537,77 +537,58 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
     }
 
 
-    public function lendingBinaryHistory(){
+    /**
+     * Binary Matching History (user self-service) — real, live source:
+     * staking_matching_payouts (the same table Stakingmatching_model::payMatching()
+     * writes and admin/member/profile-matching reads), binary_carry for the
+     * current un-matched carry, and Ceilingwallet_model for anything held above
+     * the package ceiling. Previously read a legacy `history` table
+     * (type='binary_commission') that the live matching engine never writes to
+     * — this rebuild replaces that dead path entirely rather than patching it.
+     */
+    public function lendingBinaryHistory()
+    {
+        $user_id = (int) $this->session->userdata('user_userid');
+        if (!$user_id) { redirect('user/login'); return; }
 
-        $user_id = $this->session->userdata('user_userid');
+        $this->load->model('staking/Ceilingwallet_model', 'CW');
 
-        $this->db->where(['user_id' => $user_id, 'type' => 'binary_commission']);
-        $binary_history = $this->db->get('history')->result_array();
+        $rows = $this->db->where('user_id', $user_id)->order_by('id', 'DESC')->limit(100)
+                         ->get('staking_matching_payouts')->result_array();
 
-        // 2. Get total binary bonus
-        $this->db->select_sum('token_amount', 'binary_bonus');
-        $this->db->where(['user_id' => $user_id, 'type' => 'binary_commission']);
-        $total_binary_bonus_row = $this->db->get('history')->row();
-
-        // 3. Get last binary bonus
-        $this->db->where(['user_id' => $user_id, 'type' => 'binary_commission']);
-        $this->db->order_by('date', 'DESC');
-        $this->db->limit(1);
-        $last_binary_bonus = $this->db->get('history')->row_array();
-
-        // 4. Token info
-        $token_info = token_info(); // should return ['currency_symbol' => '', 'decimal' => 2]
-        $tokensymbol = isset($token_info->currency_symbol) ? $token_info->currency_symbol : '';
-        $decimalPlaces = isset($token_info->decimal) ? $token_info->decimal : 2;
-
-        $total_binary_bonus = isset($total_binary_bonus_row->binary_bonus) && $total_binary_bonus_row->binary_bonus
-        ? number_format((float)$total_binary_bonus_row->binary_bonus, $decimalPlaces) . " " . $tokensymbol
-        : "0.00 " . $tokensymbol;
-
-        // 5. Last binary ROI details
-        $leftleg_amount_last = 0;
-        $rightleg_amount_last = 0;
-        $overall_rankeligible_last = 0;
-
-        if (!empty($last_binary_bonus['total_left_roi']) && !empty($last_binary_bonus['total_right_roi'])) {
-        $leftleg_amount_last = (float)$last_binary_bonus['total_left_roi'];
-        $rightleg_amount_last = (float)$last_binary_bonus['total_right_roi'];
-        $overall_rankeligible_last = min($leftleg_amount_last, $rightleg_amount_last);
+        $sum = ['today' => 0.0, 'weekly' => 0.0, 'monthly' => 0.0, 'lifetime' => 0.0, 'earning' => 0.0, 'staking' => 0.0];
+        foreach ($rows as $r) {
+            $earn = (float) $r['earning_amount'];
+            $stk  = (float) $r['staking_amount'];
+            $amount = $earn + $stk;
+            $sum['lifetime'] += $amount;
+            $sum['earning']  += $earn;
+            $sum['staking']  += $stk;
+            $ts = strtotime($r['created_at']);
+            if (date('Y-m-d', $ts) === date('Y-m-d'))            $sum['today']   += $amount;
+            if ($ts >= strtotime('monday this week'))            $sum['weekly']  += $amount;
+            if (date('Y-m', $ts) === date('Y-m'))                $sum['monthly'] += $amount;
         }
 
-        $total_binary_bonus_last = $overall_rankeligible_last
-        ? number_format($overall_rankeligible_last, $decimalPlaces) . " " . $tokensymbol
-        : "0.00 " . $tokensymbol;
+        $carry = $this->db->get_where('binary_carry', ['user_id' => $user_id])->row_array() ?: [];
 
-        // 6. Build history records
-        $historyRecords = [];
-
-        foreach ($binary_history as $row) {
-        $leftleg_amount = (float)$row['total_left_roi'];
-        $rightleg_amount = (float)$row['total_right_roi'];
-        $overall_rankeligible = min($leftleg_amount, $rightleg_amount);
-        $displayTime = display_time($row['date']);
-        $historyRecords[] = [
-        'rankname' => 'Collab Match Incentive',
-        'amount' => number_format((float)$row['token_amount'], 2) . " " . $tokensymbol,
-        'date' => $row['date'],
-        'displayTime' => $displayTime,
-        'overall_rankeligible' => number_format($overall_rankeligible, 2) . " " . $tokensymbol,
-        'leftleg_amount' => number_format($leftleg_amount, 2) . " " . $tokensymbol,
-        'riightleg_amount' => number_format($rightleg_amount, 2) . " " . $tokensymbol,
-        'created_at' => $row['date'],
+        $this->data['title']      = "Binary Matching History";
+        $this->data['card_title'] = "Binary Matching History";
+        $this->data['user_id']    = $user_id;
+        $this->data['history']    = $rows;
+        $this->data['summary']    = [
+            'lifetime'        => $sum['lifetime'],
+            'today'           => $sum['today'],
+            'weekly'          => $sum['weekly'],
+            'monthly'         => $sum['monthly'],
+            'earning'         => $sum['earning'],
+            'staking'         => $sum['staking'],
+            'carry_left'      => (float) ($carry['left_carry']  ?? 0),
+            'carry_right'     => (float) ($carry['right_carry'] ?? 0),
+            'pending_ceiling' => (float) $this->CW->balance($user_id)['held_balance'],
         ];
-        }
 
-        $this->data['Totalcollabincentives'] = $total_binary_bonus;
-        $this->data['Currentpoolmatch'] = $total_binary_bonus_last;
-        $this->data['history'] = $history;
-
-        $this->data['title'] = "View Referral information";
-        $this->data['card_title'] = "Referral information";
-
-        $this->load->view('user/wallet/view_binary_management',$this->data);
-
+        $this->load->view('user/wallet/view_binary_management', $this->data);
     }
 
 

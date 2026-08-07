@@ -49,6 +49,8 @@ $sidebar_site_name = site_settings('meta-settings', 'site-name') ?: 'NEXMAN';
             Tree</a>        
         <a href="<?php echo base_url('user/withdraw'); ?>" class="nav-item <?php echo $isPayouts ? 'active' : ''; ?>"><i
                 class="ph ph-calendar-check"></i> Payouts</a>
+        <a href="<?php echo base_url('user/profit'); ?>" class="nav-item <?php echo $isCommissions ? 'active' : ''; ?>"><i
+                class="ph ph-hand-coins"></i> Commissions</a>
 
         <!-- <span class="nav-label">E-Commerce</span>
         <a href="<?php echo base_url('user/myorders'); ?>" class="nav-item <?php echo $isOrders ? 'active' : ''; ?>"><i
