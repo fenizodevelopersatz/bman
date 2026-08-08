@@ -5,6 +5,48 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-08-08 — Per-day ROI: cycle-1 anchor realignment + continuity guard
+
+The first per-day shipment (97e1f62) anchored every cycle at `created_at +
+cycle_no` months — cycle 1 always waited for NEXT month. Hours later (82b953b)
+`cycleAnchorMonth()` introduced the intended rule: purchase day ≤ earliest
+configured credit day → cycle 1 opens in the purchase month itself ("buy on
+the 7th, get day 7's credit the same day" — the rule the member-facing
+schedule popup previews). Records bought in the in-between window (#44, #46;
+plus #48's `next_payment_date`) kept old-rule data: e.g. #46 (bought
+2026-08-07, days 7,8,9) had cycle 1 in September, and on its completion the
+new rule would have opened cycle 2 in September too — **two full months of
+ROI in one calendar month**.
+
+1. **`cycleOpenAnchor()` (new, RoiStakingManagement_model):** cycle N > 1 now
+   anchors to (cycle N-1's REAL rows' month) + 1, falling back to
+   `cycleAnchorMonth()` when no prior rows exist. Consecutive cycles land in
+   consecutive months no matter how cycle 1 was seeded (legacy rule, hand-
+   moved test rows). Used by `openCycleDays()` and the monthly cron's
+   cycle-completion `next_payment_date` write, so schedule and display can
+   never disagree again. Also hardened `cycleAnchorMonth()`'s month
+   arithmetic to step from the 1st — `strtotime('+1 month')` on Aug 31
+   lands on Oct 1, which silently skipped a month for month-end purchases.
+2. **Data repair:** `db/roi_perday_cycle1_realign.sql` (idempotent, applied
+   locally) pulls a legacy next-month cycle 1 back into the purchase month —
+   only for per_day records bought on/before their earliest credit day, with
+   cycle 1 entirely unpaid, rows sitting exactly one month late. Then
+   re-points `next_payment_date` at the open cycle's first day-row for every
+   per_day record with real rows (no-op when already consistent; feeds the
+   admin "due in 7 days" panel + member pages). Verified: #46 → Aug 7/8/9
+   (was Sept), #44 → Aug 10/20 (was Sept), #48 next date → Aug 7 (was
+   Sept 7); #43/#45 (paid/hand-edited test rows) and #49 untouched; re-run
+   matches 0 rows.
+   - **Files:** `application/models/RoiStakingManagement_model.php`,
+     `application/controllers/RoiMonthlyDistribution_cron.php`,
+     `db/roi_perday_cycle1_realign.sql`
+   - **Apply:** run the SQL once on any environment that served per_day
+     purchases before 82b953b's deploy. Next monthly-cron tick catches up
+     #46's now-due August days (by design — same catch-up path as a missed
+     run).
+
+---
+
 ## 2026-07-15 (later) — Recipient eligibility fix, verified level cascading, admin Genealogy Tree
 
 Three follow-ups after a support scenario raised a real question: does a

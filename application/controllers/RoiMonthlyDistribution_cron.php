@@ -266,8 +266,14 @@ class RoiMonthlyDistribution_cron extends CI_Controller
             $nextDate = $r['fixed_maturity_date'];
             if (!$allPaid) {
                 // Frozen snapshot again — NOT a live staking_plans lookup.
+                // cycleOpenAnchor (not cycleAnchorMonth): the cycle we just
+                // completed definitely has rows, so the next cycle anchors to
+                // that REAL month + 1 — the same month openCycleDays() will
+                // open it in. Recomputing from created_at here could disagree
+                // with the rows on disk (legacy-seeded/hand-moved cycle 1) and
+                // advertise a next_payment_date the schedule will never use.
                 $days = $this->roiMgmt->parseCreditDays($r['credit_days_snapshot'] ?? null);
-                $anchor = $this->roiMgmt->cycleAnchorMonth($r['created_at'], $completed + 1, $days);
+                $anchor = $this->roiMgmt->cycleOpenAnchor($recordId, $completed + 1, $r['created_at'], $days);
                 $nextDate = $days ? $this->roiMgmt->dayInMonth($anchor, $days[0]) : $anchor;
             }
             // total_paid_amount/remaining_to_pay are already current — every

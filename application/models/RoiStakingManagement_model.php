@@ -251,10 +251,51 @@ class RoiStakingManagement_model extends CI_Model
     {
         $cycleNo = (int)$cycleNo;
         if (!$days) return date('Y-m-d H:i:s', strtotime('+' . $cycleNo . ' months', strtotime($createdAt)));
-        $purchaseDay = (int)date('j', strtotime($createdAt));
+        $ts = strtotime($createdAt);
+        $purchaseDay = (int)date('j', $ts);
         $startsSameMonth = $purchaseDay <= min($days);
         $monthOffset = $startsSameMonth ? ($cycleNo - 1) : $cycleNo;
-        return date('Y-m-d H:i:s', strtotime('+' . $monthOffset . ' months', strtotime($createdAt)));
+        // Step months from the 1st, never from the purchase's own day-of-month:
+        // strtotime('+1 month') on Aug 31 lands on Oct 1 ("Sep 31" overflows),
+        // silently skipping September for month-end purchases. The returned
+        // DAY is meaningless anyway — every caller feeds this to dayInMonth(),
+        // which keeps only the month + time and re-applies the real configured
+        // day, clamped to that month's length.
+        $base = strtotime(date('Y-m-', $ts) . '01 ' . date('H:i:s', $ts));
+        return date('Y-m-d H:i:s', strtotime('+' . $monthOffset . ' months', $base));
+    }
+
+    /**
+     * The month cycle #$cycleNo should actually OPEN in, honoring the rows the
+     * cycle before it really has. cycleAnchorMonth() recomputes every cycle
+     * independently from created_at — correct only while every cycle on disk
+     * was seeded under the same rule. A cycle 1 seeded under the retired
+     * "always next month" rule (or hand-moved in testing) breaks that: e.g.
+     * bought Aug 7 with days 7,8,9, legacy cycle 1 sits in September, and the
+     * moment it completes cycleAnchorMonth() puts cycle 2 in September TOO —
+     * two full months of ROI credited in one calendar month. Anchoring cycle N
+     * to (cycle N-1's real month) + 1 enforces the contract cycleAnchorMonth()
+     * already documents — "every cycle after the first advances by exactly one
+     * month from whichever month cycle 1 landed in" — against the rows that
+     * actually exist. No prior-cycle rows (cycle 1, or a gap) → falls back to
+     * cycleAnchorMonth(), i.e. behaves exactly as before.
+     */
+    public function cycleOpenAnchor($roiRecordId, $cycleNo, $createdAt, array $days)
+    {
+        $cycleNo = (int)$cycleNo;
+        if ($cycleNo > 1) {
+            $prev = $this->db->select('scheduled_date')
+                ->where('roi_staking_management_id', (int)$roiRecordId)
+                ->where('cycle_no', $cycleNo - 1)
+                ->order_by('day_of_month', 'ASC')->limit(1)
+                ->get('roi_regular_payment_days')->row_array();
+            if ($prev && !empty($prev['scheduled_date'])) {
+                $ts = strtotime($prev['scheduled_date']);
+                $base = strtotime(date('Y-m-', $ts) . '01 ' . date('H:i:s', $ts));
+                return date('Y-m-d H:i:s', strtotime('+1 month', $base));
+            }
+        }
+        return $this->cycleAnchorMonth($createdAt, $cycleNo, $days);
     }
 
     /**
@@ -280,7 +321,10 @@ class RoiStakingManagement_model extends CI_Model
         $days = $this->parseCreditDays($creditDaysCsv);
         if (!$days) return;
 
-        $monthAnchor = $this->cycleAnchorMonth($createdAt, $cycleNo, $days);
+        // Continuity-aware: cycle N opens one month after cycle N-1's REAL
+        // rows, so two cycles can never share a calendar month even if cycle 1
+        // was seeded under the retired next-month rule (see cycleOpenAnchor).
+        $monthAnchor = $this->cycleOpenAnchor($roiRecordId, $cycleNo, $createdAt, $days);
         $n = count($days);
         $each = bcdiv((string)$totalAmount, (string)$n, 8);
         $running = '0';
