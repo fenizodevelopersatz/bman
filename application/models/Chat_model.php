@@ -170,6 +170,12 @@ class Chat_model extends CI_Model
         if ($room !== 'personal') {
             // world/team rooms should not include direct personal messages
             $this->db->where('to_user_id IS NULL', null, false);
+            // A member only sees room traffic from after they joined — a new
+            // account must not inherit the room's whole pre-registration history.
+            $registeredAt = $this->_registeredAt($currentUserId);
+            if ($registeredAt !== null) {
+                $this->db->where('created_at >=', $registeredAt);
+            }
         }
 
         // ✅ TEAM: restrict allowed users list
@@ -513,6 +519,17 @@ class Chat_model extends CI_Model
         return (int) ($row['last_read_id'] ?? 0);
     }
 
+    /** Registration datetime for room-history scoping; null when unknown. */
+    private function _registeredAt($userId)
+    {
+        $userId = (int) $userId;
+        if ($userId <= 0) return null;
+        $row = $this->db->select('register_date')->from('users')
+            ->where('id', $userId)->get()->row_array();
+        $val = trim((string) ($row['register_date'] ?? ''));
+        return ($val !== '' && $val !== '0000-00-00 00:00:00') ? $val : null;
+    }
+
     /**
      * Total unread across world (everyone), team (genealogy path), and
      * personal (DMs addressed to this user) — same visibility rules the
@@ -523,16 +540,24 @@ class Chat_model extends CI_Model
         $userId = (int) $userId;
         if ($userId <= 0) return 0;
 
+        // Same scoping as fetchMessagesSafe: pre-registration room history is
+        // invisible to this member, so it must not count as unread either.
+        $registeredAt = $this->_registeredAt($userId);
+
         $worldSince = $this->_lastReadId($userId, 'world');
-        $world = (int) $this->db->where('room', 'world')->where('user_id !=', $userId)
-            ->where('id >', $worldSince)->count_all_results($this->table);
+        $this->db->where('room', 'world')->where('user_id !=', $userId)
+            ->where('id >', $worldSince);
+        if ($registeredAt !== null) $this->db->where('created_at >=', $registeredAt);
+        $world = (int) $this->db->count_all_results($this->table);
 
         $team = 0;
         $pathIds = $this->getPathChatUserIdsCached($userId);
         if (!empty($pathIds)) {
             $teamSince = $this->_lastReadId($userId, 'team');
-            $team = (int) $this->db->where('room', 'team')->where_in('user_id', $pathIds)
-                ->where('id >', $teamSince)->count_all_results($this->table);
+            $this->db->where('room', 'team')->where_in('user_id', $pathIds)
+                ->where('id >', $teamSince);
+            if ($registeredAt !== null) $this->db->where('created_at >=', $registeredAt);
+            $team = (int) $this->db->count_all_results($this->table);
         }
 
         $personal = (int) $this->db->select('COUNT(*) AS n', false)

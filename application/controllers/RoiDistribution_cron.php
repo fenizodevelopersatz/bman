@@ -26,9 +26,10 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  */
 class RoiDistribution_cron extends CI_Controller
 {
-    private $cronRoutes = [
-        'monthly'  => 'roi-monthly-distribution-process',
-        'maturity' => 'roi-maturity-payment-process',
+    /** CLI controller segment per leg (php index.php <controller> process). */
+    private $cronControllers = [
+        'monthly'  => 'roimonthlydistribution_cron',
+        'maturity' => 'roimaturitypayment_cron',
     ];
 
     public function run()
@@ -40,6 +41,8 @@ class RoiDistribution_cron extends CI_Controller
             }
         }
         @set_time_limit(0);
+        // An impatient HTTP caller hanging up must not kill a money run mid-leg.
+        @ignore_user_abort(true);
 
         $start = microtime(true);
         $monthly  = $this->_call('monthly');
@@ -69,25 +72,39 @@ class RoiDistribution_cron extends CI_Controller
         echo json_encode($result) . PHP_EOL;
     }
 
-    /** Call one leg's real route as a fresh top-level request — see Roihistory::_runCron() for why. */
+    /**
+     * Run one leg as a fresh CLI subprocess: php index.php <controller> process.
+     *
+     * NOT an internal HTTP call any more. This app is served by `php -S`
+     * (single-threaded — exactly one worker), so a request that curls its own
+     * base_url can never be answered: the wrapper's request holds the only
+     * worker while curl waits on it, and every run died at the 60s curl
+     * timeout with "0 bytes received". A CLI child process keeps the
+     * fresh-top-level-request isolation the legs need (CI3 can't cleanly
+     * instantiate a second controller in-process — see Roihistory::_runCron())
+     * without needing a second web worker, and works the same under Apache.
+     * No timeout: on-chain legs legitimately run long; the child is CLI so
+     * is_cli() skips the token gate.
+     */
     private function _call($key)
     {
-        $token = $this->config->item('cron_token');
-        $url = base_url($this->cronRoutes[$key]) . ($token ? '?' . http_build_query(['token' => $token]) : '');
+        $php = (defined('PHP_BINARY') && PHP_BINARY && stripos(basename(PHP_BINARY), 'php') === 0)
+            ? PHP_BINARY : 'php';
+        $cmd = '"' . $php . '" index.php ' . $this->cronControllers[$key] . ' process 2>&1';
 
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 60,
-            CURLOPT_HTTPHEADER     => ['X-Requested-With: XMLHttpRequest'],
-        ]);
-        $output = curl_exec($ch);
-        $err = curl_error($ch);
-        curl_close($ch);
+        $old = getcwd();
+        chdir(FCPATH);
+        exec($cmd, $lines, $exit);
+        chdir($old);
 
-        if ($output === false) return ['status' => false, 'error' => "Internal request failed: {$err}"];
-        $decoded = json_decode($output, true);
-        return $decoded !== null ? $decoded : ['status' => false, 'error' => 'Non-JSON output', 'raw' => $output];
+        $raw = trim(implode("\n", (array) $lines));
+        $decoded = json_decode($raw, true);
+        if ($decoded === null && $lines) {
+            // tolerate stray notices before the leg's single JSON line
+            $decoded = json_decode(trim((string) end($lines)), true);
+        }
+        if ($decoded !== null) return $decoded;
+        return ['status' => false, 'error' => "CLI run failed (exit {$exit})", 'raw' => substr($raw, 0, 2000)];
     }
 
     private function _dueCount()

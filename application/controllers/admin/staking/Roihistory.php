@@ -30,51 +30,53 @@ class Roihistory extends CI_Controller
                      ->set_output(json_encode($data));
     }
 
-    /** route (public HTTP endpoint) for each cron — kept in sync with routes.php */
-    private $cronRoutes = [
-        'RoiMonthlyDistribution_cron' => 'roi-monthly-distribution-process',
-        'RoiMaturityPayment_cron'     => 'roi-maturity-payment-process',
+    /** CLI controller segment for each cron (php index.php <controller> process [id]). */
+    private $cronControllers = [
+        'RoiMonthlyDistribution_cron' => 'roimonthlydistribution_cron',
+        'RoiMaturityPayment_cron'     => 'roimaturitypayment_cron',
     ];
 
     /**
-     * Trigger a cron via an internal HTTP call to its own route, rather than
-     * instantiating a second CI_Controller in-process. CodeIgniter 3's
-     * CI_Controller::__construct() rebuilds every already-loaded "superobject"
-     * class from a global is_loaded() registry — once the Session library is
-     * loaded (every admin controller loads it), a second controller instance
-     * fails to re-resolve it ("Unable to locate the specified class:
-     * Session.php"). Hitting the existing, already-working route as a fresh
-     * top-level request avoids that entirely.
+     * Trigger a cron as a fresh CLI subprocess, rather than instantiating a
+     * second CI_Controller in-process OR curling its own route.
+     *
+     * Why not in-process: CodeIgniter 3's CI_Controller::__construct() rebuilds
+     * every already-loaded "superobject" class from a global is_loaded()
+     * registry — once the Session library is loaded (every admin controller
+     * loads it), a second controller instance fails to re-resolve it ("Unable
+     * to locate the specified class: Session.php").
+     *
+     * Why not internal HTTP any more: this app is served by `php -S`
+     * (single-threaded — exactly one worker), so a request that curls its own
+     * base_url can never be answered; the admin's request holds the only
+     * worker while curl waits, and every Send Now click died at the 60s curl
+     * timeout with 0 bytes. A CLI child gives the same fresh top-level run
+     * with no second web worker needed — see RoiDistribution_cron::_call().
      */
     private function _runCron($class, $onlyId = null)
     {
-        if (!isset($this->cronRoutes[$class])) {
+        if (!isset($this->cronControllers[$class])) {
             return ['status' => false, 'error' => "Unknown cron: {$class}"];
         }
 
-        $params = [];
-        $token = $this->config->item('cron_token');
-        if ($token) $params['token'] = $token;
-        if ($onlyId) $params['record_id'] = (int)$onlyId;
+        $php = (defined('PHP_BINARY') && PHP_BINARY && stripos(basename(PHP_BINARY), 'php') === 0)
+            ? PHP_BINARY : 'php';
+        $cmd = '"' . $php . '" index.php ' . $this->cronControllers[$class] . ' process'
+             . ($onlyId ? ' ' . (int)$onlyId : '') . ' 2>&1';
 
-        $url = base_url($this->cronRoutes[$class]);
-        if ($params) $url .= '?' . http_build_query($params);
+        $old = getcwd();
+        chdir(FCPATH);
+        exec($cmd, $lines, $exit);
+        chdir($old);
 
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 60,
-            CURLOPT_HTTPHEADER     => ['X-Requested-With: XMLHttpRequest'],
-        ]);
-        $output = curl_exec($ch);
-        $err = curl_error($ch);
-        curl_close($ch);
-
-        if ($output === false) {
-            return ['status' => false, 'error' => "Internal request to {$class} failed: {$err}"];
+        $raw = trim(implode("\n", (array) $lines));
+        $decoded = json_decode($raw, true);
+        if ($decoded === null && $lines) {
+            // tolerate stray notices before the leg's single JSON line
+            $decoded = json_decode(trim((string) end($lines)), true);
         }
-        $decoded = json_decode($output, true);
-        return $decoded !== null ? $decoded : ['status' => false, 'error' => 'Non-JSON output', 'raw' => $output];
+        if ($decoded !== null) return $decoded;
+        return ['status' => false, 'error' => "CLI run of {$class} failed (exit {$exit})", 'raw' => substr($raw, 0, 2000)];
     }
 
     public function index()
@@ -103,10 +105,18 @@ class Roihistory extends CI_Controller
         $distCount = (int)$this->db->where('reference_type', 'roi')
             ->count_all_results('onchain_transactions');
 
+        // Real gas comes from the tx receipts on onchain_transactions (filled
+        // in by Chainsync_model::verifyTx once the sync cron confirms each
+        // send) — roi_staking_management.total_gas_paid is never written by
+        // the ROI crons, so summing that column always showed 0.
+        $gasRow = $this->db->select('COALESCE(SUM(gas_fee_total),0) AS g', false)
+            ->where('reference_type', 'roi')
+            ->get('onchain_transactions')->row_array();
+
         return [
             'total_paid'      => (float)($row['total_paid'] ?? 0),
             'total_remaining' => (float)($row['total_remaining'] ?? 0),
-            'total_gas_paid'  => (float)($row['total_gas_paid'] ?? 0),
+            'total_gas_paid'  => (float)($gasRow['g'] ?? 0),
             'completed_count' => (int)($row['completed_count'] ?? 0),
             'active_count'    => (int)($row['active_count'] ?? 0),
             'failed_count'    => (int)($row['failed_count'] ?? 0),

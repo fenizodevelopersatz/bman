@@ -1609,6 +1609,118 @@ class Lendingcontroller extends CI_Controller
     }
 
     /**
+     * AJAX: the FULL ROI milestone schedule for one roi_staking_management
+     * record, paginated for the details popup — every monthly day-row (real
+     * DB rows where the cycle has opened, previewed with the same split math
+     * as openCycleDays for future cycles) plus the maturity leg as the final
+     * record. Preview rows are display-only; nothing is persisted here.
+     */
+    public function roi_milestones()
+    {
+        $userId = (int) $this->session->userdata('user_userid');
+        if (!$userId) { echo json_encode(['status'=>false,'message'=>'Unauthorized']); return; }
+        $roiId = (int) $this->input->post('roi_id');
+        $page  = max(1, (int) $this->input->post('page'));
+        $limit = (int) $this->input->post('limit');
+        if ($limit < 5 || $limit > 25) $limit = 7;
+
+        $rec = $this->db->where('id', $roiId)->where('user_id', $userId)
+            ->get('roi_staking_management')->row_array();
+        if (!$rec) { echo json_encode(['status'=>false,'message'=>'ROI record not found']); return; }
+
+        $this->load->model('RoiStakingManagement_model', 'roiMgmt');
+
+        $cycles    = (int) $rec['regular_payment_count'];
+        $isSpecial = !empty($rec['is_special']);
+        $schedule  = $isSpecial ? (json_decode($rec['special_schedule_json'] ?? '[]', true) ?: []) : [];
+        $principal = (float) $rec['principal_amount'];
+        // Special offers escalate the monthly amount per staking year; everything
+        // else pays the flat snapshot amount every cycle.
+        $monthlyTotal = function ($cycleNo) use ($rec, $isSpecial, $schedule, $principal) {
+            if ($isSpecial && $schedule) {
+                $year = (int) ceil($cycleNo / 12);
+                $pct = $schedule[$year] ?? ($schedule[(string) $year] ?? end($schedule));
+                return $principal * ((float) $pct / 100);
+            }
+            return (float) $rec['regular_payment_amount'];
+        };
+
+        $records = [];
+        if ($cycles > 0 && (float) $rec['regular_payment_amount'] > 0) {
+            if (($rec['credit_mode'] ?? 'flat') === 'per_day') {
+                $real = $this->db->where('roi_staking_management_id', $roiId)
+                    ->order_by('cycle_no', 'ASC')->order_by('day_of_month', 'ASC')
+                    ->get('roi_regular_payment_days')->result_array();
+                $byCycle = [];
+                foreach ($real as $r) $byCycle[(int) $r['cycle_no']][] = $r;
+                $days = $this->roiMgmt->parseCreditDays($rec['credit_days_snapshot'] ?? null);
+
+                for ($c = 1; $c <= $cycles; $c++) {
+                    if (!empty($byCycle[$c])) {
+                        foreach ($byCycle[$c] as $r) {
+                            $records[] = [
+                                'kind' => 'monthly', 'cycle' => $c, 'cycles_total' => $cycles,
+                                'day' => (int) $r['day_of_month'], 'scheduled_date' => $r['scheduled_date'],
+                                'amount' => (float) $r['amount'],
+                                'status' => $r['status'] === 'completed' ? 'completed' : 'pending',
+                                'paid_date' => $r['paid_date'] ?: null,
+                            ];
+                        }
+                    } elseif ($days) {
+                        $total = $monthlyTotal($c);
+                        $anchor = $this->roiMgmt->cycleAnchorMonth($rec['created_at'], $c, $days);
+                        $n = count($days);
+                        $each = round($total / $n, 8);
+                        $running = 0.0;
+                        foreach ($days as $i => $day) {
+                            $amt = ($i === $n - 1) ? round($total - $running, 8) : $each;
+                            $running += $amt;
+                            $records[] = [
+                                'kind' => 'monthly', 'cycle' => $c, 'cycles_total' => $cycles,
+                                'day' => (int) $day,
+                                'scheduled_date' => $this->roiMgmt->dayInMonth($anchor, (int) $day),
+                                'amount' => $amt, 'status' => 'pending', 'paid_date' => null,
+                            ];
+                        }
+                    }
+                }
+            } else {
+                // Legacy flat mode (and special offers): one record per monthly cycle.
+                $done = (int) $rec['regular_payments_completed'];
+                for ($c = 1; $c <= $cycles; $c++) {
+                    $records[] = [
+                        'kind' => 'monthly', 'cycle' => $c, 'cycles_total' => $cycles, 'day' => null,
+                        'scheduled_date' => date('Y-m-d H:i:s', strtotime('+' . $c . ' months', strtotime($rec['created_at']))),
+                        'amount' => $monthlyTotal($c),
+                        'status' => $c <= $done ? 'completed' : 'pending', 'paid_date' => null,
+                    ];
+                }
+            }
+        }
+
+        if ((float) $rec['fixed_payment_amount'] > 0 || $rec['plan_type'] === 'fixed') {
+            $records[] = [
+                'kind' => 'maturity', 'cycle' => null, 'cycles_total' => null, 'day' => null,
+                'scheduled_date' => $rec['fixed_maturity_date'],
+                'amount' => (float) $rec['fixed_payment_amount'],
+                'status' => ($rec['fixed_status'] === 'completed') ? 'completed' : 'pending',
+                'paid_date' => $rec['fixed_paid_date'] ?: null,
+            ];
+        }
+
+        $total = count($records);
+        $pages = max(1, (int) ceil($total / $limit));
+        if ($page > $pages) $page = $pages;
+        $rows = array_slice($records, ($page - 1) * $limit, $limit);
+
+        echo json_encode([
+            'status' => true, 'rows' => $rows, 'total' => $total,
+            'page' => $page, 'pages' => $pages, 'per_page' => $limit,
+            'plan_type' => $rec['plan_type'], 'is_special' => $isSpecial ? 1 : 0,
+        ]);
+    }
+
+    /**
      * Earned ROI calculation (safe).
      * If you maintain ROI credits somewhere else, update here only.
      */

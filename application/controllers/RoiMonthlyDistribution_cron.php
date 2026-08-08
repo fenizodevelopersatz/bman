@@ -36,6 +36,8 @@ class RoiMonthlyDistribution_cron extends CI_Controller
             if ($qsId !== null && $qsId !== '') $onlyId = (int)$qsId;
         }
         @set_time_limit(0);
+        // A disconnecting HTTP caller must never abort an on-chain money run midway.
+        @ignore_user_abort(true);
 
         $now = date('Y-m-d H:i:s');
         try {
@@ -321,8 +323,16 @@ class RoiMonthlyDistribution_cron extends CI_Controller
             $txHash = $result['tx_hash'];
         }
 
+        // Real broadcasts start as 'processing' so Chainsync_model's pending
+        // sweep (finalizeConfirmations) verifies the receipt — that's what
+        // fills gas_used/gas_fee_total and flips the row to 'confirmed'.
+        // Inserting 'confirmed' directly left every ROI row invisible to the
+        // sweep, so gas stayed NULL forever and the admin gas totals read 0.
+        // Dry-run hashes aren't on chain — they stay 'confirmed' so the sweep
+        // never polls a hash that can't exist.
         $this->db->insert('onchain_transactions', [
-            'tx_hash' => $txHash, 'wallet_type' => 'exchange', 'tx_type' => $txType, 'status' => 'confirmed',
+            'tx_hash' => $txHash, 'wallet_type' => 'exchange', 'tx_type' => $txType,
+            'status' => $dry ? 'confirmed' : 'processing',
             'user_id' => $userId, 'amount' => $amount,
             'reference_type' => 'roi', 'reference_id' => $cycleRef,
             'created_at' => date('Y-m-d H:i:s'),

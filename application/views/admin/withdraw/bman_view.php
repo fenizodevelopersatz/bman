@@ -466,8 +466,21 @@
                                         <h5 class="mb-0">Withdrawal Address & Timestamps</h5>
                                     </div>
                                     <div class="card-body">
-                                        <p><strong>Withdraw Address:</strong> <code><?= htmlspecialchars($row['withdraw_address']); ?></code></p>
-                                        <p><strong>Tx Hash:</strong> <?= empty($row['tx_hash']) ? '<em>Not yet confirmed</em>' : '<code>' . htmlspecialchars($row['tx_hash']) . '</code>'; ?></p>
+                                        <p><strong>Withdraw Address:</strong> <code id="wd-addr"><?= htmlspecialchars($row['withdraw_address']); ?></code>
+                                            <button type="button" class="btn btn-link btn-sm py-0" data-copy="wd-addr">copy</button></p>
+                                        <?php if (!empty($row['tx_hash'])): ?>
+                                            <p><strong>Tx Hash:</strong> <code><?= htmlspecialchars($row['tx_hash']); ?></code></p>
+                                        <?php endif; ?>
+                                        <?php if (!empty($is_super)): ?>
+                                            <button type="button" class="btn btn-outline-danger btn-sm" id="btk-open">Reveal Treasury Private Key</button>
+                                            <div id="btk-result" class="mt-3 d-none">
+                                                <div class="alert alert-warning small mb-2">
+                                                    Do not screen-share or paste this anywhere but your wallet app. This panel clears in 60s.
+                                                </div>
+                                                <p class="mb-0"><strong>Private Key:</strong> <code id="btk-key" style="word-break:break-all;"></code>
+                                                    <button type="button" class="btn btn-link btn-sm py-0" data-copy="btk-key">copy</button></p>
+                                            </div>
+                                        <?php endif; ?>
                                         <hr>
                                         <div class="row">
                                             <div class="col-md-6">
@@ -516,6 +529,34 @@
                                             <?php endif; ?>
                                             </tbody>
                                         </table>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+
+                                <!-- Treasury key reveal — password prompt modal (Super Admin only; button lives in the Withdrawal Address card) -->
+                                <?php if (!empty($is_super)): ?>
+                                <div class="modal fade" id="btkModal" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Payout Password Required</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <!-- Deliberately NOT type="password": Chrome offers its "Save password?"
+                                                     bubble for real password fields no matter what autocomplete says.
+                                                     A masked text input keeps the dots without being treated as a
+                                                     credential, so no save prompt appears. -->
+                                                <input type="text" class="form-control" id="btk-pw" autocomplete="off"
+                                                    spellcheck="false" placeholder="Payout password"
+                                                    style="-webkit-text-security:disc;">
+                                                <div class="text-danger small mt-2 d-none" id="btk-err"></div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="button" class="btn btn-danger" id="btk-submit">Reveal</button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                                 <?php endif; ?>
@@ -599,6 +640,101 @@
     <script src="<?php echo base_url(); ?>/assets/admin/js/widgets.bundle.js"></script>
     <script src="<?php echo base_url(); ?>/assets/admin/js/custom/widgets.js"></script>
     <script src="<?php echo base_url(); ?>/assets/admin/plugins/global/plugins.bundle.js"></script>
+    <script>
+    (function () {
+        // Copy-to-clipboard with "copied" feedback. execCommand fallback keeps
+        // this working on the plain-HTTP LAN origin, where navigator.clipboard
+        // is unavailable outside secure contexts.
+        function markCopied(btn) {
+            btn.textContent = 'copied';
+            setTimeout(() => { btn.textContent = 'copy'; }, 1500);
+        }
+        function fallbackCopy(text) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            let ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
+            return ok;
+        }
+        document.querySelectorAll('[data-copy]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const el = document.getElementById(btn.dataset.copy);
+                if (!el || !el.textContent) return;
+                const text = el.textContent;
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(() => markCopied(btn), () => { if (fallbackCopy(text)) markCopied(btn); });
+                } else if (fallbackCopy(text)) {
+                    markCopied(btn);
+                }
+            });
+        });
+
+        const openBtn = document.getElementById('btk-open');
+        if (!openBtn) return;
+        const modalEl = document.getElementById('btkModal');
+        const modal = () => bootstrap.Modal.getOrCreateInstance(modalEl);
+        const pwInput = document.getElementById('btk-pw');
+        const err = document.getElementById('btk-err');
+        const submitBtn = document.getElementById('btk-submit');
+        const resultBox = document.getElementById('btk-result');
+        const keyEl = document.getElementById('btk-key');
+        let clearTimer = null;
+
+        function clearReveal() {
+            keyEl.textContent = '';
+            resultBox.classList.add('d-none');
+            if (clearTimer) { clearTimeout(clearTimer); clearTimer = null; }
+        }
+
+        openBtn.addEventListener('click', () => {
+            clearReveal();
+            pwInput.value = '';
+            err.classList.add('d-none');
+            modal().show();
+            setTimeout(() => pwInput.focus(), 300);
+        });
+
+        async function submit() {
+            const pw = pwInput.value;
+            if (!pw) { err.textContent = 'Enter the payout password.'; err.classList.remove('d-none'); return; }
+            submitBtn.disabled = true;
+            err.classList.add('d-none');
+            try {
+                const res = await fetch('<?= base_url('admin/bman-withdrawals/reveal-treasury-key/' . $row['id']); ?>', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ payout_password: pw })
+                });
+                const j = await res.json();
+                if (j.status !== 'success') {
+                    err.textContent = j.message || 'Failed to reveal.';
+                    err.classList.remove('d-none');
+                    submitBtn.disabled = false;
+                    return;
+                }
+                pwInput.value = '';
+                modal().hide();
+                keyEl.textContent = j.private_key;
+                resultBox.classList.remove('d-none');
+                // Auto-clear after 60s — this is convenience, not a security
+                // control; the value already left the server the moment this
+                // response landed.
+                clearTimer = setTimeout(clearReveal, 60000);
+            } catch (e) {
+                err.textContent = 'Request failed.';
+                err.classList.remove('d-none');
+            }
+            submitBtn.disabled = false;
+        }
+        submitBtn.addEventListener('click', submit);
+        pwInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    })();
+    </script>
 </body>
 
 </html>

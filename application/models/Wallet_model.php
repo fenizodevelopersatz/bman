@@ -555,7 +555,19 @@ class Wallet_model extends CI_Model
             created_at        AS created_at,
             credit            AS amount,
             'SUCCESS'         AS status,
-            description       AS note
+            description       AS note,
+            tx_hash,
+            wallet_type,
+            COALESCE(
+                (SELECT COALESCE(NULLIF(r2.staking_swap_orders_id, 0), NULLIF(r2.user_stakes_id, 0))
+                   FROM roi_staking_management r2
+                  WHERE r2.ref = CAST(wallet_ledger.reference_id AS BINARY) LIMIT 1),
+                CASE
+                    WHEN reference_id REGEXP '^ORDER-[0-9]+'
+                        THEN CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(reference_id, '-', 2), '-', -1) AS UNSIGNED)
+                    ELSE NULL
+                END
+            )                 AS order_id
         FROM wallet_ledger
         $whereSql
         ORDER BY created_at DESC, id DESC
@@ -563,6 +575,30 @@ class Wallet_model extends CI_Model
     ", array_merge($params, [$per_page, $offset]))->result();
 
         foreach ($rows as $r) { $r->title = $this->commissionTitle($r->raw_type); }
+
+        // ROI rows: attach the staking record behind the credit so the details
+        // popup can explain the earning (plan, principal, rate, cycle progress)
+        // instead of showing only the bare ledger line. One IN() query for the
+        // page — string literals adopt the column's collation, so this needs
+        // no CAST, unlike the cross-table compare above.
+        $roiRefs = [];
+        foreach ($rows as $r) {
+            if ($r->raw_type === 'roi' && !empty($r->ref)) $roiRefs[$r->ref] = true;
+        }
+        if ($roiRefs) {
+            $recs = $this->db->select('ref, plan_type, is_special, duration_years, principal_amount,
+                    roi_rate_percent, total_roi_amount, total_paid_amount,
+                    regular_payments_completed, regular_payment_count,
+                    next_payment_date, fixed_maturity_date, overall_status', false)
+                ->where_in('ref', array_keys($roiRefs))
+                ->get('roi_staking_management')->result_array();
+            $byRef = array_column($recs, null, 'ref');
+            foreach ($rows as $r) {
+                $r->roi_staking = ($r->raw_type === 'roi' && isset($byRef[$r->ref])) ? $byRef[$r->ref] : null;
+            }
+        } else {
+            foreach ($rows as $r) { $r->roi_staking = null; }
+        }
 
         $counts = $this->getCommissionCounts($user_id, $filters);
 

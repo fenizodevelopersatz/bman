@@ -35,6 +35,8 @@ class RoiMaturityPayment_cron extends CI_Controller
             if ($qsId !== null && $qsId !== '') $onlyId = (int)$qsId;
         }
         @set_time_limit(0);
+        // A disconnecting HTTP caller must never abort an on-chain money run midway.
+        @ignore_user_abort(true);
 
         $now = date('Y-m-d H:i:s');
         try {
@@ -192,8 +194,15 @@ class RoiMaturityPayment_cron extends CI_Controller
     private function _recordOnchain($r, $txHash, $amount, $txType, $wallet)
     {
         if ($this->db->where(['tx_hash' => $txHash, 'wallet_type' => $wallet])->count_all_results('onchain_transactions') > 0) return;
+        // Real chain hashes (0x…) start as 'processing' so Chainsync_model's
+        // pending sweep verifies the receipt — that fills gas_used/
+        // gas_fee_total and flips them to 'confirmed'. Synthetic hashes
+        // (DRYRUN-…, ROI-…-PRINCIPAL) aren't on chain and stay 'confirmed'
+        // so the sweep never polls a hash that can't exist.
+        $isRealTx = strpos($txHash, '0x') === 0;
         $this->db->insert('onchain_transactions', [
-            'tx_hash' => $txHash, 'wallet_type' => $wallet, 'tx_type' => $txType, 'status' => 'confirmed',
+            'tx_hash' => $txHash, 'wallet_type' => $wallet, 'tx_type' => $txType,
+            'status' => $isRealTx ? 'processing' : 'confirmed',
             'user_id' => $r['user_id'], 'amount' => $amount,
             'reference_type' => 'roi', 'reference_id' => $r['ref'],
             'created_at' => date('Y-m-d H:i:s'),

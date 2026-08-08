@@ -1003,7 +1003,7 @@
             <div style="display:flex;gap:10px;align-items:center;">
               <input id="referral_link"
                 style="flex:1;border:none;outline:none;background:#fff;padding:10px 12px;border-radius:14px;border:1px solid #eeecff;font-size:12px;"
-                value="<?php echo base_url() . 'user/re?ref=L-' . $userinfo->referral_id ?? ''; ?>" readonly />
+                value="<?php echo base_url() . 'user/re?re=L-' . $userinfo->referral_id ?? ''; ?>" readonly />
               <button
                 style="border:none;background:var(--primary);color:#fff;padding:10px 14px;border-radius:14px;font-weight:800;cursor:pointer;"
                 onclick="copyText(dashRefSide)"><i class="ph ph-copy"></i></button>
@@ -1540,8 +1540,8 @@
   </script>
   <script>
     window.RefLinks = {
-      left: "<?php echo base_url() . 'user/re?ref=L-' . $userinfo->referral_id ?? ''; ?>",
-      right: "<?php echo base_url() . 'user/re?ref=R-' . $userinfo->referral_id ?? ''; ?>"
+      left: "<?php echo base_url() . 'user/re?re=L-' . $userinfo->referral_id ?? ''; ?>",
+      right: "<?php echo base_url() . 'user/re?re=R-' . $userinfo->referral_id ?? ''; ?>"
     };
   </script>
   <script>

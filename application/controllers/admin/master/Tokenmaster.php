@@ -131,6 +131,25 @@ class Tokenmaster extends CI_Controller
         return $this->_json(['status' => 'success', 'rows' => $this->tokens->auditLog()]);
     }
 
+    /* --------- AJAX: set/replace the treasury-key-reveal payout password (Super only) --------- *
+     * Separate from the admin's own login password. Gates
+     * revealTreasuryKey() on the withdrawal review page — see
+     * admin/withdraw/Bmanwithdraw::reveal_treasury_key(). */
+    public function set_payout_password()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        if (!$this->_requireSuper()) return;
+
+        $pw = (string)$this->input->post('payout_password');
+        $confirm = (string)$this->input->post('payout_password_confirm');
+        if ($pw === '' || $pw !== $confirm) {
+            return $this->_json(['status' => 'error', 'message' => 'Password and confirmation must match and not be empty.'], 422);
+        }
+
+        list($ok, $msg) = $this->tokens->setPayoutPassword($pw, $this->_adminId(), $this->input->ip_address());
+        return $this->_json(['status' => $ok ? 'success' : 'error', 'message' => $msg], $ok ? 200 : 422);
+    }
+
     /* ------------- AJAX: generate a fresh wallet (Super only) ------------ *
      * Offline key generation for a platform wallet (treasury/gas/etc). The
      * key is returned once for the admin to store securely — it is NOT saved

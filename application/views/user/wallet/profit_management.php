@@ -1092,19 +1092,59 @@
                     $fromU = $r->from_user ?? '';
                     $dt = $r->created_at ?? '';
                     $amt = (float) ($r->amount ?? 0);
-                    ?>
-                    <tr class="row" data-json="<?= htmlspecialchars(json_encode([
+
+                    // BMAN quantities with the trailing zeros trimmed (0.00833333 → not 0.01)
+                    $bman = function ($v) {
+                      return rtrim(rtrim(number_format((float) $v, 8, '.', ''), '0'), '.') . ' BMAN';
+                    };
+                    $detail = [
                       'Type' => $type,
                       'Title' => $title,
                       'Reference' => $ref,
                       'From' => $fromU,
                       'Level' => ($r->level ?? ''),
-                      'Order ID' => ($r->id ?? ''),
+                      // The staking order this earning came from (parsed from
+                      // ORDER-{id}-… references) — the ledger row id is only a
+                      // fallback for rows with no order relation.
+                      'Order ID' => (!empty($r->order_id) ? $r->order_id : ($r->id ?? '')),
                       'Date' => $dt,
-                      'Amount' => currency_info()->currency_symbol . ' ' . number_format($amt, 2),
+                      // currency_format() so the popup, the Amount column and the
+                      // Total Earned card all round the same way (currency_config.decimal)
+                      'Amount' => currency_format($amt),
                       'Status' => $statusContent,
-                      'Note' => $note,
-                    ]), ENT_QUOTES, 'UTF-8'); ?>">
+                    ];
+                    // ROI rows: explain the staking behind the credit — exact BMAN
+                    // amount, plan, principal, rate, cycle progress, destination.
+                    $roiRec = $r->roi_staking ?? null;
+                    if ($type === 'ROI') {
+                      $detail['BMAN Credited'] = $bman($amt);
+                      if (!empty($r->wallet_type)) $detail['Credited To'] = ucfirst($r->wallet_type) . ' Wallet';
+                      if ($roiRec) {
+                        $detail['Staking Plan'] = ucfirst($roiRec['plan_type'])
+                          . ' · ' . (int) $roiRec['duration_years'] . ' yr'
+                          . (!empty($roiRec['is_special']) ? ' · Special Offer' : '');
+                        $detail['Principal'] = $bman($roiRec['principal_amount']);
+                        // no cadence suffix: this % is monthly for regular/special
+                        // legs but a maturity total for fixed plans
+                        $detail['ROI Rate'] = rtrim(rtrim(number_format((float) $roiRec['roi_rate_percent'], 4, '.', ''), '0'), '.') . '%';
+                        if ((int) $roiRec['regular_payment_count'] > 0) {
+                          $detail['Cycle Progress'] = (int) $roiRec['regular_payments_completed'] . ' of '
+                            . (int) $roiRec['regular_payment_count'] . ' monthly payments';
+                        }
+                        $detail['ROI Paid / Total'] = $bman($roiRec['total_paid_amount']) . ' of ' . $bman($roiRec['total_roi_amount']);
+                        if ($roiRec['overall_status'] === 'completed') {
+                          $detail['Next ROI Payment'] = 'Completed';
+                        } elseif (!empty($roiRec['next_payment_date'])) {
+                          $detail['Next ROI Payment'] = $roiRec['next_payment_date'];
+                        }
+                      }
+                      if (!empty($r->tx_hash) && strpos($r->tx_hash, '0x') === 0) {
+                        $detail['Tx Hash'] = substr($r->tx_hash, 0, 14) . '…' . substr($r->tx_hash, -6);
+                      }
+                    }
+                    $detail['Note'] = $note;
+                    ?>
+                    <tr class="row" data-json="<?= htmlspecialchars(json_encode($detail), ENT_QUOTES, 'UTF-8'); ?>">
                       <td>
                         <div class="tx-left">
                           <div class="bullet"><i class="ph <?= $icon; ?>"></i></div>
@@ -1122,7 +1162,7 @@
                         <?= htmlspecialchars($dt); ?>
                       </td>
                       <td class="amt">
-                        <?= currency_info()->currency_symbol; ?>     <?= number_format($amt, 2); ?>
+                        <?= currency_format($amt); ?>
                       </td>
                       <td>
                         <span class="status <?= $stClass === 'st-success' ? 'success' : 'pending'; ?>">

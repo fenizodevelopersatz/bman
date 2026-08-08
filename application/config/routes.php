@@ -581,6 +581,7 @@ $route['user/lending/restake_purchase']['post'] = 'user/usersettings/lendingcont
 $route['user/lending/swap_status']['post']    = 'user/usersettings/lendingcontroller/swap_status';
 $route['user/lending/swap_order_details']['post'] = 'user/usersettings/lendingcontroller/swap_order_details';
 $route['user/lending/restake_details']['post']    = 'user/usersettings/lendingcontroller/restake_details';
+$route['user/lending/roi_milestones']['post']     = 'user/usersettings/lendingcontroller/roi_milestones';
 $route['user/lending/swap_history']['post']   = 'user/usersettings/lendingcontroller/swap_history';
 
 $route['user/genealogy'] = 'user/usersettings/genealogycontroller';
@@ -903,6 +904,7 @@ $route['admin/master/token-settings/test-rpc']['post'] = 'admin/master/Tokenmast
 $route['admin/master/token-settings/generate-wallet']['post'] = 'admin/master/Tokenmaster/generate_wallet';
 $route['admin/master/token-settings/derive-treasury']['post'] = 'admin/master/Tokenmaster/derive_treasury';
 $route['admin/master/token-settings/check-balance']['post'] = 'admin/master/Tokenmaster/check_balance';
+$route['admin/bman-withdrawals/reveal-treasury-key/(:num)']['post'] = 'admin/withdraw/Bmanwithdraw/reveal_treasury_key/$1';
 
 /**************** Master — Coin Distribution (proposal §3A) */
 $route['admin/master/coin-distribution'] = 'admin/master/Coindistribution';

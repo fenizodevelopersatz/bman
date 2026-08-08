@@ -71,6 +71,101 @@ class Tokenmaster_model extends CI_Model
         catch (Exception $e) { return null; }
     }
 
+    /* =============== Treasury key reveal (manual-payout support) ===============
+     * A deliberate, narrow exception to "never expose this to any view" above —
+     * an admin who manually pays out a withdrawal from an external wallet app
+     * needs the raw key to import it. Every reveal requires its own password
+     * (bcrypt-hashed, separate from the admin's login password, re-checked on
+     * EVERY call — no session bypass), is rate-limited, and is fully audited
+     * (success AND failure) via treasury_key_reveal_log. The key itself is
+     * never written to that log or anywhere else besides the one-time response.
+     */
+
+    const REVEAL_MAX_ATTEMPTS = 5;
+    const REVEAL_WINDOW_MIN   = 15;
+
+    public function hasPayoutPassword($id = null)
+    {
+        $cfg = $id ? $this->setting($id) : $this->activeSettings();
+        return !empty($cfg['payout_password_hash']);
+    }
+
+    /** Super-admin sets/replaces the payout password for the active (or given) config. Audited — never logs the password itself. */
+    public function setPayoutPassword($plainPassword, $adminId, $ip, $id = null)
+    {
+        $cfg = $id ? $this->setting($id) : $this->activeSettings();
+        if (!$cfg) return [false, 'No token configuration found.'];
+        if (strlen($plainPassword) < 8) return [false, 'Payout password must be at least 8 characters.'];
+
+        $hash = password_hash($plainPassword, PASSWORD_DEFAULT);
+        $this->db->where('id', $cfg['id'])->update('token_settings', [
+            'payout_password_hash' => $hash,
+            'updated_by' => (int)$adminId,
+        ]);
+        $this->db->insert('token_settings_audit', [
+            'setting_id' => $cfg['id'], 'action' => 'payout_password_set',
+            'old_value' => null, 'new_value' => json_encode(['note' => 'payout password changed — value not logged']),
+            'changed_by' => (int)$adminId, 'ip_address' => $ip,
+        ]);
+        return [true, 'Payout password saved.'];
+    }
+
+    /**
+     * Verify the payout password and, only on success, return the decrypted
+     * treasury private key + its wallet address. Every call — pass or fail —
+     * writes one treasury_key_reveal_log row.
+     * @return array [ok(bool), data(['address'=>...,'private_key'=>...])|message(string)]
+     */
+    public function revealTreasuryKey($plainPassword, $adminId, $ip, $withdrawId = null, $id = null)
+    {
+        $cfg = $id ? $this->setting($id) : $this->activeSettings();
+        if (!$cfg) return [false, 'No token configuration found.'];
+
+        $log = function ($outcome) use ($cfg, $adminId, $ip, $withdrawId) {
+            $this->db->insert('treasury_key_reveal_log', [
+                'setting_id' => $cfg['id'], 'admin_id' => (int)$adminId,
+                'withdraw_id' => $withdrawId ? (int)$withdrawId : null,
+                'outcome' => $outcome, 'ip_address' => $ip,
+            ]);
+        };
+
+        // Rate limit: too many non-success attempts by this admin recently.
+        $since = date('Y-m-d H:i:s', strtotime('-'.self::REVEAL_WINDOW_MIN.' minutes'));
+        $recentFailures = (int)$this->db->where('admin_id', (int)$adminId)
+            ->where('outcome !=', 'success')->where('created_at >=', $since)
+            ->count_all_results('treasury_key_reveal_log');
+        if ($recentFailures >= self::REVEAL_MAX_ATTEMPTS) {
+            $log('locked_out');
+            return [false, 'Too many failed attempts. Try again in '.self::REVEAL_WINDOW_MIN.' minutes.'];
+        }
+
+        if (empty($cfg['payout_password_hash'])) {
+            $log('no_password_set');
+            return [false, 'No payout password has been set. Set one first in Token Settings.'];
+        }
+
+        if (!password_verify((string)$plainPassword, $cfg['payout_password_hash'])) {
+            $log('wrong_password');
+            return [false, 'Incorrect payout password.'];
+        }
+
+        if (empty($cfg['treasury_pk_enc']) || empty($cfg['treasury_wallet'])) {
+            $log('success'); // password was correct — nothing to reveal is a config gap, not an auth failure
+            return [false, 'No treasury key is configured.'];
+        }
+
+        $this->load->library('web3bman');
+        try {
+            $pk = $this->web3bman->decryptKey($cfg['treasury_pk_enc']);
+        } catch (Exception $e) {
+            $log('success');
+            return [false, 'Stored key could not be decrypted.'];
+        }
+
+        $log('success');
+        return [true, ['address' => $cfg['treasury_wallet'], 'private_key' => $pk]];
+    }
+
     /**
      * Strip the secret before sending a settings row to the browser, but
      * expose a small hint: whether a key is stored and its LAST 5 characters
@@ -89,6 +184,8 @@ class Tokenmaster_model extends CI_Model
             } catch (Exception $e) { /* leave blank */ }
         }
         unset($row['treasury_pk_enc']);
+        $row['has_payout_password'] = !empty($row['payout_password_hash']) ? 1 : 0;
+        unset($row['payout_password_hash']);
         return $row;
     }
 

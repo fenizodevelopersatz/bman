@@ -3,6 +3,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Bmanwithdraw extends MY_Controller
 {
+    private $is_super = false;
+
     public function __construct()
     {
         parent::__construct();
@@ -16,6 +18,8 @@ class Bmanwithdraw extends MY_Controller
         if (!$this->session->userdata('admin_logged_in')) {
             redirect('admin/login');
         }
+        $user = $this->Admin_model->get_user($this->session->userdata('admin_userid'));
+        $this->is_super = ($user && $user->admin_roll == '1');
     }
 
     public function index()
@@ -40,6 +44,7 @@ class Bmanwithdraw extends MY_Controller
         $this->data['card_tilte'] = 'Review Withdrawal';
         $this->data['row'] = $this->bmanwithdraw->get_request((int) $id);
         if (empty($this->data['row'])) show_404();
+        $this->data['is_super'] = $this->is_super;
 
         // Load allocations for mixed requests
         $this->data['allocations'] = $this->bmanwithdraw->get_allocations((int) $id);
@@ -250,5 +255,39 @@ class Bmanwithdraw extends MY_Controller
 
         $this->session->set_flashdata('success', "Withdrawal request updated to '{$status}'");
         redirect('admin/bman-withdrawals/view/' . $id);
+    }
+
+    /**
+     * AJAX: reveal the decrypted treasury private key + wallet address, so a
+     * Super Admin can manually send this withdrawal's payout from an external
+     * wallet app. Password-gated (Tokenmaster_model::revealTreasuryKey() —
+     * separate payout password, rate-limited, every attempt audited). The key
+     * is returned once in this response only — never persisted, never logged.
+     */
+    public function reveal_treasury_key($id)
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        if (!$this->is_super) {
+            $this->output->set_status_header(403)->set_content_type('application/json')
+                ->set_output(json_encode(['status' => 'error', 'message' => 'Super Admin only.']));
+            return;
+        }
+
+        $id = (int) $id;
+        $row = $this->bmanwithdraw->get_request($id);
+        if (!$row) show_404();
+
+        $this->load->model('Tokenmaster_model', 'tokens');
+        $password = (string) $this->input->post('payout_password');
+        list($ok, $result) = $this->tokens->revealTreasuryKey(
+            $password, (int) $this->session->userdata('admin_userid'),
+            $this->input->ip_address(), $id
+        );
+
+        $this->output->set_content_type('application/json')
+            ->set_header('Cache-Control: no-store, no-cache, must-revalidate')
+            ->set_output(json_encode($ok
+                ? ['status' => 'success', 'address' => $result['address'], 'private_key' => $result['private_key']]
+                : ['status' => 'error', 'message' => $result]));
     }
 }

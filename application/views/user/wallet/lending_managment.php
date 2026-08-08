@@ -1708,8 +1708,11 @@ $hero_progress = 48;
         const createdDate = new Date(d.created_at);
         const now = new Date();
         const daysSince = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
-        const roiDays = [1, 7, 30, 90, 180, 365, 730];
         const maturityDays = d.plan?.duration_years ? d.plan.duration_years * 365 : 730;
+        // Plan icon for the ROI Milestones header (same mapping as the
+        // payment-schedule header below: fixed/regular/combo).
+        const milestonePlanType = (d.roi_details && d.roi_details.plan_type) || (d.plan && d.plan.code) || 'fixed';
+        const milestoneIcon = milestonePlanType === 'fixed' ? 'lock-key' : milestonePlanType === 'combo' ? 'shuffle' : 'calendar-dots';
         // Show EVERY wallet the chosen option allocates to (any pct > 0), not
         // just the 10% ones — otherwise Option 7's 70% Exchange slice vanishes.
         const instantBonus = Number(d.distribution?.instant_bonus_bman ?? d.amounts?.bonus_bman ?? 0);
@@ -1890,45 +1893,17 @@ $hero_progress = 48;
                 <div style="font-size:9px;color:#666;margin-top:4px;text-align:right;">${Math.min(100, (daysSince/maturityDays)*100).toFixed(0)}% Complete</div>
               </div>
 
-              <!-- ROI Timeline -->
-              <div style="font-size:11px;font-weight:900;color:#666;margin-bottom:8px;text-transform:uppercase;">ROI MILESTONES</div>
-              <div style="display:flex;flex-direction:column;gap:8px;">
+              <!-- ROI Milestones — real record history, paginated (renderRoiMilestones) -->
+              <div style="font-size:12px;font-weight:1000;color:#4338ca;margin-bottom:8px;text-transform:uppercase;display:flex;align-items:center;gap:8px;">
+                <i class="ph ph-${milestoneIcon}"></i> <b>ROI Milestones</b>
+              </div>
+              <div id="roiMilestonesList" style="display:flex;flex-direction:column;gap:8px;">
+                <div style="font-size:11px;color:#94a3b8;font-weight:800;padding:8px 0;">Loading schedule…</div>
+              </div>
+              <div id="roiMilestonesPager" style="display:none;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;"></div>
         `;
 
-        // ROI milestone progress
-        roiDays.forEach(days => {
-          if (days <= maturityDays) {
-            const roiAmount = d.amounts.bman * d.roi_rate / 100 * (days / 365);
-            const isCompleted = daysSince >= days;
-            const isActive = daysSince >= days - 5 && daysSince < days;
-
-            let label = '';
-            if (days === 1) label = 'Day 1';
-            else if (days === 7) label = 'Week 1';
-            else if (days === 30) label = 'Month 1';
-            else if (days === 90) label = 'Quarter 1';
-            else if (days === 180) label = 'Half Year';
-            else if (days === 365) label = 'Year 1';
-            else if (days === 730) label = 'Maturity';
-
-            html += `
-              <div style="display:flex;align-items:center;gap:8px;padding:10px;background:${isActive ? 'rgba(102,126,234,.1)' : 'rgba(0,0,0,.02)'};border-radius:8px;border-left:3px solid ${isCompleted ? '#22c55e' : isActive ? '#667eea' : '#e7e7f3'};">
-                <div style="flex:1;">
-                  <div style="font-size:12px;font-weight:900;color:#111;">${isCompleted ? '✓' : '○'} ${label}</div>
-                  <div style="font-size:10px;color:#999;">Day ${days}</div>
-                </div>
-                <div style="text-align:right;">
-                  <div style="font-size:12px;font-weight:900;color:${isCompleted ? '#22c55e' : '#667eea'};">${Number(roiAmount).toLocaleString(undefined,{maximumFractionDigits:4})} BMAN</div>
-                  <div style="font-size:9px;color:#999;">${isCompleted ? 'Earned' : 'Pending'}</div>
-                </div>
-              </div>
-            `;
-          }
-        });
-
         html += `
-              </div>
-
               <!-- Plan-Specific Payment Schedule -->`;
 
         // Add plan-specific payment details if ROI data available
@@ -2074,10 +2049,76 @@ $hero_progress = 48;
         </div>`;
 
         content.innerHTML = html;
+        renderRoiMilestones(d.roi_details ? d.roi_details.id : 0, 1);
       })
       .catch(err => {
         console.error(err);
         content.innerHTML = `<div style="color:red;text-align:center;">Failed to load details</div>`;
+      });
+    }
+
+    // ROI Milestones — the real per-record payment schedule for one ROI
+    // record, fetched paginated from user/lending/roi_milestones. Replaces
+    // the old synthetic Day 1 / Week 1 / ... preview list.
+    function renderRoiMilestones(roiId, page) {
+      const list = document.getElementById('roiMilestonesList');
+      const pager = document.getElementById('roiMilestonesPager');
+      if (!list) return;
+      if (!roiId) {
+        list.innerHTML = '<div style="font-size:11px;color:#94a3b8;font-weight:800;padding:8px 0;">No ROI schedule recorded for this order yet.</div>';
+        if (pager) pager.style.display = 'none';
+        return;
+      }
+      const fmtDate = s => s ? new Date(String(s).replace(' ', 'T')).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+      fetch('<?= base_url("user/lending/roi_milestones"); ?>', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ roi_id: roiId, page: page })
+      })
+      .then(r => r.json())
+      .then(j => {
+        if (!j.status) {
+          list.innerHTML = `<div style="font-size:11px;color:#ef4444;font-weight:800;">${j.message || 'Failed to load milestones'}</div>`;
+          if (pager) pager.style.display = 'none';
+          return;
+        }
+        const planIcon = j.plan_type === 'fixed' ? 'lock-key' : j.plan_type === 'combo' ? 'shuffle' : 'calendar-dots';
+        list.innerHTML = (j.rows || []).map(m => {
+          const done = m.status === 'completed';
+          const isMaturity = m.kind === 'maturity';
+          const title = isMaturity ? 'Maturity Payment' : (m.day ? `Monthly (Day ${m.day})` : 'Monthly Payment');
+          const sub = isMaturity
+            ? (m.scheduled_date ? fmtDate(m.scheduled_date) : '')
+            : `Cycle ${m.cycle}/${m.cycles_total}${m.scheduled_date ? ' · ' + fmtDate(m.scheduled_date) : ''}`;
+          return `
+            <div style="display:flex;align-items:center;gap:10px;padding:10px;background:${done ? 'rgba(34,197,94,.05)' : 'rgba(0,0,0,.02)'};border-radius:8px;border-left:3px solid ${done ? '#22c55e' : '#e7e7f3'};">
+              <div style="width:26px;height:26px;border-radius:8px;background:${done ? '#dcfce7' : '#eef2ff'};color:${done ? '#15803d' : '#4338ca'};display:flex;align-items:center;justify-content:center;font-size:14px;flex:0 0 auto;"><i class="ph ph-${isMaturity ? 'flag-checkered' : planIcon}"></i></div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12px;font-weight:1000;color:#111;">${title}</div>
+                ${sub ? `<div style="font-size:10px;color:#94a3b8;font-weight:700;">${sub}</div>` : ''}
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:12px;font-weight:1000;color:${done ? '#22c55e' : '#667eea'};">${Number(m.amount).toLocaleString(undefined, { maximumFractionDigits: 4 })} BMAN</div>
+                <div style="font-size:9px;font-weight:900;color:${done ? '#15803d' : '#999'};text-transform:uppercase;">${done ? ('✓ Paid' + (m.paid_date ? ' ' + fmtDate(m.paid_date) : '')) : 'Pending'}</div>
+              </div>
+            </div>`;
+        }).join('') || '<div style="font-size:11px;color:#94a3b8;font-weight:800;padding:8px 0;">No milestone records yet.</div>';
+
+        if (pager) {
+          if (j.pages > 1) {
+            pager.style.display = 'flex';
+            pager.innerHTML = `
+              <button class="btn-soft" style="padding:6px 12px;font-size:11px;cursor:pointer;" ${j.page <= 1 ? 'disabled' : ''} onclick="renderRoiMilestones(${roiId}, ${j.page - 1})">‹ Prev</button>
+              <span style="font-size:10.5px;font-weight:900;color:#666;">Page ${j.page} of ${j.pages} · ${j.total} records</span>
+              <button class="btn-soft" style="padding:6px 12px;font-size:11px;cursor:pointer;" ${j.page >= j.pages ? 'disabled' : ''} onclick="renderRoiMilestones(${roiId}, ${j.page + 1})">Next ›</button>`;
+          } else {
+            pager.style.display = 'none';
+          }
+        }
+      })
+      .catch(() => {
+        list.innerHTML = '<div style="font-size:11px;color:#ef4444;font-weight:800;">Failed to load milestones.</div>';
+        if (pager) pager.style.display = 'none';
       });
     }
 

@@ -369,6 +369,33 @@
                                                         </div>
                                                     </div>
 
+                                                    <div class="tkm-section" id="tkm-payout-pw-section">
+                                                        <h5 class="fw-bold mb-4">Treasury Key Reveal — Payout Password
+                                                            <span class="badge badge-light-success ms-2 d-none" id="tkm-pw-set">password set</span></h5>
+                                                        <div class="text-muted fs-8 mb-3">
+                                                            Separate from any admin's own login password. Required every
+                                                            time an admin reveals the decrypted treasury private key on a
+                                                            withdrawal review page (for manually sending a payout from an
+                                                            external wallet). Never stored in plaintext, and this form
+                                                            never shows the currently-saved password back to you.
+                                                        </div>
+                                                        <div class="row">
+                                                            <div class="col-md-4 mb-4">
+                                                                <label class="form-label fs-7">New Payout Password</label>
+                                                                <input type="password" id="tkm-pw-new" autocomplete="new-password"
+                                                                    class="form-control form-control-solid" placeholder="min. 8 characters" />
+                                                            </div>
+                                                            <div class="col-md-4 mb-4">
+                                                                <label class="form-label fs-7">Confirm Payout Password</label>
+                                                                <input type="password" id="tkm-pw-confirm" autocomplete="new-password"
+                                                                    class="form-control form-control-solid" placeholder="re-enter" />
+                                                            </div>
+                                                            <div class="col-md-4 mb-4 d-flex align-items-end">
+                                                                <button type="button" class="btn btn-light-primary" id="tkm-pw-save">Save Payout Password</button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
                                                     <div class="tkm-section">
                                                         <h5 class="fw-bold mb-4">6 · Blockchain Settings</h5>
                                                         <div class="row">
@@ -509,6 +536,36 @@
             try { j = await res.json(); } catch (e) { j = { status: 'error', message: 'Server error.' }; }
             return { ok: res.ok && j.status === 'success', msg: j.message || '' };
         }
+
+        /* Payout password — separate mini-form, separate endpoint, gates the
+           treasury-key reveal on withdrawal review pages. Reflects the ACTIVE
+           config's has_payout_password on load. */
+        (function () {
+            const active = SETTINGS.find(s => Number(s.status) === 1) || SETTINGS[0];
+            const badge = document.getElementById('tkm-pw-set');
+            if (badge) badge.classList.toggle('d-none', !(active && Number(active.has_payout_password) === 1));
+
+            const saveBtn = document.getElementById('tkm-pw-save');
+            if (!saveBtn) return;
+            saveBtn.addEventListener('click', async () => {
+                const pw = document.getElementById('tkm-pw-new').value;
+                const confirm = document.getElementById('tkm-pw-confirm').value;
+                if (!pw || pw.length < 8) { toast('Payout password must be at least 8 characters.', false); return; }
+                if (pw !== confirm) { toast('Password and confirmation do not match.', false); return; }
+                saveBtn.disabled = true;
+                const fd = new FormData();
+                fd.append('payout_password', pw);
+                fd.append('payout_password_confirm', confirm);
+                const r = await post('admin/master/tokenmaster/set_payout_password', fd);
+                saveBtn.disabled = false;
+                toast(r.msg || (r.ok ? 'Saved.' : 'Failed.'), r.ok);
+                if (r.ok) {
+                    document.getElementById('tkm-pw-new').value = '';
+                    document.getElementById('tkm-pw-confirm').value = '';
+                    if (badge) badge.classList.remove('d-none');
+                }
+            });
+        })();
 
         const modalEl = document.getElementById('tkm-modal');
         const form = document.getElementById('tkm-form');
