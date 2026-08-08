@@ -112,10 +112,23 @@ class User extends CI_Controller
 			$this->load->model('user/Memberrank_model', 'mr');
 			$this->data['rank_summary'] = $this->mr->sidebar($userid);
 
-			// Binary Summary must match Binary Tree leg investment semantics:
-			// exchange-wallet BMAN totals by left/right downline.
-			list($bs, $be) = $this->BinaryModel->getThisWeekRange();
-			$this->data['leg_investments'] = $this->BinaryModel->getLegExchangeWalletBman($userid, $bs, $be);
+			// Binary Summary must match the Binary Tree page exactly: LOCK
+			// WALLET (active/processing stake principal, not yet matured) —
+			// the same calculateLegLockWallet() the tree renders from.
+			//
+			// This is the INITIAL render. binarySummaryAjax() was already
+			// switched to Lock Wallet, but this line still called
+			// getLegExchangeWalletBman() (spendable Exchange balances, date
+			// windowed), so the page LOADED with one figure and only corrected
+			// itself if the user clicked This Week / This Month — the tree
+			// showed 9.00/7.00 while the dashboard showed 4.01/6.15.
+			//
+			// Lock Wallet is a point-in-time balance, so no date window applies.
+			$legLock = $this->BinaryModel->calculateLegLockWallet($userid);
+			$this->data['leg_investments'] = [
+				'left_bman'  => (float) ($legLock['left'] ?? 0),
+				'right_bman' => (float) ($legLock['right'] ?? 0),
+			];
 
 			list($ws, $we) = $this->BinaryModel->getWeekRange();
 			$this->data['team_snapshot'] = $this->BinaryModel->getTeamSnapshotWeekly($userid, $ws, $we);

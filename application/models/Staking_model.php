@@ -410,15 +410,35 @@ class Staking_model extends CI_Model
         if (!$rank) return [false, 'Rank not found.'];
 
         $row = [];
+        // ------------------------------------------------------------------
+        // GROUP INCENTIVE IS CANONICAL, AND MIRRORS TO required_group_volume.
+        //
+        // staking_ranks carries both columns and they must never diverge:
+        // the admin UI presents 'group_incentive' as the single threshold,
+        // but Rankachievement_model reads required_group_volume (:186, :429).
+        // If an edit updated only one, the screen would show a new threshold
+        // while rank qualification silently kept using the old one — a change
+        // that appears to work and does nothing.
+        //
+        // Enforced here rather than in the controller so EVERY caller is
+        // covered, and any required_group_volume passed in is ignored in
+        // favour of the canonical value. Neither column is dropped: the
+        // achievement engine still reads the mirror.
+        // ------------------------------------------------------------------
         if (array_key_exists('group_incentive', $data)) {
+            if (!is_numeric($data['group_incentive'])) return [false, 'Group incentive must be a number.'];
             if ((float)$data['group_incentive'] < 0) return [false, 'Group incentive cannot be negative.'];
-            $row['group_incentive'] = (float)$data['group_incentive'];
-        }
-        if (array_key_exists('required_group_volume', $data)) {
+            $row['group_incentive']       = (float)$data['group_incentive'];
+            $row['required_group_volume'] = (float)$data['group_incentive'];   // mirror, always
+        } elseif (array_key_exists('required_group_volume', $data)) {
+            // Legacy callers that only know the old column still work, and the
+            // canonical column is kept in step with them.
+            if (!is_numeric($data['required_group_volume'])) return [false, 'Required group volume must be a number.'];
             if ((float)$data['required_group_volume'] < 0) {
                 return [false, 'Required group volume cannot be negative.'];
             }
             $row['required_group_volume'] = (float)$data['required_group_volume'];
+            $row['group_incentive']       = (float)$data['required_group_volume'];
         }
         if (array_key_exists('reward_bman', $data)) {
             if ((float)$data['reward_bman'] < 0) return [false, 'BMAN reward cannot be negative.'];
@@ -495,11 +515,12 @@ class Staking_model extends CI_Model
      * $rows: [['option_no'=>1,'side'=>'left','required_qty'=>2,'required_rank_id'=>4], …]
      * An empty $rows clears the plan.
      */
-    public function saveRankRequirements($rank_id, $plan_no, array $rows)
+    public function saveRankRequirements($rank_id, $plan_no, array $rows, $admin_id = null)
     {
         $rank_id = (int)$rank_id;
         $plan_no = (int)$plan_no;
-        if (!$this->rank($rank_id))          return [false, 'Rank not found.'];
+        $rank = $this->rank($rank_id);
+        if (!$rank)                             return [false, 'Rank not found.'];
         if (!in_array($plan_no, [1,2,3], true)) return [false, 'Invalid plan number.'];
 
         $clean = [];
@@ -508,6 +529,18 @@ class Staking_model extends CI_Model
             $qty  = isset($r['required_qty']) ? (int)$r['required_qty'] : 0;
             $req  = isset($r['required_rank_id']) ? (int)$r['required_rank_id'] : 0;
             $opt  = isset($r['option_no']) ? max(1, (int)$r['option_no']) : 1;
+
+            // is_active is now CARRIED, not forced to 1. Every row previously
+            // came back active regardless of what the admin submitted, so a
+            // deactivated requirement silently re-armed on the next save —
+            // and a re-armed requirement changes who qualifies for a rank.
+            // Only a strict 0/1 is accepted; anything else is a malformed
+            // payload and is rejected rather than coerced.
+            $act = array_key_exists('is_active', $r) ? $r['is_active'] : 1;
+            if (!in_array((string)$act, ['0','1'], true)) {
+                return [false, 'Active flag must be 0 or 1.'];
+            }
+
             if (!in_array($side, ['left','right'], true)) return [false, 'Side must be left or right.'];
             if ($qty < 1)                                 return [false, 'Quantity must be at least 1.'];
             if (!$this->rank($req))                       return [false, 'Required rank not found.'];
@@ -516,15 +549,58 @@ class Staking_model extends CI_Model
             if (isset($clean[$key])) return [false, 'Duplicate '.$side.' condition in option '.$opt.'.'];
             $clean[$key] = [
                 'rank_id' => $rank_id, 'plan_no' => $plan_no, 'option_no' => $opt,
-                'side' => $side, 'required_qty' => $qty, 'required_rank_id' => $req, 'is_active' => 1,
+                'side' => $side, 'required_qty' => $qty, 'required_rank_id' => $req,
+                'is_active' => (int)$act,
             ];
         }
+
+        // Snapshot BEFORE the replace so the audit records what was actually
+        // displaced. This method replaces the whole plan (an empty $rows
+        // clears it), so a partial submit would drop rows — the editor must
+        // always post the complete plan, and the audit makes any such loss
+        // visible after the fact instead of invisible.
+        $before = $this->_planSignature($rank_id, $plan_no);
 
         $this->db->trans_start();
         $this->db->where(['rank_id' => $rank_id, 'plan_no' => $plan_no])->delete('staking_rank_requirements');
         if ($clean) $this->db->insert_batch('staking_rank_requirements', array_values($clean));
+
+        // Audit INSIDE the transaction: if the audit write fails the whole
+        // configuration change rolls back, so a rank rule can never change
+        // without a record of it.
+        $after = $this->_planSignature($rank_id, $plan_no);
+        if ($before !== $after) {
+            $this->load->model('staking/Rankaudit_model', 'rankaudit');
+            $this->rankaudit->log('rank_requirements', [
+                'rank_id'    => $rank_id,
+                'old_value'  => $before === '' ? '(none)' : $before,
+                'new_value'  => $after  === '' ? '(none)' : $after,
+                'changed_by' => $admin_id,
+                'note'       => $rank['name'] . ' · plan ' . $plan_no . ' · '
+                              . count($clean) . ' requirement(s)',
+            ]);
+        }
         $this->db->trans_complete();
         return $this->db->trans_status() ? [true, 'Requirements saved.'] : [false, 'Database error.'];
+    }
+
+    /**
+     * Stable one-line rendering of a plan's current rows, for audit old/new.
+     * Ordered so an unchanged plan always produces an identical string and a
+     * no-op save is not logged as a change.
+     */
+    private function _planSignature($rank_id, $plan_no)
+    {
+        $rows = $this->db->select('option_no, side, required_qty, required_rank_id, is_active')
+                         ->where(['rank_id' => (int)$rank_id, 'plan_no' => (int)$plan_no])
+                         ->order_by('option_no', 'ASC')->order_by('side', 'ASC')
+                         ->get('staking_rank_requirements')->result_array();
+        $parts = [];
+        foreach ($rows as $r) {
+            $parts[] = 'o' . $r['option_no'] . ':' . $r['side'] . ':' . (int)$r['required_qty']
+                     . 'x' . (int)$r['required_rank_id'] . ($r['is_active'] ? '' : ':off');
+        }
+        return implode(' | ', $parts);
     }
 
     /* ====================== RANK POWER (proposal §11) ====================== */

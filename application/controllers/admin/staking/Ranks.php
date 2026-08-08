@@ -115,7 +115,11 @@ class Ranks extends CI_Controller
         if (!is_array($rows)) {
             return $this->_json(['status' => 'error', 'message' => 'Invalid requirement rows.'], 422);
         }
-        list($ok, $msg) = $this->staking->saveRankRequirements((int)$id, $plan_no, $rows);
+        // Pass the acting admin so the requirements change is attributable in
+        // staking_rank_audit, same as saveRank() already does.
+        list($ok, $msg) = $this->staking->saveRankRequirements(
+            (int)$id, $plan_no, $rows, (int)$this->session->userdata('admin_userid')
+        );
         return $this->_json(['status' => $ok ? 'success' : 'error', 'message' => $msg], $ok ? 200 : 422);
     }
 }
