@@ -90,11 +90,14 @@ class Binarylevelmatching_model extends CI_Model
 
         $sponsors = $this->_candidateSponsors($opts);
 
-        $levelsPaid = 0; $users = []; $totMatched = 0.0; $totEarn = 0.0; $totStk = 0.0; $totAdmin = 0.0; $skipped = 0;
+        $levelsPaid = 0; $users = []; $totMatched = 0.0; $totEarn = 0.0; $totStk = 0.0; $totAdmin = 0.0;
+        $skipped = 0; $deferred = 0; $deferredDetail = [];
         foreach ($sponsors as $uid) {
             $res = $this->processSponsor((int)$uid, $ref, $pct);
             $levelsPaid += $res['levels_paid'];
             $skipped    += $res['skipped'];
+            $deferred   += $res['deferred'];
+            foreach ($res['deferred_detail'] as $d) $deferredDetail[] = $d;
             if ($res['levels_paid'] > 0) {
                 $users[$uid] = true;
                 $totMatched += $res['matched'];
@@ -115,6 +118,12 @@ class Binarylevelmatching_model extends CI_Model
             'staking_paid'   => round($totStk, 4),
             'admin_overflow' => round($totAdmin, 4),
             'skipped_dupes'  => $skipped,
+            // Levels left OPEN because the Admin ceiling config could not be
+            // resolved. Surfaced in the cron result (and therefore in Cron Lab
+            // and cron_execution_log) so a misconfiguration is visible rather
+            // than silently stalling a member's matching for weeks.
+            'deferred_levels'  => $deferred,
+            'deferred_detail'  => array_slice($deferredDetail, 0, 20),
         ];
     }
 
@@ -160,8 +169,8 @@ class Binarylevelmatching_model extends CI_Model
                     'staking' => $s ? (float)$s['matching_staking_percent'] : 2.0];
         }
 
-        $out = ['levels_paid' => 0, 'skipped' => 0, 'matched' => 0.0,
-                'earning' => 0.0, 'staking' => 0.0, 'admin' => 0.0];
+        $out = ['levels_paid' => 0, 'skipped' => 0, 'deferred' => 0, 'deferred_detail' => [],
+                'matched' => 0.0, 'earning' => 0.0, 'staking' => 0.0, 'admin' => 0.0];
 
         $u = $this->db->select('status')->get_where('users', ['id' => (int)$userId])->row_array();
         if (!$u || (string)$u['status'] !== '1') return $out;
@@ -177,6 +186,18 @@ class Binarylevelmatching_model extends CI_Model
             $paid = $this->_payLevel((int)$userId, $level, $vol, $runRef, $pct);
 
             if ($paid === null) { $out['skipped']++; break; } // lost the idempotency race
+
+            // Config error (or nothing matched): the level stays OPEN and is
+            // re-tried next run. Stop here rather than moving to level N+1 —
+            // levels are strictly ordered, so a pending level blocks the ones
+            // beneath it until an admin resolves the configuration.
+            if (!empty($paid['deferred'])) {
+                $out['deferred']++;
+                $out['deferred_detail'][] = 'user ' . $userId . ' L' . $level
+                    . ' [' . $paid['status'] . '] ' . $paid['detail'];
+                break;
+            }
+
             $out['levels_paid']++;
             $out['matched'] += $paid['matched'];
             $out['earning'] += $paid['earning'];
@@ -287,38 +308,108 @@ class Binarylevelmatching_model extends CI_Model
     /* ---------------------------- ceiling read ---------------------------- */
 
     /**
-     * The ceiling for one sponsor: group_ceiling of their HIGHEST eligible
-     * staking package — never the SUM of their packages.
+     * The ceiling for one sponsor, read LIVE from the Admin Group Incentive
+     * Ceiling configuration on every single call.
      *
-     * "Highest" is by stake_amount, so buying a smaller package later can
-     * never lower the ceiling, and buying a second identical one can never
-     * raise it. Eligibility uses the same Lock Wallet rule as the volume read,
-     * so a matured package stops setting the ceiling exactly when it stops
-     * contributing volume.
+     * ARCHITECTURE — there is exactly ONE ceiling configuration in this system
+     * and this method consumes it, never a copy:
      *
-     * @return array{ceiling: float, package_id: ?int, stake_amount: float, eligible: bool}
+     *   Admin ▸ Staking ▸ Rank Power   (Group Incentive Ceiling editor, §12)
+     *   Admin ▸ Staking ▸ Packages     ("Group ceiling" field on each package)
+     *          both write ──►  staking_packages.group_ceiling
+     *                                    │
+     *                                    ▼
+     *                          THIS QUERY, every time
+     *
+     * No ceiling amount is hard-coded, defaulted, CASE'd or cached anywhere in
+     * this engine. An admin editing a ceiling changes matching behaviour on the
+     * very next run with no code change and no restart.
+     *
+     * TWO SEPARATE CONCEPTS, deliberately never conflated:
+     *   stake_amount   — identifies WHICH ceiling configuration to look up.
+     *   group_ceiling  — the actual payout cap. It is NOT derived from, and
+     *                    need not equal, the stake amount (a 50,000 package
+     *                    can carry any ceiling the admin configures).
+     *
+     * "Highest" is by stake_amount, so a later smaller purchase can never lower
+     * the ceiling and a second identical one can never raise it. Ceilings are
+     * never summed. Eligibility uses the same Lock Wallet rule as the volume
+     * read, so a matured package stops setting the ceiling exactly when it
+     * stops contributing volume.
+     *
+     * FAILS CLOSED, never guesses. status is one of:
+     *   'ok'                — one unambiguous, positive configured ceiling.
+     *   'no_stake'          — sponsor holds no eligible package.
+     *   'config_missing'    — the package's ceiling is NULL or <= 0.
+     *   'config_ambiguous'  — the sponsor holds several eligible packages at
+     *                         the SAME highest stake amount whose configured
+     *                         ceilings disagree, so "the ceiling for this
+     *                         package" has more than one answer. Picking one
+     *                         (the old `ORDER BY group_ceiling DESC LIMIT 1`)
+     *                         would be a silent guess in the member's or the
+     *                         admin's favour depending on sort order.
+     * The caller must not pay a sponsor on anything but 'ok'.
+     *
+     * @return array{ceiling:float, package_id:?int, stake_amount:float,
+     *               eligible:bool, status:string, detail:string}
      */
     public function sponsorCeiling($userId)
     {
-        $row = $this->db->query(
+        $statuses = "'" . implode("','", $this->lockWalletStatuses) . "'";
+
+        // Every eligible stake tied for the sponsor's HIGHEST stake amount,
+        // with the ceiling each one's package currently carries.
+        $rows = $this->db->query(
             "SELECT sp.id AS package_id, sp.group_ceiling, us.stake_amount
                FROM user_stakes us
                JOIN staking_packages sp ON sp.id = us.package_id
               WHERE us.user_id = ?
-                AND us.status IN ('" . implode("','", $this->lockWalletStatuses) . "')
+                AND us.status IN ({$statuses})
                 AND us.maturity_date > CURDATE()
-              ORDER BY us.stake_amount DESC, sp.group_ceiling DESC
-              LIMIT 1",
+                AND us.stake_amount = (
+                      SELECT MAX(us2.stake_amount) FROM user_stakes us2
+                       WHERE us2.user_id = us.user_id
+                         AND us2.status IN ({$statuses})
+                         AND us2.maturity_date > CURDATE())
+              ORDER BY sp.id ASC",
             [(int)$userId]
-        )->row_array();
+        )->result_array();
 
-        if (!$row) return ['ceiling' => 0.0, 'package_id' => null, 'stake_amount' => 0.0, 'eligible' => false];
+        $none = ['ceiling' => 0.0, 'package_id' => null, 'stake_amount' => 0.0, 'eligible' => false];
+
+        if (!$rows) return $none + ['status' => 'no_stake', 'detail' => 'no eligible staking package'];
+
+        $stake = (float)$rows[0]['stake_amount'];
+        $first = (int)$rows[0]['package_id'];
+
+        $distinct = []; $invalid = [];
+        foreach ($rows as $r) {
+            $c = $r['group_ceiling'];
+            if ($c === null || (float)$c <= 0) { $invalid[] = (int)$r['package_id']; continue; }
+            $distinct[number_format((float)$c, 4, '.', '')] = (float)$c;
+        }
+
+        if ($invalid) {
+            return ['ceiling' => 0.0, 'package_id' => $first, 'stake_amount' => $stake, 'eligible' => false,
+                    'status' => 'config_missing',
+                    'detail' => 'no Group Incentive Ceiling configured for package(s) '
+                                . implode(',', $invalid) . ' (stake ' . $stake . ')'];
+        }
+        if (count($distinct) > 1) {
+            $ids = array_map(function ($r) { return (int)$r['package_id']; }, $rows);
+            return ['ceiling' => 0.0, 'package_id' => $first, 'stake_amount' => $stake, 'eligible' => false,
+                    'status' => 'config_ambiguous',
+                    'detail' => 'packages ' . implode(',', $ids) . ' all at stake ' . $stake
+                                . ' carry different ceilings (' . implode('/', array_values($distinct)) . ')'];
+        }
 
         return [
-            'ceiling'      => (float)$row['group_ceiling'],
-            'package_id'   => (int)$row['package_id'],
-            'stake_amount' => (float)$row['stake_amount'],
+            'ceiling'      => (float)reset($distinct),
+            'package_id'   => $first,
+            'stake_amount' => $stake,
             'eligible'     => true,
+            'status'       => 'ok',
+            'detail'       => '',
         ];
     }
 
@@ -339,13 +430,45 @@ class Binarylevelmatching_model extends CI_Model
     private function _payLevel($userId, $level, array $vol, $runRef, array $pct)
     {
         $matched = min($vol['left'], $vol['right']);
-        if ($matched <= 0) return ['matched' => 0.0, 'earning' => 0.0, 'staking' => 0.0, 'admin' => 0.0];
+        if ($matched <= 0) {
+            // Unreachable while levelComplete() requires volume on both legs,
+            // but if it ever happens, record nothing and leave the level open
+            // rather than closing it with a zero payout.
+            return ['deferred' => true, 'status' => 'zero_matched', 'detail' => 'no matched volume'];
+        }
 
         $raw  = round($matched * $pct['total'] / 100, 4);
         $ceil = $this->sponsorCeiling($userId);
 
-        // No eligible stake -> the sponsor earns nothing at this level and the
-        // whole bonus is Admin income. Never deferred, never carried.
+        // ---------------------------------------------------------------
+        // CONFIG ERROR -> SKIP & RETRY. A missing or ambiguous Group
+        // Incentive Ceiling is an ADMIN/system fault, never the member's, so
+        // it must not cost them the level. Nothing at all happens here: no
+        // payout row (so UNIQUE(user_id, level) stays free and the level is
+        // still "next" on the following run), no wallet credit, no admin
+        // overflow, no volume touched — and no transaction is even opened.
+        // Once the admin fixes the ceiling, the very next cron re-evaluates
+        // THIS SAME level and pays it correctly.
+        //
+        // Contrast with 'no_stake', which is a real business outcome: the
+        // sponsor genuinely holds no eligible package, so the bonus IS
+        // forfeited to Admin and the level IS closed.
+        //
+        // Returning before trans_begin() is deliberate — an open transaction
+        // that only ever rolls back is a needless lock on live money tables.
+        // ---------------------------------------------------------------
+        if (!$ceil['eligible'] && $ceil['status'] !== 'no_stake') {
+            log_message('error', sprintf(
+                '[BM_LEVEL] CEILING CONFIG ERROR — level NOT closed, will retry. '
+                . 'sponsor_id=%d level=%d status=%s highest_stake=%s package_id=%s detail=%s '
+                . 'unpaid_raw_bonus=%s matched_volume=%s',
+                $userId, $level, $ceil['status'], $ceil['stake_amount'],
+                $ceil['package_id'] === null ? 'n/a' : $ceil['package_id'],
+                $ceil['detail'], $raw, $matched
+            ));
+            return ['deferred' => true, 'status' => $ceil['status'], 'detail' => $ceil['detail']];
+        }
+
         $user  = $ceil['eligible'] ? min($raw, (float)$ceil['ceiling']) : 0.0;
         $admin = round($raw - $user, 4);
 
@@ -428,7 +551,9 @@ class Binarylevelmatching_model extends CI_Model
         $why = $ceil['eligible']
             ? 'over ceiling ' . rtrim(rtrim(number_format((float)$ceil['ceiling'], 4, '.', ''), '0'), '.')
               . ' (pkg ' . number_format((float)$ceil['stake_amount']) . ')'
-            : 'sponsor holds no eligible staking package';
+            : ($ceil['status'] === 'no_stake'
+                ? 'sponsor holds no eligible staking package'
+                : 'CEILING CONFIG ERROR (' . $ceil['status'] . '): ' . $ceil['detail']);
 
         return (bool)$this->db->insert('admin_wallet_ledger', [
             'credit'            => $amount,

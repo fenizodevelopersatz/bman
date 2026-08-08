@@ -1,6 +1,6 @@
-# Binary Level-Wise Matching — Implementation Plan (AWAITING APPROVAL)
+# Binary Level-Wise Matching — Implementation Record
 
-Status: 🟢 **IMPLEMENTED — 10/10 acceptance tests pass.** Business rules locked
+Status: 🟢 **IMPLEMENTED — 15/15 acceptance tests pass.** Business rules locked
 by the 2026-08-08 ruling: cumulative levels (Option B), MAX-package ceiling,
 ceiling resets per level, no lifetime cap, 8/2 split kept, excess and unstaked
 sponsors to Admin, Lock Wallet as the volume source, one payment per level ever.
@@ -10,8 +10,8 @@ Go-live switch: `Matchingqueue_model` line ~35 — it now loads
 `staking/Stakingmatching_model` to revert; that one line is the whole switch.
 
 Derived strictly from the `binarymatchingrulesprobe` run (2 rules match, 11
-mismatch findings) and the level-wise business spec. Supersedes nothing until
-approved — the live engine is untouched.
+mismatch findings) and the level-wise business spec. The engine is now LIVE in
+code; nothing schedules it automatically on this machine — see §9 Rollout.
 
 Related: [17_BINARY_MATCHING_PAYOUT_CRON.md](17_BINARY_MATCHING_PAYOUT_CRON.md) ·
 [2026-08-06_binary_matching_distribution_review.md](2026-08-06_binary_matching_distribution_review.md) ·
@@ -21,9 +21,10 @@ Related: [17_BINARY_MATCHING_PAYOUT_CRON.md](17_BINARY_MATCHING_PAYOUT_CRON.md) 
 
 ## 0. Test results
 
-### 0.0a FINAL — ten acceptance tests vs the NEW engine: **10 / 10 PASS**
+### 0.0a FINAL — acceptance suite vs the NEW engine: **15 / 15 PASS**
 
-`php index.php binarymatchingrulesprobe tests` — run five times, stable.
+`php index.php binarymatchingrulesprobe tests` — run repeatedly, stable, with a
+before/after snapshot diff of 29 real-money counters showing zero drift.
 
 | Test | Expected | Actual |
 |---|---|---|
@@ -35,9 +36,16 @@ Related: [17_BINARY_MATCHING_PAYOUT_CRON.md](17_BINARY_MATCHING_PAYOUT_CRON.md) 
 | 6 / 7 / 8 Ceiling mapping | 30,000 / 30,000 / 50,000 | 30,000 / 30,000 / 50,000 — unambiguous ✅ |
 | 9 Matured stake excluded | A paid=0 | A paid=0 · left leg has no eligible volume, level 1 never completes ✅ |
 | 10 Run twice | adds 0 | adds 0 · `UNIQUE(user_id, level)` blocked the repeat **before** any credit ✅ |
+| **11** Admin ceiling edit picked up immediately | 35,000 then original | 35,000 then original — written via `Staking_model::saveCeilings()`, the same call the admin screen uses ✅ |
+| **12** Every package resolves to its OWN configured ceiling | 0 mismatches | 0 mismatches across 11 active packages; expectations read from the DB, **no literals in the test** ✅ |
+| **13** Ambiguous config → level stays PENDING | level=1, payout_rows=0, paid=0, wallet=0, admin_delta=0 | identical — nothing paid, nothing forfeited, level still open ✅ |
+| **14** Missing config → level stays PENDING | level=1, payout_rows=0, paid=0, wallet=0, admin_delta=0 | identical — no fallback ceiling substituted ✅ |
+| **15** Fix config → the SAME level then pays | pending before fix, then 500 (400/100), admin_delta=0 | identical — level 1 survived the misconfiguration and paid in full ✅ |
 
 Teardown verified every run: 0 synthetic rows, `admin_wallet` unchanged,
-nothing escaped to real members, all 8 real volume rows restored.
+nothing escaped to real members, all 8 real volume rows restored, and every
+`staking_packages` ceiling/is_active flag the ceiling tests mutate restored
+exactly (asserted, not assumed — tests 11/13/14 edit real config rows).
 
 ### 0.0b Baseline — the same tests against the OLD engine (2 / 10)
 
@@ -88,7 +96,19 @@ deleting the probe payouts and admin ledger rows, and resetting `admin_wallet`
 to 0 — 999999608's legitimate 2026-08-07 payout (0.16/0.04) preserved
 untouched. Verified back to exact pre-work state.
 
-Three fixes so it cannot recur:
+**A second, quieter residue was found during the final pre-production
+verification** (and is why that verification was worth doing): every
+`Walletledger_model::credit()` call also mirrors the movement into
+`onchain_transactions` — plus an `onchain_tx_events` audit row — via
+`_captureOnchain()`. That fail-safe fires for synthetic credits exactly as it
+does for real ones, and the probe's delete-by-`user_id` sweep never covered
+those two tables. 416 mirror rows had accumulated (410 synthetic + the 6 from
+the escape above). Removed by run_ref prefix, events first; total
+`onchain_transactions` returned to its true pre-probe baseline of 269. Note the
+74 orphaned `onchain_tx_events` rows in this database are unrelated —
+they date from 2026-07-29 to 08-06, before this work.
+
+Four fixes so it cannot recur:
 1. `run()` accepts `user_ids` — an explicit whitelist. The harness always
    passes its synthetic set, so a sandbox escape is structurally impossible.
 2. Teardown restores `admin_wallet.balance` to its opening value and deletes
@@ -96,6 +116,15 @@ Three fixes so it cannot recur:
    the delete-by-user sweep never covered it.
 3. Teardown now actively hunts escapes: any `PT-`/`PROBE-` run_ref on a
    non-synthetic member fails the run loudly.
+4. Cleanup covers `onchain_transactions` + `onchain_tx_events`, matched by
+   run_ref prefix rather than user_id — so it also sweeps mirror rows written
+   against a real member if a scope guard ever fails again.
+
+**Verification method that caught it:** a 26-counter snapshot of every
+real-money table taken immediately before and after a full suite run, then
+diffed. Anything the harness fails to clean shows up as drift. Repeat this
+before enabling the cron in production — the snapshot lives at
+`docs/` history / the plan, and the check is simply "the diff must be empty".
 
 ### 0.1 ✅ RESOLVED — §10 vs §11: Option B (cumulative) ruled by the user 2026-08-08
 
@@ -374,6 +403,68 @@ line for line. Split per level: L1 400/100, L2 2,000/500, L3 4,000/1,000
 
 (D 500, E 500, F 1,000, G 500 are identical under both.) The +5,000 is A
 collecting three stacked levels instead of one capped lifetime payout.
+
+## 5b. Ceiling configuration — single dynamic source
+
+There is exactly ONE ceiling configuration in this system, and the engine
+consumes it live on every call. Nothing is duplicated, cached or hard-coded.
+
+```
+Admin ▸ Staking ▸ Rank Power   (Group Incentive Ceiling editor, §12)
+        └─ Staking_model::saveCeilings()
+Admin ▸ Staking ▸ Packages     ("Group ceiling" field per package)
+        └─ Packages.php:58 → Staking_model::savePackage()
+                    │
+                    ▼
+        staking_packages.group_ceiling      ← the only store
+                    │
+                    ▼
+   Binarylevelmatching_model::sponsorCeiling()   ← re-read every level
+```
+
+`grep -nE "30000|50000|100000|…" Binarylevelmatching_model.php` → **no matches.**
+The engine contains no ceiling or stake literal of any kind.
+
+**Two concepts, never conflated:** `stake_amount` identifies *which* ceiling
+config to look up; `group_ceiling` *is* the cap. A 50,000 package does not
+imply a 50,000 ceiling — it carries whatever the admin configured.
+
+**Fails closed, never guesses.** `sponsorCeiling()` returns a `status`:
+
+| status | meaning | outcome |
+|---|---|---|
+| `ok` | exactly one positive configured ceiling | paid, capped normally, level closed |
+| `no_stake` | sponsor holds no eligible package | 0 → all to Admin, level **closed** (real business outcome) |
+| `config_missing` | ceiling NULL or ≤ 0 | **SKIP & RETRY** — level stays open |
+| `config_ambiguous` | several eligible packages tied at the highest stake amount carry *different* ceilings | **SKIP & RETRY** — level stays open |
+
+The previous `ORDER BY sp.group_ceiling DESC LIMIT 1` silently resolved
+ambiguity by taking the largest — a guess. It is gone.
+
+### Config error = SKIP & RETRY (ruled 2026-08-08)
+
+A missing or ambiguous ceiling is an **admin/system fault, never the member's**,
+so it must not cost them the level. On a config error the engine does
+**nothing at all** — and returns *before* `trans_begin()`, so not even a
+rollback-only transaction locks the money tables:
+
+- no payout row, so `UNIQUE(user_id, level)` stays free and the level is still
+  "next" on the following run;
+- no wallet credit, no admin overflow, no volume touched;
+- an error is logged with sponsor_id, level, status, highest stake, package id,
+  detail, and the unpaid raw bonus;
+- `processSponsor()` stops at that level — levels are strictly ordered, so a
+  pending level correctly blocks the deeper ones until an admin resolves it;
+- once the ceiling is fixed, the very next cron re-evaluates **that same level**
+  and pays it in full (proved by TEST 15).
+
+**Visibility:** `run()` returns `deferred_levels` and a `deferred_detail`
+sample, so a stalled configuration shows up in the cron result, Cron Lab output
+and `cron_execution_log` rather than silently freezing a member's matching.
+
+Contrast `no_stake`, which is deliberately NOT retryable: the sponsor genuinely
+held no eligible package when the level completed, so by the agreed business
+rule the bonus is forfeited to Admin and the level closes.
 
 ## 6. Admin overflow ledgering
 

@@ -49,7 +49,21 @@ mature; a completed level is never paid twice.
     `application/controllers/Binarymatchingrulesprobe.php` (audit + the 10-test
     acceptance suite), Cron Lab diagnostic card.
   - **Apply:** run `db/binary_level_matching.sql` (idempotent), then
-    `php index.php binarymatchingrulesprobe tests` — expect 10/10.
+    `php index.php binarymatchingrulesprobe tests` — expect 15/15.
+  - **Ceiling config is 100% dynamic + fails safe.** The engine holds no
+    ceiling literal (`grep -nE "30000|50000|..."` → no matches); every level
+    re-reads `staking_packages.group_ceiling`, the same store written by
+    Admin ▸ Staking ▸ Rank Power (`Staking_model::saveCeilings()`) and the
+    per-package "Group ceiling" field. `stake_amount` only identifies WHICH
+    config to look up — it is never used as the cap. If the config is missing
+    or ambiguous (several eligible packages tied at the highest stake amount
+    with different ceilings), the engine **skips and retries**: no payout row,
+    no credit, no admin overflow, no transaction opened, level left OPEN and
+    re-evaluated next run once an admin fixes it. An admin misconfiguration
+    can never permanently consume a member's level, and the excess is not
+    forfeited to Admin. `run()` reports `deferred_levels` so a stalled config
+    is visible in Cron Lab / `cron_execution_log`. `no_stake` stays
+    non-retryable — that is a real business outcome, not a fault.
   - ⚠️ **Incident, fixed:** the test harness initially called the engine
     unscoped and credited five real members before being reversed in full. See
     the plan doc §0.0c — the root cause is that the old preflight guard checked

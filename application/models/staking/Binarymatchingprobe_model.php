@@ -60,6 +60,9 @@ class Binarymatchingprobe_model extends CI_Model
     private $adminBefore = 0.0;
     /** admin_wallet.balance as found on entry — restored verbatim by teardown. */
     private $adminOpening = null;
+    /** staking_packages rows the ceiling tests mutate — restored by teardown. */
+    private $ceilingBackup = [];
+    private $pkgActiveBackup = [];
 
     public function __construct()
     {
@@ -125,6 +128,9 @@ class Binarymatchingprobe_model extends CI_Model
         $this->tornDown = true;
         $this->_cleanup();
         $this->_restoreAdmin();
+        // Ceiling tests mutate real staking_packages rows — put them back even
+        // if a test aborted before its own restore ran.
+        $this->_restoreCeilings();
         $this->_unpark();
         $this->_verifyNoResidue();
     }
@@ -228,6 +234,19 @@ class Binarymatchingprobe_model extends CI_Model
                 AND user_id NOT IN (" . implode(',', $this->all) . ")"
         )->row_array()['n'] ?? 0);
         if ($escaped > 0) $dirty[] = "ESCAPED_TO_REAL_MEMBERS={$escaped}";
+
+        $mirror = (int)($this->db->query(
+            "SELECT COUNT(*) n FROM onchain_transactions
+              WHERE reference_id LIKE 'PT-%' OR reference_id LIKE 'PROBE-%'"
+        )->row_array()['n'] ?? 0);
+        if ($mirror > 0) $dirty[] = "onchain_transactions={$mirror}";
+
+        // The ceiling tests mutate REAL staking_packages rows; prove they were
+        // all put back, since a stray ceiling would silently re-price matching.
+        if ($this->ceilingBackup || $this->pkgActiveBackup) {
+            $dirty[] = 'staking_packages config NOT restored ('
+                     . implode(',', array_keys($this->ceilingBackup + $this->pkgActiveBackup)) . ')';
+        }
 
         $adminNow = $this->_adminBalance();
         if ($this->adminOpening !== null && abs($adminNow - $this->adminOpening) > 0.00000001) {
@@ -560,7 +579,8 @@ class Binarymatchingprobe_model extends CI_Model
         $results = [];
         try {
             $this->_park();
-            foreach (['t1','t2','t3','t4','t5','t6','t7','t8','t9','t10'] as $t) {
+            foreach (['t1','t2','t3','t4','t5','t6','t7','t8','t9','t10',
+                      't11','t12','t13','t14','t15'] as $t) {
                 $this->_cleanup();
                 $results[] = $this->{'_' . $t}();
             }
@@ -781,6 +801,217 @@ class Binarymatchingprobe_model extends CI_Model
             'first run paid ' . $this->_num($first) . '; UNIQUE(user_id, level) blocked the repeat before any credit');
     }
 
+    /* ============ TEST 11..14 — ceiling config is 100% dynamic ============ */
+
+    /**
+     * TEST 11 — an admin ceiling edit must take effect on the very next run,
+     * with no code change. Drives the REAL admin save path
+     * (Staking_model::saveCeilings — what Admin ▸ Staking ▸ Rank Power calls)
+     * rather than an UPDATE, so this also proves the engine reads the same
+     * source the admin screen writes. The original value is captured and
+     * restored, and _restoreCeilings() repeats that from teardown in case this
+     * aborts midway.
+     */
+    private function _t11()
+    {
+        $this->_say('');
+        $this->load->model('Staking_model');
+        $pkgId = $this->pkg[50000];                       // the 50,000 package
+        $orig  = $this->_pkgCeiling($pkgId);
+        $this->ceilingBackup[$pkgId] = $orig;
+
+        $this->_mkUsers(['X']);
+        $this->_stake('X', 50000, false);
+
+        $seen = [];
+        foreach ([35000.0, (float)$orig] as $target) {    // change, then change back
+            $this->Staking_model->saveCeilings([$pkgId => $target]);
+            $c = $this->BLM->sponsorCeiling($this->n['X']);
+            $seen[] = $this->_num($c['ceiling']);
+        }
+        unset($this->ceilingBackup[$pkgId]);
+
+        return $this->_assert('TEST 11', 'Admin ceiling edit is picked up immediately (no code change)',
+            '35000 then ' . $this->_num($orig), implode(' then ', $seen),
+            'written via Staking_model::saveCeilings() — the same call Admin > Staking > Rank Power uses');
+    }
+
+    /**
+     * TEST 12 — for EVERY active package, the engine returns exactly that
+     * package's currently configured ceiling. Expectations are read from the
+     * database, so this test contains no ceiling literals at all and cannot
+     * drift when an admin edits a value.
+     */
+    private function _t12()
+    {
+        $this->_say('');
+        $pkgs = $this->db->select('id, stake_amount, group_ceiling')
+                         ->where('is_active', 1)->where('group_ceiling >', 0)
+                         ->order_by('stake_amount', 'ASC')->get('staking_packages')->result_array();
+        $this->_mkUsers(['X']);
+
+        $mismatch = []; $checked = 0;
+        foreach ($pkgs as $p) {
+            $this->db->where('user_id', $this->n['X'])->delete('user_stakes');
+            $this->db->insert('user_stakes', [
+                'user_id' => $this->n['X'], 'package_id' => (int)$p['id'], 'plan_id' => 0,
+                'plan_code' => 'fixed', 'duration_years' => 1, 'stake_amount' => $p['stake_amount'],
+                'roi_percent' => 0, 'roi_basis' => 'total', 'start_date' => date('Y-m-d'),
+                'maturity_date' => date('Y-m-d', strtotime('365 days')), 'status' => 'active',
+            ]);
+            $got = $this->BLM->sponsorCeiling($this->n['X']);
+            $checked++;
+            if (abs((float)$got['ceiling'] - (float)$p['group_ceiling']) > 0.0001) {
+                $mismatch[] = 'pkg#' . $p['id'] . ' stake ' . $this->_num($p['stake_amount'])
+                            . ' expected ' . $this->_num($p['group_ceiling']) . ' got ' . $this->_num($got['ceiling']);
+            }
+        }
+        return $this->_assert('TEST 12', 'Every package resolves to its OWN configured ceiling (DB-driven)',
+            '0 mismatches across ' . $checked . ' active packages',
+            count($mismatch) . ' mismatches across ' . $checked . ' active packages',
+            $mismatch ? implode('; ', $mismatch) : 'expectations read from staking_packages — no literals in this test');
+    }
+
+    /** Give A the spec's level-1 legs plus one specific package, staked. */
+    private function _aWithPackage($pkgId, $stakeAmount)
+    {
+        $this->_abc(0);                                    // A unstaked, B 5,000 left, C 10,000 right
+        $this->db->insert('user_stakes', [
+            'user_id' => $this->n['A'], 'package_id' => (int)$pkgId, 'plan_id' => 0, 'plan_code' => 'fixed',
+            'duration_years' => 1, 'stake_amount' => $stakeAmount, 'roi_percent' => 0, 'roi_basis' => 'total',
+            'start_date' => date('Y-m-d'), 'maturity_date' => date('Y-m-d', strtotime('365 days')),
+            'status' => 'active',
+        ]);
+    }
+
+    /** Everything that must stay frozen while a ceiling config is invalid. */
+    private function _pendingState($label, $ref, $adminBefore)
+    {
+        $w = $this->db->select('COALESCE(earning_balance,0) e, COALESCE(staking_balance,0) s', false)
+                      ->where('user_id', $this->n[$label])->get('user_wallets')->row_array();
+        return 'level=' . $this->BLM->nextLevel($this->n[$label])
+             . ', payout_rows=' . (int)$this->db->where('user_id', $this->n[$label])
+                                        ->count_all_results('staking_matching_payouts')
+             . ', paid=' . $this->_num($this->_paidTo($label, $ref))
+             . ', wallet=' . $this->_num(($w['e'] ?? 0) + ($w['s'] ?? 0))
+             . ', admin_delta=' . $this->_num($this->_adminBalance() - $adminBefore);
+    }
+
+    /**
+     * TEST 13 — AMBIGUOUS config: the level must stay PENDING. Nothing is
+     * paid, nothing goes to Admin, and no payout row is written, so the level
+     * is still "next" on the following run.
+     */
+    private function _t13()
+    {
+        $this->_say('');
+        $dupe = 45;                                        // second 50,000 package (normally inactive)
+        $this->ceilingBackup[$dupe] = $this->_pkgCeiling($dupe);
+        $this->pkgActiveBackup[$dupe] = (int)$this->db->select('is_active')->where('id', $dupe)
+                                            ->get('staking_packages')->row_array()['is_active'];
+
+        // Two eligible stakes tied at the SAME highest amount, different ceilings.
+        $this->db->where('id', $dupe)->update('staking_packages', ['is_active' => 1, 'group_ceiling' => 99999]);
+        $this->_aWithPackage($this->pkg[50000], 50000);
+        $this->db->insert('user_stakes', [
+            'user_id' => $this->n['A'], 'package_id' => $dupe, 'plan_id' => 0, 'plan_code' => 'fixed',
+            'duration_years' => 1, 'stake_amount' => 50000, 'roi_percent' => 0, 'roi_basis' => 'total',
+            'start_date' => date('Y-m-d'), 'maturity_date' => date('Y-m-d', strtotime('365 days')),
+            'status' => 'active',
+        ]);
+
+        $c = $this->BLM->sponsorCeiling($this->n['A']);
+        $before = $this->_adminBalance();
+        $ref = $this->_runEngine('T13');
+        $state = $this->_pendingState('A', $ref, $before);
+        $this->_restoreCeilings();
+
+        return $this->_assert('TEST 13', 'Ambiguous config -> level stays PENDING, nothing paid',
+            'level=1, payout_rows=0, paid=0, wallet=0, admin_delta=0', $state,
+            'sponsorCeiling status=' . $c['status'] . '; two active 50,000 packages disagree — old code silently took the larger');
+    }
+
+    /**
+     * TEST 14 — MISSING config: same contract. The bonus is NOT forfeited to
+     * Admin, because a bad ceiling is an admin fault, not the member's.
+     */
+    private function _t14()
+    {
+        $this->_say('');
+        $pkgId = $this->pkg[20000];
+        $this->ceilingBackup[$pkgId] = $this->_pkgCeiling($pkgId);
+        $this->db->where('id', $pkgId)->update('staking_packages', ['group_ceiling' => 0]);
+
+        $this->_aWithPackage($pkgId, 20000);
+        $c = $this->BLM->sponsorCeiling($this->n['A']);
+        $before = $this->_adminBalance();
+        $ref = $this->_runEngine('T14');
+        $state = $this->_pendingState('A', $ref, $before);
+        $this->_restoreCeilings();
+
+        return $this->_assert('TEST 14', 'Missing config -> level stays PENDING, nothing to Admin',
+            'level=1, payout_rows=0, paid=0, wallet=0, admin_delta=0', $state,
+            'sponsorCeiling status=' . $c['status'] . '; no fallback ceiling substituted, no bonus forfeited');
+    }
+
+    /**
+     * TEST 15 — RECOVERY: after the admin fixes the ceiling, the very same
+     * level pays correctly on the next run. This is the whole point of
+     * skip-and-retry over route-to-admin.
+     */
+    private function _t15()
+    {
+        $this->_say('');
+        $this->load->model('Staking_model');
+        $pkgId = $this->pkg[20000];
+        $good  = $this->_pkgCeiling($pkgId);               // whatever the admin has configured
+        $this->ceilingBackup[$pkgId] = $good;
+
+        // Phase 1 — broken config, level must not close.
+        $this->db->where('id', $pkgId)->update('staking_packages', ['group_ceiling' => 0]);
+        $this->_aWithPackage($pkgId, 20000);
+        $before = $this->_adminBalance();
+        $this->_runEngine('T15a');
+        $stillPending = ($this->BLM->nextLevel($this->n['A']) === 1);
+
+        // Phase 2 — admin fixes it through the real admin save path.
+        $this->Staking_model->saveCeilings([$pkgId => $good]);
+        $ref2 = $this->_runEngine('T15b');
+        $row  = $this->_payoutLevel('A', 1);
+        $paid = $row ? (float)$row['earning_amount'] + (float)$row['staking_amount'] : 0.0;
+        $adminDelta = $this->_adminBalance() - $before;
+        $this->_restoreCeilings();
+
+        return $this->_assert('TEST 15', 'Fix the config -> the SAME level then pays correctly',
+            'pending_before_fix=1, paid_after_fix=500, earning=400, staking=100, admin_delta=0',
+            'pending_before_fix=' . (int)$stillPending
+            . ', paid_after_fix=' . $this->_num($paid)
+            . ', earning=' . $this->_num($row['earning_amount'] ?? 0)
+            . ', staking=' . $this->_num($row['staking_amount'] ?? 0)
+            . ', admin_delta=' . $this->_num($adminDelta),
+            'level 1 survived the misconfiguration and paid in full once the ceiling was restored (run ' . $ref2 . ')');
+    }
+
+    private function _pkgCeiling($pkgId)
+    {
+        $r = $this->db->select('group_ceiling')->where('id', (int)$pkgId)
+                      ->get('staking_packages')->row_array();
+        return (float)($r['group_ceiling'] ?? 0);
+    }
+
+    /** Put every ceiling / is_active flag this run touched back exactly as found. */
+    private function _restoreCeilings()
+    {
+        foreach ($this->ceilingBackup as $pid => $val) {
+            $this->db->where('id', (int)$pid)->update('staking_packages', ['group_ceiling' => (float)$val]);
+        }
+        foreach ($this->pkgActiveBackup as $pid => $val) {
+            $this->db->where('id', (int)$pid)->update('staking_packages', ['is_active' => (int)$val]);
+        }
+        $this->ceilingBackup = [];
+        $this->pkgActiveBackup = [];
+    }
+
     /* ------------------------------ teardown ----------------------------- */
 
     private function _cleanup()
@@ -791,5 +1022,22 @@ class Binarymatchingprobe_model extends CI_Model
             $this->db->where_in('user_id', $this->all)->delete($t);
         }
         $this->db->where_in('id', $this->all)->delete('users');
+
+        // Walletledger_model::credit() mirrors EVERY movement into
+        // onchain_transactions (+ an onchain_tx_events audit row) via
+        // _captureOnchain() — a fail-safe that fires for synthetic credits
+        // just as readily as real ones. Cleaned by the probe's own run_ref
+        // prefix rather than by user_id, so it also catches rows written
+        // against a REAL member should a scope guard ever fail again.
+        // Events first: they are keyed by tx_id and would otherwise strand.
+        $this->db->query(
+            "DELETE e FROM onchain_tx_events e
+               JOIN onchain_transactions t ON t.id = e.tx_id
+              WHERE t.reference_id LIKE 'PT-%' OR t.reference_id LIKE 'PROBE-%'"
+        );
+        $this->db->query(
+            "DELETE FROM onchain_transactions
+              WHERE reference_id LIKE 'PT-%' OR reference_id LIKE 'PROBE-%'"
+        );
     }
 }
