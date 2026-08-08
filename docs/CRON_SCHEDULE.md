@@ -72,8 +72,8 @@ documentation that has stayed in sync with the code), reconciled on
 | 3 | Chain sync (balances + pending-tx confirmations) | `chain-sync-cron` | every 1–5 min | no (read-only) | Backfills real gas_used/gas_price so Gas Fee Transactions shows real numbers. |
 | 4 | Binary Matching Payout (engine + on-chain drain) | `binary-matching-payout-cron` | every 5 min | **yes — Treasury** | Idempotent, safe to click repeatedly. |
 | 5 | ROI Distribution (Monthly → Maturity, in that order) | `roi-distribution-cron` | daily | no | Already one merged endpoint — runs both legs correctly ordered. The two leg-only routes below exist for targeted debugging only. |
-| 5a | ↳ ROI Monthly (leg only) | `roi-monthly-distribution-process` | not scheduled | no | **Not in Cron Lab** (see §0) — debug/retry only, hit by URL. The combined job above already includes it. |
-| 5b | ↳ ROI Maturity (leg only) | `roi-maturity-payment-process` | not scheduled | no | **Not in Cron Lab** (see §0) — debug/retry only, hit by URL. The combined job above already includes it. |
+| 5a | ↳ ROI Monthly (leg only) | `roi-monthly-distribution-process` | not scheduled | no | **Not in Cron Lab** (see §0) — debug/retry only, hit by URL with `?token=`. The combined job above already includes it. |
+| 5b | ↳ ROI Maturity (leg only) | `roi-maturity-payment-process` | not scheduled | no | **Not in Cron Lab** (see §0) — debug/retry only, hit by URL with `?token=`. The combined job above already includes it. |
 | 6 | Rank Calculation — Achievement (permanent ranks, §10) | `rank-achievement-cron` | **daily** (was hourly — see §0) | no | Scheduled together with Rank Power, back-to-back. Can only promote, never demote. |
 | 6a | ↳ Rank Power (60-day cycle, §11) | `rank-power-cron` | daily | no | Must run **after** Achievement — see §3 ordering rule. |
 | 7 | Lock Wallet Unlock (`is_matured` flip on `wallet_ledger`) | `wallet-maturity-cron` | daily | no | Required for withdrawal eligibility. |

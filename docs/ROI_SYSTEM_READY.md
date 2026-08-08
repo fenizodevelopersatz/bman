@@ -210,12 +210,12 @@ DESC onchain_transactions;
 ### Short-term (Enable CRON Scheduling)
 1. Schedule monthly CRON on system crontab
    ```bash
-   0 * * * * curl http://localhost/roi-monthly-distribution-process
+   0 * * * * curl "http://localhost/roi-monthly-distribution-process?token=<cron_token>"
    ```
 
 2. Schedule daily CRON on system crontab
    ```bash
-   0 0 * * * curl http://localhost/roi-maturity-payment-process
+   0 0 * * * curl "http://localhost/roi-maturity-payment-process?token=<cron_token>"
    ```
 
 3. Monitor Cron Lab dashboard for execution logs

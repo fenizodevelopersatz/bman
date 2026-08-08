@@ -72,8 +72,11 @@ class  Membermanagement extends CI_Controller {
     |--------------------------------------------------------------------------
     */
     public function index(){
-    $this->data['title'] = "All Members List ";
-    $this->data['card_tilte'] = "Members List";
+    $this->data['title'] = "All Users List ";
+    $this->data['card_tilte'] = "Users List";
+    // Opening the user list clears the sidebar "new registrations" badge.
+    $this->load->model('admin/DashboardStats_model', 'dashstats');
+    $this->dashstats->markSeen((int) $this->session->userdata('admin_userid'), 'users');
     $this->load->view('admin/member/list',$this->data);
     }
 

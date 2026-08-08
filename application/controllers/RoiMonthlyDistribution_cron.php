@@ -30,6 +30,12 @@ class RoiMonthlyDistribution_cron extends CI_Controller
 
     public function process($onlyId = null)
     {
+        if (!is_cli()) {
+            $expected = $this->config->item('cron_token');
+            if (!$expected || $this->input->get('token', true) !== $expected) {
+                show_404();
+            }
+        }
         // allow scoping via ?record_id= too (HTTP-triggered single-record retry)
         if ($onlyId === null) {
             $qsId = $this->input->get('record_id');

@@ -525,6 +525,8 @@ class DashboardStats_model extends CI_Model
         $wdSeen = $this->_lastSeen($adminId, 'withdrawals');
         $kycSeen = $this->_lastSeen($adminId, 'kyc');
         $supportSeen = $this->_lastSeen($adminId, 'support');
+        $usersSeen = $this->_lastSeen($adminId, 'users');
+        $contactSeen = $this->_lastSeen($adminId, 'contact');
 
         $bmanPending = (int) $this->db->where('status', 'pending')->where('created_at >', $wdSeen)
             ->count_all_results('bman_withdraw_requests');
@@ -534,11 +536,23 @@ class DashboardStats_model extends CI_Model
             ->count_all_results('kyc_applications');
         $supportPending = (int) $this->db->where('status', 0)->where('date >', $supportSeen)
             ->count_all_results('support');
+        // New member registrations since the admin last opened the user list.
+        $newUsers = (int) $this->db->where('register_date >', $usersSeen)
+            ->count_all_results('users');
+        $contactNew = (int) $this->db->where('status', 'pending')->where('created_at >', $contactSeen)
+            ->count_all_results('contact_requests');
 
         return [
             'withdrawals' => $bmanPending + $usdtPending,
             'kyc'         => $kycPending,
             'support'     => $supportPending,
+            'users'       => $newUsers,
+            'contact'     => $contactNew,
+            // Roll-ups for the collapsed parent menu badges — a parent shows
+            // the sum of its children so counts are visible without opening
+            // the flyout.
+            'members_total' => $newUsers + $kycPending + $contactNew,
+            'finance_total' => $bmanPending + $usdtPending,
         ];
     }
 

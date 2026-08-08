@@ -77,7 +77,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
           <div class="menu-item">
             <a href="<?php echo base_url(); ?>admin" class="menu-link">
               <span class="menu-icon">
-                <i class="ki-duotone ki-category fs-3">
+                <i class="ki-duotone ki-element-11 fs-3">
                   <span class="path1"></span>
                   <span class="path2"></span>
                   <span class="path3"></span>
@@ -94,20 +94,24 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
           <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
             class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention">
             <span class="menu-link"><span class="menu-icon">
-                <i class="ki-duotone ki-people fs-2"><span class="path1"></span><span class="path2"></span>
+                <i class="ki-duotone ki-people fs-2"><span class="path1"></span><span class="path2"></span><span
+                    class="path3"></span><span class="path4"></span><span class="path5"></span>
                 </i>
-              </span><span class="menu-title">Members Management</span><span class="menu-arrow"></span></span>
+              </span><span class="menu-title">User Management</span>
+              <span class="badge badge-circle badge-danger fs-9 ms-2 d-none" data-dashboard-badge="members_total">0</span>
+              <span class="menu-arrow"></span></span>
             <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto">
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>network-member">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Network Members</span>
+                    class="menu-title">Network Users</span>
+                  <span class="badge badge-circle badge-danger fs-9 ms-2 d-none" data-dashboard-badge="users">0</span>
                 </a>
               </div>
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>add-user">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Create Members</span>
+                    class="menu-title">Create Users</span>
                 </a>
               </div>
 
@@ -121,7 +125,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/kyc">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Members KYC</span>
+                    class="menu-title">Users KYC</span>
                   <span class="badge badge-circle badge-danger fs-9 ms-2 d-none" data-dashboard-badge="kyc">0</span>
                 </a>
               </div>
@@ -137,6 +141,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/contact-requests">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Contact Requests</span>
+                  <span class="badge badge-circle badge-danger fs-9 ms-2 d-none" data-dashboard-badge="contact">0</span>
                 </a>
               </div>
 
@@ -153,7 +158,9 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                   <span class="path2"></span>
                   <span class="path3"></span>
                 </i>
-              </span><span class="menu-title">Finance Management</span><span class="menu-arrow"></span></span>
+              </span><span class="menu-title">Finance Management</span>
+              <span class="badge badge-circle badge-danger fs-9 ms-2 d-none" data-dashboard-badge="finance_total">0</span>
+              <span class="menu-arrow"></span></span>
             <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto bman-admin-root-sub">
 
               <!-- <div class="menu-item">
@@ -201,48 +208,19 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
 
               <!-- ============ Organized primary items ============ -->
 
-              <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
-                class="menu-item">
-                <span class="menu-link">
+              <!-- Deposit links flattened — the old Deposit ▸ Wallet Management
+                   double hover-nest was unreachable without losing hover. -->
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/internal-transfers">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Deposit</span><span class="menu-arrow"></span>
-                </span>
-                <div class="menu-sub px-2 py-3 bman-admin-nested-sub">
-                  <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
-                    class="menu-item">
-                    <span class="menu-link">
-                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                        class="menu-title">Wallet Management</span><span class="menu-arrow"></span>
-                    </span>
-                    <div class="menu-sub px-2 py-3 bman-admin-nested-sub">
-                      <div class="menu-item">
-                        <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/internal-transfers">
-                          <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                            class="menu-title">Internal Transfer</span>
-                        </a>
-                      </div>
-                      <div class="menu-item">
-                        <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet/onchain-transactions">
-                          <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                            class="menu-title">External Deposit</span>
-                        </a>
-                      </div>
-                      <!-- <div class="menu-item">
-                        <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/treasury-send">
-                          <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                            class="menu-title">Treasury Direct Send</span>
-                        </a>
-                      </div> -->
-
-                        <!-- <div class="menu-item">
-                          <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet-monitor">
-                            <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                              class="menu-title">Wallet Monitor</span>
-                          </a>
-                        </div> -->
-                    </div>
-                  </div>
-                </div>
+                    class="menu-title">Internal Transfer</span>
+                </a>
+              </div>
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet/onchain-transactions">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">External Deposit</span>
+                </a>
               </div>
 
               <div class="menu-item">
@@ -260,53 +238,14 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div>
 
-              <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/all-transaction">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">All Transactions</span>
-                </a>
-              </div>
-
+              <!-- "All Transactions" lives as its own top-level menu item below —
+                   the duplicate link that used to sit here was removed. -->
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/finance/gas-fee-transactions">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
                     class="menu-title">Gas Fee Transactions</span>
                 </a>
               </div>
-
-              <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
-                class="menu-item">
-                <span class="menu-link">
-                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Binary Matching & Distribution</span><span class="menu-arrow"></span>
-                </span>
-                <div class="menu-sub px-2 py-3 bman-admin-nested-sub">
-                  <div class="menu-item">
-                    <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/genealogy-tree">
-                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                        class="menu-title">Genealogy</span>
-                    </a>
-                  </div>
-                  <div class="menu-item">
-                    <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/matching-history">
-                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                        class="menu-title">Distribution History</span>
-                    </a>
-                  </div>
-                  <div class="menu-item">
-                    <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/payout-queue">
-                      <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                        class="menu-title">Binary Matching Payout Queue</span>
-                    </a>
-                  </div>
-                </div>
-              </div>
-
-              <hr class="my-3 mx-2 opacity-25">
-
-              <!-- ============ Remaining items (not part of the organized structure above) ============ -->              
-
-
 
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/wallet/admin-wallet">
@@ -322,13 +261,39 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
                 </a>
               </div>
 
+            </div>
+          </div>
+
+          <!--end::Scroll wrapper-->
+          <!-- Binary Matching & Distribution — promoted from a hover-nested
+               submenu inside Finance to its own top-level menu: the nested
+               flyout could not be reached without the whole menu closing. -->
+          <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
+            class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention">
+            <span class="menu-link"><span class="menu-icon">
+                <i class="ki-duotone ki-data fs-2"><span class="path1"></span><span class="path2"></span><span
+                    class="path3"></span><span class="path4"></span><span class="path5"></span>
+                </i>
+              </span><span class="menu-title">Binary Matching</span><span class="menu-arrow"></span></span>
+            <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-225px mh-75 overflow-auto">
               <div class="menu-item">
-                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/ceiling-wallet">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/genealogy-tree">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">Ceiling Wallet</span>
+                    class="menu-title">Genealogy</span>
                 </a>
               </div>
-
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/matching-history">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Distribution History</span>
+                </a>
+              </div>
+              <div class="menu-item">
+                <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/payout-queue">
+                  <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
+                    class="menu-title">Binary Matching Payout Queue</span>
+                </a>
+              </div>
             </div>
           </div>
 
@@ -410,7 +375,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
           <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
             class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention">
             <span class="menu-link"><span class="menu-icon">
-                <i class="ki-duotone ki-abstract-26 fs-2">
+                <i class="ki-duotone ki-crown fs-2">
                   <span class="path1"></span>
                   <span class="path2"></span>
                 </i>
@@ -557,10 +522,9 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
           <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="right-start"
             class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention">
             <span class="menu-link"><span class="menu-icon">
-                <i class="ki-duotone ki-brifecase-timer">
+                <i class="ki-duotone ki-rocket fs-2">
                   <span class="path1"></span>
                   <span class="path2"></span>
-                  <span class="path3"></span>
                 </i>
               </span><span class="menu-title">Marketting Tool</span><span class="menu-arrow"></span></span>
             <div class="menu-sub menu-sub-lg-down-accordion menu-sub-lg-dropdown px-2 py-4 w-200px mh-75 overflow-auto">
@@ -662,11 +626,10 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
           <div class="menu-item">
             <a href="<?php echo base_url(); ?>support" class="menu-link">
               <span class="menu-icon">
-                <i class="ki-duotone ki-category fs-3">
+                <i class="ki-duotone ki-message-question fs-3">
                   <span class="path1"></span>
                   <span class="path2"></span>
                   <span class="path3"></span>
-                  <span class="path4"></span>
                 </i>
               </span>
               <span class="menu-title">Support</span>
@@ -790,7 +753,10 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
           <div class="menu-item">
             <a href="<?php echo base_url(); ?>admin/all-transaction" class="menu-link">
               <span class="menu-icon">
-                <i class="fa fa-exchange fs-2" aria-hidden="true"></i>
+                <i class="ki-duotone ki-arrows-circle fs-2">
+                  <span class="path1"></span>
+                  <span class="path2"></span>
+                </i>
               </span>
               <span class="menu-title">All Transactions</span>
             </a>
@@ -799,7 +765,11 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
           <div class="menu-item">
             <a href="<?php echo base_url(); ?>admin/audit-log" class="menu-link">
               <span class="menu-icon">
-                <i class="fa fa-history fs-2" aria-hidden="true"></i>
+                <i class="ki-duotone ki-shield-search fs-2">
+                  <span class="path1"></span>
+                  <span class="path2"></span>
+                  <span class="path3"></span>
+                </i>
               </span>
               <span class="menu-title">Admin Audit Log</span>
             </a>

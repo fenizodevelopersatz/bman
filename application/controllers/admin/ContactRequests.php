@@ -38,6 +38,9 @@ class ContactRequests extends CI_Controller
     {
         $data['title'] = 'Contact Requests';
         $data['card_tilte'] = 'Contact Requests';
+        // Opening the list clears the sidebar "new contact requests" badge.
+        $this->load->model('admin/DashboardStats_model', 'dashstats');
+        $this->dashstats->markSeen((int) $this->session->userdata('admin_userid'), 'contact');
         $this->load->view('admin/contact/list', $data);
     }
 

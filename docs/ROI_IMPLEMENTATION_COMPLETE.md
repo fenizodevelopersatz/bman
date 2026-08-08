@@ -50,8 +50,8 @@ Workflow:
 
 **Endpoints:**
 ```
-GET /roi-monthly-distribution-test     (Health check)
-GET /roi-monthly-distribution-process  (Run distribution)
+GET /roi-monthly-distribution-test                    (Health check)
+GET /roi-monthly-distribution-process?token=<cron_token>  (Run distribution — token required over HTTP)
 ```
 
 #### **Maturity Payment CRON**
@@ -73,8 +73,8 @@ Workflow:
 
 **Endpoints:**
 ```
-GET /roi-maturity-payment-test     (Health check)
-GET /roi-maturity-payment-process  (Run payment)
+GET /roi-maturity-payment-test                    (Health check)
+GET /roi-maturity-payment-process?token=<cron_token>  (Run payment — token required over HTTP)
 ```
 
 ### 4️⃣ **Cron Lab Integration** ✅
@@ -229,8 +229,8 @@ Database:
    - Shows pending maturity payments
 
 3. **Schedule Hourly:**
-   - Monthly: `0 * * * * /roi-monthly-distribution-process`
-   - Maturity: `0 0 * * * /roi-maturity-payment-process`
+   - Monthly: `0 * * * * curl "HOST/roi-monthly-distribution-process?token=TOKEN"`
+   - Maturity: `0 0 * * * curl "HOST/roi-maturity-payment-process?token=TOKEN"`
 
 ---
 

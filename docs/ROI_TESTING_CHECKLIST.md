@@ -38,8 +38,11 @@ curl http://localhost/roi-monthly-distribution-test
 
 **Process Run (only works on days 5, 15, 25):**
 ```bash
-curl http://localhost/roi-monthly-distribution-process
+curl "http://localhost/roi-monthly-distribution-process?token=<cron_token>"
 ```
+
+> HTTP calls to the `-process` routes require `?token=` matching `$config['cron_token']`
+> (same gate as `roi-distribution-cron`). CLI runs (`php index.php roimonthlydistribution_cron process`) skip it.
 
 ---
 
@@ -62,7 +65,7 @@ curl http://localhost/roi-maturity-payment-test
 
 **Process Run:**
 ```bash
-curl http://localhost/roi-maturity-payment-process
+curl "http://localhost/roi-maturity-payment-process?token=<cron_token>"
 ```
 
 ---
@@ -112,7 +115,7 @@ WHERE user_id = ? AND plan_type = 'fixed';
 ```
 
 **CRON Execution (Jul 10, 2028):**
-- Run: `curl http://localhost/roi-maturity-payment-process`
+- Run: `curl "http://localhost/roi-maturity-payment-process?token=<cron_token>"`
 - Expected: Payment marked as 'completed'
 - Earning wallet: +150,000 BMAN
 - Transaction created: tx_type = 'roi_maturity_final'
