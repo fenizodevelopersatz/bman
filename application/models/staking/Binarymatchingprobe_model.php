@@ -580,7 +580,7 @@ class Binarymatchingprobe_model extends CI_Model
         try {
             $this->_park();
             foreach (['t1','t2','t3','t4','t5','t6','t7','t8','t9','t10',
-                      't11','t12','t13','t14','t15'] as $t) {
+                      't11','t12','t13','t14','t15','t16'] as $t) {
                 $this->_cleanup();
                 $results[] = $this->{'_' . $t}();
             }
@@ -990,6 +990,46 @@ class Binarymatchingprobe_model extends CI_Model
             . ', staking=' . $this->_num($row['staking_amount'] ?? 0)
             . ', admin_delta=' . $this->_num($adminDelta),
             'level 1 survived the misconfiguration and paid in full once the ceiling was restored (run ' . $ref2 . ')');
+    }
+
+    /**
+     * TEST 16 — the ADMIN GENEALOGY MAP must show the engine's own numbers.
+     *
+     * Builds the A..O tree and, WITHOUT paying anything, asks the engine for
+     * the level 1/2/3 projections the map renders. Proves the map is fed by
+     * the real engine rather than a formula re-implemented in the controller
+     * or the browser: cumulative volumes, 10% of MIN, the dynamic ceiling, the
+     * 80/20 split and the admin overflow must all match the spec example.
+     */
+    private function _t16()
+    {
+        $this->_say('');
+        $this->_buildTree();   // A stakes 5,000 -> ceiling 5,000
+
+        $legs = $this->BLM->legVolumesByDepth($this->n['A']);
+        $got = [];
+        foreach ([1, 2, 3] as $lvl) {
+            $vol = $this->BLM->cumulativeVolume($legs, $lvl);
+            $p   = $this->BLM->projectLevel($this->n['A'], $vol);
+            $got[$lvl] = ['vol' => $vol, 'p' => $p];
+            $this->_say(sprintf('     L%d  left=%-9s right=%-9s matched=%-9s raw=%-7s user=%-7s earn=%-7s stk=%-7s admin=%s',
+                $lvl, $this->_num($vol['left']), $this->_num($vol['right']), $this->_num($p['matched']),
+                $this->_num($p['raw']), $this->_num($p['user']), $this->_num($p['earning']),
+                $this->_num($p['staking']), $this->_num($p['admin'])));
+        }
+
+        $actual = 'L1 raw=' . $this->_num($got[1]['p']['raw'])
+                . ', L2 raw=' . $this->_num($got[2]['p']['raw'])
+                . ', L3 raw=' . $this->_num($got[3]['p']['raw'])
+                . ', L3 user=' . $this->_num($got[3]['p']['user'])
+                . '/earn=' . $this->_num($got[3]['p']['earning'])
+                . '/stk=' . $this->_num($got[3]['p']['staking'])
+                . '/admin=' . $this->_num($got[3]['p']['admin']);
+
+        return $this->_assert('TEST 16', 'Admin map projections match the spec example (A, levels 1-3)',
+            'L1 raw=500, L2 raw=2500, L3 raw=6000, L3 user=5000/earn=4000/stk=1000/admin=1000', $actual,
+            'L3 cumulative legs ' . $this->_num($got[3]['vol']['left']) . ' / ' . $this->_num($got[3]['vol']['right'])
+            . ' — projection only, nothing was paid');
     }
 
     private function _pkgCeiling($pkgId)

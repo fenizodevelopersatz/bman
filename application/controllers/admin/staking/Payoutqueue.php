@@ -64,4 +64,29 @@ class Payoutqueue extends CI_Controller
         list($ok, $msg) = $this->PQ->retry((int)$id, (int)$this->session->userdata('admin_userid'));
         return $this->_json(['status' => $ok ? 'success' : 'error', 'message' => $msg], $ok ? 200 : 422);
     }
+
+    /**
+     * Treasury funding status (AJAX, loaded after the page paints).
+     *
+     * Deliberately NOT part of index()'s payload: it makes two live RPC calls,
+     * which would otherwise stall the whole page — or worse, blank it when the
+     * node is unreachable. The page renders instantly with the queue, and this
+     * fills the funding panel in when it answers.
+     */
+    public function treasury()
+    {
+        $this->_requireAdmin();
+        if (!$this->input->is_ajax_request()) show_404();
+        return $this->_json(['status' => 'success', 'treasury' => $this->PQ->treasuryStatus()]);
+    }
+
+    /** Bulk-reset every FAILED/RETRY payout — the post-top-up recovery action. */
+    public function retry_all()
+    {
+        $this->_requireAdmin();
+        if (!$this->input->is_ajax_request()) show_404();
+        $only = $this->input->post('only_status', true) ?: null;
+        list($ok, $msg, $n) = $this->PQ->retryAll((int)$this->session->userdata('admin_userid'), $only);
+        return $this->_json(['status' => $ok ? 'success' : 'error', 'message' => $msg, 'affected' => (int)$n], $ok ? 200 : 422);
+    }
 }

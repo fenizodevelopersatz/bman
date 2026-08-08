@@ -413,6 +413,63 @@ class Binarylevelmatching_model extends CI_Model
         ];
     }
 
+    /* ---------------------------- projection ------------------------------ */
+
+    /**
+     * What WOULD this level pay, given the volumes handed in — pure, read-only,
+     * writes nothing.
+     *
+     * This is the single definition of the money split: _payLevel() calls it
+     * and then persists the result, and admin visualisations call it to show a
+     * projection. Extracted precisely so the formula exists in ONE place — a
+     * copy in a controller or (worse) in JavaScript would drift the moment a
+     * rule changed. Callers that only want to LOOK must never call _payLevel().
+     *
+     * Percentages come from staking_bonus_settings and the ceiling from
+     * sponsorCeiling(), so nothing here is hard-coded.
+     *
+     * @return array{matched,raw,ceiling,user,admin,earning,staking,payable,ceil}
+     */
+    public function projectLevel($userId, array $vol, array $pct = null)
+    {
+        if ($pct === null) {
+            $s = $this->db->get_where('staking_bonus_settings', ['id' => 1])->row_array();
+            $pct = ['total'   => $s ? (float)$s['matching_total_percent']   : 10.0,
+                    'earning' => $s ? (float)$s['matching_earning_percent'] : 8.0,
+                    'staking' => $s ? (float)$s['matching_staking_percent'] : 2.0];
+        }
+
+        $matched = min((float)$vol['left'], (float)$vol['right']);
+        $ceil    = $this->sponsorCeiling($userId);
+        $raw     = $matched > 0 && $pct['total'] > 0 ? round($matched * $pct['total'] / 100, 4) : 0.0;
+
+        // Payable only when the ceiling config resolves to exactly one positive
+        // value. 'no_stake' pays the sponsor nothing (whole bonus is Admin's);
+        // a config error pays NOBODY and leaves the level open.
+        $payable = ($ceil['status'] === 'ok');
+        $configError = (!$ceil['eligible'] && $ceil['status'] !== 'no_stake');
+
+        $user  = $payable ? min($raw, (float)$ceil['ceiling']) : 0.0;
+        $admin = $configError ? 0.0 : round($raw - $user, 4);
+
+        $earn = round($user * $pct['earning'] / $pct['total'], 4);
+        $stk  = round($user - $earn, 4);
+
+        return [
+            'matched'      => $matched,
+            'raw'          => $raw,
+            'ceiling'      => (float)$ceil['ceiling'],
+            'user'         => $user,
+            'admin'        => $admin,
+            'earning'      => $earn,
+            'staking'      => $stk,
+            'payable'      => $payable,
+            'config_error' => $configError,
+            'ceil'         => $ceil,
+            'pct'          => $pct,
+        ];
+    }
+
     /* ------------------------------ payout -------------------------------- */
 
     /**
@@ -437,8 +494,10 @@ class Binarylevelmatching_model extends CI_Model
             return ['deferred' => true, 'status' => 'zero_matched', 'detail' => 'no matched volume'];
         }
 
-        $raw  = round($matched * $pct['total'] / 100, 4);
-        $ceil = $this->sponsorCeiling($userId);
+        // One definition of the split, shared with admin projections.
+        $calc = $this->projectLevel($userId, $vol, $pct);
+        $raw  = $calc['raw'];
+        $ceil = $calc['ceil'];
 
         // ---------------------------------------------------------------
         // CONFIG ERROR -> SKIP & RETRY. A missing or ambiguous Group
@@ -469,14 +528,13 @@ class Binarylevelmatching_model extends CI_Model
             return ['deferred' => true, 'status' => $ceil['status'], 'detail' => $ceil['detail']];
         }
 
-        $user  = $ceil['eligible'] ? min($raw, (float)$ceil['ceiling']) : 0.0;
-        $admin = round($raw - $user, 4);
-
-        // Split the PAYABLE amount 8/2 (not the raw bonus) so a capped payout
-        // still lands 80/20 across the two wallets. The staking share is the
-        // remainder, so the two credits always re-sum to exactly $user.
-        $earn = round($user * $pct['earning'] / $pct['total'], 4);
-        $stk  = round($user - $earn, 4);
+        // The PAYABLE amount is split 8/2 (not the raw bonus) so a capped
+        // payout still lands 80/20 across the two wallets, and the staking
+        // share is the remainder so the two credits re-sum to exactly $user.
+        $user  = $calc['user'];
+        $admin = $calc['admin'];
+        $earn  = $calc['earning'];
+        $stk   = $calc['staking'];
 
         $this->db->trans_begin();
 
@@ -498,9 +556,17 @@ class Binarylevelmatching_model extends CI_Model
         }
         $payoutId = (int)$this->db->insert_id();
 
+        // Per-LEVEL wallet reference, not just the run ref: one run pays many
+        // sponsors across many levels, so a bare run_ref cannot identify which
+        // ledger rows belong to which level. Admin history links the exact
+        // credits for a level off this. Nothing matches wallet_ledger
+        // .reference_id by value for binary_matching (verified), so narrowing
+        // the format breaks no existing reader.
+        $walletRef = $runRef . '-L' . $level;
+
         if ($earn > 0) {
             list($ok) = $this->L->credit((int)$userId, 'earning', $earn, 'binary_matching', [
-                'reference_id'  => $runRef,
+                'reference_id'  => $walletRef,
                 'description'   => 'Binary matching L' . $level . ' — ' . $pct['earning'] . '% of ' . number_format($matched) . ' matched BV',
                 'skip_maturity' => true,
             ]);
@@ -508,7 +574,7 @@ class Binarylevelmatching_model extends CI_Model
         }
         if ($stk > 0) {
             list($ok) = $this->L->credit((int)$userId, 'staking', $stk, 'binary_matching', [
-                'reference_id'  => $runRef,
+                'reference_id'  => $walletRef,
                 'description'   => 'Binary matching L' . $level . ' — ' . $pct['staking'] . '% of ' . number_format($matched) . ' matched BV',
                 'skip_maturity' => true,
             ]);

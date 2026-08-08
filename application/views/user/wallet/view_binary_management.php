@@ -1,10 +1,18 @@
 <?php
 // ===================== BINARY MATCHING HISTORY (USER) =====================
+// Level-wise: one row per completed binary level, plus its on-chain delivery
+// status. The wallet credit and the on-chain transfer are SEPARATE things —
+// the balance is spendable as soon as it is "Credited"; the On-Chain column
+// only tracks whether the backing transfer has confirmed, so a queued or
+// retrying transfer never means the member is missing money.
+//
 // Expected vars (set from Historycontroller::lendingBinaryHistory()):
-// $history = rows from staking_matching_payouts (id, matched_volume, total_percent,
-//            earning_amount, staking_amount, left_before, right_before, run_ref, created_at)
-// $summary = ['lifetime','today','weekly','monthly','earning','staking',
-//             'carry_left','carry_right','pending_ceiling']
+// $history = staking_matching_payouts rows (+ level, raw_bonus, ceiling_applied,
+//            admin_overflow, payout_status, confirmations, required_confs)
+// $summary = ['lifetime','today','weekly','monthly','earning','staking','to_admin',
+//             'levels_paid','next_level','next_left','next_right','next_matched',
+//             'next_complete','ceiling','ceiling_ok','ceiling_status',
+//             'package_stake','pending_ceiling']
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -64,13 +72,41 @@
           <b><?= number_format($summary['monthly'], 2) ?> <span>BMAN</span></b>
         </div>
         <div class="bm-card split">
-          <div><span class="lbl">Carry Fwd. Left</span><br><b><?= number_format($summary['carry_left'], 2) ?></b></div>
-          <div><span class="lbl">Carry Fwd. Right</span><br><b><?= number_format($summary['carry_right'], 2) ?></b></div>
+          <div><span class="lbl">Levels Paid</span><br><b><?= (int) $summary['levels_paid'] ?></b></div>
+          <div><span class="lbl">Your Cap / Level</span><br><b><?= number_format($summary['ceiling'], 2) ?></b></div>
         </div>
         <div class="bm-card">
-          <small>Held at Ceiling (Pending)</small>
-          <b><?= number_format($summary['pending_ceiling'], 2) ?> <span>BMAN</span></b>
+          <small>Next: Level <?= (int) $summary['next_level'] ?><?= $summary['next_complete'] ? ' (ready)' : '' ?></small>
+          <b><?= number_format($summary['next_matched'], 2) ?> <span>BMAN matched</span></b>
         </div>
+      </div>
+
+      <style>
+        /* Scoped here rather than the shared sheet — this note only exists on
+           this page, and the surrounding cards already carry the page theme. */
+        .bm-note { margin: 14px 0 4px; padding: 12px 14px; border-radius: 10px;
+                   background: rgba(127, 127, 127, .10); font-size: 13px; line-height: 1.6; }
+        .bm-note b { font-weight: 700; }
+      </style>
+      <div class="bm-note">
+        <?php if (!$summary['ceiling_ok'] && $summary['ceiling_status'] === 'no_stake'): ?>
+          You need an active staking package to receive binary matching income.
+          Levels that complete while you hold no eligible stake are not paid to you.
+        <?php else: ?>
+          Level <?= (int) $summary['next_level'] ?> pays on
+          <b><?= number_format($summary['next_left'], 2) ?></b> left vs
+          <b><?= number_format($summary['next_right'], 2) ?></b> right Lock Wallet volume —
+          matching <b><?= number_format($summary['next_matched'], 2) ?></b> BMAN at
+          10%<?php if ($summary['ceiling'] > 0): ?>, capped at
+          <b><?= number_format($summary['ceiling'], 2) ?></b> BMAN for this level
+          (your highest active package, <?= number_format($summary['package_stake']) ?> BMAN)<?php endif; ?>.
+          <?php if (!$summary['next_complete']): ?>
+            This level is not complete yet — both legs need volume at that depth.
+          <?php endif; ?>
+        <?php endif; ?>
+        <?php if ($summary['pending_ceiling'] > 0): ?>
+          <br>Previously held at ceiling: <b><?= number_format($summary['pending_ceiling'], 2) ?></b> BMAN (released by admin).
+        <?php endif; ?>
       </div>
 
       <div class="bm-table-wrap">
@@ -83,34 +119,64 @@
             <thead>
               <tr>
                 <th>Date</th>
+                <th>Level</th>
                 <th>Left Volume</th>
                 <th>Right Volume</th>
                 <th>Matched Volume</th>
-                <th>Carry Forward</th>
                 <th>Bonus %</th>
+                <th>Bonus Earned</th>
                 <th>Earning Amount</th>
                 <th>Staking Amount</th>
-                <th>Status</th>
+                <th>Wallet</th>
+                <th>On-Chain</th>
               </tr>
             </thead>
             <tbody>
               <?php if (!empty($history)): ?>
                 <?php foreach ($history as $row): ?>
-                  <?php $carry = abs((float) $row['left_before'] - (float) $row['right_before']); ?>
+                  <?php
+                    $raw      = (float) ($row['raw_bonus'] ?? 0);
+                    $credited = (float) $row['earning_amount'] + (float) $row['staking_amount'];
+                    $capped   = $raw > 0 && $credited + 0.00005 < $raw;
+                    // The on-chain leg is separate from the wallet credit: the
+                    // balance is already spendable, this column only tracks
+                    // whether the matching transfer has confirmed on chain.
+                    $chain = $row['payout_status'] ?? null;
+                    $chainLabel = ['PENDING' => 'Queued', 'RETRY' => 'Queued', 'PROCESSING' => 'Sending',
+                                   'CONFIRMED' => 'Confirmed', 'FAILED' => 'Retrying'];
+                  ?>
                   <tr>
                     <td><?= htmlspecialchars($row['created_at']) ?></td>
+                    <td><?= $row['level'] !== null ? 'L' . (int) $row['level'] : '—' ?></td>
                     <td class="num"><?= number_format((float) $row['left_before'], 2) ?></td>
                     <td class="num"><?= number_format((float) $row['right_before'], 2) ?></td>
                     <td class="num"><?= number_format((float) $row['matched_volume'], 2) ?></td>
-                    <td class="num"><?= number_format($carry, 2) ?></td>
                     <td class="num"><?= number_format((float) $row['total_percent'], 2) ?>%</td>
+                    <td class="num">
+                      <?= number_format($raw > 0 ? $raw : $credited, 2) ?>
+                      <?php if ($capped): ?>
+                        <br><small title="Capped at your package's Group Incentive Ceiling for this level">capped to <?= number_format($credited, 2) ?></small>
+                      <?php endif; ?>
+                    </td>
                     <td class="num"><?= number_format((float) $row['earning_amount'], 2) ?></td>
                     <td class="num"><?= number_format((float) $row['staking_amount'], 2) ?></td>
-                    <td><span class="bm-pill">Credited</span></td>
+                    <td><span class="bm-pill"><?= $credited > 0 ? 'Credited' : 'Not eligible' ?></span></td>
+                    <td>
+                      <?php if ($credited <= 0): ?>
+                        —
+                      <?php elseif ($chain === null): ?>
+                        <span class="bm-pill">Queued</span>
+                      <?php else: ?>
+                        <span class="bm-pill"><?= htmlspecialchars($chainLabel[$chain] ?? $chain) ?></span>
+                        <?php if ($chain === 'PROCESSING' && (int) $row['required_confs'] > 0): ?>
+                          <br><small><?= (int) $row['confirmations'] ?>/<?= (int) $row['required_confs'] ?></small>
+                        <?php endif; ?>
+                      <?php endif; ?>
+                    </td>
                   </tr>
                 <?php endforeach; ?>
               <?php else: ?>
-                <tr><td colspan="9" class="bm-empty">No binary matching history yet.</td></tr>
+                <tr><td colspan="11" class="bm-empty">No binary matching history yet.</td></tr>
               <?php endif; ?>
             </tbody>
           </table>

@@ -552,11 +552,23 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
         if (!$user_id) { redirect('user/login'); return; }
 
         $this->load->model('staking/Ceilingwallet_model', 'CW');
+        $this->load->model('staking/Binarylevelmatching_model', 'BLM');
 
-        $rows = $this->db->where('user_id', $user_id)->order_by('id', 'DESC')->limit(100)
-                         ->get('staking_matching_payouts')->result_array();
+        // Level-wise history: one row per completed binary level, joined to
+        // its on-chain delivery row so the member can see whether the transfer
+        // has actually confirmed — not just that it was credited internally.
+        $rows = $this->db->select(
+                'smp.*, q.status AS payout_status, q.tx_hash AS payout_tx_hash, ' .
+                'q.confirmations, q.required_confs, sp.name AS package_name'
+            )
+            ->from('staking_matching_payouts smp')
+            ->join('blockchain_payout_queue q', "q.reference_type = 'staking_matching_payout' AND q.reference_id = smp.id", 'left')
+            ->join('staking_packages sp', 'sp.id = smp.highest_package_id', 'left')
+            ->where('smp.user_id', $user_id)
+            ->order_by('smp.id', 'DESC')->limit(100)->get()->result_array();
 
-        $sum = ['today' => 0.0, 'weekly' => 0.0, 'monthly' => 0.0, 'lifetime' => 0.0, 'earning' => 0.0, 'staking' => 0.0];
+        $sum = ['today' => 0.0, 'weekly' => 0.0, 'monthly' => 0.0, 'lifetime' => 0.0,
+                'earning' => 0.0, 'staking' => 0.0, 'to_admin' => 0.0, 'levels' => 0];
         foreach ($rows as $r) {
             $earn = (float) $r['earning_amount'];
             $stk  = (float) $r['staking_amount'];
@@ -564,13 +576,23 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
             $sum['lifetime'] += $amount;
             $sum['earning']  += $earn;
             $sum['staking']  += $stk;
+            $sum['to_admin'] += (float) ($r['admin_overflow'] ?? 0);
+            if ($r['level'] !== null) $sum['levels']++;
             $ts = strtotime($r['created_at']);
             if (date('Y-m-d', $ts) === date('Y-m-d'))            $sum['today']   += $amount;
             if ($ts >= strtotime('monday this week'))            $sum['weekly']  += $amount;
             if (date('Y-m', $ts) === date('Y-m'))                $sum['monthly'] += $amount;
         }
 
-        $carry = $this->db->get_where('binary_carry', ['user_id' => $user_id])->row_array() ?: [];
+        // What the member is working toward next: the level the engine will
+        // evaluate, its current cumulative leg volumes, and whether it is
+        // already complete. This replaces the old left/right "carry" figures,
+        // which the level engine no longer uses for anything.
+        $nextLevel = (int) $this->BLM->nextLevel($user_id);
+        $legs      = $this->BLM->legVolumesByDepth($user_id);
+        $vol       = $legs ? $this->BLM->cumulativeVolume($legs, $nextLevel) : ['left' => 0.0, 'right' => 0.0];
+        $complete  = $legs ? $this->BLM->levelComplete($legs, $nextLevel) : false;
+        $ceil      = $this->BLM->sponsorCeiling($user_id);
 
         $this->data['title']      = "Binary Matching History";
         $this->data['card_title'] = "Binary Matching History";
@@ -583,8 +605,19 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
             'monthly'         => $sum['monthly'],
             'earning'         => $sum['earning'],
             'staking'         => $sum['staking'],
-            'carry_left'      => (float) ($carry['left_carry']  ?? 0),
-            'carry_right'     => (float) ($carry['right_carry'] ?? 0),
+            'to_admin'        => $sum['to_admin'],
+            'levels_paid'     => $sum['levels'],
+            'next_level'      => $nextLevel,
+            'next_left'       => (float) $vol['left'],
+            'next_right'      => (float) $vol['right'],
+            'next_matched'    => (float) min($vol['left'], $vol['right']),
+            'next_complete'   => $complete,
+            'ceiling'         => (float) $ceil['ceiling'],
+            'ceiling_ok'      => (bool) $ceil['eligible'],
+            'ceiling_status'  => $ceil['status'],
+            'package_stake'   => (float) $ceil['stake_amount'],
+            // Legacy escrow — the level engine no longer adds to this, but an
+            // existing held balance is still real and still releasable.
             'pending_ceiling' => (float) $this->CW->balance($user_id)['held_balance'],
         ];
 

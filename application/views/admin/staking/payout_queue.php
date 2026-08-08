@@ -73,6 +73,31 @@
                   </div>
                 </div>
 
+                <!-- Treasury funding: can we actually pay what is queued? -->
+                <div class="card mb-6" id="pq-treasury-card">
+                  <div class="card-header pt-6 d-flex align-items-center justify-content-between">
+                    <h3 class="card-title fw-bold mb-0">Treasury Funding</h3>
+                    <div class="d-flex gap-2">
+                      <button class="btn btn-sm btn-light" id="pq-treasury-refresh">Refresh</button>
+                      <button class="btn btn-sm btn-warning" id="pq-retry-all"
+                              <?php echo $summary['needs_attention'] > 0 ? '' : 'disabled'; ?>>
+                        Retry all failed / held (<?php echo (int)$summary['needs_attention']; ?>)
+                      </button>
+                    </div>
+                  </div>
+                  <div class="card-body pt-3 pb-8">
+                    <div id="pq-treasury-body" class="text-muted fs-7">Checking treasury balance…</div>
+                    <div class="separator my-5"></div>
+                    <div class="fs-8 text-muted">
+                      A shortfall <b>never loses money and never costs a member anything</b> — the internal wallet
+                      credit already happened inside the matching engine, in the same transaction that closed the
+                      level. This queue is only the on-chain delivery leg, so an empty treasury <i>delays</i> a
+                      transfer; it cannot reverse, forfeit or duplicate it. Top the treasury up, then press
+                      <b>Retry all</b> and the next cron run drains the queue oldest-first.
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Filter -->
                 <div class="d-flex align-items-center gap-2 mb-4">
                   <?php $statuses = ['' => 'All', 'PENDING' => 'Pending', 'PROCESSING' => 'Processing', 'CONFIRMED' => 'Confirmed', 'RETRY' => 'Retry', 'FAILED' => 'Failed'];
@@ -103,8 +128,31 @@
                         ?>
                           <tr>
                             <td class="text-muted fs-8"><?php echo (int)$r['id']; ?></td>
-                            <td><?php echo html_escape(($r['username'] ?? '') ?: ('#'.$r['user_id'])); ?>
-                              <div class="text-muted fs-8"><?php echo html_escape($r['referral_id'] ?? ''); ?></div></td>
+                            <td>
+                              <div class="d-flex align-items-center">
+                                <?php
+                                  // profile_img is the current upload field; image is the older one.
+                                  // Both live under assets/images/ (same convention as Profile /
+                                  // Genealogy). Falls back to an initial when neither is set, and
+                                  // onerror covers a row whose file has since been deleted.
+                                  $img = trim((string)($r['profile_img'] ?? '')) ?: trim((string)($r['image'] ?? ''));
+                                  $initial = html_escape(strtoupper(substr((string)($r['username'] ?: 'U'), 0, 1)));
+                                ?>
+                                <div class="symbol symbol-35px me-3">
+                                  <?php if ($img !== ''): ?>
+                                    <img src="<?php echo base_url('assets/images/') . rawurlencode($img); ?>" alt=""
+                                         class="rounded-circle" style="object-fit:cover;"
+                                         onerror="this.outerHTML='<span class=&quot;symbol-label bg-light-primary text-primary fw-bold&quot;><?php echo $initial; ?></span>';">
+                                  <?php else: ?>
+                                    <span class="symbol-label bg-light-primary text-primary fw-bold"><?php echo $initial; ?></span>
+                                  <?php endif; ?>
+                                </div>
+                                <div>
+                                  <?php echo html_escape(($r['username'] ?? '') ?: ('#'.$r['user_id'])); ?>
+                                  <div class="text-muted fs-8"><?php echo html_escape($r['referral_id'] ?? ''); ?></div>
+                                </div>
+                              </div>
+                            </td>
                             <td class="text-end fw-bold"><?php echo number_format((float)$r['amount'], 4); ?> <span class="text-muted fs-8"><?php echo html_escape($r['token']); ?></span></td>
                             <td class="fs-8 text-muted" title="<?php echo html_escape($r['to_address']); ?>">
                               <?php echo html_escape(substr($r['to_address'], 0, 10)).'…'.html_escape(substr($r['to_address'], -6)); ?></td>
@@ -121,7 +169,13 @@
                                 title="<?php echo html_escape($r['last_error'] ?? ''); ?>"><?php echo html_escape($r['last_error'] ?? ''); ?></td>
                             <td class="fs-8 text-muted"><?php echo html_escape($r['last_attempt_at'] ?? ''); ?></td>
                             <td>
-                              <button class="btn btn-sm btn-light-warning pq-retry" data-id="<?php echo (int)$r['id']; ?>" <?php echo $canRetry ? '' : 'disabled'; ?>>Retry</button>
+                              <?php if ($canRetry): ?>
+                                <button class="btn btn-sm btn-light-warning pq-retry" data-id="<?php echo (int)$r['id']; ?>">Retry</button>
+                              <?php else: /* A CONFIRMED transfer is final, and PENDING/PROCESSING rows are
+                                             already in the cron's hands — a greyed-out button only invites
+                                             clicking, so show nothing at all. */ ?>
+                                <span class="text-muted fs-8">—</span>
+                              <?php endif; ?>
                             </td>
                           </tr>
                         <?php endforeach; endif; ?>
@@ -141,6 +195,8 @@
 
   <script>
     var PQ_RETRY_URL_BASE = "<?php echo base_url('admin/staking/payout-queue/retry/'); ?>";
+    var PQ_TREASURY_URL   = "<?php echo base_url('admin/staking/payout-queue/treasury'); ?>";
+    var PQ_RETRY_ALL_URL  = "<?php echo base_url('admin/staking/payout-queue/retry-all'); ?>";
   </script>
   <?php $this->load->view('admin/Layout/common_script'); ?>
   <script>
@@ -161,6 +217,91 @@
           });
         });
       });
+
+      /* ---------------- treasury funding panel ---------------- */
+      var body = document.getElementById('pq-treasury-body');
+
+      function n(v, d) { return (v === null || v === undefined) ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: d || 4 }); }
+      function esc(s) { var e = document.createElement('div'); e.textContent = s == null ? '' : s; return e.innerHTML; }
+
+      function tile(label, value, tone) {
+        return '<div class="col-md-3 mb-4"><div class="bg-light-' + (tone || 'secondary') +
+               ' rounded p-4 h-100"><div class="text-gray-600 fw-semibold fs-8 text-uppercase">' + label +
+               '</div><div class="fw-bold fs-4 mt-1">' + value + '</div></div></div>';
+      }
+
+      function renderTreasury(t) {
+        if (!t) { body.innerHTML = '<span class="text-danger">Could not read treasury status.</span>'; return; }
+
+        // rpc_ok === false means the node did not answer. Show "unknown", never
+        // a 0 — a fake zero reads as "treasury empty" and invites a wrong call.
+        var unknown = (t.rpc_ok === false);
+        var bnb  = unknown ? '<span class="text-muted">unknown</span>' : n(t.bnb_balance, 6);
+        var bman = unknown ? '<span class="text-muted">unknown</span>' : n(t.bman_balance, 4);
+
+        var fully = t.queued_count > 0 && t.covers_count === t.queued_count;
+        var tone  = t.queued_count === 0 ? 'success' : (fully ? 'success' : 'danger');
+
+        var html = '<div class="row">';
+        html += tile('Treasury BMAN', bman, unknown ? 'warning' : 'primary');
+        html += tile('Treasury BNB (gas)', bnb, unknown ? 'warning' : 'info');
+        html += tile('Queued to send', n(t.outstanding_bman, 4) + ' <span class="fs-8 text-muted">BMAN in ' + t.queued_count + '</span>', 'secondary');
+        html += tile('Covered right now', t.queued_count === 0 ? '—' : (t.covers_count + ' / ' + t.queued_count), tone);
+        html += '</div>';
+
+        if (t.queued_count === 0) {
+          html += '<div class="alert alert-success py-3 mb-0 fs-7">Nothing waiting to broadcast.</div>';
+        } else if (fully) {
+          html += '<div class="alert alert-success py-3 mb-0 fs-7">Treasury covers the whole queue (needs ~' +
+                  n(t.gas_needed_bnb, 6) + ' BNB gas for ' + t.queued_count + ' transfer(s)).</div>';
+        } else {
+          html += '<div class="alert alert-danger py-3 mb-0 fs-7"><b>Top up required.</b> ' + esc(t.blocked_reason || '') +
+                  '<div class="mt-2">Add at least <b>' + n(t.shortfall_bman, 4) + ' BMAN</b> and <b>' +
+                  n(t.shortfall_bnb, 6) + ' BNB</b> to clear the next payout. Full queue needs ~' +
+                  n(t.outstanding_bman, 4) + ' BMAN + ' + n(t.gas_needed_bnb, 6) + ' BNB.</div></div>';
+        }
+
+        if (t.blocked_reason && (t.queued_count === 0 || fully)) {
+          html += '<div class="alert alert-warning py-3 mt-3 mb-0 fs-7">' + esc(t.blocked_reason) + '</div>';
+        }
+        if (t.dry_run) {
+          html += '<div class="alert alert-info py-3 mt-3 mb-0 fs-7">DRY RUN is on (token settings <code>swap_dry_run=1</code>) — payouts are simulated, nothing leaves the treasury.</div>';
+        }
+        html += '<div class="fs-8 text-muted mt-3">Treasury: <span class="font-monospace">' + esc(t.treasury_address || 'not configured') +
+                '</span> · gas per transfer ≈ ' + n(t.gas_per_send_bnb, 6) + ' BNB</div>';
+        body.innerHTML = html;
+      }
+
+      function loadTreasury() {
+        body.innerHTML = 'Checking treasury balance…';
+        fetch(PQ_TREASURY_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+          .then(function (r) { return r.json(); })
+          .then(function (r) { renderTreasury(r.treasury); })
+          .catch(function () { body.innerHTML = '<span class="text-danger">Network error reading treasury status.</span>'; });
+      }
+
+      document.getElementById('pq-treasury-refresh').addEventListener('click', loadTreasury);
+
+      document.getElementById('pq-retry-all').addEventListener('click', function () {
+        var btn = this;
+        function go() {
+          btn.disabled = true; btn.textContent = 'Queueing…';
+          post(PQ_RETRY_ALL_URL, function (r) {
+            if (window.Swal) Swal.fire(r.status === 'success' ? 'Queued for Retry' : 'Error', r.message || '', r.status === 'success' ? 'success' : 'error');
+            if (r.status === 'success') setTimeout(function () { location.reload(); }, 900);
+            else { btn.disabled = false; btn.textContent = 'Retry all failed / held'; }
+          });
+        }
+        if (window.Swal) {
+          Swal.fire({
+            title: 'Retry all failed / held payouts?',
+            text: 'Resets them to PENDING so the next cron run rebroadcasts. No wallet is credited or debited.',
+            icon: 'question', showCancelButton: true, confirmButtonText: 'Yes, retry all'
+          }).then(function (res) { if (res.isConfirmed) go(); });
+        } else if (confirm('Retry all failed / held payouts?')) { go(); }
+      });
+
+      loadTreasury();
     })();
   </script>
 </body>

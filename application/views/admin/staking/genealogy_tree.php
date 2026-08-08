@@ -83,9 +83,43 @@
               <div id="kt_app_content_container" class="app-container container-xxl">
                 <?php $this->load->view('notification'); ?>
 
-                <div class="alert alert-secondary d-flex align-items-center mb-4">
-                  <i class="ki-outline ki-information fs-2 me-3"></i>
-                  <div class="fw-semibold">Every figure here is what the matching engine itself reads — <code>binary_carry.left_carry</code>/<code>right_carry</code> (not the member-facing tree's Exchange Wallet subtree totals, which are a <b>different, disconnected</b> figure — see docs/17). "Potential Match" = min(left,right); a node only actually gets paid if <b>Matching Eligible</b> is true (has an active stake of their own) — see the Level Cascade test for why an ineligible node's carry is still preserved, not lost.</div>
+                <div class="alert alert-secondary d-flex align-items-start mb-4">
+                  <i class="ki-outline ki-information fs-2 me-3 mt-1"></i>
+                  <div class="fw-semibold fs-7">
+                    Every figure comes from the live level engine
+                    (<code>Binarylevelmatching_model</code>) — the same code that pays. Volumes are
+                    <b>cumulative eligible Lock Wallet BMAN, levels 1..N per leg</b>; matured stake never counts.
+                    Completed levels are shown <b>as they were paid</b> (from <code>staking_matching_payouts</code>);
+                    the current level is a read-only projection through the engine's own
+                    <code>projectLevel()</code>. Nothing on this page is calculated in the browser, and nothing here
+                    pays, credits or queues anything.
+                  </div>
+                </div>
+
+                <!-- Level summary -->
+                <div class="card mb-4" id="gt-summary-card">
+                  <div class="card-header pt-5 flex-wrap gap-2">
+                    <div class="card-title"><span class="fw-bold fs-5" id="gt-summary-title">Binary Matching</span></div>
+                    <div class="card-toolbar gap-2">
+                      <select id="gt-level" class="form-select form-select-sm form-select-solid w-150px">
+                        <option value="0">Current Level</option>
+                        <?php for ($i = 1; $i <= 10; $i++): ?><option value="<?php echo $i; ?>">Level <?php echo $i; ?></option><?php endfor; ?>
+                      </select>
+                      <select id="gt-filter" class="form-select form-select-sm form-select-solid w-170px">
+                        <option value="">All nodes</option>
+                        <option value="ELIGIBLE">Eligible</option>
+                        <option value="NEEDS_STAKE">Needs Stake</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="CONFIG_ERROR">Configuration Error</option>
+                        <option value="NO_VOLUME">No eligible volume</option>
+                      </select>
+                      <button id="gt-refresh" class="btn btn-sm btn-light-primary">Refresh Matching Data</button>
+                    </div>
+                  </div>
+                  <div class="card-body pt-3 pb-6" id="gt-summary-body">
+                    <div class="text-muted fs-7">Loading…</div>
+                  </div>
                 </div>
 
                 <div class="card">
@@ -116,6 +150,19 @@
       </div>
     </div>
   </div>
+  <!-- Level-by-level matching audit drawer -->
+  <div class="modal fade" id="gt-lv-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+      <div class="modal-content">
+        <div class="modal-header py-4">
+          <h3 class="modal-title fs-5 fw-bold" id="gt-lv-title">Matching Details</h3>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="gt-lv-body">Loading…</div>
+      </div>
+    </div>
+  </div>
+
   <?php $this->load->view('admin/Layout/common_script'); ?>
   <script>
   (function () {
@@ -126,22 +173,108 @@
     function fmt(n) { n = parseFloat(n) || 0; return n.toLocaleString(undefined, { maximumFractionDigits: 4 }); }
     function esc(s) { const d = document.createElement('div'); d.innerText = (s === undefined || s === null) ? '' : s; return d.innerHTML; }
 
+    // Backend-provided state -> badge. The label/colour mapping lives here;
+    // the STATE itself is decided in PHP by the engine, never inferred in JS.
+    const GT_STATE = {
+      ELIGIBLE:     { cls: 'success', label: 'Eligible' },
+      NEEDS_STAKE:  { cls: 'warning', label: 'Needs Stake' },
+      PENDING:      { cls: 'warning', label: 'Pending' },
+      NO_VOLUME:    { cls: 'secondary', label: 'No Volume' },
+      COMPLETED:    { cls: 'primary', label: 'Level Completed' },
+      CONFIG_ERROR: { cls: 'danger',  label: 'Config Error' }
+    };
+
     function cardHtml(n, isRoot) {
       if (!n || !n.id) return '';
-      const eligible = !!n.matching_eligible;
-      const held = parseFloat(n.ceiling_wallet_held || 0);
-      return `<div class="gt-card ${isRoot ? 'gt-root' : ''}" onclick="gtSelect(${n.id}, '${esc(n.name)}', '${esc(n.uid)}')">
-        <div class="gt-name">${esc(n.name)} <span class="badge badge-light-${n.status === 'ACTIVE' ? 'success' : 'danger'} fs-9 ms-1">${esc(n.status)}</span></div>
+      const st = GT_STATE[n.node_state] || GT_STATE.PENDING;
+      const noStake = n.ceiling_status === 'no_stake';
+      const overflow = parseFloat(n.admin_overflow || 0);
+      const matured = parseFloat(n.purchased_total || 0) - parseFloat(n.lock_wallet || 0);
+
+      // Never render a meaningless "0 / 0" ceiling for someone with no stake —
+      // say what is actually wrong instead.
+      const ceilingRow = noStake
+        ? `<div class="gt-row"><span>Group Ceiling</span><b class="text-warning">Needs Stake</b></div>`
+        : (n.ceiling_status !== 'ok'
+            ? `<div class="gt-row"><span>Group Ceiling</span><b class="text-danger">Config Error</b></div>`
+            : `<div class="gt-row"><span>Group Ceiling</span><b>${fmt(n.ceiling_amount)}</b></div>`);
+
+      return `<div class="gt-card ${isRoot ? 'gt-root' : ''}" data-state="${esc(n.node_state)}"
+                   onclick="gtSelect(${n.id}, '${esc(n.name)}', '${esc(n.uid)}')">
+        <div class="gt-name">${esc(n.name)}
+          <span class="badge badge-light-${n.status === 'ACTIVE' ? 'success' : 'danger'} fs-9 ms-1">${esc(n.status)}</span></div>
         <div class="gt-uid">${esc(n.uid)}</div>
-        <div class="gt-row"><span>Lock Wallet</span><b>${fmt(n.own_stake_amount)}</b></div>
-        <div class="gt-row"><span>Left / Right Carry</span><b>${fmt(n.left_carry)} / ${fmt(n.right_carry)}</b></div>
-        <div class="gt-row"><span>Potential Match</span><b>${fmt(n.potential_match)}</b></div>
-        <div class="gt-row"><span>Ceiling (remain/total)</span><b>${fmt(n.ceiling_remaining)} / ${fmt(n.ceiling_amount)}</b></div>
-        <div class="mt-2">
-          <span class="badge badge-light-${eligible ? 'success' : 'warning'} fs-9">${eligible ? 'Eligible' : 'Needs Stake'}</span>
-          ${held > 0 ? `<span class="badge badge-light-info fs-9 ms-1">Held ${fmt(held)}</span>` : ''}
+
+        <div class="gt-row"><span>Lock Wallet</span><b>${fmt(n.lock_wallet)}</b></div>
+        ${matured > 0.00005 ? `<div class="gt-row"><span class="text-muted">Purchased (incl. matured)</span><b class="text-muted">${fmt(n.purchased_total)}</b></div>` : ''}
+        <div class="gt-row"><span>Highest Eligible Stake</span><b>${noStake ? '—' : fmt(n.highest_stake)}</b></div>
+        ${ceilingRow}
+        <div class="gt-row"><span>Left Volume</span><b>${fmt(n.left_volume)}</b></div>
+        <div class="gt-row"><span>Right Volume</span><b>${fmt(n.right_volume)}</b></div>
+        <div class="gt-row"><span>Potential Match</span><b>${fmt(n.matched_volume)}</b></div>
+        <div class="gt-row"><span>Current Level</span><b>Level ${n.shown_level}${n.shown_level !== n.current_level ? ` <small class="text-muted">(now L${n.current_level})</small>` : ''}</b></div>
+        <div class="gt-row"><span>Level Status</span><b>${st.label}</b></div>
+        <div class="gt-row"><span>${n.historical ? 'Matching Bonus' : 'Projected Bonus'}</span><b>${fmt(n.raw_bonus)}</b></div>
+        <div class="gt-row"><span>Earning Coin</span><b class="text-success">${fmt(n.earning_amount)}</b></div>
+        <div class="gt-row"><span>Staking Coin</span><b class="text-info">${fmt(n.staking_amount)}</b></div>
+        <div class="gt-row"><span>Admin Overflow</span><b class="${overflow > 0 ? 'text-warning' : 'text-muted'}">${fmt(overflow)}</b></div>
+
+        <div class="mt-2 d-flex align-items-center justify-content-between gap-1">
+          <span>
+            <span class="badge badge-light-${st.cls} fs-9">${st.label}</span>
+            ${!n.historical ? '<span class="badge badge-light fs-9 ms-1" title="Read-only projection — not yet paid">projection</span>' : ''}
+          </span>
+          <button class="btn btn-sm btn-light py-1 px-2 fs-9"
+                  onclick="event.stopPropagation(); gtOpenLevels(${n.id});"
+                  title="Level-by-level matching audit">Details</button>
         </div>
       </div>`;
+    }
+
+    /** Dim nodes that do not match the state filter (never remove them —
+     *  the tree must stay structurally intact and readable). */
+    function applyFilter() {
+      const want = document.getElementById('gt-filter').value;
+      document.querySelectorAll('.gt-card[data-state]').forEach(function (el) {
+        const hit = !want || el.dataset.state === want;
+        el.style.opacity = hit ? '' : '.28';
+        el.style.filter = hit ? '' : 'grayscale(1)';
+      });
+    }
+
+    function renderSummary(s, levelSel) {
+      const body = document.getElementById('gt-summary-body');
+      const title = document.getElementById('gt-summary-title');
+      if (!s) { body.innerHTML = '<div class="text-muted fs-7">No data.</div>'; return; }
+      title.textContent = 'Binary Matching — Level ' + s.shown_level + ' · ' + s.username;
+
+      const noStake = s.ceiling_status === 'no_stake';
+      const cfgErr = s.ceiling_status !== 'ok' && !noStake;
+      const tiles = [
+        ['Eligible Left Volume',  fmt(s.left_volume),  'info'],
+        ['Eligible Right Volume', fmt(s.right_volume), 'info'],
+        ['Matched Volume',        fmt(s.matched_volume), 'primary'],
+        ['Matching Rate',         fmt(s.total_percent) + '%', 'secondary'],
+        ['Raw Matching Bonus',    fmt(s.raw_bonus), 'primary'],
+        ['Highest Eligible Stake', noStake ? '—' : fmt(s.highest_stake), 'secondary'],
+        ['Group Ceiling',         noStake ? 'Needs Stake' : (cfgErr ? 'Config Error' : fmt(s.ceiling_used)), cfgErr ? 'danger' : 'secondary'],
+        ['User Payout',           fmt(s.user_payout), 'success'],
+        ['Earning Coin — ' + fmt(s.earn_share_pct) + '%', fmt(s.earning_amount), 'success'],
+        ['Staking Coin — ' + fmt(s.stk_share_pct) + '%', fmt(s.staking_amount), 'info'],
+        ['Admin Overflow',        fmt(s.admin_overflow), 'warning'],
+        ['Status',                (GT_STATE[s.node_state] || {}).label || s.level_status, 'secondary']
+      ];
+      let h = '<div class="row g-3">';
+      tiles.forEach(function (t) {
+        h += `<div class="col-6 col-md-3 col-xl-2"><div class="bg-light-${t[2]} rounded p-3 h-100">
+                <div class="text-gray-600 fw-semibold fs-8 text-uppercase">${t[0]}</div>
+                <div class="fw-bold fs-5 mt-1">${t[1]}</div></div></div>`;
+      });
+      h += '</div>';
+      if (s.level_reason) h += `<div class="text-muted fs-8 mt-3">${esc(s.level_reason)}</div>`;
+      if (cfgErr) h += `<div class="alert alert-danger py-2 mt-3 mb-0 fs-8">${esc(s.ceiling_detail || '')}</div>`;
+      if (!s.historical) h += '<div class="alert alert-info py-2 mt-3 mb-0 fs-8">This level has not been paid yet — the figures above are a read-only projection from the engine.</div>';
+      body.innerHTML = h;
     }
 
     function buildList(n, isRoot) {
@@ -182,11 +315,15 @@
       const canvas = document.getElementById('gt-canvas');
       canvas.innerHTML = '<div class="text-center text-muted py-10">Loading tree…</div>';
       const depth = document.getElementById('gt-depth').value;
+      const level = document.getElementById('gt-level').value;
+      document.getElementById('gt-summary-body').innerHTML = '<div class="text-muted fs-7">Loading…</div>';
       try {
-        const res = await fetch(TREE_URL + '?root_id=' + currentId + '&depth=' + depth, { credentials: 'same-origin' });
+        const res = await fetch(TREE_URL + '?root_id=' + currentId + '&depth=' + depth + '&level=' + level,
+                                { credentials: 'same-origin' });
         const json = await res.json();
         if (json.status !== true || !json.data) {
           canvas.innerHTML = '<div class="text-center text-danger py-10">' + esc(json.message || 'Failed to load tree') + '</div>';
+          document.getElementById('gt-summary-body').innerHTML = '<div class="text-muted fs-7">—</div>';
           return;
         }
         currentParent = json.parent || null;
@@ -194,10 +331,82 @@
         upBtn.disabled = !currentParent;
         upBtn.title = currentParent ? ('Go up to ' + currentParent.name) : 'Already at the top of the tree';
         canvas.innerHTML = '<ul class="otree"><li>' + buildList(json.data, true) + '</li></ul>';
+        renderSummary(json.summary, json.level);
+        applyFilter();
       } catch (e) {
         canvas.innerHTML = '<div class="text-center text-danger py-10">Network error loading tree.</div>';
+        document.getElementById('gt-summary-body').innerHTML = '<div class="text-danger fs-7">Network error.</div>';
       }
     }
+
+    document.getElementById('gt-level').addEventListener('change', loadTree);
+    document.getElementById('gt-refresh').addEventListener('click', loadTree);
+    document.getElementById('gt-filter').addEventListener('change', applyFilter);
+
+    /* ---------------- level-by-level audit drawer ---------------- */
+    const LEVELS_URL = "<?php echo base_url('admin/staking/genealogy-tree/member-levels/'); ?>";
+
+    window.gtOpenLevels = function (id) {
+      const body = document.getElementById('gt-lv-body');
+      const title = document.getElementById('gt-lv-title');
+      body.innerHTML = 'Loading…';
+      title.textContent = 'Matching Details';
+      if (window.bootstrap) new bootstrap.Modal(document.getElementById('gt-lv-modal')).show();
+      fetch(LEVELS_URL + id, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(function (j) {
+          if (j.status !== true) { body.innerHTML = '<span class="text-danger">' + esc(j.message || 'Not found') + '</span>'; return; }
+          const m = j.member;
+          title.textContent = m.name + ' — Matching Details';
+          const noStake = m.ceiling_status === 'no_stake';
+          let h = '<div class="row g-3 mb-4">';
+          [['User', esc(m.name) + ' <span class="text-muted fs-8">' + esc(m.uid) + '</span>'],
+           ['Lock Wallet (eligible)', fmt(m.lock_wallet) + ' BMAN'],
+           ['Purchased (incl. matured)', fmt(m.purchased_total) + ' BMAN'],
+           ['Highest Eligible Package', noStake ? '—' : fmt(m.highest_stake) + ' BMAN'],
+           ['Dynamic Group Ceiling', noStake ? 'Needs Stake' : (m.ceiling_status !== 'ok' ? 'Config Error' : fmt(m.ceiling) + ' BMAN')],
+           ['Current Level', 'Level ' + m.current_level]
+          ].forEach(function (t) {
+            h += `<div class="col-md-4"><div class="bg-light rounded p-3 h-100">
+                    <div class="text-gray-600 fw-semibold fs-8 text-uppercase">${t[0]}</div>
+                    <div class="fw-bold fs-6 mt-1">${t[1]}</div></div></div>`;
+          });
+          h += '</div>';
+          if (m.ceiling_status !== 'ok' && !noStake) {
+            h += `<div class="alert alert-danger py-2 fs-8">${esc(m.ceiling_detail || '')}</div>`;
+          }
+
+          h += '<div class="text-gray-500 fw-bold fs-8 text-uppercase mb-2">Level History</div>';
+          if (!j.levels.length) { h += '<div class="text-muted fs-7">No levels recorded yet.</div>'; }
+          j.levels.forEach(function (l) {
+            const done = l.status === 'COMPLETED';
+            const badge = done ? 'success' : (l.status === 'CONFIG_ERROR' ? 'danger' : (l.status === 'NOT_ELIGIBLE' ? 'warning' : 'secondary'));
+            const mark = done ? '✓' : (l.status === 'CONFIG_ERROR' ? '⚠' : (l.status === 'NOT_ELIGIBLE' ? '—' : '⏳'));
+            h += `<div class="border rounded p-3 mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <b class="fs-6">Level ${l.level}</b>
+                <span class="badge badge-light-${badge}">${mark} ${esc(l.status)}</span>
+              </div>
+              <div class="row fs-7 g-2">
+                <div class="col-md-4">Left Volume: <b>${fmt(l.left_volume)}</b></div>
+                <div class="col-md-4">Right Volume: <b>${fmt(l.right_volume)}</b></div>
+                <div class="col-md-4">Matched: <b>${fmt(l.matched_volume)}</b></div>
+                <div class="col-md-4">Raw Bonus: <b>${fmt(l.raw_bonus)}</b></div>
+                <div class="col-md-4">Ceiling: <b>${fmt(l.ceiling_used)}</b></div>
+                <div class="col-md-4">Paid: <b>${fmt(l.user_payout)}</b></div>
+                <div class="col-md-4">Earning: <b class="text-success">${fmt(l.earning_amount)}</b></div>
+                <div class="col-md-4">Staking: <b class="text-info">${fmt(l.staking_amount)}</b></div>
+                <div class="col-md-4">Admin Overflow: <b class="${parseFloat(l.admin_overflow) > 0 ? 'text-warning' : 'text-muted'}">${fmt(l.admin_overflow)}</b></div>
+              </div>
+              ${l.completed_at ? `<div class="text-muted fs-8 mt-2">Completed ${esc(l.completed_at)} · ref <span class="font-monospace">${esc(l.run_ref || '')}</span> · payout #${l.payout_id}</div>` : ''}
+              ${l.reason ? `<div class="text-muted fs-8 mt-2">${esc(l.reason)}</div>` : ''}
+              ${!done ? '<div class="text-muted fs-8 mt-1"><i>Projection — not yet paid.</i></div>' : ''}
+            </div>`;
+          });
+          body.innerHTML = h;
+        })
+        .catch(function () { body.innerHTML = '<span class="text-danger">Network error.</span>'; });
+    };
 
     /** Re-root the view at a node and record it in the breadcrumb (unless it's the same node we're already on). */
     window.gtSelect = function (id, name, uid) {

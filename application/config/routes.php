@@ -832,15 +832,24 @@ $route['admin/staking/ceiling-wallet/release']['post'] = 'admin/staking/Ceilingw
 $route['admin/staking/ceiling-wallet/adjust']['post'] = 'admin/staking/Ceilingwallet/adjust';
 // Binary Matching History: staking_matching_payouts + binary_matching_queue audit trail
 $route['admin/staking/matching-history'] = 'admin/staking/Matchinghistory/index';
-$route['admin/staking/matching-history/run-now']['post'] = 'admin/staking/Matchinghistory/run_now';
-$route['admin/staking/matching-history/snapshot']['get'] = 'admin/staking/Matchinghistory/snapshot';
+// run-now / snapshot removed: Distribution History is now a strictly read-only
+// historical ledger and must not be able to trigger the engine. Manual runs
+// live in Cron Lab ▸ Binary Matching Payout.
+$route['admin/staking/matching-history/detail/(:num)'] = 'admin/staking/Matchinghistory/detail/$1';
 // Binary Matching Payout Queue: on-chain transfer status + admin retry
+// Admin's share of binary matching: ceiling excess + bonuses forfeited by unstaked sponsors
+$route['admin/staking/matching-overflow']        = 'admin/staking/Matchingoverflow/index';
+$route['admin/staking/matching-overflow/export'] = 'admin/staking/Matchingoverflow/export';
+
 $route['admin/staking/payout-queue'] = 'admin/staking/Payoutqueue/index';
 $route['admin/staking/payout-queue/retry/(:num)']['post'] = 'admin/staking/Payoutqueue/retry/$1';
+$route['admin/staking/payout-queue/treasury']['get']      = 'admin/staking/Payoutqueue/treasury';   // live treasury BNB/BMAN vs queued amount
+$route['admin/staking/payout-queue/retry-all']['post']    = 'admin/staking/Payoutqueue/retry_all';  // bulk reset FAILED/RETRY after a top-up
 // Genealogy Tree (admin, any member): shows the REAL binary_carry the matching engine reads + ceiling/eligibility
 $route['admin/staking/genealogy-tree'] = 'admin/staking/Genealogytree/index';
 $route['admin/staking/genealogy-tree/tree-json'] = 'admin/staking/Genealogytree/tree_json';
 $route['admin/staking/genealogy-tree/member-json/(:num)'] = 'admin/staking/Genealogytree/member_json/$1';
+$route['admin/staking/genealogy-tree/member-levels/(:num)'] = 'admin/staking/Genealogytree/member_levels_json/$1'; // level-by-level matching audit drawer
 $route['admin/staking/genealogy-tree/search-users'] = 'admin/staking/Genealogytree/search_users';
 // ROI Distribution History (real data: roi_staking_management + onchain_transactions)
 $route['admin/staking/roi-history'] = 'admin/staking/Roihistory/index';

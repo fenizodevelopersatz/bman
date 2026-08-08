@@ -5,6 +5,220 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-08-08 (latest) — Fix: Distribution History / Admin Overflow redirected to the dashboard
+
+Both pages bounced every admin straight back to `admin`. Cause: they gated on
+`permission_pages.finance_management`, and **`finance_management` exists
+nowhere else in the application** — no admin screen can grant it, and it is
+absent from the only admin account. `staking_management` is likewise not a
+grantable checkbox, so the OR could never be satisfied and the pages were
+unreachable for any `admin_roll='1'` account (i.e. everyone here).
+
+Aligned both with their closest sibling, Binary Matching ▸ Payout Queue, which
+gates on `staking_management || wallet_management` — a key the account actually
+holds. Verified: `wallet_management: true`, `staking_management: NULL`,
+`finance_management: NULL`.
+
+⚠️ **`admin/staking/ceiling-wallet` still carries the identical phantom-key
+gate** and is therefore also unreachable. Left untouched because it was outside
+the reported scope — the fix is the same one line.
+  - **Files:** `admin/staking/Matchinghistory.php`, `admin/staking/Matchingoverflow.php`
+
+---
+
+## 2026-08-08 (latest) — Genealogy Tree map: full binary matching visualisation
+
+The admin map was still rendering the RETIRED engine's numbers — `binary_carry`
+left/right, `userCeiling()`'s SUM-of-packages, lifetime `matchingPaidToDate()`
+and ceiling-wallet holds. None of those is what pays any more, so the map
+disagreed with the engine. Rebuilt on `Binarylevelmatching_model`.
+
+- **`projectLevel()` extracted (new, public, read-only).** The money split now
+  has exactly ONE definition: `_payLevel()` calls it and persists the result;
+  the map calls it and only displays. Without this the controller (or worse,
+  JavaScript) would have needed its own copy of the formula, which is precisely
+  what drifts. Pure refactor — proven behaviour-preserving by the full
+  acceptance suite before and after.
+- **Node cards** now show Lock Wallet, Purchased-incl-matured (only when they
+  differ, so matured volume is visible but not noisy), Highest Eligible Stake,
+  dynamic Group Ceiling, Left/Right cumulative volume, Potential Match, level +
+  status, bonus, Earning/Staking coin and Admin Overflow. A member with no
+  eligible stake shows **"Needs Stake"**, never a meaningless `0 / 0` ceiling.
+- **Level selector** (Current Level / Level 1..10) re-fetches the whole map at
+  that level; volumes are the engine's cumulative 1..N per leg. **Level summary
+  panel** above the tree mirrors the spec's field list for the root member.
+- **Badges** by backend-decided state: green Eligible · yellow Needs
+  Stake/Pending · gray No Volume · blue Level Completed · red Config Error.
+  Worst state wins, so a config error can never hide behind a green badge.
+- **Detail drawer** per node: level-by-level history with volumes, raw bonus,
+  ceiling, 80/20 split, admin overflow, completion timestamp and run ref.
+  Completed levels come from `staking_matching_payouts` (as paid); the current
+  level is clearly marked as a projection.
+- **Filters** dim non-matching nodes rather than removing them, so the tree
+  stays structurally readable, plus a Refresh Matching Data button.
+- **No arithmetic in the browser** — even the "80% / 20%" labels are computed
+  server-side (`earn_share_pct`) rather than divided in JS.
+  - **Files:** `Binarylevelmatching_model.php` (+`projectLevel`),
+    `admin/staking/Genealogytree.php`, `views/admin/staking/genealogy_tree.php`,
+    `routes.php` (+ member-levels endpoint), probe (+TEST 16).
+  - **Verified:** TEST 16 asserts the map's own projections for the A..O tree —
+    L1 500, L2 2,500, L3 6,000, and at L3 user 5,000 / earning 4,000 / staking
+    1,000 / admin 1,000. **16/16 pass.** DB after: 1 payout row, admin wallet 0,
+    0 synthetic rows, member balances unchanged — no duplicate payout, nothing
+    paid by looking at the map.
+
+---
+
+## 2026-08-08 (latest) — Distribution History rebuilt as a read-only historical ledger
+
+Rewritten to the spec: one row per completed `(user_id, level)`, reported
+**exactly as it was paid**. Date/Time, User (with avatar), Level, Left/Right
+volume, Matched, Raw Bonus, Ceiling Applied, Paid to User, Earning 8%,
+Staking 2%, Admin Overflow, eligibility, internal wallet status and on-chain
+status — every money figure read from the frozen columns on
+`staking_matching_payouts`, **never recalculated from the current genealogy
+tree**. Filters: user search, level, status (paid / overflow / forfeited /
+pending on-chain / config error), on-chain status, date range. Seven summary
+cards computed from the same filter set as the table, so the two can never
+describe different records. Clicking a row opens a drawer with the full
+calculation, distribution, wallet ledger references and on-chain record.
+
+- **`run_now` REMOVED from this page** — it drove the engine, which
+  contradicts the read-only guarantee the page now makes. Manual runs live in
+  Cron Lab ▸ Binary Matching Payout. `snapshot` removed with it; the two
+  routes are gone.
+- **Live-recomputed columns removed.** The old page showed each recipient's
+  CURRENT ceiling, remaining ceiling and five CURRENT wallet balances beside
+  historical payouts, which invited reading today's numbers as history. The
+  drawer instead flags **ceiling drift** explicitly: if the package's
+  configured ceiling has changed since the level was paid, it says so rather
+  than presenting today's configuration as the one that applied.
+- **Per-level wallet references.** The engine credited with
+  `reference_id = run_ref`, but one run pays many sponsors across many levels,
+  so a bare run_ref could not identify which ledger rows belonged to which
+  level. Now `run_ref-L<n>`. Verified nothing reads that column by value for
+  `binary_matching`, so no existing reader breaks; `detail()` still resolves
+  legacy rows (level NULL, no level tag) by run_ref alone.
+- **Blocked Levels kept, clearly separated** and labelled "live check, not
+  history" — those levels have no row anywhere by design, so they can only be
+  found by a live read. Still read-only.
+- **Payout Queue fixes:** the Retry button is now hidden entirely for
+  CONFIRMED/PENDING/PROCESSING rows instead of rendered disabled (a greyed-out
+  button only invites clicking), and the User column shows the member's
+  profile picture (`profile_img`, falling back to `image`, both under
+  `assets/images/` per the existing Profile/Genealogy convention) with an
+  initial fallback and an `onerror` guard for deleted files.
+- **Confirmed, no change needed:** treasury balances already come from the
+  **free RPC** (`token_settings.rpc_url` → `eth_getBalance` / `eth_call`), not
+  the explorer API. Only transaction *confirmations* use the API, inside the
+  cron.
+  - **Files:** `application/models/staking/Matchinghistory_model.php` (new),
+    `admin/staking/Matchinghistory.php` (rewritten),
+    `views/admin/staking/matching_history.php` (rewritten),
+    `views/admin/staking/payout_queue.php`, `Blockchainpayout_model.php`,
+    `Binarylevelmatching_model.php`, `routes.php`.
+  - **Verified:** CLI smoke test drove all 13 filter combinations, `levels()`,
+    `detail()` on every existing row and a missing id — no fatals. The 15
+    acceptance tests still pass after the wallet-reference change.
+
+---
+
+## 2026-08-08 (latest) — Binary Matching ▸ Admin Overflow (Excess BMAN)
+
+New menu entry under Binary Matching: every BMAN the level engine calculated
+but did not pay to the sponsor. The engine has been writing `admin_overflow`
+and crediting `admin_wallet` / `admin_wallet_ledger` since it shipped, but
+there was no screen for any of it.
+
+**Two causes, deliberately never merged into one "admin income" number:**
+*Over Ceiling* — the sponsor WAS paid, but their level bonus exceeded the
+Group Incentive Ceiling of their highest eligible package, so only the excess
+is Admin's. *Forfeited* — the sponsor held no eligible staking package when the
+level completed, so the whole bonus is Admin's. The second is a real business
+rule, but a rising number there means members are completing levels while
+unstaked — that is an operational signal, not just revenue, and collapsing the
+two would hide it.
+
+- **Reconciliation panel.** The same money is recorded twice, on purpose:
+  `staking_matching_payouts.admin_overflow` (what the engine CALCULATED, with
+  full context) and `admin_wallet_ledger` (what actually LANDED, with a running
+  balance). Both are written in one transaction, so they must always agree —
+  the panel compares them and flags any divergence as an anomaly rather than
+  quietly trusting one figure. It also separates the admin wallet's TOTAL
+  balance (which legitimately includes bonus reduction) so the difference is
+  never mistaken for missing matching money.
+- **Where the BMAN is.** Admin overflow is an internal accounting entry, not a
+  transfer — member payouts leave the treasury, the admin share simply never
+  does, and a treasury→treasury send would burn gas to move nothing. The panel
+  shows both addresses and states plainly whether a sweep would even be
+  meaningful (they are the same address today, so it would not).
+- **Also:** admin share as a % of all bonus generated, highest-overflow
+  sponsors, filters (reason / sponsor search / date range), a CSV export that
+  reuses the same model call as the table so the two can never disagree, and
+  the admin wallet credit trail with balance-after.
+- Levels blocked by a broken ceiling config are explicitly **excluded** — they
+  pay nobody and stay open; they belong on Distribution History ▸ Blocked Levels.
+  - **Files:** `application/models/staking/Matchingoverflow_model.php`,
+    `application/controllers/admin/staking/Matchingoverflow.php`,
+    `application/views/admin/staking/matching_overflow.php`, sidebar + 2 routes.
+  - **Verified:** CLI smoke test drove every model method including a
+    quote-bearing search term (confirming CI3's `escape_like_str()` escapes
+    quotes via `escape_str`, so the raw WHERE is safe). No fatals; read-only.
+
+---
+
+## 2026-08-08 (later still) — Binary Matching history: user + admin, and treasury-shortfall safety
+
+The level engine shipped earlier today writes `level`, `raw_bonus`,
+`ceiling_applied`, `admin_overflow`, `highest_package_id` and
+`sponsor_eligible` — none of which any screen showed, because every history
+page was written for the old carry engine.
+
+**User ▸ Binary Matching History** (`user/view-binary`) is now level-wise: one
+row per completed level with left/right volume, matched volume, raw bonus,
+the capped amount when a ceiling applied, and the 8/2 split. Added an
+**On-Chain** column — the wallet credit and the blockchain transfer are
+separate things, and a member seeing "Queued" must not think money is missing,
+so the page states that the balance is already spendable. Replaced the two
+obsolete "Carry Fwd. Left/Right" tiles (the level engine never reads carry)
+with Levels Paid / cap-per-level, plus a plain-language line explaining what
+the *next* level needs and what it would pay.
+
+**Admin ▸ Binary Matching History** gains level, left/right volume, raw bonus,
+cap applied (with package name), and a → Admin overflow column, plus new KPIs
+(raw bonus, admin overflow, levels closed, forfeited levels). The per-row
+"Ceiling (now)" context switched from the legacy SUM/lifetime-remaining figures
+to the live engine's `sponsorCeiling()` — including a **Config Error** badge.
+
+- **Blocked Levels panel (new).** Levels held back by an unresolvable ceiling
+  deliberately write NO database row — that is exactly what keeps them payable
+  later — which also made them invisible everywhere. The panel recomputes them
+  live per sponsor (next level + level complete + ceiling status), shows the
+  unpaid bonus and the offending package, and is self-clearing: fix the config
+  and the row disappears. Read-only; it never calls `processSponsor()`.
+- **Treasury Funding panel (new, on Payout Queue).** The queue could say
+  "insufficient balance" but never *how much to add*. It now shows live
+  treasury BMAN + BNB, total queued, and — walking the queue oldest-first
+  exactly as the drain does — how many payouts the current balance covers and
+  the precise BMAN/BNB shortfall at the first row that stalls. RPC failure
+  reports "unknown", never a fake 0 that would read as "treasury empty".
+  Loaded via AJAX after paint so two live RPC calls can't stall or blank the
+  page.
+- **Retry all (new).** One treasury outage parks dozens of rows at once;
+  clicking them individually afterwards is unusable. Same guarantees as
+  single-row retry — on-chain state only, never a wallet credit, so it cannot
+  double-pay however often it is run.
+  - **Files:** `application/models/staking/Blockchainpayout_model.php`
+    (`treasuryStatus()`, `retryAll()`), `admin/staking/Payoutqueue.php`
+    (+`treasury()`, `retry_all()`), `admin/staking/Matchinghistory.php`
+    (+`_blockedLevels()`), `user/usersettings/Historycontroller.php`, the three
+    matching views, `routes.php` (2 new admin routes).
+  - **Verified:** CLI smoke test drove `treasuryStatus()`, the level-wise
+    history query, the blocked-levels recompute over all 13 real sponsors, and
+    the user payload — no fatals, no bad SQL. All read-only; DB unchanged.
+
+---
+
 ## 2026-08-08 (later) — Binary Matching: level-wise distribution engine
 
 Replaced the binary matching payout leg with the level-by-level model. The old

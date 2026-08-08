@@ -31,8 +31,11 @@ class Genealogytree extends CI_Controller
         $this->load->library('session');
         $this->load->model('Admin_model');
         $this->load->model('member/BinaryModel');
-        $this->load->model('staking/Stakingmatching_model', 'MB');
-        $this->load->model('staking/Ceilingwallet_model', 'CW');
+        // The LIVE level engine is the single source of truth for every
+        // matching figure on this map. Stakingmatching_model (carry, SUM
+        // ceiling, lifetime paid) is the retired engine and is no longer read
+        // here — it disagreed with what actually pays.
+        $this->load->model('staking/Binarylevelmatching_model', 'BLM');
         $this->load->model('Staking_model');
     }
 
@@ -105,8 +108,13 @@ class Genealogytree extends CI_Controller
             echo json_encode(['status' => false, 'message' => 'User not found']); exit;
         }
 
+        // level=0 (or absent) means "each member's own current level"; a
+        // positive value pins every node to that level so the whole map can be
+        // read at Level 1, 2, 3… Cumulative 1..N volumes come from the engine.
+        $levelSel = max(0, (int)$this->input->get('level'));
+
         $rows = $this->BinaryModel->getDownlineMembers($rootId, $depth + 1);
-        $tree = $this->_buildTree($rows, $rootId, $depth);
+        $tree = $this->_buildTree($rows, $rootId, $depth, $levelSel);
 
         // Parent of the CURRENT root, so the view can offer an "Up one level"
         // button without a second round-trip — null at the true top of the tree.
@@ -117,7 +125,13 @@ class Genealogytree extends CI_Controller
             if ($pu) $parent = ['id' => (int)$pu['id'], 'name' => $pu['username'], 'uid' => $pu['referral_id'] ?: ('#' . $pu['id'])];
         }
 
-        echo json_encode(['status' => true, 'data' => $tree, 'parent' => $parent], JSON_UNESCAPED_SLASHES);
+        echo json_encode([
+            'status'  => true,
+            'data'    => $tree,
+            'parent'  => $parent,
+            'level'   => $levelSel,
+            'summary' => $this->_levelSummary($rootId, $levelSel),
+        ], JSON_UNESCAPED_SLASHES);
         exit;
     }
 
@@ -147,7 +161,7 @@ class Genealogytree extends CI_Controller
      * verify the tree-building + enrichment logic without needing a real
      * admin session (both are pure reads, safe to exercise against real
      * users). */
-    protected function _buildTree($rows, $rootId, $maxDepth)
+    protected function _buildTree($rows, $rootId, $maxDepth, $levelSel = 0)
     {
         $map = [];
         foreach (($rows ?? []) as $r) {
@@ -182,7 +196,7 @@ class Genealogytree extends CI_Controller
             }
         }
         foreach ($map as $id => &$node) {
-            $node += $this->_carryAndMatchingStats($id);
+            $node += $this->_carryAndMatchingStats($id, $levelSel);
         }
         unset($node);
 
@@ -213,37 +227,235 @@ class Genealogytree extends CI_Controller
     }
 
     /**
-     * The REAL matching engine's view of one user: their own binary_carry
-     * (reducible, what payMatching() actually reads) and ceiling/eligibility.
-     * Deliberately duplicated from Genealogycontroller::getMatchingStats()
-     * (same reasoning as the class docblock) plus binary_carry, which that
-     * method doesn't need (the member page never shows raw carry).
+     * One node's complete binary matching picture, entirely from the LIVE
+     * level engine — never a formula of this controller's own.
+     *
+     * $levelSel: a specific level to inspect, or 0 for "the member's own
+     * current level" (their next unpaid one). Volumes are CUMULATIVE levels
+     * 1..N per leg, exactly as the engine computes them.
+     *
+     * Historical levels are read from staking_matching_payouts (what actually
+     * happened); the current/pending level is a read-only projection via
+     * projectLevel() — the same method _payLevel() uses, so the map can never
+     * show a number the engine would not pay. Nothing here writes.
      */
-    protected function _carryAndMatchingStats($id)
+    protected function _carryAndMatchingStats($id, $levelSel = 0)
     {
-        $carry = $this->db->get_where('binary_carry', ['user_id' => $id])->row_array();
-        $left = (float)($carry['left_carry'] ?? 0);
-        $right = (float)($carry['right_carry'] ?? 0);
+        $id = (int)$id;
 
-        $ceiling = $this->MB->userCeiling($id);
-        $paid = $this->MB->matchingPaidToDate($id);
-        $held = (float)($this->CW->balance($id)['held_balance'] ?? 0);
-        // Lock Wallet — active AND not-yet-matured principal — same definition
-        // used everywhere else on the platform (Staking_model::lockWalletBalance()).
-        // Previously this queried status='active' only, with no maturity_date
-        // check, so it could disagree with the Lock Wallet figure shown elsewhere.
-        $lockWallet = $this->Staking_model->lockWalletBalance($id);
+        // Lock Wallet — active AND not-yet-matured principal — the platform's
+        // single definition (Staking_model::lockWalletBalance()). Kept
+        // deliberately distinct from lifetime purchases below: matured stake
+        // must never count toward matching volume.
+        $lockWallet = (float)$this->Staking_model->lockWalletBalance($id);
+        $purchased  = (float)($this->db->select_sum('stake_amount', 's')->where('user_id', $id)
+                        ->get('user_stakes')->row()->s ?? 0);
 
-        return [
-            'left_carry' => round($left, 4),
-            'right_carry' => round($right, 4),
-            'potential_match' => round(min($left, $right), 4),
-            'own_stake_amount' => round($lockWallet, 4),
-            'ceiling_amount' => round($ceiling, 4),
-            'ceiling_paid' => round($paid, 4),
-            'ceiling_remaining' => round(max(0.0, $ceiling - $paid), 4),
-            'ceiling_wallet_held' => round($held, 4),
-            'matching_eligible' => $ceiling > 0,
+        $ceil    = $this->BLM->sponsorCeiling($id);
+        $nextLvl = (int)$this->BLM->nextLevel($id);
+        $level   = $levelSel > 0 ? (int)$levelSel : $nextLvl;
+
+        $legs     = $this->BLM->legVolumesByDepth($id);
+        $vol      = $legs ? $this->BLM->cumulativeVolume($legs, $level) : ['left' => 0.0, 'right' => 0.0];
+        $complete = $legs ? $this->BLM->levelComplete($legs, $level) : false;
+
+        // Was this level already paid? If so the historical row wins — a
+        // completed level must be reported as it was paid, never restated from
+        // today's tree (volumes and ceilings both move).
+        $paidRow = $this->db->where('user_id', $id)->where('level', $level)
+                            ->get('staking_matching_payouts')->row_array();
+
+        if ($paidRow) {
+            $userPaid = (float)$paidRow['earning_amount'] + (float)$paidRow['staking_amount'];
+            $stats = [
+                'level_status'   => 'COMPLETED',
+                'level_reason'   => 'Paid ' . $paidRow['created_at'],
+                'left_volume'    => round((float)$paidRow['left_before'], 4),
+                'right_volume'   => round((float)$paidRow['right_before'], 4),
+                'matched_volume' => round((float)$paidRow['matched_volume'], 4),
+                'raw_bonus'      => round((float)$paidRow['raw_bonus'], 4),
+                'ceiling_used'   => round((float)$paidRow['ceiling_applied'], 4),
+                'user_payout'    => round($userPaid, 4),
+                'earning_amount' => round((float)$paidRow['earning_amount'], 4),
+                'staking_amount' => round((float)$paidRow['staking_amount'], 4),
+                'admin_overflow' => round((float)$paidRow['admin_overflow'], 4),
+                'payout_id'      => (int)$paidRow['id'],
+                'run_ref'        => $paidRow['run_ref'],
+                'completed_at'   => $paidRow['created_at'],
+                'historical'     => true,
+            ];
+        } else {
+            $p = $this->BLM->projectLevel($id, $vol);
+            if ($p['config_error'])      { $status = 'CONFIG_ERROR'; $reason = $ceil['detail']; }
+            elseif (!$complete)          { $status = 'PENDING';      $reason = ($vol['left'] <= 0 || $vol['right'] <= 0)
+                                                                        ? 'Both legs need eligible Lock Wallet volume at this depth'
+                                                                        : 'Level not complete yet'; }
+            elseif ($ceil['status'] === 'no_stake') { $status = 'NOT_ELIGIBLE'; $reason = 'Sponsor holds no eligible staking package'; }
+            else                         { $status = 'PENDING';      $reason = 'Due — awaiting the next cron run'; }
+
+            $stats = [
+                'level_status'   => $status,
+                'level_reason'   => $reason,
+                'left_volume'    => round((float)$vol['left'], 4),
+                'right_volume'   => round((float)$vol['right'], 4),
+                'matched_volume' => round((float)$p['matched'], 4),
+                'raw_bonus'      => round((float)$p['raw'], 4),
+                'ceiling_used'   => round((float)$p['ceiling'], 4),
+                'user_payout'    => round((float)$p['user'], 4),
+                'earning_amount' => round((float)$p['earning'], 4),
+                'staking_amount' => round((float)$p['staking'], 4),
+                'admin_overflow' => round((float)$p['admin'], 4),
+                'payout_id'      => null,
+                'run_ref'        => null,
+                'completed_at'   => null,
+                'historical'     => false,
+            ];
+        }
+
+        // Most recent payout of ANY level — "Last Matching Bonus" on the card.
+        $last = $this->db->where('user_id', $id)->where('level IS NOT NULL', null, false)
+                         ->order_by('level', 'DESC')->limit(1)
+                         ->get('staking_matching_payouts')->row_array();
+
+        return $stats + [
+            'lock_wallet'        => round($lockWallet, 4),
+            'purchased_total'    => round($purchased, 4),
+            'own_stake_amount'   => round($lockWallet, 4), // legacy key kept for the existing view/test
+            'highest_stake'      => round((float)$ceil['stake_amount'], 4),
+            'ceiling_amount'     => round((float)$ceil['ceiling'], 4),
+            'ceiling_status'     => $ceil['status'],
+            'ceiling_detail'     => $ceil['detail'],
+            'matching_eligible'  => (bool)$ceil['eligible'],
+            'current_level'      => $nextLvl,
+            'shown_level'        => $level,
+            'level_complete'     => (bool)$complete,
+            'potential_match'    => round(min((float)$vol['left'], (float)$vol['right']), 4),
+            'last_bonus'         => $last ? round((float)$last['earning_amount'] + (float)$last['staking_amount'], 4) : 0.0,
+            'last_bonus_level'   => $last ? (int)$last['level'] : null,
+            'node_state'         => $this->_nodeState($ceil, $stats, $vol),
         ];
+    }
+
+    /**
+     * One badge per node, in priority order — the worst/most actionable state
+     * wins, so a config error is never hidden behind a green "eligible".
+     */
+    private function _nodeState($ceil, $stats, $vol)
+    {
+        if ($stats['level_status'] === 'CONFIG_ERROR')                 return 'CONFIG_ERROR';   // red
+        if ($stats['level_status'] === 'COMPLETED')                    return 'COMPLETED';      // blue
+        if ($ceil['status'] === 'no_stake')                            return 'NEEDS_STAKE';    // yellow
+        if ((float)$vol['left'] <= 0 && (float)$vol['right'] <= 0)     return 'NO_VOLUME';      // gray
+        if ($stats['level_status'] === 'PENDING')                      return 'PENDING';        // yellow
+        return 'ELIGIBLE';                                                                      // green
+    }
+
+    /**
+     * The level summary panel: the selected level for the ROOT member, using
+     * the same numbers their node card shows (one calculation, two placements).
+     */
+    protected function _levelSummary($rootId, $levelSel = 0)
+    {
+        $s = $this->_carryAndMatchingStats($rootId, $levelSel);
+        $u = $this->db->select('username, referral_id')->get_where('users', ['id' => (int)$rootId])->row_array();
+        $bs = $this->db->get_where('staking_bonus_settings', ['id' => 1])->row_array();
+
+        return $s + [
+            'user_id'       => (int)$rootId,
+            'username'      => $u['username'] ?? ('#' . (int)$rootId),
+            'referral_id'   => $u['referral_id'] ?? '',
+            'total_percent' => $total = ($bs ? (float)$bs['matching_total_percent']   : 10.0),
+            'earn_percent'  => $earn  = ($bs ? (float)$bs['matching_earning_percent'] : 8.0),
+            'stk_percent'   => $stk   = ($bs ? (float)$bs['matching_staking_percent'] : 2.0),
+            // Share OF THE BONUS (8/10 -> 80%), so the panel can label the
+            // split without doing arithmetic in the browser.
+            'earn_share_pct' => $total > 0 ? round($earn / $total * 100, 2) : 0,
+            'stk_share_pct'  => $total > 0 ? round($stk  / $total * 100, 2) : 0,
+        ];
+    }
+
+    /** Full level-by-level history for one member — drives the detail drawer. */
+    public function member_levels_json($id)
+    {
+        header('Content-Type: application/json');
+        $this->_requireAdminAjax();
+        $id = (int)$id;
+
+        $u = $this->db->select('id, username, referral_id, status')->get_where('users', ['id' => $id])->row_array();
+        if (!$u) { echo json_encode(['status' => false, 'message' => 'Member not found']); exit; }
+
+        $ceil    = $this->BLM->sponsorCeiling($id);
+        $nextLvl = (int)$this->BLM->nextLevel($id);
+
+        // Completed levels, exactly as paid.
+        $rows = $this->db->select('id, level, left_before, right_before, matched_volume, total_percent, '
+                                . 'raw_bonus, ceiling_applied, earning_amount, staking_amount, admin_overflow, '
+                                . 'sponsor_eligible, run_ref, created_at')
+                         ->where('user_id', $id)->where('level IS NOT NULL', null, false)
+                         ->order_by('level', 'ASC')->get('staking_matching_payouts')->result_array();
+
+        $levels = [];
+        foreach ($rows as $r) {
+            $levels[] = [
+                'level'          => (int)$r['level'],
+                'left_volume'    => (float)$r['left_before'],
+                'right_volume'   => (float)$r['right_before'],
+                'matched_volume' => (float)$r['matched_volume'],
+                'total_percent'  => (float)$r['total_percent'],
+                'raw_bonus'      => (float)$r['raw_bonus'],
+                'ceiling_used'   => (float)$r['ceiling_applied'],
+                'user_payout'    => (float)$r['earning_amount'] + (float)$r['staking_amount'],
+                'earning_amount' => (float)$r['earning_amount'],
+                'staking_amount' => (float)$r['staking_amount'],
+                'admin_overflow' => (float)$r['admin_overflow'],
+                'eligible'       => (int)$r['sponsor_eligible'] === 1,
+                'status'         => 'COMPLETED',
+                'completed_at'   => $r['created_at'],
+                'run_ref'        => $r['run_ref'],
+                'payout_id'      => (int)$r['id'],
+            ];
+        }
+
+        // Plus the current (unpaid) level as a projection, clearly marked.
+        $cur = $this->_carryAndMatchingStats($id, $nextLvl);
+        if (!$cur['historical']) {
+            $levels[] = [
+                'level'          => $nextLvl,
+                'left_volume'    => $cur['left_volume'],
+                'right_volume'   => $cur['right_volume'],
+                'matched_volume' => $cur['matched_volume'],
+                'total_percent'  => null,
+                'raw_bonus'      => $cur['raw_bonus'],
+                'ceiling_used'   => $cur['ceiling_used'],
+                'user_payout'    => $cur['user_payout'],
+                'earning_amount' => $cur['earning_amount'],
+                'staking_amount' => $cur['staking_amount'],
+                'admin_overflow' => $cur['admin_overflow'],
+                'eligible'       => $cur['matching_eligible'],
+                'status'         => $cur['level_status'],
+                'reason'         => $cur['level_reason'],
+                'completed_at'   => null,
+                'run_ref'        => null,
+                'payout_id'      => null,
+            ];
+        }
+
+        echo json_encode([
+            'status' => true,
+            'member' => [
+                'id' => $id, 'name' => $u['username'], 'uid' => $u['referral_id'] ?: ('#' . $id),
+                'active' => ((int)$u['status'] === 1),
+                'lock_wallet'    => round((float)$this->Staking_model->lockWalletBalance($id), 4),
+                'purchased_total'=> round((float)($this->db->select_sum('stake_amount', 's')->where('user_id', $id)
+                                        ->get('user_stakes')->row()->s ?? 0), 4),
+                'highest_stake'  => round((float)$ceil['stake_amount'], 4),
+                'ceiling'        => round((float)$ceil['ceiling'], 4),
+                'ceiling_status' => $ceil['status'],
+                'ceiling_detail' => $ceil['detail'],
+                'current_level'  => $nextLvl,
+            ],
+            'levels' => $levels,
+        ], JSON_UNESCAPED_SLASHES);
+        exit;
     }
 }

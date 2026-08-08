@@ -1,12 +1,25 @@
 <?php defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
- * Admin ▸ Staking ▸ Binary Matching History.
- * First admin-facing view of Stakingmatching_model's own audit trail
- * (staking_matching_payouts) plus the binary_matching_queue run history —
- * both already existed but were never exposed in any screen. Read-only
- * except for "Run Matching Now", which drives the same Matchingqueue_model
- * path the cron uses, so a manual run and a scheduled one share one history.
+ * Admin ▸ Binary Matching ▸ Distribution History.
+ *
+ * A STRICTLY READ-ONLY historical ledger: one row per completed
+ * (user_id, level), reported exactly as it was paid. It never triggers
+ * matching, never credits a wallet, never enqueues or broadcasts anything, and
+ * never recomputes a completed payout from the genealogy tree as it stands
+ * today — every money figure comes from the frozen columns on
+ * staking_matching_payouts (see Matchinghistory_model's docblock).
+ *
+ * The old "Run Matching Now" button was REMOVED from this page: it drove the
+ * engine, which contradicts the read-only guarantee this screen now makes.
+ * Manual runs live in Cron Lab ▸ Binary Matching Payout, which is where the
+ * other cron triggers already are.
+ *
+ * One deliberate exception to "historical only", kept clearly separated at the
+ * bottom of the page: Blocked Levels. Those levels have NO row anywhere by
+ * design (a config error writes nothing so the level stays payable), so they
+ * can only be surfaced by a live read. It is still read-only — it calls the
+ * engine's public inspection methods, never processSponsor().
  */
 class Matchinghistory extends CI_Controller
 {
@@ -16,9 +29,8 @@ class Matchinghistory extends CI_Controller
         $this->load->helper(['url']);
         $this->load->library('session');
         $this->load->model('Admin_model');
+        $this->load->model('staking/Matchinghistory_model', 'MH');
         $this->load->model('staking/Matchingqueue_model', 'MQ');
-        $this->load->model('staking/Stakingmatching_model', 'MB');
-        $this->load->model('staking/Ceilingwallet_model', 'CW');
     }
 
     private function _requireAdmin()
@@ -27,7 +39,12 @@ class Matchinghistory extends CI_Controller
         $user = $this->Admin_model->get_user($this->session->userdata('admin_userid'));
         if ($user && $user->admin_roll == '1') {
             $perm = json_decode($user->permission_pages, true);
-            if (empty($perm['staking_management']) && empty($perm['finance_management'])) {
+            // 'wallet_management', not 'finance_management': the latter is a
+            // phantom key that exists nowhere else in the app and cannot be
+            // granted by any admin screen, so gating on it made this page
+            // unreachable for every admin_roll='1' account. Matches the
+            // sibling Binary Matching ▸ Payout Queue check.
+            if (empty($perm['staking_management']) && empty($perm['wallet_management'])) {
                 $this->session->set_flashdata('error', 'Access Denied: You do not have permission.');
                 redirect('admin');
             }
@@ -46,106 +63,107 @@ class Matchinghistory extends CI_Controller
         return rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
     }
 
-    /** Binary Matching History dashboard: KPIs, engine run log, payout audit log. */
-    public function index()
+    private function _filters()
     {
-        $this->_requireAdmin();
-        $data = $this->_pageData();
-        $this->load->view('admin/staking/matching_history', $data);
-    }
-
-    /** AJAX refresh payload for the matching history page. */
-    public function snapshot()
-    {
-        $this->_requireAdmin();
-        if (!$this->input->is_ajax_request()) show_404();
-        return $this->_json(['status' => 'success'] + $this->_pageData());
-    }
-
-    private function _pageData()
-    {
-        $totals = $this->db->select(
-            "COALESCE(SUM(matched_volume),0) AS matched_volume, " .
-            "COALESCE(SUM(earning_amount),0) AS earning_paid, " .
-            "COALESCE(SUM(staking_amount),0) AS staking_paid", false
-        )->get('staking_matching_payouts')->row_array();
-
-        $ceiling = $this->db->select_sum('amount', 'held')
-            ->where('tx_type', 'CEILING_HOLD')->where('reference_type', 'binary_matching')
-            ->get('ceiling_wallet_ledger')->row_array();
-
+        $status = $this->input->get('status', true);
+        $chain  = $this->input->get('chain', true);
         return [
-            'title'            => 'Binary Matching History',
-            'matched_volume'   => (float)($totals['matched_volume'] ?? 0),
-            'earning_paid'     => (float)($totals['earning_paid'] ?? 0),
-            'staking_paid'     => (float)($totals['staking_paid'] ?? 0),
-            'ceiling_diverted' => (float)($ceiling['held'] ?? 0),
-            'runs'             => $this->MQ->recent(50),
-            'payouts'          => $this->_payoutHistory(300),
-            'explorer_url'     => $this->_explorer(),
+            'q'      => trim((string)$this->input->get('q', true)),
+            'level'  => (int)$this->input->get('level', true) ?: null,
+            'status' => in_array($status, ['paid', 'overflow', 'forfeited', 'pending', 'config'], true) ? $status : '',
+            'chain'  => in_array($chain, ['queued', 'sent', 'confirmed', 'failed'], true) ? $chain : '',
+            'from'   => trim((string)$this->input->get('from', true)),
+            'to'     => trim((string)$this->input->get('to', true)),
+            'limit'  => 300,
         ];
     }
 
-    /** staking_matching_payouts joined to users + its (possibly still-pending) on-chain payout row. */
-    private function _payoutHistory($limit)
+    public function index()
     {
-        $this->db->select(
-                'smp.id, smp.user_id, smp.matched_volume, smp.total_percent, smp.earning_amount, ' .
-                'smp.staking_amount, smp.left_before, smp.right_before, smp.run_ref, smp.created_at, ' .
-                'u.username, u.referral_id, ' .
-                'q.status AS payout_status, q.tx_hash AS payout_tx_hash, q.amount AS payout_amount'
-            )
-            ->from('staking_matching_payouts smp')
-            ->join('users u', 'u.id = smp.user_id', 'left')
-            ->join('blockchain_payout_queue q', "q.reference_type = 'staking_matching_payout' AND q.reference_id = smp.id", 'left')
-            ->order_by('smp.id', 'DESC')->limit((int)$limit);
-        $rows = $this->db->get()->result_array();
-        return $this->_withCeilingContext($rows);
+        $this->_requireAdmin();
+        $f = $this->_filters();
+
+        // 'config' is not a historical status — a config-blocked level writes
+        // no row at all. Selecting it shows the live Blocked Levels diagnostic
+        // instead of an empty (and misleading) history table.
+        $configOnly = ($f['status'] === 'config');
+        $f2 = $f; if ($configOnly) $f2['status'] = '';
+
+        $this->load->view('admin/staking/matching_history', [
+            'title'        => 'Binary Matching — Distribution History',
+            'summary'      => $this->MH->summary($f2),
+            'rows'         => $configOnly ? [] : $this->MH->rows($f2),
+            'levels'       => $this->MH->levels(),
+            'filters'      => $f,
+            'config_only'  => $configOnly,
+            'runs'         => $this->MQ->recent(25),
+            'blocked'      => $this->_blockedLevels(),
+            'explorer_url' => $this->_explorer(),
+        ]);
     }
 
-    /**
-     * Enrich each payout row with the recipient's CURRENT ceiling/held/own-stake
-     * snapshot (not what it was at payout time — this is "where do they stand
-     * right now", for admin eligibility review). Memoized per user_id since the
-     * same recipient often appears across many rows.
-     */
-    private function _withCeilingContext(array $rows)
-    {
-        $this->load->model('Walletledger_model', 'WL');
-        $cache = [];
-        foreach ($rows as &$r) {
-            $uid = (int)$r['user_id'];
-            if (!isset($cache[$uid])) {
-                $ceiling = $this->MB->userCeiling($uid);
-                $paid = $this->MB->matchingPaidToDate($uid);
-                $held = (float)($this->CW->balance($uid)['held_balance'] ?? 0);
-                $wallet = $this->WL->balances($uid);
-                $ownStake = (float)($this->db->select_sum('stake_amount')->where('user_id', $uid)
-                                              ->where('status', 'active')->get('user_stakes')->row()->stake_amount ?? 0);
-                $cache[$uid] = [
-                    'ceiling_amount'    => round($ceiling, 4),
-                    'ceiling_remaining' => round(max(0.0, $ceiling - $paid), 4),
-                    'ceiling_held'      => round($held, 4),
-                    'own_stake_amount'  => round($ownStake, 4),
-                    'matching_eligible' => $ceiling > 0,
-                    'wallet_usdt'       => round((float)($wallet['usdt'] ?? 0), 4),
-                    'wallet_exchange'   => round((float)($wallet['exchange'] ?? 0), 4),
-                    'wallet_earning'    => round((float)($wallet['earning'] ?? 0), 4),
-                    'wallet_staking'    => round((float)($wallet['staking'] ?? 0), 4),
-                    'wallet_bonus'      => round((float)($wallet['bonus'] ?? 0), 4),
-                ];
-            }
-            $r += $cache[$uid];
-        }
-        return $rows;
-    }
-
-    /** Admin-triggered engine run (AJAX) — the same path BinaryMatchingPayoutCron uses. */
-    public function run_now()
+    /** Full detail for one historical level (AJAX, drives the drawer). */
+    public function detail($id)
     {
         $this->_requireAdmin();
         if (!$this->input->is_ajax_request()) show_404();
-        $result = $this->MQ->runClaimed(['enqueued_by' => (int)$this->session->userdata('admin_userid')]);
-        return $this->_json(['status' => 'success', 'result' => $result]);
+        $row = $this->MH->detail((int)$id);
+        if (!$row) return $this->_json(['status' => 'error', 'message' => 'Record not found.'], 404);
+        return $this->_json(['status' => 'success', 'record' => $row, 'explorer_url' => $this->_explorer()]);
+    }
+
+    /**
+     * Levels that are COMPLETE and owed, but which the engine refused to pay
+     * because the Group Incentive Ceiling configuration could not be resolved.
+     *
+     * These deliberately have NO database row — skip-and-retry writes nothing,
+     * which is exactly what keeps the level payable once an admin fixes the
+     * config. That makes them invisible everywhere else, so this recomputes
+     * them live. Self-clearing: fix the package config and the row disappears,
+     * because the condition itself is gone.
+     *
+     * Read-only — it calls the engine's public inspection methods only, never
+     * processSponsor(), so opening this page cannot pay anybody.
+     */
+    private function _blockedLevels($limit = 100)
+    {
+        $this->load->model('staking/Binarylevelmatching_model', 'BLM');
+
+        $sponsors = $this->db->query(
+            "SELECT DISTINCT bp.parent_id AS uid FROM binary_placement bp
+              WHERE bp.parent_id IS NOT NULL AND bp.parent_id > 0 ORDER BY bp.parent_id ASC"
+        )->result_array();
+
+        $out = [];
+        foreach ($sponsors as $s) {
+            $uid = (int)$s['uid'];
+            $ceil = $this->BLM->sponsorCeiling($uid);
+            if ($ceil['eligible'] || $ceil['status'] === 'no_stake') continue; // fine, or a real forfeit
+
+            $legs  = $this->BLM->legVolumesByDepth($uid);
+            $level = $this->BLM->nextLevel($uid);
+            if (!$legs || !$this->BLM->levelComplete($legs, $level)) continue; // not due yet
+
+            $vol = $this->BLM->cumulativeVolume($legs, $level);
+            $matched = min($vol['left'], $vol['right']);
+            $u = $this->db->select('username, referral_id')->get_where('users', ['id' => $uid])->row_array();
+
+            $out[] = [
+                'user_id'      => $uid,
+                'username'     => $u['username'] ?? ('#' . $uid),
+                'referral_id'  => $u['referral_id'] ?? '',
+                'level'        => $level,
+                'status'       => $ceil['status'],
+                'detail'       => $ceil['detail'],
+                'package_id'   => $ceil['package_id'],
+                'stake_amount' => $ceil['stake_amount'],
+                'left_volume'  => round($vol['left'], 4),
+                'right_volume' => round($vol['right'], 4),
+                'matched'      => round($matched, 4),
+                'unpaid_bonus' => round($matched * 0.10, 4),
+            ];
+            if (count($out) >= $limit) break;
+        }
+        return $out;
     }
 }
