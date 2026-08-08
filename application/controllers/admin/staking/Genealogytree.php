@@ -188,12 +188,19 @@ class Genealogytree extends CI_Controller
         // re-querying users per node on top of the per-node matching-stats queries).
         $ids = array_keys($map);
         if ($ids) {
-            $users = $this->db->select('id, referral_id, status')->where_in('id', $ids)->get('users')->result_array();
+            // profile_img ONLY — it is what Profile's upload writes, and its
+            // files really are under assets/images/. The older `image` column
+            // is not the same thing (it holds e.g. a logo filename that is not
+            // in that directory), so including it would fire a 404 per node
+            // before falling back to the initial. Verified against live rows.
+            $users = $this->db->select('id, referral_id, status, profile_img')
+                              ->where_in('id', $ids)->get('users')->result_array();
             foreach ($users as $u) {
                 $uid = (int)$u['id'];
                 if (isset($map[$uid])) {
                     $map[$uid]['uid'] = $u['referral_id'] ?: ('#' . $uid);
                     $map[$uid]['status'] = ((int)$u['status'] === 1) ? 'ACTIVE' : 'INACTIVE';
+                    $map[$uid]['avatar'] = trim((string)($u['profile_img'] ?? ''));
                 }
             }
         }

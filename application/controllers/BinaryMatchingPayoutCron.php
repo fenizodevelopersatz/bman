@@ -178,13 +178,21 @@ class BinaryMatchingPayoutCron extends CI_Controller
     private function _isDryRun() { return (int)($this->_cfg()['swap_dry_run'] ?? 1) === 1; }
     private function _isEnabled() { return (int)($this->_cfg()['swap_enabled'] ?? 0) === 1; }
 
-    /** BNB needed for one BEP-20 transfer (gas_limit x gas_price gwei x 1.5 buffer). */
+    /**
+     * BNB needed for one binary matching transfer — resolved from the
+     * admin-managed gas_fee_settings row for 'binary_matching', never from
+     * constants. Previously this multiplied hardcoded 210000 / 5 gwei / 1.5,
+     * so editing gas policy in the admin page had no effect on these payouts
+     * and the treasury precheck used a different number from the queue page.
+     *
+     * Returns null when the policy carries no fixed price and no live price is
+     * available — the caller must treat that as UNKNOWN and hold, not as free.
+     */
     private function _gasNeededBnb()
     {
-        $cfg = $this->_cfg();
-        $gasLimit = (float)($cfg['gas_limit'] ?: 210000);
-        $gwei     = (float)($cfg['gas_price'] ?: 5);
-        return $gasLimit * $gwei * 1e-9 * 1.5;
+        $this->load->model('GasFeeSettings_model', 'gasCfg');
+        $e = $this->gasCfg->estimateBnb('binary_matching');
+        return $e['bnb'];
     }
 
     private function _apiUrl(array $params)
@@ -364,6 +372,17 @@ class BinaryMatchingPayoutCron extends CI_Controller
         }
 
         $gasPerSend = $this->_gasNeededBnb();
+        if ($gasPerSend === null) {
+            // No fixed gas price configured and no live price — the cost of a
+            // send is genuinely unknown. Hold the batch rather than broadcast
+            // against a guessed price; the rows stay queued and retryable.
+            foreach ($rows as $row) {
+                $this->_markRetry($row['id'], 'Gas price unknown — configure gas_fee_settings for binary_matching', [
+                    'rpc_ok' => true, 'gas_price' => 'unknown', 'checked_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
+            return ['processed' => count($rows), 'sent' => 0, 'held' => count($rows), 'error' => 'gas_price_unknown'];
+        }
         $sent = 0; $held = 0;
 
         foreach ($rows as $row) {

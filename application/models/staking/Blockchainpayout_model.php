@@ -132,8 +132,14 @@ class Blockchainpayout_model extends CI_Model
         $cfg = $this->db->get_where('token_settings', ['status' => 1])->row_array() ?: [];
         $addr = trim((string)($cfg['treasury_wallet'] ?? ''));
 
-        // Same formula as BinaryMatchingPayoutCron::_gasNeededBnb().
-        $gasPerSend = (float)($cfg['gas_limit'] ?: 210000) * (float)($cfg['gas_price'] ?: 5) * 1e-9 * 1.5;
+        // SAME resolver the cron broadcasts with — not a copy of the formula.
+        // Treasury Safety and the actual payout must agree, and they only do
+        // if both call GasFeeSettings_model. A null estimate means the gas
+        // price is genuinely unknown; it is reported as such, never as 0.
+        $this->load->model('GasFeeSettings_model', 'gasCfg');
+        $est = $this->gasCfg->estimateBnb('binary_matching');
+        $gasPerSend = $est['bnb'];
+        $gasKnown = $gasPerSend !== null;
 
         $queued = $this->db->select('id, amount', false)
                            ->where_in('status', ['PENDING', 'RETRY'])
@@ -142,7 +148,7 @@ class Blockchainpayout_model extends CI_Model
 
         $outstanding = 0.0;
         foreach ($queued as $q) $outstanding += (float)$q['amount'];
-        $gasNeeded = $gasPerSend * count($queued);
+        $gasNeeded = $gasKnown ? $gasPerSend * count($queued) : null;
 
         $out = [
             'treasury_address' => $addr,
@@ -151,8 +157,15 @@ class Blockchainpayout_model extends CI_Model
             'bman_balance'     => null,
             'queued_count'     => count($queued),
             'outstanding_bman' => round($outstanding, 8),
-            'gas_per_send_bnb' => round($gasPerSend, 8),
-            'gas_needed_bnb'   => round($gasNeeded, 8),
+            'gas_per_send_bnb' => $gasKnown ? round($gasPerSend, 8) : null,
+            'gas_needed_bnb'   => $gasKnown ? round($gasNeeded, 8) : null,
+            // Where the estimate came from, so the admin page can show that a
+            // change on the gas settings screen is actually in force here.
+            'gas_source'       => $est['source'],
+            'gas_price_source' => $est['price_source'],
+            'gas_limit'        => $est['gas_limit'],
+            'gas_price_gwei'   => $est['gas_price_gwei'],
+            'gas_buffer'       => $est['buffer_multiplier'],
             'covers_count'     => 0,
             'shortfall_bman'   => null,
             'shortfall_bnb'    => null,
@@ -162,6 +175,11 @@ class Blockchainpayout_model extends CI_Model
         ];
 
         if ($addr === '') { $out['blocked_reason'] = 'No treasury wallet configured in Token Settings.'; return $out; }
+        if (!$gasKnown) {
+            $out['blocked_reason'] = 'Gas price is not configured for binary_matching and no live price is available — '
+                                   . 'the cost per transfer is UNKNOWN, so coverage cannot be verified.';
+            return $out;
+        }
         if (!$queued)     { $out['rpc_ok'] = null; $out['blocked_reason'] = null; }
 
         try {

@@ -188,6 +188,7 @@
   <script>
   (function () {
     const TREE_URL = "<?php echo base_url('admin/staking/genealogy-tree/tree-json'); ?>";
+    const GT_IMG_BASE = "<?php echo base_url('assets/images/'); ?>";
     const SEARCH_URL = "<?php echo base_url('admin/staking/genealogy-tree/search-users'); ?>";
     let currentId = <?php echo (int)$start_id; ?>;
 
@@ -232,6 +233,24 @@
         </div>${ceilBar}`;
     }
 
+    /* Node avatar. Ringed in the node's own state colour so the picture also
+       carries the eligibility signal instead of competing with it. Falls back
+       to the initial when no upload exists, and onerror covers a row whose
+       file has since been deleted. */
+    function avatarHtml(n) {
+      const st = GT_STATE[n.node_state] || GT_STATE.PENDING;
+      const initial = esc(String(n.name || 'U').trim().charAt(0).toUpperCase());
+      const ring = `box-shadow:0 0 0 2px var(--bs-${st.cls});`;
+      if (n.avatar) {
+        return `<img src="${GT_IMG_BASE}${encodeURIComponent(n.avatar)}" alt=""
+                     class="rounded-circle flex-shrink-0"
+                     style="width:34px;height:34px;object-fit:cover;${ring}"
+                     onerror="this.outerHTML='<span class=&quot;rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 bg-light-${st.cls} text-${st.cls} fw-bold&quot; style=&quot;width:34px;height:34px;${ring}&quot;>${initial}</span>';">`;
+      }
+      return `<span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 bg-light-${st.cls} text-${st.cls} fw-bold"
+                    style="width:34px;height:34px;${ring}">${initial}</span>`;
+    }
+
     function cardHtml(n, isRoot) {
       if (!n || !n.id) return '';
       const st = GT_STATE[n.node_state] || GT_STATE.PENDING;
@@ -249,9 +268,14 @@
 
       return `<div class="gt-card ${isRoot ? 'gt-root' : ''}" data-state="${esc(n.node_state)}"
                    onclick="gtSelect(${n.id}, '${esc(n.name)}', '${esc(n.uid)}')">
-        <div class="gt-name">${esc(n.name)}
-          <span class="badge badge-light-${n.status === 'ACTIVE' ? 'success' : 'danger'} fs-9 ms-1">${esc(n.status)}</span></div>
-        <div class="gt-uid">${esc(n.uid)}</div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          ${avatarHtml(n)}
+          <div class="flex-grow-1" style="min-width:0;">
+            <div class="gt-name text-truncate">${esc(n.name)}
+              <span class="badge badge-light-${n.status === 'ACTIVE' ? 'success' : 'danger'} fs-9 ms-1">${esc(n.status)}</span></div>
+            <div class="gt-uid text-truncate">${esc(n.uid)}</div>
+          </div>
+        </div>
 
         <div class="gt-row"><span>Lock Wallet</span><b>${fmt(n.lock_wallet)}</b></div>
         ${matured > 0.00005 ? `<div class="gt-row" title="Purchased Total includes matured staking. Eligible matching volume uses currently eligible Lock Wallet volume only.">

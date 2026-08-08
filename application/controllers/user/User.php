@@ -1201,9 +1201,20 @@ class User extends CI_Controller
 		}
 
 		try {
-			$totals = $this->BinaryModel->getLegExchangeWalletBman($user_id, $from, $to);
-			$left = (float) ($totals['left_bman'] ?? 0);
-			$right = (float) ($totals['right_bman'] ?? 0);
+			// LOCK WALLET, not Exchange wallet. This card is labelled "Leg
+			// Investment" and sits beside the Binary Tree's own leg figures,
+			// but it used to call getLegExchangeWalletBman() — spendable
+			// Exchange balances, date-windowed — so the dashboard and the tree
+			// showed different numbers for the same two legs (4.01/6.15 vs
+			// 9.00/7.00). calculateLegLockWallet() is the same method the tree
+			// page uses: active/processing, not-yet-matured stake principal.
+			//
+			// Lock Wallet is a point-in-time balance, so the This Week / This
+			// Month toggle cannot window it — the period still drives the pair
+			// target copy below, but these two figures are always "as of now".
+			$totals = $this->BinaryModel->calculateLegLockWallet($user_id);
+			$left = (float) ($totals['left'] ?? 0);
+			$right = (float) ($totals['right'] ?? 0);
 			$total = $left + $right;
 			$progress = $total > 0 ? round((min($left, $right) / $total) * 100, 2) : 0;
 			$left_strong = $left >= $right;

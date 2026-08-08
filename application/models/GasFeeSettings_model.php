@@ -40,6 +40,43 @@ class GasFeeSettings_model extends CI_Model
         ];
     }
 
+    /**
+     * ESTIMATED BNB for one transaction of $txType — the single gas-cost
+     * calculation in the system.
+     *
+     * gas_limit x gas_price_gwei x 1e-9 x buffer_multiplier, every term from
+     * the resolved policy row. Callers must not re-implement this: the
+     * treasury precheck and the actual broadcast have to agree, and they only
+     * do if there is one formula. (They previously disagreed — the binary
+     * matching path carried its own copy with hardcoded 210000/5/1.5.)
+     *
+     * gas_price_gwei may legitimately be NULL, meaning "no fixed policy price
+     * — read the live network price". In that case pass $liveGwei from an
+     * eth_gasPrice read. With neither, 'bnb' comes back NULL, which callers
+     * must surface as UNKNOWN and treat as "cannot verify" — never as free,
+     * and never by substituting a guessed price.
+     *
+     * @return array{bnb: float|null, gas_limit:int, gas_price_gwei: float|null,
+     *               buffer_multiplier:float, source:string, price_source:string}
+     */
+    public function estimateBnb($txType, $liveGwei = null)
+    {
+        $p = $this->resolve($txType);
+
+        $gwei = $p['gas_price_gwei'];
+        $priceSource = 'policy';
+        if ($gwei === null) {
+            $gwei = ($liveGwei !== null && (float) $liveGwei > 0) ? (float) $liveGwei : null;
+            $priceSource = $gwei === null ? 'unknown' : 'live_rpc';
+        }
+
+        return $p + [
+            'bnb'          => $gwei === null ? null
+                              : (float) $p['gas_limit'] * $gwei * 1e-9 * $p['buffer_multiplier'],
+            'price_source' => $priceSource,
+        ];
+    }
+
     public function all()
     {
         return $this->db->order_by('tx_type', 'ASC')->get('gas_fee_settings')->result_array();

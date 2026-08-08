@@ -1012,7 +1012,11 @@
             <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
               <button class="btn primary" style="padding:10px 14px;" onclick="shareLink(dashRefSide)">Invite <i
                   class="ph ph-share-network"></i></button>
-              <button class="btn ghost" style="padding:10px 14px;">View Team <i class="ph ph-users-three"></i></button>
+              <!-- Was a dead <button> with no handler, rendered in the muted
+                   "ghost" style so it read as disabled. Now a real link to the
+                   genealogy tree, styled to match the Invite button beside it. -->
+              <a class="btn primary" style="padding:10px 14px;text-decoration:none;"
+                 href="<?php echo base_url('user/genealogy'); ?>">View Team <i class="ph ph-users-three"></i></a>
             </div>
           </div>
         </div>
