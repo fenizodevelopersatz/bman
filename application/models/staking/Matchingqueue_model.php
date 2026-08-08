@@ -32,7 +32,13 @@ class Matchingqueue_model extends CI_Model
             if (!$row) $row = $this->_mintAndClaim($opts);
             if (!$row) return ['claimed' => false, 'reason' => 'race: could not claim a queue row'];
 
-            $this->load->model('staking/Stakingmatching_model', 'MB');
+            // GO-LIVE SWITCH. Binarylevelmatching_model is the level-wise
+            // engine (cumulative levels 1..N, MAX-package ceiling reset each
+            // level, overflow to Admin). Point this back at
+            // staking/Stakingmatching_model to revert to the old carry-forward
+            // matcher — same run() signature, same run_ref threading, so this
+            // one line is the entire switch in either direction.
+            $this->load->model('staking/Binarylevelmatching_model', 'MB');
             try {
                 $summary = $this->MB->run(['run_ref' => $row['run_ref']]);
                 $this->db->where('id', $row['id'])->update('binary_matching_queue', [

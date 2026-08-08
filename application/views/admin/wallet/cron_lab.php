@@ -52,10 +52,16 @@
             <span class="cron-pill bg-light-info text-info"><?php echo strtoupper(html_escape($job['type'])); ?></span>
           </div>
           <div class="cron-body">
+            <?php if (!empty($job['inproc'])): ?>
+            <div class="tiny mb-2">Endpoint: <span class="mono">runs in-process (admin only — no public cron URL)</span></div>
+            <?php else: ?>
             <div class="tiny mb-2">Endpoint: <span class="mono"><?php echo html_escape($job['endpoint']); ?></span></div>
+            <?php endif; ?>
             <div class="d-flex gap-2 flex-wrap">
               <button class="btn btn-sm btn-primary cron-run" data-job="<?php echo html_escape($job['key']); ?>">Run now</button>
+              <?php if (empty($job['inproc'])): ?>
               <button class="btn btn-sm btn-light cron-copy" data-endpoint="<?php echo html_escape($job['endpoint']); ?>">Copy endpoint</button>
+              <?php endif; ?>
             </div>
             <div class="mt-3 cron-pre" id="out-<?php echo html_escape($job['key']); ?>">Ready.</div>
           </div>
@@ -91,7 +97,15 @@
     btn.textContent = 'Running...';
     try {
       let res;
-      if (job.key === 'match') {
+      if (job.inproc) {
+        // No cron route of its own: hand it to Cronlab::run(), which keeps it
+        // behind this page's admin session gate instead of a public token URL.
+        const body = new FormData();
+        body.append('job', job.key);
+        res = await fetch(base + 'admin/wallet/cron-lab/run', {
+          method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'}, body
+        });
+      } else if (job.key === 'match') {
         res = await fetch(base + job.endpoint, { method:'POST', headers:{'X-Requested-With':'XMLHttpRequest'} });
       } else {
         const url = new URL(base + job.endpoint);

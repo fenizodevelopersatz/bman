@@ -5,6 +5,59 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-08-08 (later) — Binary Matching: level-wise distribution engine
+
+Replaced the binary matching payout leg with the level-by-level model. The old
+`Stakingmatching_model::payMatching()` paid every ancestor in one depth-blind
+pass off a purchase-time carry ledger; against the ten acceptance tests it
+scored **2/10**. The new `Binarylevelmatching_model` scores **10/10**.
+
+Business rules (user-ruled 2026-08-08, after the probe surfaced two
+contradictions in the written spec): level N pays on the **cumulative** eligible
+Lock Wallet volume of levels 1..N per leg (Option B — the only reading that
+produces the spec's own 60,000 level-3 figure); ceiling from the **MAX** eligible
+package, **reset fresh every level**, no lifetime cap; 10% split 8/2 unchanged;
+excess **and** the whole bonus for an unstaked sponsor go to **Admin**, never
+`ceiling_wallet` and never deferred; matured stakes stop counting the day they
+mature; a completed level is never paid twice.
+
+- **Idempotency is a DB guarantee, not a convention.** `UNIQUE(user_id, level)`
+  on `staking_matching_payouts`, and the payout row is INSERTed **before** any
+  wallet credit — a duplicate run collides with the key and abandons the level
+  having moved nothing. (The old engine credited first and relied on carry
+  subtraction, which is exactly why it failed the no-repeat test.)
+- **Volume is recomputed live** from `user_stakes` + `binary_placement` via a
+  recursive CTE — never consumed or decremented, so level N legitimately
+  re-counts levels 1..N-1 and no paid level can erase volume a later level needs.
+- **`admin_wallet` had no `id=1` row**, so `Bonusreduction_model`'s
+  `UPDATE … WHERE id=1` has been silently crediting nothing. Seeded by the
+  migration; the engine upserts so overflow can never evaporate that way.
+- **Ceiling data disambiguated:** packages 45/46/47 (duplicate 50k/100k/200k
+  rows whose ceiling equalled the stake amount) deactivated — guarded by a
+  `NOT EXISTS` on `user_stakes`, verified zero stakes referenced them. Ids
+  5/6/7 already held the correct mapping.
+- **Untouched:** ROI, staking purchase, Lock Wallet creation, plans/packages,
+  wallet distribution matrix, rank systems, and the entire on-chain leg —
+  `BinaryMatchingPayoutCron` needed **no change** and still handles enqueue,
+  gas precheck, broadcast, confirmations and admin retry off the same table.
+  `propagate()` still runs so `binary_carry`/`staking_group_volume` keep
+  feeding the dashboards and genealogy pages.
+  - **Files:** `application/models/staking/Binarylevelmatching_model.php` (new),
+    `application/models/staking/Matchingqueue_model.php` (one-line engine
+    switch — also the revert), `db/binary_level_matching.sql`,
+    `application/models/staking/Binarymatchingprobe_model.php` +
+    `application/controllers/Binarymatchingrulesprobe.php` (audit + the 10-test
+    acceptance suite), Cron Lab diagnostic card.
+  - **Apply:** run `db/binary_level_matching.sql` (idempotent), then
+    `php index.php binarymatchingrulesprobe tests` — expect 10/10.
+  - ⚠️ **Incident, fixed:** the test harness initially called the engine
+    unscoped and credited five real members before being reversed in full. See
+    the plan doc §0.0c — the root cause is that the old preflight guard checked
+    `binary_carry`, which the new engine never reads. The harness now passes an
+    explicit `user_ids` whitelist and actively detects escapes.
+
+---
+
 ## 2026-08-08 — Per-day ROI: cycle-1 anchor realignment + continuity guard
 
 The first per-day shipment (97e1f62) anchored every cycle at `created_at +

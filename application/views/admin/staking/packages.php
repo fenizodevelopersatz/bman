@@ -60,7 +60,7 @@
 
                                     <div class="card-body pt-3 pb-9">
                                         <div class="text-muted fs-7 mb-5">
-                                            Each package is a fixed BMAN stake amount. Bonus % is the staking bonus
+                                            Each package is a fixed BMAN stake amount. Instant Bonus % is the staking bonus
                                             coin credited on purchase (proposal §7, default 25%). Ceiling is the
                                             group-incentive ceiling (§12). 
                                         </div>
@@ -71,7 +71,7 @@
                                                     <th>S:No</th>
                                                     <th>Name</th>
                                                     <th class="text-end">Stake (BMAN)</th>
-                                                    <th class="text-end">Bonus %</th>
+                                                    <th class="text-end">Instant Bonus %</th>
                                                     <th class="text-end">Group Ceiling</th>
                                                     <th class="text-center">Active</th>
                                                     <th class="text-end">Actions</th>
@@ -132,7 +132,7 @@
                                                     </div>
                                                     <div class="row">
                                                         <div class="col-6 mb-5">
-                                                            <label class="form-label required">Bonus %</label>
+                                                            <label class="form-label required">Instant Bonus %</label>
                                                             <input type="number" name="bonus_percent" step="0.01" min="0"
                                                                 value="25" class="form-control form-control-solid" required />
                                                         </div>
