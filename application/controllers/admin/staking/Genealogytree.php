@@ -125,12 +125,14 @@ class Genealogytree extends CI_Controller
             if ($pu) $parent = ['id' => (int)$pu['id'], 'name' => $pu['username'], 'uid' => $pu['referral_id'] ?: ('#' . $pu['id'])];
         }
 
+        $this->load->model('staking/Matchingmap_model', 'MAP');
         echo json_encode([
-            'status'  => true,
-            'data'    => $tree,
-            'parent'  => $parent,
-            'level'   => $levelSel,
-            'summary' => $this->_levelSummary($rootId, $levelSel),
+            'status'   => true,
+            'data'     => $tree,
+            'parent'   => $parent,
+            'level'    => $levelSel,
+            'summary'  => $this->_levelSummary($rootId, $levelSel),
+            'timeline' => $this->MAP->timeline($rootId),
         ], JSON_UNESCAPED_SLASHES);
         exit;
     }
@@ -372,6 +374,88 @@ class Genealogytree extends CI_Controller
             'earn_share_pct' => $total > 0 ? round($earn / $total * 100, 2) : 0,
             'stk_share_pct'  => $total > 0 ? round($stk  / $total * 100, 2) : 0,
         ];
+    }
+
+    /** Header KPIs + config-error count (AJAX; scans sponsors, so kept off the page load). */
+    public function map_summary_json()
+    {
+        header('Content-Type: application/json');
+        $this->_requireAdminAjax();
+        $this->load->model('staking/Matchingmap_model', 'MAP');
+        echo json_encode(['status' => true, 'summary' => $this->MAP->summary()], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    /** Matching Audit: eligibility checklist + the engine's own result. */
+    public function audit_json($id)
+    {
+        header('Content-Type: application/json');
+        $this->_requireAdminAjax();
+        $this->load->model('staking/Matchingmap_model', 'MAP');
+        $level = max(0, (int)$this->input->get('level'));
+        $a = $this->MAP->audit((int)$id, $level);
+        if (!$a) { echo json_encode(['status' => false, 'message' => 'Member not found']); exit; }
+        $a['timeline'] = $this->MAP->timeline((int)$id);
+        echo json_encode(['status' => true] + $a, JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    /** Per-member contributor breakdown for one leg/level. */
+    public function contributors_json($id)
+    {
+        header('Content-Type: application/json');
+        $this->_requireAdminAjax();
+        $this->load->model('staking/Matchingmap_model', 'MAP');
+        $level = max(1, (int)$this->input->get('level') ?: 1);
+        echo json_encode(['status' => true, 'contributors' => $this->MAP->contributors((int)$id, $level)],
+                         JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+
+    /**
+     * CSV of the CURRENT map view — one row per node, using exactly the values
+     * the cards display (same _carryAndMatchingStats call), so the export can
+     * never disagree with the screen.
+     */
+    public function export_csv()
+    {
+        $this->_requireAdmin();
+        $rootId = (int)$this->input->get('root_id');
+        $depth  = min(8, max(1, (int)$this->input->get('depth') ?: 6));
+        $level  = max(0, (int)$this->input->get('level'));
+        if ($rootId <= 0) show_404();
+
+        $rows = $this->BinaryModel->getDownlineMembers($rootId, $depth + 1);
+        $tree = $this->_buildTree($rows, $rootId, $depth, $level);
+
+        $flat = [];
+        $walk = function ($n) use (&$walk, &$flat) {
+            if (!$n || empty($n['id'])) return;
+            $flat[] = $n;
+            $walk($n['left'] ?? null);
+            $walk($n['right'] ?? null);
+        };
+        $walk($tree);
+
+        $name = 'binary-matching-map-' . $rootId . '-' . date('Ymd-His') . '.csv';
+        $this->output->set_content_type('text/csv')
+                     ->set_header('Content-Disposition: attachment; filename="' . $name . '"');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['User', 'UID', 'Status', 'Level', 'Left Volume', 'Right Volume', 'Matched Volume',
+                       'Raw Bonus', 'Lock Wallet', 'Purchased Total', 'Highest Stake', 'Group Ceiling',
+                       'User Payout', 'Earning', 'Staking', 'Admin Overflow', 'Eligibility',
+                       'Level Status', 'Node State', 'Completed At', 'Run Ref']);
+        foreach ($flat as $n) {
+            fputcsv($out, [
+                $n['name'], $n['uid'], $n['status'], $n['shown_level'],
+                $n['left_volume'], $n['right_volume'], $n['matched_volume'], $n['raw_bonus'],
+                $n['lock_wallet'], $n['purchased_total'], $n['highest_stake'], $n['ceiling_amount'],
+                $n['user_payout'], $n['earning_amount'], $n['staking_amount'], $n['admin_overflow'],
+                $n['ceiling_status'], $n['level_status'], $n['node_state'],
+                $n['completed_at'] ?? '', $n['run_ref'] ?? '',
+            ]);
+        }
+        fclose($out);
     }
 
     /** Full level-by-level history for one member — drives the detail drawer. */

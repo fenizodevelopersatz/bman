@@ -844,12 +844,17 @@ $route['admin/staking/matching-overflow/export'] = 'admin/staking/Matchingoverfl
 $route['admin/staking/payout-queue'] = 'admin/staking/Payoutqueue/index';
 $route['admin/staking/payout-queue/retry/(:num)']['post'] = 'admin/staking/Payoutqueue/retry/$1';
 $route['admin/staking/payout-queue/treasury']['get']      = 'admin/staking/Payoutqueue/treasury';   // live treasury BNB/BMAN vs queued amount
+$route['admin/staking/payout-queue/detail/(:num)']        = 'admin/staking/Payoutqueue/detail/$1';  // per-payout history: source, attempts, shortfall, gas
 $route['admin/staking/payout-queue/retry-all']['post']    = 'admin/staking/Payoutqueue/retry_all';  // bulk reset FAILED/RETRY after a top-up
 // Genealogy Tree (admin, any member): shows the REAL binary_carry the matching engine reads + ceiling/eligibility
 $route['admin/staking/genealogy-tree'] = 'admin/staking/Genealogytree/index';
 $route['admin/staking/genealogy-tree/tree-json'] = 'admin/staking/Genealogytree/tree_json';
 $route['admin/staking/genealogy-tree/member-json/(:num)'] = 'admin/staking/Genealogytree/member_json/$1';
 $route['admin/staking/genealogy-tree/member-levels/(:num)'] = 'admin/staking/Genealogytree/member_levels_json/$1'; // level-by-level matching audit drawer
+$route['admin/staking/genealogy-tree/map-summary']          = 'admin/staking/Genealogytree/map_summary_json';    // header KPIs
+$route['admin/staking/genealogy-tree/audit/(:num)']         = 'admin/staking/Genealogytree/audit_json/$1';       // Matching Audit: why paid / not paid
+$route['admin/staking/genealogy-tree/contributors/(:num)']  = 'admin/staking/Genealogytree/contributors_json/$1';// per-leg contributor breakdown
+$route['admin/staking/genealogy-tree/export']               = 'admin/staking/Genealogytree/export_csv';          // CSV of the current map view
 $route['admin/staking/genealogy-tree/search-users'] = 'admin/staking/Genealogytree/search_users';
 // ROI Distribution History (real data: roi_staking_management + onchain_transactions)
 $route['admin/staking/roi-history'] = 'admin/staking/Roihistory/index';

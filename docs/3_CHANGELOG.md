@@ -5,6 +5,47 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
+## 2026-08-08 (latest) — Genealogy Tree becomes a Binary Matching audit screen
+
+Second pass on the map, turning it from a tree into an audit tool. All
+read-only; no business rule touched.
+
+- **🔍 Matching Audit drawer** (per node) — an ordered eligibility checklist
+  (active / eligible stake / Lock Wallet volume / level complete / left volume
+  / right volume / ceiling config valid / no duplicate / bonus calculated),
+  each check reporting a fact the engine itself uses, so "why did this member
+  get nothing?" is answerable at a glance. Plus a **Distribution Flow**
+  (legs → MIN → rate → user → earning/staking, and → admin), a dynamic
+  **ceiling progress bar** with an explicit note that the ceiling resets per
+  level and is not a lifetime budget, matured-vs-eligible volume, and a
+  **configuration-error banner** with a direct link to the ceiling editor.
+- **View Contributors** — the per-member breakdown of each leg for levels 1..N.
+  Backed by a new `legMembers()` on the engine; `legVolumesByDepth()` was
+  refactored to aggregate from it, so the contributor list and the volume the
+  engine matched on come from **one query**. The smoke test asserts the
+  contributor totals reconcile to the engine's cumulative volume exactly.
+- **Matching Summary KPIs** — total / active / staked members, levels
+  completed, total matched, user bonus, admin overflow, pending on-chain and
+  config errors (the last needs a live scan, since a blocked level writes no row).
+- **Level timeline** 🟢 Paid ─ 🟡 Current ─ 🔴 Config Error ─ ⚪ Not completed,
+  clickable to re-render the map at that level.
+- **Node cards** — left/right balance bars with unmatched excess, matured
+  volume shown only when it differs from Lock Wallet, ceiling usage bar.
+- **CSV export** of the current view, built from the same
+  `_carryAndMatchingStats()` call the cards render, so export and screen cannot
+  disagree. Excel/PDF not included — they need a new dependency; CSV opens in
+  both.
+- **Auto-refresh** (off / 30s / 1m / 5m) + last-updated stamp. Re-fetches the
+  same GET endpoints only.
+  - **Files:** `staking/Matchingmap_model.php` (new),
+    `Binarylevelmatching_model.php` (+`legMembers`), `Genealogytree.php`
+    (+4 read-only endpoints), `genealogy_tree.php`, `routes.php`.
+  - **Verified:** 16/16 acceptance tests still pass after the volume refactor;
+    smoke test drove KPIs, audit, timeline and contributors over real sponsors
+    with a per-leg reconciliation against the engine. Read-only throughout.
+
+---
+
 ## 2026-08-08 (latest) — Fix: Distribution History / Admin Overflow redirected to the dashboard
 
 Both pages bounced every admin straight back to `admin`. Cause: they gated on

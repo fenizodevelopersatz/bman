@@ -53,6 +53,10 @@ class Payoutqueue extends CI_Controller
         $data['rows']         = $this->PQ->list(['limit' => 300, 'status' => $status ?: null]);
         $data['status_filter']= $status;
         $data['explorer_url'] = $this->_explorer();
+        // Source wallet for every binary matching transfer — shown per row so
+        // the treasury -> member direction is explicit, not implied.
+        $data['treasury_wallet'] = $this->db->select('treasury_wallet')
+            ->get_where('token_settings', ['status' => 1])->row_array()['treasury_wallet'] ?? '';
         $this->load->view('admin/staking/payout_queue', $data);
     }
 
@@ -78,6 +82,17 @@ class Payoutqueue extends CI_Controller
         $this->_requireAdmin();
         if (!$this->input->is_ajax_request()) show_404();
         return $this->_json(['status' => 'success', 'treasury' => $this->PQ->treasuryStatus()]);
+    }
+
+    /** Full history for one payout: source, attempts, shortfall, gas, level. */
+    public function detail($id)
+    {
+        $this->_requireAdmin();
+        if (!$this->input->is_ajax_request()) show_404();
+        $row = $this->PQ->detail((int)$id);
+        if (!$row) return $this->_json(['status' => 'error', 'message' => 'Payout not found.'], 404);
+        unset($row['precheck_json']); // already decoded into ['precheck']
+        return $this->_json(['status' => 'success', 'payout' => $row]);
     }
 
     /** Bulk-reset every FAILED/RETRY payout — the post-top-up recovery action. */

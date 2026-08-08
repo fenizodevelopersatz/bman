@@ -243,6 +243,30 @@ class Binarylevelmatching_model extends CI_Model
      */
     public function legVolumesByDepth($userId)
     {
+        // Aggregate the per-member rows rather than running a second CTE, so
+        // the map's "contributors" list and the engine's payout volume can
+        // never disagree — one query, one definition.
+        $legs = ['left' => [], 'right' => []];
+        foreach ($this->legMembers($userId) as $m) {
+            $side = $m['side'] === 'right' ? 'right' : 'left';
+            $d = (int)$m['depth'];
+            if (!isset($legs[$side][$d])) $legs[$side][$d] = 0.0;
+            $legs[$side][$d] += (float)$m['volume'];
+        }
+        return $legs;
+    }
+
+    /**
+     * Every downline member with their leg, depth and eligible Lock Wallet
+     * volume — the row-level source behind legVolumesByDepth().
+     *
+     * Read-only; exists so admin screens can show WHO contributed to a leg
+     * without re-deriving the tree walk or the eligibility rule themselves.
+     *
+     * @return array<int, array{user_id:int, side:string, depth:int, volume:float}>
+     */
+    public function legMembers($userId)
+    {
         $sql =
            "WITH RECURSIVE tree AS (
                 SELECT bp.user_id, bp.position AS side, 1 AS depth
@@ -254,7 +278,7 @@ class Binarylevelmatching_model extends CI_Model
                   JOIN tree t ON c.parent_id = t.user_id
                  WHERE t.depth < ?
             )
-            SELECT t.side, t.depth, COALESCE(SUM(lw.locked), 0) AS volume
+            SELECT t.user_id, t.side, t.depth, COALESCE(lw.locked, 0) AS volume
               FROM (SELECT DISTINCT user_id, side, depth FROM tree) t
               LEFT JOIN (
                     SELECT user_id, SUM(stake_amount) AS locked
@@ -263,16 +287,18 @@ class Binarylevelmatching_model extends CI_Model
                        AND maturity_date > CURDATE()
                      GROUP BY user_id
               ) lw ON lw.user_id = t.user_id
-             GROUP BY t.side, t.depth";
+             ORDER BY t.depth ASC, t.user_id ASC";
 
         $rows = $this->db->query($sql, [(int)$userId, (int)$this->maxLevels])->result_array();
 
-        $legs = ['left' => [], 'right' => []];
-        foreach ($rows as $r) {
-            $side = $r['side'] === 'right' ? 'right' : 'left';
-            $legs[$side][(int)$r['depth']] = (float)$r['volume'];
-        }
-        return $legs;
+        return array_map(function ($r) {
+            return [
+                'user_id' => (int)$r['user_id'],
+                'side'    => $r['side'] === 'right' ? 'right' : 'left',
+                'depth'   => (int)$r['depth'],
+                'volume'  => (float)$r['volume'],
+            ];
+        }, $rows);
     }
 
     /**

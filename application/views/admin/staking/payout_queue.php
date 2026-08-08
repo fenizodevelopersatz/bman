@@ -115,7 +115,8 @@
                     <div class="table-responsive">
                       <table class="table align-middle table-row-dashed fs-7 gy-4">
                         <thead><tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
-                          <th>#</th><th>User</th><th class="text-end">Amount</th><th>To Address</th>
+                          <th>#</th><th>User</th><th class="text-center">Level</th><th class="text-end">Amount</th>
+                          <th>Treasury → Member</th>
                           <th>Status</th><th>Tx Hash</th><th class="text-end">Confirmations</th>
                           <th class="text-end">Retries</th><th>Last Error</th><th>Last Attempt</th><th>Actions</th>
                         </tr></thead>
@@ -153,9 +154,26 @@
                                 </div>
                               </div>
                             </td>
-                            <td class="text-end fw-bold"><?php echo number_format((float)$r['amount'], 4); ?> <span class="text-muted fs-8"><?php echo html_escape($r['token']); ?></span></td>
-                            <td class="fs-8 text-muted" title="<?php echo html_escape($r['to_address']); ?>">
-                              <?php echo html_escape(substr($r['to_address'], 0, 10)).'…'.html_escape(substr($r['to_address'], -6)); ?></td>
+                            <td class="text-center">
+                              <?php if ($r['match_level'] !== null): ?>
+                                <span class="badge badge-light-primary">L<?php echo (int)$r['match_level']; ?></span>
+                              <?php else: ?><span class="text-muted fs-8">—</span><?php endif; ?>
+                            </td>
+                            <td class="text-end fw-bold"><?php echo number_format((float)$r['amount'], 4); ?> <span class="text-muted fs-8"><?php echo html_escape($r['token']); ?></span>
+                              <?php if ($r['earning_amount'] !== null): ?>
+                                <div class="text-muted fs-9"><?php echo number_format((float)$r['earning_amount'], 2); ?> earn + <?php echo number_format((float)$r['staking_amount'], 2); ?> stk</div>
+                              <?php endif; ?>
+                            </td>
+                            <td class="fs-9 text-muted">
+                              <?php $from = $r['from_address'] ?: ($treasury_wallet ?? ''); ?>
+                              <div title="Treasury (source): <?php echo html_escape($from); ?>">
+                                <span class="text-warning">TR</span>
+                                <?php echo $from ? html_escape(substr($from, 0, 8)).'…' : '<span class="text-muted">treasury</span>'; ?>
+                              </div>
+                              <div title="Member (destination): <?php echo html_escape($r['to_address']); ?>">
+                                ↳ <?php echo html_escape(substr($r['to_address'], 0, 8)).'…'.html_escape(substr($r['to_address'], -4)); ?>
+                              </div>
+                            </td>
                             <td><span class="badge badge-light-<?php echo $badge; ?>"><?php echo html_escape($r['status']); ?></span></td>
                             <td class="fs-8">
                               <?php if (!empty($r['tx_hash'])): ?>
@@ -168,14 +186,12 @@
                             <td class="fs-8 text-danger" style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"
                                 title="<?php echo html_escape($r['last_error'] ?? ''); ?>"><?php echo html_escape($r['last_error'] ?? ''); ?></td>
                             <td class="fs-8 text-muted"><?php echo html_escape($r['last_attempt_at'] ?? ''); ?></td>
-                            <td>
+                            <td class="text-nowrap">
+                              <button class="btn btn-sm btn-light py-1 px-2 fs-9 pq-detail" data-id="<?php echo (int)$r['id']; ?>">History</button>
                               <?php if ($canRetry): ?>
-                                <button class="btn btn-sm btn-light-warning pq-retry" data-id="<?php echo (int)$r['id']; ?>">Retry</button>
-                              <?php else: /* A CONFIRMED transfer is final, and PENDING/PROCESSING rows are
-                                             already in the cron's hands — a greyed-out button only invites
-                                             clicking, so show nothing at all. */ ?>
-                                <span class="text-muted fs-8">—</span>
-                              <?php endif; ?>
+                                <button class="btn btn-sm btn-light-warning py-1 px-2 fs-9 pq-retry" data-id="<?php echo (int)$r['id']; ?>">Retry</button>
+                              <?php endif; /* No greyed-out Retry: a CONFIRMED transfer is final and
+                                               PENDING/PROCESSING rows are already in the cron's hands. */ ?>
                             </td>
                           </tr>
                         <?php endforeach; endif; ?>
@@ -193,7 +209,21 @@
     </div>
   </div>
 
+  <!-- Per-payout history drawer -->
+  <div class="modal fade" id="pq-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+      <div class="modal-content">
+        <div class="modal-header py-4">
+          <h3 class="modal-title fs-5 fw-bold" id="pq-modal-title">Payout History</h3>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="pq-modal-body">Loading…</div>
+      </div>
+    </div>
+  </div>
+
   <script>
+    var PQ_DETAIL_URL_BASE = "<?php echo base_url('admin/staking/payout-queue/detail/'); ?>";
     var PQ_RETRY_URL_BASE = "<?php echo base_url('admin/staking/payout-queue/retry/'); ?>";
     var PQ_TREASURY_URL   = "<?php echo base_url('admin/staking/payout-queue/treasury'); ?>";
     var PQ_RETRY_ALL_URL  = "<?php echo base_url('admin/staking/payout-queue/retry-all'); ?>";
@@ -215,6 +245,81 @@
             if (window.Swal) Swal.fire(r.status === 'success' ? 'Queued for Retry' : 'Error', r.message || '', r.status === 'success' ? 'success' : 'error');
             if (r.status === 'success') setTimeout(function () { location.reload(); }, 900);
           });
+        });
+      });
+
+      /* ---------------- per-payout history drawer ---------------- */
+      document.querySelectorAll('.pq-detail').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var mb = document.getElementById('pq-modal-body');
+          var mt = document.getElementById('pq-modal-title');
+          mb.innerHTML = 'Loading…'; mt.textContent = 'Payout History';
+          if (window.bootstrap) new bootstrap.Modal(document.getElementById('pq-modal')).show();
+          fetch(PQ_DETAIL_URL_BASE + this.dataset.id, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin'
+          }).then(function (r) { return r.json(); }).then(function (j) {
+            if (j.status !== 'success') { mb.innerHTML = '<span class="text-danger">' + esc(j.message || 'Not found') + '</span>'; return; }
+            var p = j.payout, pc = p.precheck || {}, g = p.gas || {}, mp = p.payout;
+            mt.textContent = 'Payout #' + p.id + ' — ' + (p.username || ('#' + p.user_id));
+
+            function row(k, v, cls) {
+              return '<div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted fs-7">' + k +
+                     '</span><span class="fw-bold ' + (cls || '') + '">' + v + '</span></div>';
+            }
+            function head(t) { return '<div class="text-gray-500 fw-bold fs-8 text-uppercase mt-4 mb-2">' + t + '</div>'; }
+
+            var h = head('Transfer — Treasury to Member');
+            h += row('From (admin treasury)', '<span class="font-monospace fs-8">' + esc(p.from_address || p.treasury_wallet || 'resolved at send') + '</span>');
+            h += row('To (member wallet)', '<span class="font-monospace fs-8">' + esc(p.to_address) + '</span>');
+            h += row('Amount', n(p.amount, 4) + ' ' + esc(p.token));
+            h += row('Payout reference', '<span class="font-monospace fs-8">' + esc(p.payout_ref) + '</span>');
+            h += row('Status', '<span class="badge badge-light-info">' + esc(p.status) + '</span>');
+
+            if (mp) {
+              h += head('Binary matching level being settled');
+              // Legacy carry-engine rows carry no level — 'L' + null renders "L".
+              h += row('Level', mp.level === null ? 'legacy (pre level-wise engine)' : ('L' + mp.level));
+              h += row('Matched volume', n(mp.matched_volume, 4));
+              h += row('Raw bonus', n(mp.raw_bonus, 4));
+              h += row('Ceiling applied', n(mp.ceiling_applied, 4));
+              h += row('Earning + Staking', n(mp.earning_amount, 4) + ' + ' + n(mp.staking_amount, 4), 'text-success');
+              h += row('Admin overflow', n(mp.admin_overflow, 4), parseFloat(mp.admin_overflow) > 0 ? 'text-warning' : 'text-muted');
+              h += row('Run ref', '<span class="font-monospace fs-8">' + esc(mp.run_ref || '') + '</span>');
+              h += '<div class="alert alert-secondary py-2 mt-2 mb-0 fs-8">The member\'s wallet was already credited when this level closed. This row is only the on-chain transfer of the same amount out of the treasury.</div>';
+            }
+
+            h += head('Delivery attempts');
+            h += row('Retries used', p.retry_count + ' / ' + p.max_retries);
+            h += row('Last attempt', esc(p.last_attempt_at || '—'));
+            if (p.last_error) h += '<div class="alert alert-danger py-2 mt-2 fs-8">' + esc(p.last_error) + '</div>';
+
+            if (pc && Object.keys(pc).length) {
+              h += head('Treasury balance at last attempt');
+              if (pc.dry_run) {
+                h += '<div class="alert alert-info py-2 fs-8">Dry run — nothing was broadcast.</div>';
+              } else {
+                h += row('Treasury BMAN', pc.treasury_bman_balance !== undefined ? n(pc.treasury_bman_balance, 4) : '—');
+                h += row('Treasury BNB (gas)', pc.treasury_bnb_balance !== undefined ? n(pc.treasury_bnb_balance, 6) : '—');
+                h += row('Needed', (pc.amount_needed_bman !== undefined ? n(pc.amount_needed_bman, 4) + ' BMAN' : '—') +
+                                   (pc.gas_needed_bnb !== undefined ? ' + ' + n(pc.gas_needed_bnb, 6) + ' BNB' : ''));
+                if (pc.result) h += row('Precheck result', esc(pc.result), pc.result === 'ok' ? 'text-success' : 'text-danger');
+                if (pc.rpc_ok === false) h += '<div class="alert alert-warning py-2 mt-2 fs-8">RPC was unreachable at that attempt — the balance above is unknown, not zero.</div>';
+              }
+              h += '<div class="text-muted fs-8 mt-1">Recorded by the cron at the moment it tried, which is why a held row can explain its own shortfall.</div>';
+            }
+
+            h += head('On-chain');
+            if (p.tx_hash) {
+              h += row('Tx hash', '<a href="' + p.explorer_url + '/tx/' + esc(p.tx_hash) + '" target="_blank" rel="noopener" class="fs-8 font-monospace">' + esc(String(p.tx_hash).slice(0, 20)) + '…</a>');
+              h += row('Confirmations', p.confirmations + ' / ' + p.required_confs);
+              h += row('Gas used', g.gas_used ? n(g.gas_used, 0) : '<span class="text-muted">not yet synced</span>');
+              h += row('Gas fee', g.gas_fee_total ? n(g.gas_fee_total, 8) + ' BNB' : '<span class="text-muted">not yet synced</span>');
+              if (g.block_number) h += row('Block', n(g.block_number, 0));
+            } else {
+              h += '<div class="text-muted fs-7">Not broadcast yet — no transaction hash.</div>';
+            }
+            mb.innerHTML = h;
+          }).catch(function () { mb.innerHTML = '<span class="text-danger">Network error.</span>'; });
         });
       });
 

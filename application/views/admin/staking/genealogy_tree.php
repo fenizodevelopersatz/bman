@@ -96,6 +96,26 @@
                   </div>
                 </div>
 
+                <!-- Matching Summary KPIs -->
+                <div class="card mb-4">
+                  <div class="card-header pt-5 flex-wrap gap-2">
+                    <div class="card-title"><span class="fw-bold fs-5">Matching Summary</span></div>
+                    <div class="card-toolbar gap-2 align-items-center">
+                      <span class="text-muted fs-8" id="gt-updated">—</span>
+                      <select id="gt-auto" class="form-select form-select-sm form-select-solid w-130px" title="Auto refresh (read-only)">
+                        <option value="0">Auto: Off</option>
+                        <option value="30">Auto: 30 sec</option>
+                        <option value="60">Auto: 1 min</option>
+                        <option value="300">Auto: 5 min</option>
+                      </select>
+                      <a id="gt-export" class="btn btn-sm btn-light-primary" href="#">Export CSV</a>
+                    </div>
+                  </div>
+                  <div class="card-body pt-3 pb-6"><div class="row g-3" id="gt-kpis">
+                    <div class="col-12 text-muted fs-7">Loading…</div>
+                  </div></div>
+                </div>
+
                 <!-- Level summary -->
                 <div class="card mb-4" id="gt-summary-card">
                   <div class="card-header pt-5 flex-wrap gap-2">
@@ -117,8 +137,9 @@
                       <button id="gt-refresh" class="btn btn-sm btn-light-primary">Refresh Matching Data</button>
                     </div>
                   </div>
-                  <div class="card-body pt-3 pb-6" id="gt-summary-body">
-                    <div class="text-muted fs-7">Loading…</div>
+                  <div class="card-body pt-3 pb-6">
+                    <div id="gt-timeline" class="d-flex align-items-center flex-wrap gap-1 mb-4"></div>
+                    <div id="gt-summary-body"><div class="text-muted fs-7">Loading…</div></div>
                   </div>
                 </div>
 
@@ -184,6 +205,33 @@
       CONFIG_ERROR: { cls: 'danger',  label: 'Config Error' }
     };
 
+    /* Left/right balance bars + a ceiling-usage bar. Purely proportional
+       rendering of numbers the backend already computed — no matching math. */
+    function volumeBars(n) {
+      const l = parseFloat(n.left_volume) || 0, r = parseFloat(n.right_volume) || 0;
+      const m = parseFloat(n.matched_volume) || 0;
+      const max = Math.max(l, r, 1);
+      const bar = (v, cls) => `<div style="height:6px;border-radius:3px;background:var(--bs-gray-200);overflow:hidden;">
+          <div class="bg-${cls}" style="height:100%;width:${Math.min(100, v / max * 100).toFixed(1)}%"></div></div>`;
+      const ceilAmt = parseFloat(n.ceiling_amount) || 0;
+      const used = parseFloat(n.user_payout) || 0;
+      const pct = ceilAmt > 0 ? Math.min(100, used / ceilAmt * 100) : 0;
+      const ceilBar = (n.ceiling_status === 'ok' && ceilAmt > 0)
+        ? `<div class="mt-2">
+             <div class="d-flex justify-content-between fs-9 text-muted"><span>Ceiling used</span>
+               <span>${fmt(used)} / ${fmt(ceilAmt)} · ${pct.toFixed(0)}%</span></div>
+             ${bar(pct / 100 * max, pct >= 100 ? 'warning' : 'success')}
+           </div>` : '';
+      return `<div class="mt-2">
+          <div class="d-flex justify-content-between fs-9 text-muted"><span>Left</span><span>${fmt(l)}</span></div>
+          ${bar(l, 'primary')}
+          <div class="d-flex justify-content-between fs-9 text-muted mt-1"><span>Right</span><span>${fmt(r)}</span></div>
+          ${bar(r, 'info')}
+          <div class="fs-9 text-muted mt-1">Matched <b>${fmt(m)}</b>
+            · excess L ${fmt(Math.max(0, l - m))} / R ${fmt(Math.max(0, r - m))}</div>
+        </div>${ceilBar}`;
+    }
+
     function cardHtml(n, isRoot) {
       if (!n || !n.id) return '';
       const st = GT_STATE[n.node_state] || GT_STATE.PENDING;
@@ -206,11 +254,11 @@
         <div class="gt-uid">${esc(n.uid)}</div>
 
         <div class="gt-row"><span>Lock Wallet</span><b>${fmt(n.lock_wallet)}</b></div>
-        ${matured > 0.00005 ? `<div class="gt-row"><span class="text-muted">Purchased (incl. matured)</span><b class="text-muted">${fmt(n.purchased_total)}</b></div>` : ''}
+        ${matured > 0.00005 ? `<div class="gt-row" title="Purchased Total includes matured staking. Eligible matching volume uses currently eligible Lock Wallet volume only.">
+            <span class="text-muted">Matured (excluded)</span><b class="text-muted">${fmt(matured)}</b></div>` : ''}
         <div class="gt-row"><span>Highest Eligible Stake</span><b>${noStake ? '—' : fmt(n.highest_stake)}</b></div>
         ${ceilingRow}
-        <div class="gt-row"><span>Left Volume</span><b>${fmt(n.left_volume)}</b></div>
-        <div class="gt-row"><span>Right Volume</span><b>${fmt(n.right_volume)}</b></div>
+        ${volumeBars(n)}
         <div class="gt-row"><span>Potential Match</span><b>${fmt(n.matched_volume)}</b></div>
         <div class="gt-row"><span>Current Level</span><b>Level ${n.shown_level}${n.shown_level !== n.current_level ? ` <small class="text-muted">(now L${n.current_level})</small>` : ''}</b></div>
         <div class="gt-row"><span>Level Status</span><b>${st.label}</b></div>
@@ -224,9 +272,14 @@
             <span class="badge badge-light-${st.cls} fs-9">${st.label}</span>
             ${!n.historical ? '<span class="badge badge-light fs-9 ms-1" title="Read-only projection — not yet paid">projection</span>' : ''}
           </span>
-          <button class="btn btn-sm btn-light py-1 px-2 fs-9"
-                  onclick="event.stopPropagation(); gtOpenLevels(${n.id});"
-                  title="Level-by-level matching audit">Details</button>
+          <span class="d-flex gap-1">
+            <button class="btn btn-sm btn-light-primary py-1 px-2 fs-9"
+                    onclick="event.stopPropagation(); gtAudit(${n.id});"
+                    title="Why did this member receive / not receive?">🔍 Audit</button>
+            <button class="btn btn-sm btn-light py-1 px-2 fs-9"
+                    onclick="event.stopPropagation(); gtOpenLevels(${n.id});"
+                    title="Level-by-level matching history">Levels</button>
+          </span>
         </div>
       </div>`;
     }
@@ -332,6 +385,7 @@
         upBtn.title = currentParent ? ('Go up to ' + currentParent.name) : 'Already at the top of the tree';
         canvas.innerHTML = '<ul class="otree"><li>' + buildList(json.data, true) + '</li></ul>';
         renderSummary(json.summary, json.level);
+        renderTimeline(json.timeline);
         applyFilter();
       } catch (e) {
         canvas.innerHTML = '<div class="text-center text-danger py-10">Network error loading tree.</div>';
@@ -339,9 +393,183 @@
       }
     }
 
-    document.getElementById('gt-level').addEventListener('change', loadTree);
-    document.getElementById('gt-refresh').addEventListener('click', loadTree);
+    document.getElementById('gt-level').addEventListener('change', function () { loadTree(); loadKpis(); });
+    document.getElementById('gt-refresh').addEventListener('click', function () { loadTree(); loadKpis(); });
     document.getElementById('gt-filter').addEventListener('change', applyFilter);
+
+    /* ------------------- header KPIs + timeline + refresh ------------------ */
+    const KPI_URL   = "<?php echo base_url('admin/staking/genealogy-tree/map-summary'); ?>";
+    const AUDIT_URL = "<?php echo base_url('admin/staking/genealogy-tree/audit/'); ?>";
+    const CONTRIB_URL = "<?php echo base_url('admin/staking/genealogy-tree/contributors/'); ?>";
+    const EXPORT_URL  = "<?php echo base_url('admin/staking/genealogy-tree/export'); ?>";
+
+    function kpiTile(label, value, tone, sub) {
+      return `<div class="col-6 col-md-4 col-xl-2"><div class="bg-light-${tone} rounded p-3 h-100">
+          <div class="text-gray-600 fw-semibold fs-8 text-uppercase">${label}</div>
+          <div class="fw-bold fs-4 mt-1">${value}</div>
+          ${sub ? `<div class="text-muted fs-8">${sub}</div>` : ''}</div></div>`;
+    }
+
+    function loadKpis() {
+      fetch(KPI_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(function (j) {
+          if (!j || j.status !== true) return;
+          const s = j.summary;
+          document.getElementById('gt-kpis').innerHTML =
+            kpiTile('Total Members', fmt(s.total_members), 'secondary') +
+            kpiTile('Active Members', fmt(s.active_members), 'success') +
+            kpiTile('Staked Members', fmt(s.staked_members), 'primary', 'eligible Lock Wallet') +
+            kpiTile('Levels Completed', fmt(s.levels_completed), 'info') +
+            kpiTile('Total Matched', fmt(s.total_matched), 'info', 'BMAN') +
+            kpiTile('User Bonus', fmt(s.user_bonus), 'success', 'BMAN') +
+            kpiTile('Admin Overflow', fmt(s.admin_overflow), 'warning', 'BMAN') +
+            kpiTile('Pending On-Chain', fmt(s.pending_onchain), s.pending_onchain > 0 ? 'danger' : 'secondary') +
+            kpiTile('Config Errors', fmt(s.config_errors), s.config_errors > 0 ? 'danger' : 'secondary',
+                    s.config_errors > 0 ? 'blocking payouts' : 'none');
+          document.getElementById('gt-updated').textContent = 'Last updated: ' + s.generated_at;
+        }).catch(function () {});
+    }
+
+    const TL_STATE = { PAID: ['🟢', 'success', 'Paid'], CURRENT: ['🟡', 'warning', 'Current'],
+                       CONFIG_ERROR: ['🔴', 'danger', 'Config Error'], NOT_COMPLETED: ['⚪', 'secondary', 'Not completed'] };
+
+    function renderTimeline(tl) {
+      const el = document.getElementById('gt-timeline');
+      if (!tl || !tl.length) { el.innerHTML = ''; return; }
+      const sel = parseInt(document.getElementById('gt-level').value, 10) || 0;
+      el.innerHTML = tl.map(function (t, i) {
+        const s = TL_STATE[t.status] || TL_STATE.NOT_COMPLETED;
+        const active = sel === t.level ? 'border border-primary' : '';
+        return (i ? '<span class="text-muted mx-1">───</span>' : '') +
+          `<span class="badge badge-light-${s[1]} ${active} cursor-pointer px-3 py-2"
+                 title="${s[2]}" onclick="gtPickLevel(${t.level})">${s[0]} L${t.level}</span>`;
+      }).join('');
+    }
+
+    window.gtPickLevel = function (lvl) {
+      document.getElementById('gt-level').value = String(lvl);
+      loadTree();
+    };
+
+    document.getElementById('gt-export').addEventListener('click', function (e) {
+      e.preventDefault();
+      const depth = document.getElementById('gt-depth').value;
+      const level = document.getElementById('gt-level').value;
+      window.location = EXPORT_URL + '?root_id=' + currentId + '&depth=' + depth + '&level=' + level;
+    });
+
+    let autoTimer = null;
+    document.getElementById('gt-auto').addEventListener('change', function () {
+      if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+      const secs = parseInt(this.value, 10) || 0;
+      // Read-only refresh: re-fetches the same GET endpoints, nothing more.
+      if (secs > 0) autoTimer = setInterval(function () { loadTree(); loadKpis(); }, secs * 1000);
+    });
+
+    /* --------------------------- Matching Audit --------------------------- */
+    window.gtAudit = function (id) {
+      const body = document.getElementById('gt-lv-body');
+      const title = document.getElementById('gt-lv-title');
+      body.innerHTML = 'Loading…';
+      title.textContent = 'Matching Audit';
+      if (window.bootstrap) new bootstrap.Modal(document.getElementById('gt-lv-modal')).show();
+      const lvl = document.getElementById('gt-level').value;
+      fetch(AUDIT_URL + id + '?level=' + lvl, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(function (j) {
+          if (j.status !== true) { body.innerHTML = '<span class="text-danger">' + esc(j.message || 'Not found') + '</span>'; return; }
+          const m = j.member, r = j.result;
+          title.textContent = 'Matching Audit — ' + m.name;
+          const failed = j.checks.filter(c => !c.pass);
+
+          let h = '';
+          if (m.ceiling_status !== 'ok' && m.ceiling_status !== 'no_stake') {
+            h += `<div class="alert alert-danger py-3 fs-7"><b>⚠ CONFIGURATION ${esc(m.ceiling_status.replace('config_', '').toUpperCase())}</b>
+                    <div class="mt-1">${esc(m.ceiling_detail || '')}</div>
+                    <div class="mt-1">Matching payout is <b>blocked</b>. No fallback ceiling is ever substituted, and the level stays open.</div>
+                    <a class="btn btn-sm btn-light-danger mt-2" href="<?php echo base_url('admin/staking/rank-power'); ?>">Open Ceiling Settings</a>
+                  </div>`;
+          }
+
+          h += '<div class="text-gray-500 fw-bold fs-8 text-uppercase mb-2">' +
+               (failed.length ? 'Why not fully paid?' : 'Matching Eligibility') + '</div>';
+          h += '<div class="mb-4">' + j.checks.map(c =>
+                `<div class="d-flex justify-content-between py-2 border-bottom">
+                   <span class="fs-7">${c.pass ? '<span class="text-success">✓</span>' : '<span class="text-danger">✕</span>'} ${esc(c.label)}</span>
+                   <span class="text-muted fs-8">${esc(c.note || '')}</span></div>`).join('') + '</div>';
+
+          h += '<div class="text-gray-500 fw-bold fs-8 text-uppercase mb-2">Ceiling</div><div class="mb-4">';
+          h += `<div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted fs-7">Highest eligible package</span><b>${m.ceiling_status === 'no_stake' ? '—' : fmt(m.highest_stake)}</b></div>`;
+          h += `<div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted fs-7">Group ceiling (live config)</span><b>${m.ceiling_status === 'ok' ? fmt(m.ceiling) : esc(m.ceiling_status)}</b></div>`;
+          h += `<div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted fs-7">Applied at this level</span><b>${fmt(m.ceiling_used)}</b></div>`;
+          if (m.ceiling > 0) {
+            h += `<div class="mt-2"><div style="height:8px;border-radius:4px;background:var(--bs-gray-200);overflow:hidden;">
+                    <div class="bg-${m.ceiling_pct >= 100 ? 'warning' : 'success'}" style="height:100%;width:${m.ceiling_pct}%"></div></div>
+                  <div class="text-muted fs-8 mt-1">Used ${fmt(m.ceiling_used)} · Remaining ${fmt(m.ceiling_remaining)} · ${m.ceiling_pct}%
+                  <span class="ms-1">(the ceiling resets every level — this is not a lifetime budget)</span></div></div>`;
+          }
+          h += '</div>';
+
+          h += `<div class="text-gray-500 fw-bold fs-8 text-uppercase mb-2">Distribution Flow — Level ${j.level}</div>`;
+          h += `<div class="bg-light rounded p-3 mb-4 fs-7">
+             <div class="d-flex justify-content-between"><span>LEFT LEG</span><b>${fmt(r.left)}</b></div>
+             <div class="d-flex justify-content-between"><span>RIGHT LEG</span><b>${fmt(r.right)}</b></div>
+             <div class="text-muted fs-8">unmatched — left ${fmt(j.unmatched_left)} · right ${fmt(j.unmatched_right)}</div>
+             <div class="text-center text-muted my-1">▼</div>
+             <div class="d-flex justify-content-between"><span>MIN (matched)</span><b>${fmt(r.matched)}</b></div>
+             <div class="text-center text-muted my-1">▼</div>
+             <div class="d-flex justify-content-between"><span>${fmt(j.pct.total)}% raw bonus</span><b>${fmt(r.raw)}</b></div>
+             <div class="text-center text-muted my-1">▼</div>
+             <div class="d-flex justify-content-between"><span class="ms-3">├─ User</span><b class="text-success">${fmt(r.user)}</b></div>
+             <div class="d-flex justify-content-between"><span class="ms-5">├─ Earning ${fmt(j.pct.earning)}%</span><b class="text-success">${fmt(r.earning)}</b></div>
+             <div class="d-flex justify-content-between"><span class="ms-5">└─ Staking ${fmt(j.pct.staking)}%</span><b class="text-info">${fmt(r.staking)}</b></div>
+             <div class="d-flex justify-content-between"><span class="ms-3">└─ Admin overflow</span><b class="${parseFloat(r.admin) > 0 ? 'text-warning' : 'text-muted'}">${fmt(r.admin)}</b></div>
+           </div>`;
+
+          h += '<div class="text-gray-500 fw-bold fs-8 text-uppercase mb-2">Volume &amp; On-Chain</div><div class="mb-4">';
+          h += `<div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted fs-7">Lock Wallet (eligible)</span><b>${fmt(m.lock_wallet)}</b></div>`;
+          h += `<div class="d-flex justify-content-between py-2 border-bottom" title="Purchased Total includes matured staking. Eligible matching volume uses currently eligible Lock Wallet volume only."><span class="text-muted fs-7">Purchased total</span><b>${fmt(m.purchased_total)}</b></div>`;
+          h += `<div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted fs-7">Matured (excluded)</span><b class="text-muted">${fmt(m.matured_total)}</b></div>`;
+          h += `<div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted fs-7">Level status</span><b>${esc(r.status)}</b></div>`;
+          h += `<div class="d-flex justify-content-between py-2 border-bottom"><span class="text-muted fs-7">Internal credit</span><b>${parseFloat(r.user) > 0 ? (r.historical ? '✓ Credited' : 'Not yet — projection') : '—'}</b></div>`;
+          h += `<div class="d-flex justify-content-between py-2"><span class="text-muted fs-7">On-chain</span><b>${r.chain_status ? esc(r.chain_status) : (r.historical && parseFloat(r.user) > 0 ? 'Queued' : '—')}</b></div>`;
+          h += '</div>';
+
+          h += `<button class="btn btn-sm btn-light-primary" onclick="gtContributors(${id}, ${j.level})">View Contributors</button>
+                <div id="gt-contrib" class="mt-3"></div>`;
+          if (!r.historical) h += '<div class="alert alert-info py-2 mt-3 mb-0 fs-8">This level is not paid yet — figures are a read-only projection from the engine.</div>';
+          body.innerHTML = h;
+        })
+        .catch(function () { body.innerHTML = '<span class="text-danger">Network error.</span>'; });
+    };
+
+    window.gtContributors = function (id, level) {
+      const box = document.getElementById('gt-contrib');
+      box.innerHTML = 'Loading…';
+      fetch(CONTRIB_URL + id + '?level=' + level, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(function (j) {
+          if (j.status !== true) { box.innerHTML = '<span class="text-danger">Failed to load.</span>'; return; }
+          const c = j.contributors;
+          const side = (rows, total, label, tone) =>
+            `<div class="col-md-6"><div class="border rounded p-3">
+               <div class="fw-bold fs-7 mb-2 text-${tone}">${label}</div>
+               ${rows.length ? rows.map(x =>
+                 `<div class="d-flex justify-content-between fs-8 py-1 border-bottom">
+                    <span class="cursor-pointer text-primary" onclick="gtSelect(${x.user_id}, '${esc(x.name)}', '${esc(x.uid)}')">${esc(x.name)} <span class="text-muted">L${x.depth}</span></span>
+                    <b>${fmt(x.volume)}</b></div>`).join('')
+                 : '<div class="text-muted fs-8">No members at this depth.</div>'}
+               <div class="d-flex justify-content-between fs-7 pt-2 fw-bold"><span>Total</span><span>${fmt(total)}</span></div>
+             </div></div>`;
+          box.innerHTML = `<div class="row g-3">
+              ${side(c.left, c.left_total, 'LEFT LEG', 'primary')}
+              ${side(c.right, c.right_total, 'RIGHT LEG', 'info')}
+            </div>
+            <div class="text-muted fs-8 mt-2">Cumulative levels 1–${c.level}, from the engine's own leg query — the same rows it matched on.</div>`;
+        })
+        .catch(function () { box.innerHTML = '<span class="text-danger">Network error.</span>'; });
+    };
 
     /* ---------------- level-by-level audit drawer ---------------- */
     const LEVELS_URL = "<?php echo base_url('admin/staking/genealogy-tree/member-levels/'); ?>";
@@ -467,6 +695,7 @@
     });
 
     loadTree();
+    loadKpis();
   })();
   </script>
 </body>

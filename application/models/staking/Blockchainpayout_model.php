@@ -36,9 +36,15 @@ class Blockchainpayout_model extends CI_Model
     /** Filterable/paginated payout rows, joined to users for display. */
     public function list($opts = [])
     {
-        $this->db->select('q.*, u.username, u.referral_id, u.profile_img, u.image')
+        $this->db->select('q.*, u.username, u.referral_id, u.profile_img, u.image, '
+                        . 'smp.level AS match_level, smp.run_ref AS match_run_ref, '
+                        . 'smp.earning_amount, smp.staking_amount, smp.admin_overflow')
                  ->from('blockchain_payout_queue q')
-                 ->join('users u', 'u.id = q.user_id', 'left');
+                 ->join('users u', 'u.id = q.user_id', 'left')
+                 // The matching level behind each transfer — reference_id is
+                 // the staking_matching_payouts row id for binary matching.
+                 ->join('staking_matching_payouts smp',
+                        "q.reference_type = 'staking_matching_payout' AND smp.id = q.reference_id", 'left');
         if (!empty($opts['status']))  $this->db->where('q.status', $opts['status']);
         if (!empty($opts['purpose'])) $this->db->where('q.purpose', $opts['purpose']);
         if (!empty($opts['user_id'])) $this->db->where('q.user_id', (int)$opts['user_id']);
@@ -49,6 +55,53 @@ class Blockchainpayout_model extends CI_Model
     public function find($id)
     {
         return $this->db->get_where('blockchain_payout_queue', ['id' => (int)$id])->row_array();
+    }
+
+    /**
+     * Everything behind one queued payout, for the detail drawer.
+     *
+     * Answers the two questions the list cannot: WHERE the money came from and
+     * WHY it has not arrived. `precheck_json` is the key — the cron records
+     * the treasury's actual BNB/BMAN balance at each attempt, so a held row
+     * explains its own shortfall instead of leaving an admin to guess.
+     *
+     * Also links back to the binary matching level that created it, so the
+     * on-chain leg and the internal credit can be read as one story.
+     */
+    public function detail($id)
+    {
+        $row = $this->db->select('q.*, u.username, u.referral_id, u.email, u.profile_img, u.image')
+                        ->from('blockchain_payout_queue q')
+                        ->join('users u', 'u.id = q.user_id', 'left')
+                        ->where('q.id', (int)$id)->get()->row_array();
+        if (!$row) return null;
+
+        // The matching level this transfer is settling (reference_id is the
+        // staking_matching_payouts row id).
+        $row['payout'] = null;
+        if ($row['reference_type'] === 'staking_matching_payout' && $row['reference_id'] !== null) {
+            $row['payout'] = $this->db->select('id, level, matched_volume, raw_bonus, ceiling_applied, '
+                                             . 'earning_amount, staking_amount, admin_overflow, run_ref, created_at')
+                                      ->where('id', (int)$row['reference_id'])
+                                      ->get('staking_matching_payouts')->row_array();
+        }
+
+        // Treasury side of the transfer.
+        $cfg = $this->db->select('treasury_wallet, explorer_url, bman_contract', false)
+                        ->get_where('token_settings', ['status' => 1])->row_array() ?: [];
+        $row['treasury_wallet'] = $cfg['treasury_wallet'] ?? null;
+        $row['explorer_url']    = rtrim($cfg['explorer_url'] ?? 'https://bscscan.com', '/');
+
+        // Gas actually spent, if the chain-sync sweep has filled it in.
+        $row['gas'] = null;
+        if (!empty($row['tx_hash'])) {
+            $row['gas'] = $this->db->select('gas_used, gas_price, gas_fee_total, status, block_number, confirmation_count')
+                                   ->where('tx_hash', $row['tx_hash'])
+                                   ->get('onchain_transactions')->row_array();
+        }
+
+        $row['precheck'] = $row['precheck_json'] ? json_decode($row['precheck_json'], true) : null;
+        return $row;
     }
 
     /* ------------------------- treasury funding ------------------------- */
