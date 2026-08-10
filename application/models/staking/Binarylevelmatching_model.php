@@ -72,10 +72,17 @@ class Binarylevelmatching_model extends CI_Model
         // Keep the legacy volume bookkeeping alive: binary_carry and
         // staking_group_volume feed the admin genealogy tree, dashboard stats
         // and member history pages. They no longer drive a single payment.
+        // Alias deliberately NOT "MB": Matchingqueue_model::runClaimed() loads
+        // *this* class under alias 'MB' before calling run(). CI_Loader::model()
+        // short-circuits a repeat load of an already-used alias name (regardless
+        // of target class — system/core/Loader.php ~L268), so re-using 'MB' here
+        // silently no-ops and leaves $this->MB pointing at this very object,
+        // which has no propagate() — that was the "Call to undefined method
+        // Binarylevelmatching_model::propagate()" queue failure.
         $propagated = 0;
         if (empty($opts['skip_propagate'])) {
-            $this->load->model('staking/Stakingmatching_model', 'MB');
-            $propagated = $this->MB->propagate();
+            $this->load->model('staking/Stakingmatching_model', 'MBLEGACY');
+            $propagated = $this->MBLEGACY->propagate();
         }
 
         $s = $this->db->get_where('staking_bonus_settings', ['id' => 1])->row_array();
