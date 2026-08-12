@@ -81,6 +81,21 @@
                                     </div>
                                 </div>
 
+                                <!-- Detail modal -->
+                                <div class="modal fade" id="aal-detail-modal" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:95vw;width:1200px;">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h3 class="modal-title">Change Detail</h3>
+                                                <div class="btn btn-sm btn-icon" data-bs-dismiss="modal">
+                                                    <i class="ki-outline ki-cross fs-1"></i>
+                                                </div>
+                                            </div>
+                                            <div class="modal-body scroll-y" style="max-height:80vh" id="aal-detail-body"></div>
+                                        </div>
+                                    </div>
+                                </div>
+
                             </div>
                         </div>
 
@@ -115,14 +130,96 @@
                 c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         }
 
+        function humanizeKey(k) {
+            return String(k).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
+
+        function fmtScalar(v) {
+            if (v === null || v === undefined || v === '') return '<span class="text-muted">—</span>';
+            if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+            if (typeof v === 'object') return '<code class="fs-8">' + esc(JSON.stringify(v)) + '</code>';
+            return '<span class="text-break">' + esc(String(v)) + '</span>';
+        }
+
+        /* Whole-row settings changes (e.g. Token Settings / Exchange Rate) store
+           the entire config row as a JSON blob in old_value/new_value, not one
+           scalar per field. A raw JSON dump is unreadable, so parse both sides
+           and render a Field / Old / New comparison table instead — changed
+           fields highlighted, unchanged fields muted so the real diff pops out. */
+        function tryParseObject(v) {
+            if (v === null || v === undefined || v === '') return null;
+            try {
+                const p = JSON.parse(v);
+                return (p && typeof p === 'object' && !Array.isArray(p)) ? p : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function renderJsonDiff(oldObj, newObj) {
+            const keys = [];
+            const seen = new Set();
+            Object.keys(oldObj || {}).concat(Object.keys(newObj || {})).forEach(k => {
+                if (!seen.has(k)) { seen.add(k); keys.push(k); }
+            });
+            let html = '<table class="table table-row-dashed fs-7 mb-0"><thead><tr class="fw-bold text-muted">' +
+                '<th style="width:220px">Field</th><th>Old Value</th><th>New Value</th></tr></thead><tbody>';
+            keys.forEach(k => {
+                const ov = oldObj ? oldObj[k] : undefined;
+                const nv = newObj ? newObj[k] : undefined;
+                const changed = JSON.stringify(ov) !== JSON.stringify(nv);
+                html += '<tr class="' + (changed ? 'table-warning' : '') + '">' +
+                    '<td class="' + (changed ? 'fw-bold' : 'text-muted') + '">' + esc(humanizeKey(k)) + '</td>' +
+                    '<td>' + fmtScalar(ov) + '</td>' +
+                    '<td>' + fmtScalar(nv) + '</td>' +
+                    '</tr>';
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+
+        /* Human-readable single-change popup — the table truncates long Old/New
+           values (RPC URLs, addresses, etc.) to fit the row; the modal shows
+           them in full, labeled, instead of relying on a hover tooltip. */
+        function openAuditDetail(row) {
+            const m = bootstrap.Modal.getOrCreateInstance(document.getElementById('aal-detail-modal'));
+            const body = document.getElementById('aal-detail-body');
+
+            const headRows = [
+                ['Module', esc(row.label)],
+                ['Field', esc(row.field) + (row.action ? ' <span class="badge badge-light-info fs-8">' + esc(row.action) + '</span>' : '')],
+                ['Changed By', esc(row.admin_name || ('#' + row.changed_by))],
+                ['When', esc(row.created_at)],
+            ];
+            let html = '<table class="table table-row-dashed fs-7 mb-2">';
+            headRows.forEach(([k, v]) => {
+                html += '<tr><td class="fw-bold text-muted" style="width:160px">' + esc(k) + '</td><td>' + v + '</td></tr>';
+            });
+            html += '</table>';
+
+            const oldObj = tryParseObject(row.old_value);
+            const newObj = tryParseObject(row.new_value);
+            if (oldObj || newObj) {
+                html += renderJsonDiff(oldObj, newObj);
+            } else {
+                html += '<table class="table table-row-dashed fs-7 mb-0">' +
+                    '<tr><td class="fw-bold text-muted" style="width:160px">Old Value</td><td>' + fmtScalar(row.old_value) + '</td></tr>' +
+                    '<tr><td class="fw-bold text-muted" style="width:160px">New Value</td><td>' + fmtScalar(row.new_value) + '</td></tr>' +
+                    '</table>';
+            }
+
+            body.innerHTML = html;
+            m.show();
+        }
+
         function render(rows) {
             const body = document.getElementById('aal-body');
             if (!rows.length) {
                 body.innerHTML = '<div class="text-muted">No changes recorded yet.</div>';
                 return;
             }
-            const trs = rows.map(r =>
-                '<tr>' +
+            const trs = rows.map((r, i) =>
+                '<tr class="aal-row" data-idx="' + i + '" style="cursor:pointer">' +
                 '<td><span class="badge badge-light-primary text-uppercase">' + esc(r.label) + '</span></td>' +
                 '<td>' + esc(r.field) + (r.action ? ' <span class="badge badge-light-info fs-8">' + esc(r.action) + '</span>' : '') + '</td>' +
                 '<td class="fs-8 text-muted mw-250px text-truncate">' + esc(r.old_value ?? '—') + '</td>' +
@@ -133,6 +230,10 @@
             body.innerHTML = '<table class="table table-row-dashed fs-7"><thead><tr class="fw-bold text-muted">' +
                 '<th>Module</th><th>Field</th><th>Old</th><th>New</th><th>By</th><th>When</th>' +
                 '</tr></thead><tbody>' + trs + '</tbody></table>';
+
+            body.querySelectorAll('.aal-row').forEach(tr => {
+                tr.addEventListener('click', () => openAuditDetail(rows[Number(tr.dataset.idx)]));
+            });
         }
 
         function rowTime(row) {

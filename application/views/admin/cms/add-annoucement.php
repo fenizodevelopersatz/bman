@@ -358,7 +358,7 @@
                         <label class="col-lg-4 col-form-label fw-semibold fs-6">Button URL</label>
                         <div class="col-lg-8 fv-row">
                             <input type="text" name="button_url" class="form-control form-control-lg form-control-solid"
-                                placeholder="/user/payouts" value="<?php echo htmlspecialchars($button_url ?? ''); ?>">
+                                placeholder="payouts" value="<?php echo htmlspecialchars($button_url ?? ''); ?>">
                             <div class="text-muted fs-8 mt-1">Leave both blank to hide the button entirely.</div>
                         </div>
                         </div>

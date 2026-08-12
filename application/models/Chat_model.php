@@ -159,6 +159,15 @@ class Chat_model extends CI_Model
         if ($limit <= 0 || $limit > 100)
             $limit = 50;
 
+        // Resolve BEFORE starting the main query's builder chain below.
+        // _registeredAt() runs its own select()/from()/where()/get() against
+        // the SAME $this->db object; calling it while the main query's clauses
+        // are already staged (select/from/where set but get() not yet called)
+        // makes CI3's query builder merge the two — producing a broken
+        // `FROM chat_messages, users` cross join with an ambiguous `id` column
+        // and a 500 on every world/team fetch. Must fully resolve first.
+        $registeredAt = ($room !== 'personal') ? $this->_registeredAt($currentUserId) : null;
+
         // ✅ base select
         $this->db->select('id, room, user_id, to_user_id, username, message, message_type, file_url, file_name, mime_type, file_size, created_at');
         $this->db->from($this->table);
@@ -172,7 +181,6 @@ class Chat_model extends CI_Model
             $this->db->where('to_user_id IS NULL', null, false);
             // A member only sees room traffic from after they joined — a new
             // account must not inherit the room's whole pre-registration history.
-            $registeredAt = $this->_registeredAt($currentUserId);
             if ($registeredAt !== null) {
                 $this->db->where('created_at >=', $registeredAt);
             }

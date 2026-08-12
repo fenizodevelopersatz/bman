@@ -145,15 +145,21 @@ $uid = $this->session->userdata('user_userid') ?? '';
     // else (Dashboard, Binary Tree, ...) would incorrectly show as offline.
     var url = '<?php echo base_url('user/heartbeat'); ?>';
     var badge = document.getElementById('chatUnreadBadge');
+    // Captured once, before any "(n) " prefix is ever added, so repeated
+    // pings update the count instead of stacking prefixes onto each other.
+    var baseTitle = document.title;
     function ping() {
       if (document.visibilityState !== 'visible') return;
       fetch(url, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (!badge || !j || !j.ok) return;
+          if (!j || !j.ok) return;
           var n = parseInt(j.unread || 0, 10);
-          if (n > 0) { badge.textContent = n > 99 ? '99+' : n; badge.style.display = 'block'; }
-          else { badge.style.display = 'none'; }
+          if (badge) {
+            if (n > 0) { badge.textContent = n > 99 ? '99+' : n; badge.style.display = 'block'; }
+            else { badge.style.display = 'none'; }
+          }
+          document.title = n > 0 ? '(' + (n > 99 ? '99+' : n) + ') ' + baseTitle : baseTitle;
         })
         .catch(function () {});
     }

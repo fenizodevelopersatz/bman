@@ -67,7 +67,10 @@ class Announcement_model extends CI_Model {
             $kycStatus = $this->db->select('status')->where('user_id', (int) $userId)
                 ->order_by('id', 'DESC')->get('kyc_applications')->row();
             $status = $kycStatus->status ?? null;
-            if ($type === 'kyc_pending') return in_array($status, ['pending', 'under_review'], true);
+            // "KYC Pending" covers both users mid-review AND users who never
+            // submitted an application at all — from the platform's
+            // perspective both are simply "not yet KYC-approved".
+            if ($type === 'kyc_pending') return $status === null || in_array($status, ['pending', 'under_review'], true);
             return $status === 'approved';
         }
 

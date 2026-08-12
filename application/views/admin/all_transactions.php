@@ -126,15 +126,15 @@
 
                                 <!-- Detail modal -->
                                 <div class="modal fade" id="at-detail-modal" tabindex="-1" aria-hidden="true">
-                                    <div class="modal-dialog modal-dialog-centered mw-800px">
+                                    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:95vw;width:1200px;">
                                         <div class="modal-content">
                                             <div class="modal-header">
-                                                <h3 class="modal-title">Transaction Detail</h3>
+                                                <h3 class="modal-title" id="at-detail-title">Transaction Detail</h3>
                                                 <div class="btn btn-sm btn-icon" data-bs-dismiss="modal">
                                                     <i class="ki-outline ki-cross fs-1"></i>
                                                 </div>
                                             </div>
-                                            <div class="modal-body scroll-y mh-500px" id="at-detail-body">Loading…</div>
+                                            <div class="modal-body scroll-y" style="max-height:80vh" id="at-detail-body">Loading…</div>
                                         </div>
                                     </div>
                                 </div>
@@ -356,6 +356,7 @@
         async function openDetail(id) {
             const m = bootstrap.Modal.getOrCreateInstance(document.getElementById('at-detail-modal'));
             const body = document.getElementById('at-detail-body');
+            document.getElementById('at-detail-title').textContent = 'Transaction Detail';
             body.innerHTML = 'Loading…';
             m.show();
             const j = await fetchJson(base + 'admin/all-transaction/detail?id=' + encodeURIComponent(id));
@@ -409,31 +410,99 @@
 
         /* ---------------- cron run log tab ---------------- */
         let cronLoaded = false;
+        let cronRows = [];
+        const cronStatusCls = { success: 'success', error: 'danger', timeout: 'warning', unknown: 'secondary' };
+
+        function humanizeKey(k) {
+            return String(k).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
+
+        /* Render a parsed JSON value as a readable key/value table, recursing
+           into nested objects/arrays — used so the cron summary popup shows
+           labeled fields instead of a raw JSON blob. */
+        function prettyValue(v) {
+            if (v === null || v === undefined) return '<span class="text-muted">—</span>';
+            if (Array.isArray(v)) {
+                if (!v.length) return '<span class="text-muted">—</span>';
+                if (v.every(x => x === null || typeof x !== 'object')) {
+                    return esc(v.join(', '));
+                }
+                return v.map(x => '<div class="border-start ps-3 mb-2">' + prettyObject(x) + '</div>').join('');
+            }
+            if (typeof v === 'object') return prettyObject(v);
+            if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+            return esc(String(v));
+        }
+
+        function prettyObject(obj) {
+            if (obj === null || typeof obj !== 'object') return prettyValue(obj);
+            const keys = Object.keys(obj);
+            if (!keys.length) return '<span class="text-muted">—</span>';
+            let html = '<table class="table table-sm table-row-dashed fs-7 mb-0">';
+            keys.forEach(k => {
+                html += '<tr><td class="fw-bold text-muted" style="width:180px">' + esc(humanizeKey(k)) + '</td>' +
+                    '<td>' + prettyValue(obj[k]) + '</td></tr>';
+            });
+            html += '</table>';
+            return html;
+        }
+
+        function openCronDetail(row) {
+            const m = bootstrap.Modal.getOrCreateInstance(document.getElementById('at-detail-modal'));
+            const body = document.getElementById('at-detail-body');
+            document.getElementById('at-detail-title').textContent = 'Cron Run Detail — ' + row.cron_name;
+
+            let summaryHtml;
+            try {
+                summaryHtml = prettyObject(JSON.parse(row.summary));
+            } catch (e) {
+                summaryHtml = '<div class="fs-7">' + esc(row.summary || '—') + '</div>';
+            }
+
+            let html = '<table class="table table-row-dashed fs-7">';
+            [
+                ['When', esc(row.created_at)],
+                ['Cron', esc(row.cron_name)],
+                ['Status', '<span class="badge badge-light-' + (cronStatusCls[row.status] || 'secondary') + '">' + esc(row.status) + '</span>'],
+                ['Duration', row.duration_ms != null ? row.duration_ms + ' ms' : '—'],
+            ].forEach(([k, v]) => {
+                html += '<tr><td class="fw-bold text-muted" style="width:180px">' + esc(k) + '</td><td>' + v + '</td></tr>';
+            });
+            html += '</table>';
+            html += '<div class="fw-bold mb-2 mt-4">Summary</div>' + summaryHtml;
+
+            body.innerHTML = html;
+            m.show();
+        }
+
         async function loadCronTab() {
             const body = document.getElementById('at-cron-body');
             body.innerHTML = 'Loading…';
             const j = await fetchJson(base + 'admin/all-transaction/cron-log');
             if (!j.status) { body.innerHTML = '<div class="text-danger">Failed to load.</div>'; return; }
-            const rows = j.rows || [];
-            if (!rows.length) {
+            cronRows = j.rows || [];
+            if (!cronRows.length) {
                 body.innerHTML = '<div class="text-muted">No cron runs recorded yet.</div>';
                 return;
             }
-            const statusCls = { success: 'success', error: 'danger', timeout: 'warning', unknown: 'secondary' };
-            const trs = rows.map(r => {
+            const trs = cronRows.map((r, i) => {
                 let summary = r.summary;
                 try { summary = JSON.stringify(JSON.parse(r.summary)); } catch (e) {}
-                return '<tr>' +
+                return '<tr class="at-cron-row" data-idx="' + i + '" style="cursor:pointer">' +
                     '<td class="fs-8 text-muted">' + esc(r.created_at) + '</td>' +
                     '<td>' + esc(r.cron_name) + '</td>' +
-                    '<td><span class="badge badge-light-' + (statusCls[r.status] || 'secondary') + '">' + esc(r.status) + '</span></td>' +
+                    '<td><span class="badge badge-light-' + (cronStatusCls[r.status] || 'secondary') + '">' + esc(r.status) + '</span></td>' +
                     '<td class="fs-8 text-muted">' + (r.duration_ms != null ? r.duration_ms + ' ms' : '—') + '</td>' +
-                    '<td class="fs-8 text-muted mw-400px text-truncate" title="' + esc(summary) + '">' + esc(summary) + '</td>' +
+                    '<td class="fs-8 text-muted mw-400px text-truncate" title="Click row for full details">' + esc(summary) + '</td>' +
                     '</tr>';
             }).join('');
             body.innerHTML = '<table class="table table-row-dashed fs-7"><thead><tr class="fw-bold text-muted">' +
                 '<th>When</th><th>Cron</th><th>Status</th><th>Duration</th><th>Summary</th>' +
                 '</tr></thead><tbody>' + trs + '</tbody></table>';
+
+            body.querySelectorAll('.at-cron-row').forEach(tr => {
+                tr.addEventListener('click', () => openCronDetail(cronRows[Number(tr.dataset.idx)]));
+            });
         }
 
         document.querySelector('a[href="#at-tab-cron"]').addEventListener('shown.bs.tab', () => {
