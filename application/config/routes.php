@@ -59,6 +59,7 @@ $route['default_controller'] = 'Landing';
 
 /****************** ADMIN ROUTES ********/
 $route['admin'] = 'admin/dashboard/Dashboard/index';
+$route['admin/login'] = 'admin/Login';
 // Obscured login path — do not restore 'admin/login' (mass-scanned by bots). See docs/3_CHANGELOG.md.
 $route['aaddmmiinn/login'] = 'admin/Login';
 
@@ -457,6 +458,7 @@ $route['wallet-transfer-settlement-cron'] = 'WalletTransferSettlementCron/run'; 
 $route['wallet-transfer-settlement-cron/test'] = 'WalletTransferSettlementCron/test';
 $route['member-bulk-bman-cron'] = 'MemberBulkBmanCron/run';                      // opening BMAN balance for bulk-uploaded members, sent from the Treasury wallet (disabled + dry-run by default, token-gated)
 $route['member-bulk-bman-cron/test'] = 'MemberBulkBmanCron/test';
+$route['bman-withdraw-collect-cron'] = 'BmanWithdrawCollectCron/run';            // auto-collect withdrawal BMAN on-chain (user custodial wallet -> treasury) ahead of admin approval; USDT payout leg stays manual (disabled + dry-run by default, token-gated)
 
 
 
