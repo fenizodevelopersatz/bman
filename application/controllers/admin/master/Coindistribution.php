@@ -23,7 +23,7 @@ class Coindistribution extends CI_Controller
         $this->load->model('Coindistribution_model', 'dist');
 
         if (!$this->session->userdata('admin_logged_in')) {
-            redirect('admin/login');
+            redirect('aaddmmiinn/login');
         }
         $user = $this->Admin_model->get_user($this->session->userdata('admin_userid'));
         if ($user && $user->admin_roll == '1') {

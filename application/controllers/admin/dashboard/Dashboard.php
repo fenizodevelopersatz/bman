@@ -16,7 +16,7 @@ class Dashboard extends CI_Controller
         $this->load->model('admin/DashboardStats_model', 'stats');
 
         if (!$this->session->userdata('admin_logged_in')) {
-            redirect('admin/login');
+            redirect('aaddmmiinn/login');
         }
     }
 

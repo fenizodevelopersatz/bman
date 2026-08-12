@@ -13,7 +13,7 @@ class Internaltransfers extends CI_Controller
         $this->load->library('session');
         $this->load->helper(['url','security']);
         $this->load->model('Admin_model');
-        if (!$this->session->userdata('admin_logged_in')) redirect('admin/login');
+        if (!$this->session->userdata('admin_logged_in')) redirect('aaddmmiinn/login');
         $user = $this->Admin_model->get_user($this->session->userdata('admin_userid'));
         if ($user && $user->admin_roll == '1') {
             $perm = json_decode($user->permission_pages, true);

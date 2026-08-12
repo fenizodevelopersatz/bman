@@ -12,7 +12,7 @@
 //         $this->load->model('Admin_model');
 
 //         if (!$this->session->userdata('admin_logged_in')) {
-//             redirect('admin/login');
+//             redirect('aaddmmiinn/login');
 //         }
 
 //         // ✅ permission like your FAQ cms
@@ -324,7 +324,7 @@ class Earnings_ads extends My_Controller
 
         // ✅ Admin login check
         if (!$this->session->userdata('admin_logged_in')) {
-            redirect('admin/login');
+            redirect('aaddmmiinn/login');
         }
 
         // ✅ Permission check (change key name as per your permission JSON)

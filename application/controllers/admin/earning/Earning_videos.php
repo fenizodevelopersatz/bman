@@ -12,7 +12,7 @@ class Earning_videos extends MY_Controller
         $this->load->model('Admin_model');
 
         if (!$this->session->userdata('admin_logged_in')) {
-            redirect('admin/login');
+            redirect('aaddmmiinn/login');
         }
 
         // ✅ permission check example (optional - change key name as you need)

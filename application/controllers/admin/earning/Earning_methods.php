@@ -12,7 +12,7 @@ class Earning_methods extends CI_Controller
 
         // ✅ you can add your admin auth + permission checks here (same like FAQ)
         if (!$this->session->userdata('admin_logged_in')) {
-            redirect('admin/login');
+            redirect('aaddmmiinn/login');
         }
     }
 

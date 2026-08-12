@@ -9,7 +9,7 @@ class RoiManagement extends CI_Controller
         $this->load->model('Admin_model');
         $this->load->model('RoiAudit_model');
 
-        if (!$this->session->userdata('admin_logged_in')) redirect('admin/login');
+        if (!$this->session->userdata('admin_logged_in')) redirect('aaddmmiinn/login');
     }
 
     public function index()

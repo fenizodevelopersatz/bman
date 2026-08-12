@@ -16,7 +16,7 @@ class Walletledger extends CI_Controller
         $this->load->model('WalletTracker_model', 'tracker');
         $this->load->model('WalletMaturity_model', 'maturity');
 
-        if (!$this->session->userdata('admin_logged_in')) redirect('admin/login');
+        if (!$this->session->userdata('admin_logged_in')) redirect('aaddmmiinn/login');
 
         $user = $this->Admin_model->get_user($this->session->userdata('admin_userid'));
         if ($user && $user->admin_roll == '1') {

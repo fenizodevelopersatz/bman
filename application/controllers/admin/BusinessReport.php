@@ -11,7 +11,7 @@ class BusinessReport extends CI_Controller
         $this->load->database();
 
         if (!$this->session->userdata('admin_logged_in'))
-            redirect('admin/login');
+            redirect('aaddmmiinn/login');
     }
 
     public function index()

@@ -9,7 +9,7 @@ class Administrator extends CI_Controller {
 		if($this->session->userdata('admin_logged_in') && $this->session->userdata('admin_login')) {
 			$this->lang->load('common',$this->session->userdata('language'));
 		} else {
-			redirect('admin/login');
+			redirect('aaddmmiinn/login');
 		}
 	}
 	
@@ -30,7 +30,7 @@ class Administrator extends CI_Controller {
 
 			$this->load->view('admin/dashboard/index', $this->data);
 	    } else {
-	    	redirect('admin/login');
+	    	redirect('aaddmmiinn/login');
 	    }
  		
 	}

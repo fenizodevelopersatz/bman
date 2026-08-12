@@ -16,7 +16,7 @@ class Withdraw extends MY_Controller
         $this->load->library('upload');
 
         // if (!$this->session->userdata('admin_logged_in')) {
-        //     redirect('admin/login');
+        //     redirect('aaddmmiinn/login');
         // }
 
         // if ($this->session->userdata('admin_logged_in') && $this->session->userdata('admin_logged_in')) {
@@ -53,7 +53,7 @@ class Withdraw extends MY_Controller
 
 
         if (!$this->session->userdata('admin_logged_in')) {
-            redirect('admin/login');
+            redirect('aaddmmiinn/login');
         }
 
         $this->data['title'] = "All Withdraw List ";

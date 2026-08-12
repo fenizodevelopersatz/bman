@@ -60,7 +60,7 @@ class Login extends CI_Controller {
                     exit;
                 }
                 $this->data['verify_type'] = '1';
-                $this->data['action'] = base_url()."admin/login";
+                $this->data['action'] = base_url()."aaddmmiinn/login";
                 $this->load->view('admin/login', $this->data);
                 return;
 			} else {
@@ -94,7 +94,7 @@ class Login extends CI_Controller {
                         exit;
                     }
                     if ($this->session->userdata('pending_admin_verification')) {
-                        redirect('admin/login');
+                        redirect('aaddmmiinn/login');
                     } else {
                         redirect('admin');
                     }
@@ -106,7 +106,7 @@ class Login extends CI_Controller {
                     $errMsg = is_array($result_get['message']) ? implode(', ', $result_get['message']) : $result_get['message'];
                     $this->session->set_flashdata('error', $errMsg);
                     $this->data['verify_type'] = '1';
-                    $this->data['action'] = base_url()."admin/login";
+                    $this->data['action'] = base_url()."aaddmmiinn/login";
                     $this->load->view('admin/login', $this->data);
                     return;
 				}
@@ -121,7 +121,7 @@ class Login extends CI_Controller {
 			  } else {
 
 				$this->data['verify_type'] = '1';
-                $this->data['action'] = base_url()."admin/login";
+                $this->data['action'] = base_url()."aaddmmiinn/login";
 				$this->load->view('admin/login',$this->data);
 
 			  }
@@ -296,7 +296,7 @@ class Login extends CI_Controller {
 		$this->data['admin_mail'] = $this->db->get_where('admin_members', ['id' => $admin_id])->row()->admin_email;
 		$this->data['twofa_required'] = (bool)$this->session->userdata('admin_twofa_required');
 		$this->data['email_otp_required'] = (bool)$this->session->userdata('admin_email_otp_required');
-		$this->data['action'] = base_url()."admin/login/success";
+		$this->data['action'] = base_url()."aaddmmiinn/login/success";
 		$this->load->view('admin/login',$this->data);
 		
 	}
@@ -308,7 +308,7 @@ class Login extends CI_Controller {
 			'admin_email', 'admin_userlevel', 'admin_login',
 			'admin_logindate', 'admin_ip_address'
 		));
-		redirect('admin/login');
+		redirect('aaddmmiinn/login');
 	}
 
 

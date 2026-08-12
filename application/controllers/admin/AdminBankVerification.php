@@ -7,7 +7,7 @@ class AdminBankVerification extends CI_Controller
         parent::__construct();
 
         // TODO: protect with your admin auth check
-        // if (!$this->session->userdata('is_admin')) redirect('admin/login');        
+        // if (!$this->session->userdata('is_admin')) redirect('aaddmmiinn/login');        
         $this->load->database();
         $this->load->helper(['url', 'security']);
         $this->load->model('Bank_model', 'bank');

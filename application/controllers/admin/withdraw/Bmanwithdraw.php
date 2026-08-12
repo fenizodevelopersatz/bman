@@ -16,7 +16,7 @@ class Bmanwithdraw extends MY_Controller
         $this->load->model('Kyc_model', 'kyc');
 
         if (!$this->session->userdata('admin_logged_in')) {
-            redirect('admin/login');
+            redirect('aaddmmiinn/login');
         }
         $user = $this->Admin_model->get_user($this->session->userdata('admin_userid'));
         $this->is_super = ($user && $user->admin_roll == '1');

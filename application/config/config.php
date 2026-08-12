@@ -469,7 +469,7 @@ $config['csrf_cookie_name'] = 'csrf_cookie';
 $config['csrf_expire'] = 7200;
 $config['csrf_regenerate'] = TRUE;
 $config['csrf_exclude_uris'] = array(
-    'admin/login',
+    'aaddmmiinn/login',
     'logout',
     'all-transaction-get',
     'payment-verify',

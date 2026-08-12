@@ -13,13 +13,13 @@ class Faq extends CI_Controller
         $this->ensure_page_key_column();
 
         if (!$this->session->userdata('admin_logged_in')) {
-            redirect('admin/login');
+            redirect('aaddmmiinn/login');
         }
 
         $user = $this->Admin_model->get_user($this->session->userdata('admin_userid'));
 
         if (!$user) {
-            redirect('admin/login');
+            redirect('aaddmmiinn/login');
         }
 
         if ($user->admin_roll == '1') {

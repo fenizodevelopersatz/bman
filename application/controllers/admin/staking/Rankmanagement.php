@@ -38,7 +38,7 @@ class Rankmanagement extends CI_Controller
         $this->load->model('staking/Rankcron_model', 'rankcron');
 
         if (!$this->session->userdata('admin_logged_in')) {
-            redirect('admin/login');
+            redirect('aaddmmiinn/login');
         }
         $this->admin_id = (int)$this->session->userdata('admin_userid');
 

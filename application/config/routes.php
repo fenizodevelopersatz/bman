@@ -59,7 +59,8 @@ $route['default_controller'] = 'Landing';
 
 /****************** ADMIN ROUTES ********/
 $route['admin'] = 'admin/dashboard/Dashboard/index';
-$route['admin/login'] = 'admin/Login';
+// Obscured login path — do not restore 'admin/login' (mass-scanned by bots). See docs/3_CHANGELOG.md.
+$route['aaddmmiinn/login'] = 'admin/Login';
 
 /********** admin login verify */
 $route['login-otp-verify'] = 'admin/Login/verifyotp';
