@@ -407,7 +407,11 @@
     .content-grid {
       display: grid;
       /* grid-template-columns: 1.25fr .75fr; */
-      grid-template-columns: 2.25fr .75fr;
+      /* minmax(0, ...): a bare fr track's implicit auto minimum is its
+         child's max-content width — the table's nowrap header cells — which
+         can blow the track past the container before .table-wrap's own
+         overflow-x:auto gets a chance to contain it. */
+      grid-template-columns: minmax(0, 2.25fr) minmax(0, .75fr);
       gap: 14px;
     }
 
@@ -765,7 +769,13 @@
       }
 
       .content-grid {
-        grid-template-columns: 1fr;
+        /* minmax(0, 1fr), not bare 1fr: a bare 1fr track's implicit auto
+           minimum is the max-content width of its child — here the table's
+           white-space:nowrap header cells — so the track (and the page)
+           blew out past the viewport instead of letting .table-wrap's own
+           overflow-x:auto contain it. minmax(0, ...) removes that implicit
+           floor. */
+        grid-template-columns: minmax(0, 1fr);
       }
 
       .filter-grid {

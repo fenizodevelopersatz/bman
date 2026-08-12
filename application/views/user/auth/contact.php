@@ -22,6 +22,13 @@
     html[data-bs-theme="light"] .lpx-form-side .text-gray-900, html[data-bs-theme="light"] .lpx-form-side .text-gray-800{ color:#10182f !important; }
     html[data-bs-theme="light"] .lpx-form-side .text-gray-500, html[data-bs-theme="light"] .lpx-form-side .text-gray-600{ color:#64708a !important; }
     html[data-bs-theme="light"] .lpx-form-side .form-control{ background:#fff !important; border-color:#dbe2ee !important; color:#10182f !important; }
+    /* .form-label / placeholder / file-hint below are hardcoded near-white
+       for the dark shell this page defaults to — light mode never got an
+       override, so they render white-on-white (invisible) instead of
+       falling back to a theme-aware default like the other auth pages. */
+    html[data-bs-theme="light"] .lpx-form-side .form-label{ color:#374151 !important; }
+    html[data-bs-theme="light"] .lpx-form-side .form-control::placeholder{ color:#98a2b3 !important; }
+    html[data-bs-theme="light"] .lpx-form-side .file-hint{ color:#8b93a7 !important; }
 
     /* ---- split layout (same shell as login.php) ---- */
     .lpx-auth{ display:flex; min-height:100vh; align-items:center; justify-content:center; gap:30px;

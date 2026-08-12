@@ -1,7 +1,7 @@
 <html>
 <?php 
 $title = site_settings('meta-settings','site-title');
-$fav_img = site_settings('image','dark_footer_logo');
+$fav_img = site_settings('image','favicon'); // was 'dark_footer_logo' — wrong settings key, that's a separate (usually unset) footer image, not the favicon Site Settings actually saves
 $discription = site_settings('meta-settings','site-description');
 $keywords = site_settings('meta-settings','site-keyword');
 $org_img = site_settings('image','og-img');
