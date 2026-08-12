@@ -167,7 +167,7 @@ class Bmanwithdraw extends CI_Controller
             return $this->_json(['status' => false, 'message' => $request['error']]);
         }
 
-        $this->bmanwithdraw->log_action($request['id'], 0, 'user_request', null, 'pending', 'User created withdrawal request');
+        $this->bmanwithdraw->log_action($request['id'], 0, 'user_request', null, 'processing', 'User created withdrawal request');
         $this->db->trans_complete();
 
         if (!$this->db->trans_status()) {

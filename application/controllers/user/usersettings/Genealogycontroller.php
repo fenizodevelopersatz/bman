@@ -965,6 +965,8 @@ class Genealogycontroller extends MY_Controller
         // ✅ UI variables your new page needs
         $this->data['payout'] = $payout;
         $this->data['payouts'] = $payouts;
+        $ts = $this->db->select('explorer_url')->get_where('token_settings', ['status' => 1])->row_array();
+        $this->data['explorer_url'] = rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
         $this->data['open_request'] = $open_request;
         $this->data['withdraw_rules'] = $withdraw_rules;
 

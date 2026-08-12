@@ -125,6 +125,12 @@ class Bmanwithdraw_model extends CI_Model
             ->result_array();
     }
 
+    /**
+     * 'approved' is dual-meaning (see approve_and_complete() vs the legacy
+     * approve()): terminal/paid under the cron flow (tx_hash set) but still
+     * an in-flight intermediate step under the legacy manual flow (no
+     * tx_hash yet). tx_hash presence is the discriminator, not the string.
+     */
     public function user_totals($user_id)
     {
         $user_id = (int) $user_id;
@@ -132,13 +138,25 @@ class Bmanwithdraw_model extends CI_Model
         $pending_row = $this->db->select('IFNULL(SUM(request_amount),0) AS s', false)
             ->from('bman_withdraw_requests')
             ->where('user_id', $user_id)
-            ->where_in('status', ['pending', 'approved', 'processing'])
+            ->group_start()
+                ->where_in('status', ['pending', 'processing'])
+                ->or_group_start()
+                    ->where('status', 'approved')
+                    ->where('tx_hash IS NULL', null, false)
+                ->group_end()
+            ->group_end()
             ->get()->row();
 
         $paid_row = $this->db->select('IFNULL(SUM(request_amount),0) AS s', false)
             ->from('bman_withdraw_requests')
             ->where('user_id', $user_id)
-            ->where('status', 'completed')
+            ->group_start()
+                ->where('status', 'completed')
+                ->or_group_start()
+                    ->where('status', 'approved')
+                    ->where('tx_hash IS NOT NULL', null, false)
+                ->group_end()
+            ->group_end()
             ->get()->row();
 
         return [
@@ -211,6 +229,14 @@ class Bmanwithdraw_model extends CI_Model
             $out[] = (object) [
                 'payout_id' => $r['request_no'],
                 'txn_id' => $r['tx_hash'] ?? null,
+                // The member's own BMAN leaving their wallet — the on-chain
+                // hash that was missing from this view. Deliberately not
+                // exposing gas_tx_hash here: that's the internal treasury→
+                // user BNB gas-funding leg, not something the member did or
+                // needs to verify. refund_tx_hash lets a rejected member
+                // confirm their BMAN genuinely came back on-chain.
+                'onchain_hash' => $r['collect_tx_hash'] ?? null,
+                'refund_tx_hash' => $r['refund_tx_hash'] ?? null,
                 'user_id' => $r['user_id'],
 
                 'amount' => (float) $r['request_amount'],
@@ -241,6 +267,10 @@ class Bmanwithdraw_model extends CI_Model
     /**
      * Returns the latest open withdrawal request for the user.
      * Open means it is still in the admin workflow and should block new requests.
+     * 'approved' only counts as open while tx_hash is unset (legacy manual
+     * flow, still awaiting payout) — under the cron flow 'approved' is
+     * already terminal/paid (tx_hash set by approve_and_complete()) and
+     * must NOT block a new request.
      */
     public function open_request($user_id, $source_wallet = 'bman')
     {
@@ -253,7 +283,13 @@ class Bmanwithdraw_model extends CI_Model
             $this->db->where('wr.source_wallet', $source_wallet);
         }
 
-        return $this->db->where_in('wr.status', ['pending', 'processing', 'under_review', 'approved'])
+        return $this->db->group_start()
+                ->where_in('wr.status', ['pending', 'processing', 'under_review'])
+                ->or_group_start()
+                    ->where('wr.status', 'approved')
+                    ->where('wr.tx_hash IS NULL', null, false)
+                ->group_end()
+            ->group_end()
             ->order_by('wr.id', 'DESC')
             ->limit(1)
             ->get()
@@ -405,7 +441,11 @@ class Bmanwithdraw_model extends CI_Model
             'usdt_amount' => $usdt_amount,
             'withdraw_address' => $withdraw_address,
             'remark' => trim((string) ($data['remark'] ?? '')),
-            'status' => 'pending',
+            // 'processing': the request is live and BmanWithdrawCollectCron will
+            // claim it (see claim_for_collection()). Deliberately NOT 'pending' —
+            // 'pending' is reserved for post-collection, awaiting-admin-decision
+            // (see confirm_collected()).
+            'status' => 'processing',
             'created_at' => $now,
         ];
 
@@ -527,6 +567,15 @@ class Bmanwithdraw_model extends CI_Model
         ]);
     }
 
+    /** Full status-change audit trail for one request, oldest first. */
+    public function history($request_id)
+    {
+        return $this->db->where('request_id', (int) $request_id)
+            ->order_by('id', 'ASC')
+            ->get('withdraw_audit_log')
+            ->result_array();
+    }
+
     /**
      * Approve a pending request. Legal: pending → approved
      * Validates current status, updates request, logs action.
@@ -615,14 +664,19 @@ class Bmanwithdraw_model extends CI_Model
             return ['error' => 'Request not found'];
         }
 
-        // Validate legal transition: processing → completed
+        // Legacy manual flow only: approved -> processing (mark_processing()) ->
+        // completed here, lock still active. The cron-collected flow no longer
+        // passes through here — see approve_and_complete() for pending -> approved.
         if ($row['status'] !== 'processing') {
             return ['error' => "Cannot complete from status '{$row['status']}'. Only 'processing' requests can be completed."];
         }
 
         $now = date('Y-m-d H:i:s');
 
-        // Convert locks to debits (each lock row becomes a debit row)
+        // Convert locks to debits (each lock row becomes a debit row). A
+        // request that already went through the collection cron has none —
+        // confirm_collected() already did this at collection time — so this
+        // is a no-op for that path and only fires for the legacy manual flow.
         $locks = $this->db->get_where('bman_wallet_ledger', [
             'ref_type' => 'withdrawal',
             'ref_id' => $request_id,
@@ -657,21 +711,132 @@ class Bmanwithdraw_model extends CI_Model
             'tx_hash' => $tx_hash,
             'completed_at' => $now,
             'admin_remark' => $admin_remark,
-        ], ['id' => $request_id, 'status' => 'processing']);
+        ], ['id' => $request_id, 'status' => $row['status']]);
 
         if (!$updated) {
             return ['error' => 'Failed to complete (may have been updated by another admin)'];
         }
 
-        $this->log_action($request_id, $admin_id, 'admin_complete', 'processing', 'completed', "tx_hash: {$tx_hash}");
+        $this->log_action($request_id, $admin_id, 'admin_complete', $row['status'], 'completed', "tx_hash: {$tx_hash}");
         return ['success' => true];
     }
 
     /**
-     * Reject a request. Legal: pending/approved → rejected
-     * Releases locks back to user.
+     * Send the collected BMAN back on-chain, treasury -> user's custodial
+     * wallet, as part of rejecting an already-collected request. Called by
+     * the controller BEFORE reject() touches the DB — a broadcast can't be
+     * rolled back, so we don't want a later DB failure to leave "sent but
+     * nothing recorded". Idempotent: returns the existing refund_tx_hash if
+     * this was already called for the request (e.g. a retried click).
+     *
+     * Mirrors whether the ORIGINAL collection was real or simulated — not
+     * the current token_settings dry-run flag, which may have changed since
+     * collection. BmanWithdrawCollectCron never calls sendToken() in
+     * dry-run (see _broadcast()): a 'DRYRUN-' collect_tx_hash means no real
+     * BMAN ever left the user's wallet, so nothing real needs reversing.
      */
-    public function reject($request_id, $admin_id, $admin_remark = '')
+    public function refund_bman_onchain($request_id)
+    {
+        $request_id = (int) $request_id;
+        $row = $this->db->get_where('bman_withdraw_requests', ['id' => $request_id])->row_array();
+        if (!$row) return ['error' => 'Request not found'];
+        if ((int) $row['collect_cron_status'] !== 1) return ['error' => 'Request was never collected on-chain — nothing to refund'];
+        if (!empty($row['refund_tx_hash'])) return ['success' => true, 'tx_hash' => $row['refund_tx_hash']];
+
+        $this->load->model('Tokenmaster_model', 'tokens');
+        $this->load->model('Custodialwallet_model', 'custodial');
+
+        $cfg = $this->db->get_where('token_settings', ['status' => 1])->row_array() ?: [];
+        $treasuryWallet = trim((string) ($cfg['treasury_wallet'] ?? ''));
+        $bmanContract = trim((string) ($cfg['bman_contract'] ?? ''));
+        if ($treasuryWallet === '') return ['error' => 'Treasury wallet not configured'];
+
+        $userWallet = $this->custodial->ensureAddress((int) $row['user_id']);
+        $userAddress = $userWallet['wallet_address'] ?? null;
+        if (!$userAddress) return ['error' => "Could not resolve user #{$row['user_id']}'s custodial wallet"];
+
+        // Mirrors whether the ORIGINAL collection was real or simulated —
+        // not the current token_settings dry-run flag, which may have
+        // changed since collection. BmanWithdrawCollectCron never calls
+        // sendToken() in dry-run (see its _broadcast()): a 'DRYRUN-'
+        // collect_tx_hash means no real BMAN ever left the user's wallet,
+        // so nothing real needs reversing here either.
+        $wasDryRunCollection = strpos((string) ($row['collect_tx_hash'] ?? ''), 'DRYRUN') === 0;
+
+        if ($wasDryRunCollection) {
+            $hash = 'DRYRUN-refund-' . $row['request_no'];
+        } else {
+            if ($bmanContract === '') return ['error' => 'BMAN contract not configured'];
+
+            $treasuryKey = $this->tokens->treasuryPrivateKey();
+            if (!$treasuryKey) return ['error' => 'Treasury key unavailable'];
+
+            $this->load->library('web3bman');
+            try {
+                $sent = $this->web3bman->sendToken($treasuryKey, $userAddress, (string) $row['request_amount'], $bmanContract);
+                $hash = $sent['tx_hash'] ?? null;
+                if (empty($hash)) return ['error' => 'Empty tx hash from refund broadcast'];
+            } catch (Exception $e) {
+                return ['error' => 'Refund broadcast failed: ' . $e->getMessage()];
+            }
+
+            $this->load->model('GasFeeSettings_model', 'gasSettings');
+            $this->load->model('GasFeeLedger_model', 'gasLedger');
+            $policy = $this->gasSettings->resolve('token_transfer');
+            $this->gasLedger->recordBroadcast(
+                'refund', 'bman_withdrawal', $row['request_no'], $row['user_id'],
+                $hash, $treasuryWallet, $userAddress, $policy
+            );
+        }
+
+        $this->db->insert('onchain_transactions', [
+            'tx_hash' => $hash, 'wallet_type' => $row['source_wallet'], 'tx_type' => 'withdrawal_refund',
+            'status' => 'processing',
+            'from_address' => strtolower($treasuryWallet),
+            'to_address' => strtolower($userAddress),
+            'user_id' => $row['user_id'], 'amount' => $row['request_amount'],
+            'reference_type' => 'bman_withdrawal', 'reference_id' => (string) $request_id,
+            'linked_withdrawal_id' => $request_id,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        $onchainId = (int) $this->db->insert_id();
+        if ($onchainId && !$wasDryRunCollection) {
+            $this->load->model('GasFeeLedger_model', 'gasLedger');
+            $this->gasLedger->linkOnchainTx($hash, $onchainId);
+        }
+
+        return ['success' => true, 'tx_hash' => $hash];
+    }
+
+    /**
+     * Reject a request. Legal: pending/approved → rejected
+     *
+     * bman_wallet_ledger, not user_wallets.exchange_balance, is what
+     * actually gates availability here: WalletMaturity_model::withdrawable()
+     * computes `total (raw user_wallets column, a lifetime-cumulative figure
+     * that a withdrawal never touches) MINUS holds (SUM of bman_wallet_ledger
+     * rows with entry_type IN ('lock','debit') AND status='active')`. So
+     * "removing" BMAN for a withdrawal — whether still just locked, or
+     * already collected-and-debited — always means placing/keeping an active
+     * hold row here, never touching the raw total directly. Confirmed against
+     * a real request: crediting exchange_balance directly (an earlier version
+     * of this method) double-counted — the debit hold was still active AND
+     * subtracting from availability, netting only against the credit by
+     * coincidence in the withdrawable formula, while exchange_balance itself
+     * was left permanently, visibly inflated.
+     *
+     * So both reversal paths are the SAME mechanic — reverse whatever active
+     * bman_wallet_ledger row(s) exist for this request — just at different
+     * points in the lifecycle:
+     *   - not yet collected: an active 'lock' row.
+     *   - already collected (collect_cron_status=1, via confirm_collected()):
+     *     an active 'debit' row.
+     * collect_cron_status, not the status string, is the discriminator here —
+     * 'pending' means "not yet collected" for a legacy pre-migration row but
+     * "already collected, awaiting admin decision" for the cron flow, so the
+     * status string alone can't tell them apart.
+     */
+    public function reject($request_id, $admin_id, $admin_remark = '', $refund_tx_hash = null)
     {
         $request_id = (int) $request_id;
         $admin_id = (int) $admin_id;
@@ -687,32 +852,44 @@ class Bmanwithdraw_model extends CI_Model
         }
 
         $now = date('Y-m-d H:i:s');
+        $wasCollected = ((int) $row['collect_cron_status'] === 1);
 
-        // Release all active locks (set to reversed status)
+        // For a collected request, the caller (controller) must have already
+        // sent the on-chain refund via refund_bman_onchain() and passed its
+        // tx_hash here — the broadcast can't happen inside this DB update.
+        if ($wasCollected && empty($refund_tx_hash)) {
+            return ['error' => 'Refund transaction hash is required to reject an already-collected request'];
+        }
+
+        // Release whichever active hold exists — 'lock' pre-collection,
+        // 'debit' post-collection. Same reversal either way.
         $this->db->update('bman_wallet_ledger', [
             'status' => 'reversed',
-            'remark' => "Withdrawal rejected - {$admin_remark}",
+            'remark' => $wasCollected
+                ? "Withdrawal rejected after on-chain collection - refunded on-chain ({$refund_tx_hash}) - {$admin_remark}"
+                : "Withdrawal rejected - {$admin_remark}",
         ], [
             'ref_type' => 'withdrawal',
             'ref_id' => $request_id,
-            'entry_type' => 'lock',
+            'entry_type' => $wasCollected ? 'debit' : 'lock',
             'status' => 'active',
         ]);
 
         // Update request
-        $updated = $this->db->update('bman_withdraw_requests', [
+        $updated = $this->db->update('bman_withdraw_requests', array_merge([
             'status' => 'rejected',
             'approved_by' => $admin_id,
             'approved_at' => $now,
             'admin_remark' => $admin_remark,
-        ], ['id' => $request_id, 'status' => $row['status']]);
+        ], $wasCollected ? ['refunded_at' => $now, 'refund_tx_hash' => $refund_tx_hash] : []), ['id' => $request_id, 'status' => $row['status']]);
 
         if (!$updated) {
             return ['error' => 'Failed to reject (may have been updated by another admin)'];
         }
 
-        $this->log_action($request_id, $admin_id, 'admin_reject', $row['status'], 'rejected', $admin_remark);
-        return ['success' => true];
+        $this->log_action($request_id, $admin_id, 'admin_reject', $row['status'], 'rejected',
+            $wasCollected ? trim($admin_remark . ' [BMAN refunded on-chain, tx_hash: ' . $refund_tx_hash . ']') : $admin_remark);
+        return ['success' => true, 'refund_tx_hash' => $refund_tx_hash];
     }
 
     /**
@@ -768,5 +945,142 @@ class Bmanwithdraw_model extends CI_Model
     {
         return $this->db->get_where('bman_withdraw_allocations', ['request_id' => (int) $request_id])
             ->result_array();
+    }
+
+    /* =====================================================================
+     * BmanWithdrawCollectCron support — cron-only, no admin/user click
+     * involved. Mirrors the shape of StakingPurchasecron's order loop, just
+     * with two legs (gas, collect) instead of four.
+     * ===================================================================== */
+
+    /**
+     * Requests the cron still has work to do on: not yet both legs confirmed,
+     * not terminal. Deliberately status = 'processing' AND approved_at IS
+     * NULL — NEVER just any 'processing' row, since 'processing' is ALSO the
+     * separate legacy admin-manual status reached via approved → processing
+     * (mark_processing()). Every legacy 'processing' row went through
+     * approve() first, which always sets approved_at; a fresh cron-owned
+     * request never has it set at this point. Matching on status alone here
+     * would sweep up any request an admin already started handling by hand
+     * under the old process (this exact bug bit request #2 before the
+     * approved_at guard was added — see docs/2026-08-12_bman_withdraw_collect_cron.md).
+     */
+    public function claim_for_collection($limit = 25)
+    {
+        return $this->db->select(
+                'id, request_no, user_id, source_wallet, request_amount, status, ' .
+                'gas_cron_status, gas_tx_hash, collect_cron_status, collect_tx_hash'
+            )
+            ->group_start()
+                ->where('gas_cron_status', 0)->or_where('collect_cron_status', 0)
+            ->group_end()
+            ->where('status', 'processing')
+            ->where('approved_at', null)
+            ->order_by('id', 'ASC')->limit((int) $limit)
+            ->get('bman_withdraw_requests')->result_array();
+    }
+
+    /** Generic column updater for the cron's own tracking fields. */
+    public function set_cron_fields($request_id, array $data)
+    {
+        $this->db->where('id', (int) $request_id)->update('bman_withdraw_requests', $data);
+    }
+
+    /**
+     * BMAN collection leg confirmed on-chain: convert the active lock(s) into
+     * a real debit (same mechanic complete() uses) NOW, since the BMAN has
+     * genuinely left the platform's custody at this point — waiting until
+     * admin approval to record that would leave the ledger showing BMAN the
+     * user no longer actually has. Moves the request to 'pending' (awaiting
+     * the admin's approve/reject decision).
+     */
+    public function confirm_collected($request_id, $tx_hash)
+    {
+        $request_id = (int) $request_id;
+        $row = $this->db->get_where('bman_withdraw_requests', ['id' => $request_id])->row_array();
+        if (!$row) return ['error' => 'Request not found'];
+
+        $now = date('Y-m-d H:i:s');
+
+        $locks = $this->db->get_where('bman_wallet_ledger', [
+            'ref_type' => 'withdrawal', 'ref_id' => $request_id,
+            'entry_type' => 'lock', 'status' => 'active',
+        ])->result_array();
+
+        foreach ($locks as $lock) {
+            $this->db->update('bman_wallet_ledger', [
+                'status' => 'reversed',
+                'remark' => "BMAN collected on-chain at {$now}",
+            ], ['id' => $lock['id']]);
+
+            $this->db->insert('bman_wallet_ledger', [
+                'user_id' => $row['user_id'],
+                'wallet' => $lock['wallet'],
+                'entry_type' => 'debit',
+                'ref_type' => 'withdrawal',
+                'ref_id' => $request_id,
+                'amount' => $lock['amount'],
+                'status' => 'active',
+                'remark' => "BMAN collected on-chain - {$tx_hash}",
+                'created_at' => $now,
+            ]);
+        }
+
+        $this->db->where('id', $request_id)->update('bman_withdraw_requests', [
+            'status' => 'pending',
+            'collect_cron_status' => 1,
+            'collect_cron_status_message' => null,
+            'collected_at' => $now,
+        ]);
+
+        $this->log_action($request_id, 0, 'cron_collected', $row['status'], 'pending', "collect_tx_hash: {$tx_hash}");
+        return ['success' => true];
+    }
+
+    /**
+     * Admin approves a cron-collected request: pay the USDT manually
+     * (unchanged — reveal treasury key, send externally, paste tx_hash) and
+     * close it out in one step. Legal: pending → approved.
+     *
+     * No lock→debit conversion here — confirm_collected() already did that
+     * at collection time, since 'pending' under this flow is only ever
+     * reached post-collection (collect_cron_status=1). Unlike complete(),
+     * this never touches bman_wallet_ledger.
+     */
+    public function approve_and_complete($request_id, $admin_id, $tx_hash, $admin_remark = '')
+    {
+        $request_id = (int) $request_id;
+        $admin_id = (int) $admin_id;
+        $tx_hash = trim((string) $tx_hash);
+
+        if (empty($tx_hash)) {
+            return ['error' => 'Transaction hash is required'];
+        }
+
+        $row = $this->db->get_where('bman_withdraw_requests', ['id' => $request_id])->row_array();
+        if (!$row) {
+            return ['error' => 'Request not found'];
+        }
+
+        if ($row['status'] !== 'pending') {
+            return ['error' => "Cannot approve from status '{$row['status']}'. Only 'pending' requests can be approved."];
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $updated = $this->db->update('bman_withdraw_requests', [
+            'status' => 'approved',
+            'tx_hash' => $tx_hash,
+            'approved_by' => $admin_id,
+            'approved_at' => $now,
+            'completed_at' => $now,
+            'admin_remark' => $admin_remark,
+        ], ['id' => $request_id, 'status' => 'pending']);
+
+        if (!$updated) {
+            return ['error' => 'Failed to approve (may have been updated by another admin)'];
+        }
+
+        $this->log_action($request_id, $admin_id, 'admin_approve_complete', 'pending', 'approved', "tx_hash: {$tx_hash}; {$admin_remark}");
+        return ['success' => true];
     }
 }

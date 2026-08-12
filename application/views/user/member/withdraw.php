@@ -1565,6 +1565,23 @@
   </script>
   <script>
     const PAYOUT_DATA = <?= json_encode($payouts ?? [], JSON_UNESCAPED_UNICODE); ?>;
+    const EXPLORER_URL = <?= json_encode($explorer_url ?? 'https://bscscan.com', JSON_UNESCAPED_UNICODE); ?>;
+
+    // Only real broadcast hashes are clickable — a DRYRUN-* hash (dry-run
+    // testing mode, never actually sent on-chain) would just 404 on BscScan.
+    function txLink(hash) {
+      if (!hash) return '—';
+      if (!/^0x[0-9a-fA-F]{6,}$/.test(hash)) return esc(hash);
+      return `<a href="${EXPLORER_URL}/tx/${encodeURIComponent(hash)}" target="_blank" rel="noopener">${esc(hash)}</a>`;
+    }
+
+    function statusColor(status) {
+      const s = (status || '').toUpperCase();
+      if (['APPROVED', 'COMPLETED'].includes(s)) return '#16a34a';
+      if (['REJECTED', 'FAILED'].includes(s)) return '#dc2626';
+      if (s === 'PENDING') return '#f59e0b';
+      return '#0d6efd'; // PROCESSING / anything else in-flight
+    }
   </script>
   <!-- ===== PAYOUT DETAILS MODAL ===== -->
   <div id="payoutModal" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);">
@@ -1602,9 +1619,11 @@
 
       body.innerHTML = `
     <div class="pillx"><b>Payout ID</b><span>${esc(p.payout_id)}</span></div>
-    <div class="pillx"><b>Transaction ID</b><span>${esc(p.txn_id || '—')}</span></div>
+    <div class="pillx"><b>Transaction ID (USDT payout)</b><span style="word-break:break-all;">${txLink(p.txn_id)}</span></div>
+    <div class="pillx"><b>On-Chain Hash (BMAN)</b><span style="word-break:break-all;">${txLink(p.onchain_hash)}</span></div>
+    ${p.refund_tx_hash ? `<div class="pillx"><b>Refund Tx Hash</b><span style="word-break:break-all;">${txLink(p.refund_tx_hash)}</span></div>` : ''}
 
-    <div class="pillx"><b>Status</b><span>${esc(p.status)}</span></div>
+    <div class="pillx"><b>Status</b><span style="color:${statusColor(p.status)};font-weight:800;">${esc(p.status)}</span></div>
     <div class="pillx"><b>Method</b><span>${esc(p.method)}</span></div>
     <div class="pillx"><b>Type</b><span>${esc(p.type)}</span></div>
     <div class="pillx"><b>Period</b><span>${esc(p.period)}</span></div>

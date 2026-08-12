@@ -99,6 +99,25 @@
         padding: 10px 12px;
     }
 
+    .wd-history-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .wd-history-item {
+        border-left: 3px solid #94a3b8;
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 10px 12px;
+    }
+
+    .wd-history-item.status-processing { border-left-color: #0d6efd; background: #eef5ff; }
+    .wd-history-item.status-pending    { border-left-color: #f59e0b; background: #fff8ec; }
+    .wd-history-item.status-approved,
+    .wd-history-item.status-completed  { border-left-color: #16a34a; background: #eefdf3; }
+    .wd-history-item.status-rejected,
+    .wd-history-item.status-failed     { border-left-color: #dc2626; background: #fef2f2; }
+
     @media (max-width: 991px) {
         .review-info-grid,
         .kyc-doc-grid {
@@ -223,6 +242,7 @@
                                 };
 
                                 $userProfile = $user_profile ?? [];
+                                $sponsorProfile = $sponsor_profile ?? [];
                                 $kycApp = $kyc_application ?? [];
                                 $legacyKyc = $legacy_kyc ?? [];
                                 $docs = $kyc_documents ?? [];
@@ -282,6 +302,30 @@
                                                             <span class="badge badge-light-success">Verified <?= $esc($userProfile['kyc_verified_at']); ?></span>
                                                         <?php endif; ?>
                                                     </div>
+                                                    <hr class="my-4">
+                                                    <div class="text-start">
+                                                        <small class="text-muted d-block mb-1">User Wallet Address (on-chain custodial)</small>
+                                                        <?php if (!empty($user_wallet_address)): ?>
+                                                            <div class="d-flex align-items-center gap-2">
+                                                                <code id="user-wallet-addr" class="text-break small mb-0"><?= $esc($user_wallet_address); ?></code>
+                                                                <button type="button" class="btn btn-link btn-sm py-0 px-0" data-copy="user-wallet-addr">copy</button>
+                                                            </div>
+                                                        <?php else: ?>
+                                                            <span class="text-muted small">No custodial wallet generated yet for this member.</span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <?php if (!empty($is_super)): ?>
+                                                        <div class="text-start mt-3">
+                                                            <button type="button" class="btn btn-outline-warning btn-sm" id="btk-open">Reveal Treasury Private Key</button>
+                                                            <div id="btk-result" class="mt-3 d-none">
+                                                                <div class="alert alert-warning small mb-2">
+                                                                    Do not screen-share or paste this anywhere but your wallet app. This panel clears in 60s.
+                                                                </div>
+                                                                <p class="mb-0"><strong>Private Key:</strong> <code id="btk-key" style="word-break:break-all;"></code>
+                                                                    <button type="button" class="btn btn-link btn-sm py-0" data-copy="btk-key">copy</button></p>
+                                                            </div>
+                                                        </div>
+                                                    <?php endif; ?>
                                                 </div>
                                             </div>
                                             <div class="col-xl-8">
@@ -316,7 +360,17 @@
                                                     </div>
                                                     <div class="review-info-box">
                                                         <small>Sponsor</small>
-                                                        <strong><?= $esc($userProfile['sponser'] ?? '-'); ?></strong>
+                                                        <?php if (!empty($sponsorProfile)): ?>
+                                                            <div class="d-flex align-items-center gap-2 mt-1">
+                                                                <img src="<?= $esc($sponsorProfile['profile_photo']); ?>" alt="Sponsor photo" class="rounded-circle" style="width:32px;height:32px;object-fit:cover;">
+                                                                <div>
+                                                                    <strong class="d-block"><?= $esc($sponsorProfile['display_name']); ?></strong>
+                                                                    <span class="text-muted fs-7">#<?= $esc($userProfile['sponser']); ?> · <?= $esc($sponsorProfile['email'] ?: '-'); ?></span>
+                                                                </div>
+                                                            </div>
+                                                        <?php else: ?>
+                                                            <strong><?= $esc($userProfile['sponser'] ?? '-'); ?></strong>
+                                                        <?php endif; ?>
                                                     </div>
                                                 </div>
                                             </div>
@@ -447,7 +501,14 @@
                                                 <p><strong>User:</strong> <?= htmlspecialchars(($row['username'] ?? '-') . ' / ' . ($row['referral_id'] ?? '-')); ?></p>
                                                 <p><strong>Email:</strong> <?= htmlspecialchars($row['email'] ?? '-'); ?></p>
                                                 <p><strong>Source Wallet:</strong> <span class="badge bg-info"><?= htmlspecialchars($row['source_wallet']); ?></span></p>
-                                                <p><strong>Status:</strong> <span class="badge bg-<?= $row['status'] === 'completed' ? 'success' : ($row['status'] === 'rejected' ? 'danger' : 'warning'); ?>"><?= htmlspecialchars($row['status']); ?></span></p>
+                                                <?php
+                                                // 'approved' is terminal/paid under the cron flow (tx_hash set) but
+                                                // still an in-flight legacy step without one — see approve_and_complete().
+                                                $isPaidApproved = ($row['status'] === 'approved' && !empty($row['tx_hash']));
+                                                $statusColor = (in_array($row['status'], ['completed'], true) || $isPaidApproved) ? 'success'
+                                                    : (in_array($row['status'], ['rejected', 'failed'], true) ? 'danger' : 'warning');
+                                                ?>
+                                                <p><strong>Status:</strong> <span class="badge bg-<?= $statusColor; ?>"><?= htmlspecialchars($row['status']); ?></span></p>
                                             </div>
                                             <div class="col-md-6">
                                                 <p><strong>Amount:</strong> <?= number_format((float)$row['request_amount'], 4); ?> BMAN</p>
@@ -468,18 +529,14 @@
                                     <div class="card-body">
                                         <p><strong>Withdraw Address:</strong> <code id="wd-addr"><?= htmlspecialchars($row['withdraw_address']); ?></code>
                                             <button type="button" class="btn btn-link btn-sm py-0" data-copy="wd-addr">copy</button></p>
-                                        <?php if (!empty($row['tx_hash'])): ?>
-                                            <p><strong>Tx Hash:</strong> <code><?= htmlspecialchars($row['tx_hash']); ?></code></p>
+                                        <?php if (!empty($row['collected_at'])): ?>
+                                            <p class="text-muted small mb-0">Collected at <?= htmlspecialchars($row['collected_at']); ?></p>
                                         <?php endif; ?>
-                                        <?php if (!empty($is_super)): ?>
-                                            <button type="button" class="btn btn-outline-danger btn-sm" id="btk-open">Reveal Treasury Private Key</button>
-                                            <div id="btk-result" class="mt-3 d-none">
-                                                <div class="alert alert-warning small mb-2">
-                                                    Do not screen-share or paste this anywhere but your wallet app. This panel clears in 60s.
-                                                </div>
-                                                <p class="mb-0"><strong>Private Key:</strong> <code id="btk-key" style="word-break:break-all;"></code>
-                                                    <button type="button" class="btn btn-link btn-sm py-0" data-copy="btk-key">copy</button></p>
-                                            </div>
+                                        <?php if (!empty($row['gas_cron_status_message']) || !empty($row['collect_cron_status_message'])): ?>
+                                            <p class="text-muted small mb-0"><?= htmlspecialchars($row['gas_cron_status_message'] ?: $row['collect_cron_status_message']); ?></p>
+                                        <?php endif; ?>
+                                        <?php if (!empty($row['refunded_at'])): ?>
+                                            <p class="text-muted small mb-0">BMAN refunded at <?= htmlspecialchars($row['refunded_at']); ?></p>
                                         <?php endif; ?>
                                         <hr>
                                         <div class="row">
@@ -504,6 +561,182 @@
                                         <?php endif; ?>
                                     </div>
                                 </div>
+
+                                <?php
+                                // Only real broadcast hashes are clickable — a DRYRUN-* hash
+                                // (dry-run testing mode, never actually sent on-chain) would
+                                // just 404 on the explorer.
+                                $explorerUrl = $explorer_url ?? 'https://bscscan.com';
+                                $isRealHash = function ($hash) {
+                                    return (bool) preg_match('/^0x[0-9a-fA-F]{6,}$/', (string) $hash);
+                                };
+
+                                // One combined leg-row renderer for BMAN/refund legs, so the
+                                // BMAN and Rejected sections below render identically instead
+                                // of duplicating this markup per leg.
+                                $renderLeg = function ($label, $txHash, $confirmed, $fee) use ($explorerUrl, $isRealHash) {
+                                    if (empty($txHash)) return;
+                                    // Unique per CALL, not per (hash,label) — the same leg (e.g.
+                                    // 'BMAN Collection') renders twice on this page (once in
+                                    // Transaction Details, once in its History entry) with the
+                                    // identical hash, so a value-derived id would collide into a
+                                    // duplicate DOM id and the copy button would silently target
+                                    // the wrong instance.
+                                    static $callCount = 0;
+                                    $hashId = 'leg-hash-' . (++$callCount);
+                                    ?>
+                                    <div class="d-flex justify-content-between align-items-start border-bottom py-2">
+                                        <div>
+                                            <span class="badge bg-secondary text-uppercase"><?= htmlspecialchars($label); ?></span>
+                                            <?= $confirmed ? '<span class="badge bg-success ms-1">confirmed</span>' : '<span class="badge bg-warning ms-1">pending</span>'; ?>
+                                            <div class="tiny text-muted mt-1">
+                                                Tx Hash:
+                                                <?php if ($isRealHash($txHash)): ?>
+                                                    <a href="<?= htmlspecialchars($explorerUrl . '/tx/' . $txHash); ?>" target="_blank" rel="noopener" id="<?= $hashId; ?>" class="text-break"><?= htmlspecialchars($txHash); ?></a>
+                                                <?php else: ?>
+                                                    <code id="<?= $hashId; ?>" class="text-break"><?= htmlspecialchars($txHash); ?></code>
+                                                <?php endif; ?>
+                                                <button type="button" class="btn btn-link btn-sm py-0 px-1" data-copy="<?= $hashId; ?>">copy</button>
+                                            </div>
+                                        </div>
+                                        <div class="text-end">
+                                            <?php if ($fee && $fee['bnb_fee'] !== null): ?>
+                                                <strong><?= number_format($fee['bnb_fee'], 8); ?> BNB</strong>
+                                                <?php if ($fee['is_estimate']): ?>
+                                                    <div class="tiny text-warning">estimated</div>
+                                                <?php endif; ?>
+                                                <div class="tiny text-muted">gas fee for tx above</div>
+                                            <?php else: ?>
+                                                <span class="text-muted small">gas fee —</span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                    <?php
+                                };
+                                ?>
+
+                                <!-- Transaction Details -->
+                                <div class="card mb-4">
+                                    <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <div>
+                                            <h5 class="mb-0">Transaction Details</h5>
+                                            <small class="text-muted">Tx hash + gas fee for every leg, grouped BMAN / USDT / Rejected refund.</small>
+                                        </div>
+                                        <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#txDetailsPanel">View Transaction Details</button>
+                                    </div>
+                                    <div class="collapse" id="txDetailsPanel">
+                                        <div class="card-body">
+
+                                            <h6 class="fw-bold mb-2">BMAN <span class="text-muted fw-normal">(gas funding + collection legs, this app broadcasts these)</span></h6>
+                                            <?php if (!empty($row['gas_tx_hash']) || !empty($row['collect_tx_hash'])): ?>
+                                                <?php $renderLeg('Gas Funding', $row['gas_tx_hash'] ?? null, (int) ($row['gas_cron_status'] ?? 0) === 1, $gas_fees['bman']['gas'] ?? null); ?>
+                                                <?php $renderLeg('BMAN Collection', $row['collect_tx_hash'] ?? null, (int) ($row['collect_cron_status'] ?? 0) === 1, $gas_fees['bman']['collect'] ?? null); ?>
+                                            <?php else: ?>
+                                                <p class="text-muted small mb-0">No BMAN broadcast yet — waiting on BmanWithdrawCollectCron.</p>
+                                            <?php endif; ?>
+
+                                            <hr class="my-3">
+
+                                            <h6 class="fw-bold mb-2">USDT <span class="text-muted fw-normal">(manual payout, admin-entered)</span></h6>
+                                            <?php if (!empty($row['tx_hash'])): ?>
+                                                <div class="d-flex justify-content-between align-items-start border-bottom py-2">
+                                                    <div class="tiny text-muted text-break">
+                                                        <?php if ($isRealHash($row['tx_hash'])): ?>
+                                                            <a href="<?= htmlspecialchars($explorerUrl . '/tx/' . $row['tx_hash']); ?>" target="_blank" rel="noopener"><?= htmlspecialchars($row['tx_hash']); ?></a>
+                                                        <?php else: ?>
+                                                            <?= htmlspecialchars($row['tx_hash']); ?>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <span class="badge bg-success">Confirmed</span>
+                                                </div>
+                                                <?php if (!empty($gas_fees['usdt']) && $gas_fees['usdt']['gas_fee_total'] !== null): ?>
+                                                    <p class="text-muted small mt-2 mb-0">Gas: <?= number_format((float) $gas_fees['usdt']['gas_fee_total'], 8); ?> BNB</p>
+                                                <?php else: ?>
+                                                    <p class="text-muted small mt-2 mb-0">Sent externally by admin — gas cost isn't tracked here. Click the hash above to verify on the explorer.</p>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                <p class="text-muted small mb-0">Not yet submitted — admin enters this when approving.</p>
+                                            <?php endif; ?>
+
+                                            <?php if (!empty($row['refund_tx_hash'])): ?>
+                                                <hr class="my-3">
+                                                <h6 class="fw-bold mb-2 text-danger">Rejected — BMAN Refund <span class="text-muted fw-normal">(treasury → user)</span></h6>
+                                                <?php $renderLeg('Refund', $row['refund_tx_hash'], true, $gas_fees['bman']['refund'] ?? null); ?>
+                                                <?php if (!empty($row['refunded_at'])): ?>
+                                                    <p class="text-muted small mt-2 mb-0">Refunded at <?= htmlspecialchars($row['refunded_at']); ?></p>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
+
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Withdrawal Status History -->
+                                <?php if (!empty($withdraw_history)): ?>
+                                <?php
+                                $actionLabels = [
+                                    'user_request'           => 'Request Submitted',
+                                    'cron_collected'         => 'BMAN Collected On-Chain',
+                                    'admin_approve_complete' => 'Approved & USDT Sent',
+                                    'admin_reject'           => 'Rejected & BMAN Refunded',
+                                    'admin_complete'         => 'Completed (legacy)',
+                                    'admin_approve'          => 'Approved (legacy)',
+                                    'admin_processing'       => 'Marked Processing (legacy)',
+                                    'system_failed'          => 'Marked Failed',
+                                ];
+                                // Short reference only — NOT the full hash+fee+copy-button
+                                // block (that's $renderLeg, used once above in Transaction
+                                // Details). Repeating the full block here duplicated every
+                                // hash and fee on the page; this is just "which tx", with a
+                                // pointer to where the full detail + copy button lives.
+                                $shortHash = function ($hash) {
+                                    $hash = (string) $hash;
+                                    return strlen($hash) > 16 ? substr($hash, 0, 8) . '…' . substr($hash, -6) : $hash;
+                                };
+                                ?>
+                                <div class="card mb-4">
+                                    <div class="card-header bg-light">
+                                        <h5 class="mb-0">Withdrawal Status History</h5>
+                                        <small class="text-muted">Every status change for this request, oldest first — color-coded by the resulting status.</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="wd-history-list">
+                                            <?php foreach ($withdraw_history as $item): ?>
+                                                <?php $statusClass = strtolower((string) ($item['new_status'] ?? '')); ?>
+                                                <div class="wd-history-item status-<?= htmlspecialchars($statusClass); ?>">
+                                                    <div class="d-flex justify-content-between flex-wrap gap-2">
+                                                        <div>
+                                                            <strong><?= htmlspecialchars($actionLabels[$item['action']] ?? $item['action']); ?></strong>
+                                                            <span class="badge bg-<?= in_array($statusClass, ['approved', 'completed'], true) ? 'success' : (in_array($statusClass, ['rejected', 'failed'], true) ? 'danger' : ($statusClass === 'pending' ? 'warning' : 'primary')); ?> ms-2 text-uppercase">
+                                                                <?= htmlspecialchars($item['old_status'] ?: '—'); ?> → <?= htmlspecialchars($item['new_status']); ?>
+                                                            </span>
+                                                        </div>
+                                                        <span class="text-muted small"><?= htmlspecialchars($item['created_at']); ?></span>
+                                                    </div>
+                                                    <?php if (!empty($item['admin_id'])): ?>
+                                                        <div class="text-muted fs-7">by Admin #<?= (int) $item['admin_id']; ?></div>
+                                                    <?php endif; ?>
+
+                                                    <?php if ($item['action'] === 'cron_collected' && (!empty($row['gas_tx_hash']) || !empty($row['collect_tx_hash']))): ?>
+                                                        <div class="tiny text-muted mt-1">
+                                                            <?php if (!empty($row['gas_tx_hash'])): ?>Gas: <?= htmlspecialchars($shortHash($row['gas_tx_hash'])); ?><?php endif; ?>
+                                                            <?php if (!empty($row['gas_tx_hash']) && !empty($row['collect_tx_hash'])): ?> · <?php endif; ?>
+                                                            <?php if (!empty($row['collect_tx_hash'])): ?>Collect: <?= htmlspecialchars($shortHash($row['collect_tx_hash'])); ?><?php endif; ?>
+                                                            — full hash + gas fee above in Transaction Details
+                                                        </div>
+                                                    <?php elseif (in_array($item['action'], ['admin_approve_complete', 'admin_complete'], true) && !empty($row['tx_hash'])): ?>
+                                                        <div class="tiny text-muted mt-1">USDT: <?= htmlspecialchars($shortHash($row['tx_hash'])); ?> — full hash above in Transaction Details</div>
+                                                    <?php elseif ($item['action'] === 'admin_reject' && !empty($row['refund_tx_hash'])): ?>
+                                                        <div class="tiny text-muted mt-1">Refund: <?= htmlspecialchars($shortHash($row['refund_tx_hash'])); ?> — full hash + gas fee above in Transaction Details</div>
+                                                    <?php elseif (!empty($item['remarks'])): ?>
+                                                        <div class="mt-1 text-muted small"><?= htmlspecialchars($item['remarks']); ?></div>
+                                                    <?php endif; ?>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
 
                                 <!-- Wallet Allocations (if mixed) -->
                                 <?php if ($row['source_wallet'] === 'mixed'): ?>
@@ -533,7 +766,7 @@
                                 </div>
                                 <?php endif; ?>
 
-                                <!-- Treasury key reveal — password prompt modal (Super Admin only; button lives in the Withdrawal Address card) -->
+                                <!-- Treasury key reveal — password prompt modal (Super Admin only; button lives in the Member Profile card, under User Wallet Address) -->
                                 <?php if (!empty($is_super)): ?>
                                 <div class="modal fade" id="btkModal" tabindex="-1">
                                     <div class="modal-dialog">
@@ -561,6 +794,36 @@
                                 </div>
                                 <?php endif; ?>
 
+                                <?php
+                                // 'processing' + no approved_at yet = cron owns this, nothing for
+                                // the admin to do. 'processing' + approved_at set = legacy manual
+                                // flow, an admin already marked it processing by hand
+                                // (mark_processing()).
+                                $cronOwned = ($row['status'] === 'processing' && empty($row['approved_at']));
+                                $legacyApprovedUnpaid = ($row['status'] === 'approved' && empty($row['tx_hash']));
+                                $hasActionableOptions = ($row['status'] === 'pending')
+                                    || ($row['status'] === 'processing' && !$cronOwned)
+                                    || $legacyApprovedUnpaid;
+                                ?>
+
+                                <?php if (!$hasActionableOptions): ?>
+                                <!-- No admin action possible right now — plain status message,
+                                     not a dropdown with nothing real to select. -->
+                                <div class="card mb-4">
+                                    <div class="card-header bg-light">
+                                        <h5 class="mb-0">Status</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="mb-1">Current: <strong><?= htmlspecialchars($row['status']); ?></strong></p>
+                                        <?php if ($cronOwned): ?>
+                                            <p class="text-muted mb-3">BmanWithdrawCollectCron is collecting the BMAN on-chain (see above); this will move to "Pending" automatically once confirmed. Nothing to do here yet.</p>
+                                        <?php else: ?>
+                                            <p class="text-muted mb-3">Terminal state — no further changes possible.</p>
+                                        <?php endif; ?>
+                                        <a href="<?= base_url('admin/bman-withdrawals'); ?>" class="btn btn-secondary">Back to List</a>
+                                    </div>
+                                </div>
+                                <?php else: ?>
                                 <!-- Status Transition Form -->
                                 <div class="card mb-4">
                                     <div class="card-header bg-light">
@@ -572,25 +835,26 @@
                                                 <label class="form-label">New Status</label>
                                                 <select name="status" class="form-select" required>
                                                     <option value="">-- Select Status --</option>
-                                                    <?php if ($row['status'] === 'pending'): ?>
-                                                        <option value="approved">Approve Request</option>
-                                                        <option value="rejected">Reject Request</option>
-                                                    <?php elseif ($row['status'] === 'approved'): ?>
-                                                        <option value="processing">Mark as Processing</option>
-                                                        <option value="rejected">Reject Request</option>
-                                                    <?php elseif ($row['status'] === 'processing'): ?>
+                                                    <?php if ($row['status'] === 'processing'): ?>
                                                         <option value="completed">Complete (with tx_hash)</option>
                                                         <option value="failed">Mark as Failed</option>
-                                                    <?php else: ?>
-                                                        <option value="">-- Terminal State (No changes) --</option>
+                                                    <?php elseif ($row['status'] === 'pending'): ?>
+                                                        <option value="approved">Approve &amp; Complete (with USDT tx_hash)</option>
+                                                        <option value="rejected">Reject &amp; Refund BMAN</option>
+                                                    <?php elseif ($legacyApprovedUnpaid): ?>
+                                                        <option value="processing">Mark as Processing</option>
+                                                        <option value="rejected">Reject Request</option>
                                                     <?php endif; ?>
                                                 </select>
                                                 <small class="text-muted">
                                                     Current: <strong><?= htmlspecialchars($row['status']); ?></strong>
+                                                    <?php if ($row['status'] === 'pending'): ?>
+                                                        — BMAN already collected on-chain (see above). Approve to send USDT manually as before, or reject to refund the BMAN.
+                                                    <?php endif; ?>
                                                 </small>
                                             </div>
 
-                                            <?php if ($row['status'] === 'processing' || in_array($row['status'], ['pending', 'approved', 'processing'])): ?>
+                                            <?php if (in_array($row['status'], ['pending', 'approved', 'processing'], true)): ?>
                                             <div class="mb-3">
                                                 <label class="form-label">Transaction Hash (for completion)</label>
                                                 <input type="text" name="tx_hash" class="form-control" placeholder="0xabcd..." value="<?= htmlspecialchars($row['tx_hash'] ?? ''); ?>">
@@ -608,6 +872,7 @@
                                         </form>
                                     </div>
                                 </div>
+                                <?php endif; ?>
 
                                 <?php endif; ?>
 

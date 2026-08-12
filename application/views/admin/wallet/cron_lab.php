@@ -52,15 +52,24 @@
             <span class="cron-pill bg-light-info text-info"><?php echo strtoupper(html_escape($job['type'])); ?></span>
           </div>
           <div class="cron-body">
+            <?php if (!empty($job['schedule'])): ?>
+            <div class="cron-pill bg-light-success text-success mb-2"><?php echo html_escape($job['schedule']); ?></div>
+            <?php endif; ?>
             <?php if (!empty($job['inproc'])): ?>
             <div class="tiny mb-2">Endpoint: <span class="mono">runs in-process (admin only — no public cron URL)</span></div>
             <?php else: ?>
             <div class="tiny mb-2">Endpoint: <span class="mono"><?php echo html_escape($job['endpoint']); ?></span></div>
             <?php endif; ?>
+            <?php if (!empty($job['cli'])): ?>
+            <div class="tiny mb-2">CLI: <span class="mono"><?php echo html_escape($job['cli']); ?></span></div>
+            <?php endif; ?>
             <div class="d-flex gap-2 flex-wrap">
               <button class="btn btn-sm btn-primary cron-run" data-job="<?php echo html_escape($job['key']); ?>">Run now</button>
               <?php if (empty($job['inproc'])): ?>
               <button class="btn btn-sm btn-light cron-copy" data-endpoint="<?php echo html_escape($job['endpoint']); ?>">Copy endpoint</button>
+              <?php endif; ?>
+              <?php if (!empty($job['cli'])): ?>
+              <button class="btn btn-sm btn-light cron-copy-cli" data-cli="<?php echo html_escape($job['cli']); ?>">Copy CLI</button>
               <?php endif; ?>
             </div>
             <div class="mt-3 cron-pre" id="out-<?php echo html_escape($job['key']); ?>">Ready.</div>
@@ -88,6 +97,10 @@
   document.querySelectorAll('.cron-copy').forEach(btn => btn.addEventListener('click', async () => {
     const txt = base + btn.dataset.endpoint;
     try { await navigator.clipboard.writeText(txt); btn.textContent = 'Copied'; setTimeout(()=>btn.textContent='Copy endpoint', 1200); } catch(e) {}
+  }));
+
+  document.querySelectorAll('.cron-copy-cli').forEach(btn => btn.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(btn.dataset.cli); btn.textContent = 'Copied'; setTimeout(()=>btn.textContent='Copy CLI', 1200); } catch(e) {}
   }));
 
   document.querySelectorAll('.cron-run').forEach(btn => btn.addEventListener('click', async () => {

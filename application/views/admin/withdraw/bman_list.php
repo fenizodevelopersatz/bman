@@ -66,10 +66,10 @@
                                             <div class="col-md-3">
                                                 <select id="filter_status" class="form-select">
                                                     <option value="">All Status</option>
-                                                    <option value="pending">Pending</option>
+                                                    <option value="processing">Processing (cron collecting BMAN)</option>
+                                                    <option value="pending">Pending Approval (BMAN collected)</option>
                                                     <option value="approved">Approved</option>
-                                                    <option value="processing">Processing</option>
-                                                    <option value="completed">Completed</option>
+                                                    <option value="completed">Completed (legacy)</option>
                                                     <option value="rejected">Rejected</option>
                                                     <option value="failed">Failed</option>
                                                 </select>
@@ -143,11 +143,15 @@
                                                         <td>
                                                             <?php
                                                             $statusClass = '';
+                                                            // 'approved' + tx_hash set = cron flow, terminal/paid.
+                                                            // 'approved' + no tx_hash  = legacy flow, still in-flight.
                                                             if ($row['status'] === 'completed') $statusClass = 'bg-success';
+                                                            elseif ($row['status'] === 'approved' && !empty($row['tx_hash'])) $statusClass = 'bg-success';
                                                             elseif ($row['status'] === 'approved') $statusClass = 'bg-info';
-                                                            elseif ($row['status'] === 'pending') $statusClass = 'bg-warning';
+                                                            elseif ($row['status'] === 'pending') $statusClass = 'bg-warning text-dark';
                                                             elseif ($row['status'] === 'processing') $statusClass = 'bg-primary';
-                                                            else $statusClass = 'bg-danger';
+                                                            elseif (in_array($row['status'], ['rejected', 'failed'], true)) $statusClass = 'bg-danger';
+                                                            else $statusClass = 'bg-secondary';
                                                             ?>
                                                             <span class="badge <?= $statusClass; ?>"><?= htmlspecialchars($row['status']); ?></span>
                                                         </td>

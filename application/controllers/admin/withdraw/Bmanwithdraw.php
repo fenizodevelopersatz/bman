@@ -52,13 +52,34 @@ class Bmanwithdraw extends MY_Controller
         $kyc = ($user_id && $this->db->table_exists('kyc_applications')) ? $this->kyc->getByUser($user_id) : [];
         $legacy_kyc = $this->_legacyKyc($user_id);
 
+        // Read-only lookup (walletRow, not ensureAddress) — a review page
+        // must not have the side effect of generating a brand-new custodial
+        // wallet for a user who doesn't have one yet.
+        $this->load->model('Custodialwallet_model', 'custodial');
+        $walletRow = $user_id ? $this->custodial->walletRow($user_id) : null;
+        $this->data['user_wallet_address'] = $walletRow['wallet_address'] ?? null;
+
         $this->data['user_profile'] = $this->_withdrawUserProfile($user_id);
+
+        // Sponsor is stored as users.sponser = the sponsor's own numeric
+        // users.id (confirmed against real data — NOT their referral_id).
+        // Reuses the same profile helper, so name/email/photo resolution
+        // (including the default-avatar fallback) stays identical to the
+        // member's own profile card above.
+        $sponsorId = (int) ($this->data['user_profile']['sponser'] ?? 0);
+        $this->data['sponsor_profile'] = $sponsorId ? $this->_withdrawUserProfile($sponsorId) : [];
+
         $this->data['kyc_application'] = $kyc ?: [];
         $this->data['legacy_kyc'] = $legacy_kyc ?: [];
         $this->data['kyc_documents'] = $this->_kycDocuments($kyc ?: [], $legacy_kyc ?: []);
         $this->data['kyc_history'] = (!empty($kyc['id']) && $this->db->table_exists('kyc_audit_logs'))
             ? $this->kyc->history((int) $kyc['id'])
             : [];
+
+        $this->data['gas_fees'] = $this->_withdrawGasFees($this->data['row']);
+        $this->data['withdraw_history'] = $this->bmanwithdraw->history((int) $id);
+        $ts = $this->db->select('explorer_url')->get_where('token_settings', ['status' => 1])->row_array();
+        $this->data['explorer_url'] = rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
 
         $this->load->view('admin/withdraw/bman_view', $this->data);
     }
@@ -124,6 +145,68 @@ class Bmanwithdraw extends MY_Controller
         }
 
         return $user;
+    }
+
+    /**
+     * Gas fee breakdown for one withdrawal request, split BMAN-side vs
+     * USDT-side — the two are tracked completely differently:
+     *
+     * BMAN side (gas-funding, collect, refund legs): this app broadcasts
+     * these itself via BmanWithdrawCollectCron/refund_bman_onchain(), so
+     * every broadcast writes a gas_fee_ledger row up front (policy-estimated
+     * gas_limit/gas_price), later backfilled with the real gas_used/
+     * native_fee_total once Chain Sync verifies the mined receipt.
+     * gas_fee_ledger.reference_id is the request_no STRING here (not the
+     * numeric id — matches how BmanWithdrawCollectCron/refund_bman_onchain
+     * write it; onchain_transactions uses the numeric id instead, an
+     * existing inconsistency between the two tables, not introduced here).
+     *
+     * USDT side (the manual payout leg): admin sends this externally and
+     * only pastes the tx_hash back in — this app never broadcasts it, so
+     * there is no gas_fee_ledger row for it at all. The onchain_transactions
+     * row the controller inserts on Approve/Complete is written with
+     * status='confirmed' immediately, so Chain Sync (which only ever
+     * touches pending/processing/broadcasting rows) will never backfill its
+     * gas fields either — this leg's real gas cost is simply not tracked by
+     * this system today. Reports it as untracked rather than pretending
+     * a number exists.
+     */
+    private function _withdrawGasFees(array $row)
+    {
+        $legRows = $this->db->select('tx_type, tx_hash, status, gas_limit_used, gas_price_wei, gas_used, native_fee_total, created_at, confirmed_at')
+            ->where(['reference_type' => 'bman_withdrawal', 'reference_id' => $row['request_no']])
+            ->order_by('id', 'ASC')
+            ->get('gas_fee_ledger')->result_array();
+
+        // Keyed by leg ('gas'/'collect'/'refund') so the view can pair each
+        // one directly with its raw tx_hash/status columns on $row (gas_tx_hash
+        // + gas_cron_status, collect_tx_hash + collect_cron_status,
+        // refund_tx_hash + refunded_at) without re-searching a list.
+        $byLeg = ['gas' => null, 'collect' => null, 'refund' => null];
+        foreach ($legRows as $leg) {
+            if ($leg['native_fee_total'] !== null) {
+                $leg['bnb_fee'] = (float) $leg['native_fee_total'];
+                $leg['is_estimate'] = false;
+            } elseif ($leg['gas_limit_used'] !== null && $leg['gas_price_wei'] !== null) {
+                $leg['bnb_fee'] = ((float) $leg['gas_limit_used'] * (float) $leg['gas_price_wei']) / 1e18;
+                $leg['is_estimate'] = true;
+            } else {
+                $leg['bnb_fee'] = null;
+                $leg['is_estimate'] = true;
+            }
+            if (array_key_exists($leg['tx_type'], $byLeg)) {
+                $byLeg[$leg['tx_type']] = $leg;
+            }
+        }
+
+        $usdtLeg = null;
+        if (!empty($row['tx_hash'])) {
+            $usdtLeg = $this->db->select('tx_hash, status, gas_used, gas_price, gas_price_gwei, gas_fee_total, created_at')
+                ->where(['reference_type' => 'bman_withdrawal', 'reference_id' => (string) $row['id'], 'tx_type' => 'withdrawal'])
+                ->get('onchain_transactions')->row_array();
+        }
+
+        return ['bman' => $byLeg, 'usdt' => $usdtLeg];
     }
 
     private function _legacyKyc($user_id)
@@ -200,7 +283,39 @@ class Bmanwithdraw extends MY_Controller
 
         $result = null;
         if ($status === 'approved') {
-            $result = $this->bmanwithdraw->approve($id, $admin_id, $admin_remark);
+            // Cron flow: pending (already collected on-chain) -> approved.
+            // Pay + close out in one step, same as 'completed' below — just a
+            // different terminal status name. Legacy pending->approved
+            // (Bmanwithdraw_model::approve(), no tx_hash) is retired going
+            // forward: fresh requests are never born in legacy 'pending'
+            // anymore, so this branch only ever sees the cron-collected case.
+            if (empty($tx_hash)) {
+                $this->db->trans_rollback();
+                $this->session->set_flashdata('error', 'Transaction hash is required to approve the withdrawal');
+                redirect('admin/bman-withdrawals/view/' . $id);
+                return;
+            }
+            $result = $this->bmanwithdraw->approve_and_complete($id, $admin_id, $tx_hash, $admin_remark);
+
+            if (empty($result['error'])) {
+                $this->db->insert('onchain_transactions', [
+                    'tx_hash' => $tx_hash,
+                    'network' => 'bsc',
+                    'chain_id' => 56,
+                    'wallet_type' => $row['source_wallet'],
+                    'tx_type' => 'withdrawal',
+                    'status' => 'confirmed',
+                    'to_address' => $row['withdraw_address'],
+                    'user_id' => $row['user_id'],
+                    'admin_id' => $admin_id,
+                    'token_symbol' => 'USDT',
+                    'amount' => !empty($row['usdt_amount']) ? $row['usdt_amount'] : $row['net_amount'],
+                    'reference_type' => 'bman_withdrawal',
+                    'reference_id' => (string) $id,
+                    'linked_withdrawal_id' => $id,
+                    'created_at' => date('Y-m-d H:i:s'),
+                ]);
+            }
         } elseif ($status === 'processing') {
             $result = $this->bmanwithdraw->mark_processing($id, $admin_id, $admin_remark);
         } elseif ($status === 'completed') {
@@ -233,7 +348,23 @@ class Bmanwithdraw extends MY_Controller
                 ]);
             }
         } elseif ($status === 'rejected') {
-            $result = $this->bmanwithdraw->reject($id, $admin_id, $admin_remark);
+            // Already-collected requests need the real BMAN sent back
+            // on-chain FIRST — a broadcast can't be rolled back, so we don't
+            // want a later DB failure to look like nothing happened. If the
+            // refund send fails, the whole reject fails too (nothing on-chain
+            // was sent, safe to retry).
+            $refundTxHash = null;
+            if ((int) $row['collect_cron_status'] === 1) {
+                $refundResult = $this->bmanwithdraw->refund_bman_onchain($id);
+                if (!empty($refundResult['error'])) {
+                    $this->db->trans_rollback();
+                    $this->session->set_flashdata('error', 'BMAN refund failed: ' . $refundResult['error']);
+                    redirect('admin/bman-withdrawals/view/' . $id);
+                    return;
+                }
+                $refundTxHash = $refundResult['tx_hash'];
+            }
+            $result = $this->bmanwithdraw->reject($id, $admin_id, $admin_remark, $refundTxHash);
         } elseif ($status === 'failed') {
             $result = $this->bmanwithdraw->mark_failed($id, $admin_id, $admin_remark);
         }
