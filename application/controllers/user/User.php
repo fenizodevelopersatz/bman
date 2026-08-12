@@ -124,10 +124,19 @@ class User extends CI_Controller
 			// showed 9.00/7.00 while the dashboard showed 4.01/6.15.
 			//
 			// Lock Wallet is a point-in-time balance, so no date window applies.
-			$legLock = $this->BinaryModel->calculateLegLockWallet($userid);
+			//
+			// "Remaining" and Strong/Weak are derived from a live MIN(left,right)
+			// match on top of that same Lock Wallet figure — see
+			// BinaryModel::calculateLegMatchingState() for the exact rule (the
+			// raw "Leg Investment" figures below are never reduced by this).
+			$legMatching = $this->BinaryModel->calculateLegMatchingState($userid);
 			$this->data['leg_investments'] = [
-				'left_bman'  => (float) ($legLock['left'] ?? 0),
-				'right_bman' => (float) ($legLock['right'] ?? 0),
+				'left_bman'            => (float) ($legMatching['left'] ?? 0),
+				'right_bman'           => (float) ($legMatching['right'] ?? 0),
+				'left_remaining_bman'  => (float) ($legMatching['left_remaining'] ?? 0),
+				'right_remaining_bman' => (float) ($legMatching['right_remaining'] ?? 0),
+				'left_strength'        => $legMatching['left_strength'] ?? 'EVEN',
+				'right_strength'       => $legMatching['right_strength'] ?? 'EVEN',
 			];
 
 			list($ws, $we) = $this->BinaryModel->getWeekRange();
@@ -1225,12 +1234,13 @@ class User extends CI_Controller
 			// Lock Wallet is a point-in-time balance, so the This Week / This
 			// Month toggle cannot window it — the period still drives the pair
 			// target copy below, but these two figures are always "as of now".
-			$totals = $this->BinaryModel->calculateLegLockWallet($user_id);
-			$left = (float) ($totals['left'] ?? 0);
-			$right = (float) ($totals['right'] ?? 0);
+			$state = $this->BinaryModel->calculateLegMatchingState($user_id);
+			$left = (float) ($state['left'] ?? 0);
+			$right = (float) ($state['right'] ?? 0);
+			$leftRemaining = (float) ($state['left_remaining'] ?? 0);
+			$rightRemaining = (float) ($state['right_remaining'] ?? 0);
 			$total = $left + $right;
 			$progress = $total > 0 ? round((min($left, $right) / $total) * 100, 2) : 0;
-			$left_strong = $left >= $right;
 
 			return $this->_json([
 				'status' => true,
@@ -1242,8 +1252,12 @@ class User extends CI_Controller
 				'right_bman' => $right,
 				'left_bman_text' => number_format($left, 2),
 				'right_bman_text' => number_format($right, 2),
-				'left_strength' => $left_strong ? 'STRONG' : 'WEAK',
-				'right_strength' => $left_strong ? 'WEAK' : 'STRONG',
+				'left_remaining_bman' => $leftRemaining,
+				'right_remaining_bman' => $rightRemaining,
+				'left_remaining_text' => number_format($leftRemaining, 2),
+				'right_remaining_text' => number_format($rightRemaining, 2),
+				'left_strength' => $state['left_strength'] ?? 'EVEN',
+				'right_strength' => $state['right_strength'] ?? 'EVEN',
 				'progress' => $progress,
 				'progress_text' => rtrim(rtrim(number_format($progress, 2), '0'), '.') . '%',
 				'progress_title' => $progress_title

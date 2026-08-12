@@ -887,7 +887,10 @@
           <?php
             $legLeft = (float) ($leg_investments['left_bman'] ?? 0);
             $legRight = (float) ($leg_investments['right_bman'] ?? 0);
-            $legLeftStrong = $legLeft >= $legRight;
+            $legLeftRemaining = (float) ($leg_investments['left_remaining_bman'] ?? 0);
+            $legRightRemaining = (float) ($leg_investments['right_remaining_bman'] ?? 0);
+            $legLeftStrength = $leg_investments['left_strength'] ?? 'EVEN';
+            $legRightStrength = $leg_investments['right_strength'] ?? 'EVEN';
             $legProgress = ($legLeft + $legRight) > 0
               ? round((min($legLeft, $legRight) / ($legLeft + $legRight)) * 100, 2)
               : 0;
@@ -898,12 +901,16 @@
             <div class="mini">
               <div class="mini-top">
                 <span>Left Leg</span>
-                <b id="binaryLeftStrength" style="color:#2563eb;"><?= $legLeftStrong ? 'STRONG' : 'WEAK'; ?></b>
+                <b id="binaryLeftStrength" style="color:#2563eb;"><?= $legLeftStrength; ?></b>
               </div>
 
               <div class="mini-value">
                 <strong id="binaryLeftAmount"><?= number_format($legLeft, 2); ?></strong>
                 <div style="font-size:11px;color:#8a8f99;font-weight:600;margin-top:2px;">Leg Investment (BMAN)</div>
+              </div>
+              <div class="mini-value" style="margin-top:8px;">
+                <strong id="binaryLeftRemaining" style="font-size:16px;"><?= number_format($legLeftRemaining, 2); ?></strong>
+                <div style="font-size:11px;color:#8a8f99;font-weight:600;margin-top:2px;">Remaining (BMAN)</div>
               </div>
 
             </div>
@@ -912,12 +919,16 @@
             <div class="mini">
               <div class="mini-top">
                 <span>Right Leg</span>
-                <b id="binaryRightStrength" style="color:#f97316;"><?= $legLeftStrong ? 'WEAK' : 'STRONG'; ?></b>
+                <b id="binaryRightStrength" style="color:#f97316;"><?= $legRightStrength; ?></b>
               </div>
 
               <div class="mini-value">
                 <strong id="binaryRightAmount"><?= number_format($legRight, 2); ?></strong>
                 <div style="font-size:11px;color:#8a8f99;font-weight:600;margin-top:2px;">Leg Investment (BMAN)</div>
+              </div>
+              <div class="mini-value" style="margin-top:8px;">
+                <strong id="binaryRightRemaining" style="font-size:16px;"><?= number_format($legRightRemaining, 2); ?></strong>
+                <div style="font-size:11px;color:#8a8f99;font-weight:600;margin-top:2px;">Remaining (BMAN)</div>
               </div>
 
             </div>
@@ -1754,6 +1765,8 @@
 
       const leftAmount = document.getElementById('binaryLeftAmount');
       const rightAmount = document.getElementById('binaryRightAmount');
+      const leftRemaining = document.getElementById('binaryLeftRemaining');
+      const rightRemaining = document.getElementById('binaryRightRemaining');
       const leftStrength = document.getElementById('binaryLeftStrength');
       const rightStrength = document.getElementById('binaryRightStrength');
       const progressText = document.getElementById('weekly_progress');
@@ -1763,8 +1776,10 @@
 
       if (leftAmount) leftAmount.textContent = data.left_bman_text || formatBmanAmount(data.left_bman);
       if (rightAmount) rightAmount.textContent = data.right_bman_text || formatBmanAmount(data.right_bman);
-      if (leftStrength) leftStrength.textContent = data.left_strength || 'WEAK';
-      if (rightStrength) rightStrength.textContent = data.right_strength || 'WEAK';
+      if (leftRemaining) leftRemaining.textContent = data.left_remaining_text || formatBmanAmount(data.left_remaining_bman);
+      if (rightRemaining) rightRemaining.textContent = data.right_remaining_text || formatBmanAmount(data.right_remaining_bman);
+      if (leftStrength) leftStrength.textContent = data.left_strength || 'EVEN';
+      if (rightStrength) rightStrength.textContent = data.right_strength || 'EVEN';
       if (progressTitle) progressTitle.textContent = data.progress_title || 'Pair Target Progress';
       if (progressText) progressText.textContent = data.progress_text || '0%';
       if (progressBar) progressBar.style.width = progress + '%';

@@ -402,6 +402,62 @@ class BinaryModel extends CI_Model
     }
     /*
     |--------------------------------------------------------------------------
+    | Current binary matching state (dashboard) — the RAW per-leg Lock Wallet
+    | investment from calculateLegLockWallet() above (never reduced — the
+    | "Leg Investment" figure), plus a live MIN(left,right) match applied on
+    | top purely for display, producing "Remaining" (what's still unmatched
+    | after the current pairing) and Strong/Weak.
+    |
+    | "Matching completed" = both legs currently carry eligible volume
+    | (matched > 0). With one leg at zero there is no pairing yet, so
+    | Remaining is reported as 0/0 rather than the misleading "one full leg,
+    | one empty leg" the raw subtraction would otherwise show.
+    |
+    | This never writes anything and never touches user_stakes/binary_carry/
+    | staking_matching_payouts — it is a read-only display projection over
+    | the same live volume source the level-wise matching engine
+    | (Binarylevelmatching_model) already uses, so it can never drift out of
+    | sync with whatever that engine would compute if the cron ran right now.
+    |--------------------------------------------------------------------------
+    */
+    public function calculateLegMatchingState($user_id)
+    {
+        $lock = $this->calculateLegLockWallet($user_id);
+        $left = (float) ($lock['left'] ?? 0);
+        $right = (float) ($lock['right'] ?? 0);
+
+        $matched = min($left, $right);
+        $completed = $matched > 0;
+
+        $leftRemaining = $completed ? ($left - $matched) : 0.0;
+        $rightRemaining = $completed ? ($right - $matched) : 0.0;
+
+        if ($leftRemaining > $rightRemaining) {
+            $leftStrength = 'STRONG';
+            $rightStrength = 'WEAK';
+        } elseif ($rightRemaining > $leftRemaining) {
+            $leftStrength = 'WEAK';
+            $rightStrength = 'STRONG';
+        } else {
+            // Tied, including both at zero — neither leg is actually ahead,
+            // so neither is allowed to default into STRONG.
+            $leftStrength = 'EVEN';
+            $rightStrength = 'EVEN';
+        }
+
+        return [
+            'left' => $left,
+            'right' => $right,
+            'matched' => $matched,
+            'completed' => $completed,
+            'left_remaining' => $leftRemaining,
+            'right_remaining' => $rightRemaining,
+            'left_strength' => $leftStrength,
+            'right_strength' => $rightStrength,
+        ];
+    }
+    /*
+    |--------------------------------------------------------------------------
     | Add Calculate Leg Investment
     |--------------------------------------------------------------------------
     */
