@@ -1,5 +1,10 @@
 .DS_Store
 
+# Wallet migration utility output — contains re-encrypted private key
+# material (still sensitive: same exposure level as the live DB's own
+# encrypted user_wallet.private_key column). Never commit this.
+/Recovery/*
+
 application/cache/*
 !application/cache/index.html
 
@@ -24,6 +29,7 @@ user_guide_src/cilexer/dist/*
 user_guide_src/cilexer/pycilexer.egg-info/*
 db/bmanrecovery/*
 db/*
+Recovery/*
 /vendor/
 
 # IDE Files
