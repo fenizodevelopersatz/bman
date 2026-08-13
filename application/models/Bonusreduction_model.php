@@ -216,7 +216,7 @@ class Bonusreduction_model extends CI_Model
     /** Recent reduction history, joined to the user. */
     public function history($limit = 100, $offset = 0)
     {
-        return $this->db->select('l.*, u.username, u.email', false)
+        return $this->db->select('l.*, u.username, u.email, u.profile_img, u.image, u.first_name, u.last_name', false)
             ->from('bonus_reduction_log l')
             ->join('users u', 'u.id = l.user_id', 'left')
             ->order_by('l.id', 'DESC')

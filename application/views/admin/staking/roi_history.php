@@ -36,7 +36,7 @@
         <div class="card-header border-0 pt-6">
           <div class="card-title"><div class="fw-bold fs-4">Manual Send — Particular User</div></div>
         </div>
-        <div class="card-body pt-2">
+        <div class="card-body pt-3 pb-6">
           <div class="tiny mb-3">Look up a user and send their ROI now. Safe to use any time — it only credits whatever is actually due today per that record's schedule; it never pays ahead of schedule.</div>
           <div class="d-flex gap-2 mb-4" style="max-width:480px;">
             <input id="user-q" type="text" class="form-control form-control-sm" placeholder="User ID, username, or email">
@@ -88,7 +88,7 @@
             </select>
           </div>
         </div>
-        <div class="card-body pt-2">
+        <div class="card-body pt-3 pb-6">
           <div class="table-responsive">
             <table class="table align-middle table-row-dashed fs-7 gy-3">
               <thead>
@@ -113,7 +113,7 @@
         <div class="card-header border-0 pt-6">
           <div class="card-title"><div class="fw-bold fs-4">Failed / Needs Retry (<?php echo count($failed); ?>)</div></div>
         </div>
-        <div class="card-body pt-2">
+        <div class="card-body pt-3 pb-6">
           <div class="table-responsive">
             <table class="table align-middle table-row-dashed fs-7 gy-3">
               <thead>
@@ -121,11 +121,11 @@
                   <th>ID</th><th>User</th><th>Plan</th><th>Progress</th><th>Next / Maturity</th><th>Error</th><th>Updated</th><th></th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody id="failed-body">
                 <?php if (empty($failed)): ?>
                 <tr><td colspan="8" class="text-center text-muted py-6">No failed records. 🎉</td></tr>
                 <?php else: foreach ($failed as $f): ?>
-                <tr id="row-<?php echo $f['id']; ?>">
+                <tr id="row-<?php echo $f['id']; ?>" class="paged-row">
                   <td class="mono">#<?php echo $f['id']; ?></td>
                   <td><?php echo html_escape($f['username'] ?: ('User #'.$f['user_id'])); ?></td>
                   <td><span class="badge badge-<?php echo $f['plan_type']; ?>"><?php echo ucfirst($f['plan_type']); ?></span></td>
@@ -139,6 +139,9 @@
               </tbody>
             </table>
           </div>
+          <?php if (count($failed) > 10): ?>
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 pt-4 border-top" id="failed-pager"></div>
+          <?php endif; ?>
         </div>
       </div>
 
@@ -146,7 +149,7 @@
         <div class="card-header border-0 pt-6">
           <div class="card-title"><div class="fw-bold fs-4">Upcoming Due (Next 7 Days)</div></div>
         </div>
-        <div class="card-body pt-2">
+        <div class="card-body pt-3 pb-6">
           <div class="table-responsive">
             <table class="table align-middle table-row-dashed fs-7 gy-3">
               <thead>
@@ -154,11 +157,11 @@
                   <th>ID</th><th>User</th><th>Plan</th><th>Amount Due</th><th>Due Date</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody id="upcoming-body">
                 <?php if (empty($upcoming)): ?>
                 <tr><td colspan="5" class="text-center text-muted py-6">Nothing due in the next 7 days.</td></tr>
                 <?php else: foreach ($upcoming as $u): ?>
-                <tr>
+                <tr class="paged-row">
                   <td class="mono">#<?php echo $u['id']; ?></td>
                   <td><?php echo html_escape($u['username'] ?: ('User #'.$u['user_id'])); ?></td>
                   <td><span class="badge badge-<?php echo $u['plan_type']; ?>"><?php echo ucfirst($u['plan_type']); ?></span></td>
@@ -169,6 +172,9 @@
               </tbody>
             </table>
           </div>
+          <?php if (count($upcoming) > 10): ?>
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 pt-4 border-top" id="upcoming-pager"></div>
+          <?php endif; ?>
         </div>
       </div>
 
@@ -186,7 +192,7 @@
             <button id="dist-refresh" class="btn btn-sm btn-light-primary">Filter</button>
           </div>
         </div>
-        <div class="card-body pt-2">
+        <div class="card-body pt-3 pb-6">
           <div class="table-responsive">
             <table class="table align-middle table-row-dashed fs-7 gy-3">
               <thead>
@@ -218,6 +224,43 @@
 (function(){
   const base = '<?php echo base_url(); ?>';
   let page = 1, limit = 25;
+
+  /* Client-side pager for a table whose rows are already fully rendered
+     server-side (Failed / Upcoming — both hard-capped small lists, not
+     worth a round trip to paginate). Shows/hides .paged-row children of
+     tbodyId in pages of pageSize, renders Prev/Next + page info into
+     pagerId. No-op if the table has no rows or a pager container wasn't
+     rendered (count <= 10, see the PHP condition around it). */
+  function paginateStaticTable(tbodyId, pagerId, pageSize) {
+    const tbody = document.getElementById(tbodyId);
+    const pager = document.getElementById(pagerId);
+    if (!tbody || !pager) return;
+    const rows = Array.from(tbody.querySelectorAll('tr.paged-row'));
+    if (!rows.length) return;
+    let cur = 1;
+    const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+
+    function render() {
+      rows.forEach((tr, i) => {
+        const p = Math.floor(i / pageSize) + 1;
+        tr.style.display = (p === cur) ? '' : 'none';
+      });
+      const start = (cur - 1) * pageSize + 1;
+      const end = Math.min(rows.length, cur * pageSize);
+      pager.innerHTML =
+        '<div class="text-muted fs-8">Showing ' + start + '–' + end + ' of ' + rows.length + '</div>' +
+        '<div class="gap-2 d-flex">' +
+        '<button class="btn btn-sm btn-light" id="' + pagerId + '-prev"' + (cur <= 1 ? ' disabled' : '') + '>← Previous</button>' +
+        '<span class="align-self-center fs-8 text-muted">Page ' + cur + ' / ' + totalPages + '</span>' +
+        '<button class="btn btn-sm btn-light" id="' + pagerId + '-next"' + (cur >= totalPages ? ' disabled' : '') + '>Next →</button>' +
+        '</div>';
+      const prevBtn = document.getElementById(pagerId + '-prev');
+      const nextBtn = document.getElementById(pagerId + '-next');
+      if (prevBtn) prevBtn.addEventListener('click', () => { if (cur > 1) { cur--; render(); } });
+      if (nextBtn) nextBtn.addEventListener('click', () => { if (cur < totalPages) { cur++; render(); } });
+    }
+    render();
+  }
 
   async function loadDist(){
     const fd = new FormData();
@@ -383,6 +426,8 @@
 
   loadRecords();
   loadDist();
+  paginateStaticTable('failed-body', 'failed-pager', 10);
+  paginateStaticTable('upcoming-body', 'upcoming-pager', 10);
 })();
 </script>
 </body>

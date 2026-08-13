@@ -112,7 +112,7 @@
                                             <span class="badge <?php echo $dry ? 'badge-light-warning' : 'badge-light-success'; ?>">Mode: <?php echo $dry ? 'DRY-RUN (preview)' : 'EXECUTE'; ?></span>
                                             <span class="badge <?php echo $onchain ? 'badge-light-info' : 'badge-light'; ?>">On-chain: <?php echo $onchain ? 'ON' : 'OFF'; ?></span>
                                             <?php if (!empty($admin_addr)): ?>
-                                            <span class="badge badge-light">Admin wallet: <span class="aw-addr"><?php echo html_escape(substr($admin_addr, 0, 10)); ?>…<?php echo html_escape(substr($admin_addr, -6)); ?></span></span>
+                                            <a class="badge badge-light text-hover-primary" target="_blank" rel="noopener" href="<?php echo html_escape($explorer_url . '/address/' . $admin_addr); ?>">Admin wallet: <span class="aw-addr"><?php echo html_escape(substr($admin_addr, 0, 10)); ?>…<?php echo html_escape(substr($admin_addr, -6)); ?></span></a>
                                             <?php else: ?>
                                             <span class="badge badge-light-danger">No admin wallet set (Token Settings)</span>
                                             <?php endif; ?>
@@ -146,8 +146,13 @@
                                                     <?php foreach ($history as $h): ?>
                                                     <tr>
                                                         <td>
-                                                            <span class="fw-bold">#<?php echo (int)$h['user_id']; ?> <?php echo html_escape($h['username'] ?: ''); ?></span>
-                                                            <div class="text-muted fs-8"><?php echo html_escape($h['email'] ?: ''); ?></div>
+                                                            <div class="d-flex align-items-center">
+                                                                <img src="<?php echo html_escape($h['profile_photo']); ?>" alt="" class="rounded-circle me-2" style="width:32px;height:32px;object-fit:cover;">
+                                                                <div>
+                                                                    <span class="fw-bold d-block">#<?php echo (int)$h['user_id']; ?> <?php echo html_escape($h['display_name'] ?: ''); ?></span>
+                                                                    <div class="text-muted fs-8"><?php echo html_escape($h['email'] ?: ''); ?></div>
+                                                                </div>
+                                                            </div>
                                                         </td>
                                                         <td class="text-center"><?php echo (int)$h['cycle_no']; ?></td>
                                                         <td class="text-end aw-num"><?php echo number_format((float)$h['bonus_before'], 6); ?></td>

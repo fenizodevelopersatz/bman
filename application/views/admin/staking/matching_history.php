@@ -158,7 +158,7 @@ $this->load->view('admin/Layout/common_style');
                           <th class="text-end">Earning 8%</th><th class="text-end">Staking 2%</th><th class="text-end">Admin Overflow</th>
                           <th>Status</th><th>On-Chain</th>
                         </tr></thead>
-                        <tbody class="text-gray-700 fw-semibold">
+                        <tbody class="text-gray-700 fw-semibold" id="mh-body">
                         <?php if (empty($rows)): ?>
                           <tr><td colspan="14" class="text-center text-muted py-6">No completed levels match this filter.</td></tr>
                         <?php else: foreach ($rows as $r):
@@ -167,7 +167,7 @@ $this->load->view('admin/Layout/common_style');
                           $forfeited = (int)$r['sponsor_eligible'] === 0;
                           $chain     = $r['chain_status'];
                         ?>
-                          <tr class="mh-row cursor-pointer" data-id="<?php echo (int)$r['id']; ?>">
+                          <tr class="mh-row cursor-pointer paged-row" data-id="<?php echo (int)$r['id']; ?>">
                             <td class="fs-8 text-muted"><?php echo html_escape($r['created_at']); ?></td>
                             <td>
                               <div class="d-flex align-items-center">
@@ -222,6 +222,9 @@ $this->load->view('admin/Layout/common_style');
                         </tbody>
                       </table>
                     </div>
+                    <?php if (count($rows) > 25): ?>
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 pt-4 border-top" id="mh-pager"></div>
+                    <?php endif; ?>
                   </div>
                 </div>
                 <?php endif; ?>
@@ -440,6 +443,42 @@ $this->load->view('admin/Layout/common_style');
             .catch(function () { body.innerHTML = '<span class="text-danger">Network error.</span>'; });
         });
       });
+
+      /* Client-side pager — rows are all rendered server-side already (hard
+         capped at 300), so pagination here just shows/hides .paged-row
+         elements in pages rather than re-fetching. Attached listeners on
+         .mh-row above stay bound regardless of display:none, so paging
+         never breaks the detail-drawer click. */
+      (function paginateStaticTable(tbodyId, pagerId, pageSize) {
+        var tbody = document.getElementById(tbodyId);
+        var pager = document.getElementById(pagerId);
+        if (!tbody || !pager) return;
+        var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr.paged-row'));
+        if (!rows.length) return;
+        var cur = 1;
+        var totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+
+        function render() {
+          rows.forEach(function (tr, i) {
+            var p = Math.floor(i / pageSize) + 1;
+            tr.style.display = (p === cur) ? '' : 'none';
+          });
+          var start = (cur - 1) * pageSize + 1;
+          var end = Math.min(rows.length, cur * pageSize);
+          pager.innerHTML =
+            '<div class="text-muted fs-8">Showing ' + start + '–' + end + ' of ' + rows.length + '</div>' +
+            '<div class="gap-2 d-flex">' +
+            '<button class="btn btn-sm btn-light" id="' + pagerId + '-prev"' + (cur <= 1 ? ' disabled' : '') + '>← Previous</button>' +
+            '<span class="align-self-center fs-8 text-muted">Page ' + cur + ' / ' + totalPages + '</span>' +
+            '<button class="btn btn-sm btn-light" id="' + pagerId + '-next"' + (cur >= totalPages ? ' disabled' : '') + '>Next →</button>' +
+            '</div>';
+          var prevBtn = document.getElementById(pagerId + '-prev');
+          var nextBtn = document.getElementById(pagerId + '-next');
+          if (prevBtn) prevBtn.addEventListener('click', function () { if (cur > 1) { cur--; render(); } });
+          if (nextBtn) nextBtn.addEventListener('click', function () { if (cur < totalPages) { cur++; render(); } });
+        }
+        render();
+      })('mh-body', 'mh-pager', 25);
     })();
   </script>
 </body>

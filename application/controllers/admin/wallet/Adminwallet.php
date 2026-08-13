@@ -56,9 +56,27 @@ class Adminwallet extends CI_Controller
         $data['settings']     = $settings ?: [];
         $data['admin_addr']   = $this->reduction->adminAddress();
         $data['explorer_url'] = rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
-        $data['history']      = $this->reduction->history(200);
+        $data['history']      = array_map([$this, '_withUserDisplay'], $this->reduction->history(200));
 
         $this->load->view('admin/wallet/admin_wallet', $data);
+    }
+
+    /** Resolve a history row's display name + profile photo (with fallback), same rule as the withdrawal review page. */
+    private function _withUserDisplay(array $h)
+    {
+        $full_name = trim(($h['first_name'] ?? '') . ' ' . ($h['last_name'] ?? ''));
+        $h['display_name'] = $full_name !== '' ? $full_name : (string) ($h['username'] ?? '');
+
+        $photo = trim((string) ($h['profile_img'] ?: $h['image'] ?: ''));
+        if ($photo !== '') {
+            $h['profile_photo'] = (preg_match('#^https?://#i', $photo) || strpos($photo, 'uploads/') !== false || strpos($photo, 'assets/') !== false)
+                ? media_url($photo)
+                : base_url('assets/images/' . ltrim(str_replace('\\', '/', $photo), '/'));
+        } else {
+            $h['profile_photo'] = base_url('assets/images/default-avatar.svg');
+        }
+
+        return $h;
     }
 
     /* ------------- AJAX: preview or run the reduction (Super) ------------ */

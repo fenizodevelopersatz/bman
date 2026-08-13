@@ -78,6 +78,17 @@
                                     </div>
                                     <div class="card-body pt-2">
                                         <div id="aal-body" class="table-responsive">Loading…</div>
+                                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-4" id="aal-pager" style="display:none !important;">
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="text-muted fs-7" id="aal-page-info"></span>
+                                                <select class="form-select form-select-sm w-auto" id="aal-page-size" aria-label="Rows per page">
+                                                    <option value="25">25 / page</option>
+                                                    <option value="50" selected>50 / page</option>
+                                                    <option value="100">100 / page</option>
+                                                </select>
+                                            </div>
+                                            <ul class="pagination pagination-sm mb-0" id="aal-page-links"></ul>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -119,6 +130,12 @@
     (function () {
         const base = '<?php echo base_url(); ?>';
         let allRows = [];
+        let filteredRows = [];
+        let currentPage = 1;
+        const pageSizeSelect = document.getElementById('aal-page-size');
+        const pagerBox = document.getElementById('aal-pager');
+        const pageInfo = document.getElementById('aal-page-info');
+        const pageLinks = document.getElementById('aal-page-links');
         const moduleFilter = document.getElementById('aal-filter');
         const presetFilter = document.getElementById('aal-date-preset');
         const fromFilter = document.getElementById('aal-date-from');
@@ -242,12 +259,52 @@
             return Number.isNaN(time) ? 0 : time;
         }
 
+        function pageSize() { return parseInt(pageSizeSelect.value, 10) || 50; }
+
+        function renderPager(totalPages, size) {
+            if (!filteredRows.length) { pagerBox.style.setProperty('display', 'none', 'important'); return; }
+            pagerBox.style.setProperty('display', 'flex', 'important');
+            const start = (currentPage - 1) * size + 1;
+            const end = Math.min(filteredRows.length, currentPage * size);
+            pageInfo.textContent = 'Showing ' + start + '–' + end + ' of ' + filteredRows.length;
+
+            let html = '<li class="page-item' + (currentPage === 1 ? ' disabled' : '') + '">' +
+                '<a class="page-link" href="javascript:void(0)" data-page="' + (currentPage - 1) + '">Prev</a></li>';
+            const windowSize = 5;
+            let from = Math.max(1, currentPage - Math.floor(windowSize / 2));
+            let to = Math.min(totalPages, from + windowSize - 1);
+            from = Math.max(1, to - windowSize + 1);
+            for (let p = from; p <= to; p++) {
+                html += '<li class="page-item' + (p === currentPage ? ' active' : '') + '">' +
+                    '<a class="page-link" href="javascript:void(0)" data-page="' + p + '">' + p + '</a></li>';
+            }
+            html += '<li class="page-item' + (currentPage === totalPages ? ' disabled' : '') + '">' +
+                '<a class="page-link" href="javascript:void(0)" data-page="' + (currentPage + 1) + '">Next</a></li>';
+            pageLinks.innerHTML = html;
+
+            pageLinks.querySelectorAll('a[data-page]').forEach(a => {
+                a.addEventListener('click', () => {
+                    const p = parseInt(a.dataset.page, 10);
+                    if (p >= 1 && p <= totalPages && p !== currentPage) { currentPage = p; renderPage(); }
+                });
+            });
+        }
+
+        function renderPage() {
+            const size = pageSize();
+            const totalPages = Math.max(1, Math.ceil(filteredRows.length / size));
+            if (currentPage > totalPages) currentPage = totalPages;
+            const start = (currentPage - 1) * size;
+            render(filteredRows.slice(start, start + size));
+            renderPager(totalPages, size);
+        }
+
         function applyFilters() {
             const module = moduleFilter.value;
             const from = fromFilter.value ? new Date(fromFilter.value + 'T00:00:00').getTime() : null;
             const to = toFilter.value ? new Date(toFilter.value + 'T23:59:59.999').getTime() : null;
 
-            const rows = allRows.filter(row => {
+            filteredRows = allRows.filter(row => {
                 const time = rowTime(row);
                 return (!module || row.source === module)
                     && (from === null || time >= from)
@@ -256,7 +313,8 @@
                 ? rowTime(a) - rowTime(b)
                 : rowTime(b) - rowTime(a));
 
-            render(rows);
+            currentPage = 1;
+            renderPage();
         }
 
         function toDateValue(date) {
@@ -298,6 +356,7 @@
 
         moduleFilter.addEventListener('change', applyFilters);
         orderFilter.addEventListener('change', applyFilters);
+        pageSizeSelect.addEventListener('change', () => { currentPage = 1; renderPage(); });
         presetFilter.addEventListener('change', (e) => applyPreset(e.target.value));
         [fromFilter, toFilter].forEach(input => input.addEventListener('change', () => {
             presetFilter.value = '';
