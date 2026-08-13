@@ -1004,6 +1004,55 @@ class Genealogycontroller extends MY_Controller
         $this->load->view('user/member/withdraw', $this->data);
     }
 
+    /**
+     * Export the member's own BMAN withdrawal history as a real .xlsx —
+     * same data source (user_payout_history()) the Payout History table and
+     * "Withdrawal Details" modal already use, so the export can never
+     * disagree with what's on screen. Own data only: scoped to the logged-in
+     * session's own user id, never an id from the request.
+     */
+    public function withdraw_export()
+    {
+        $id = (int) $this->session->userdata('user_userid');
+        if (!$id) {
+            redirect('login');
+            return;
+        }
+
+        $this->load->model('withdraw/Bmanwithdraw_model', 'bmanwithdraw');
+        $payouts = $this->bmanwithdraw->user_payout_history($id, 2000);
+
+        $rows = [[
+            'Payout ID', 'Status', 'Method', 'Type', 'Wallet / Period',
+            'Amount (BMAN)', 'Fee (USDT)', 'Net Amount (USDT)', 'USDT Amount',
+            'Requested At', 'Approved At', 'Admin Remark',
+            'Transaction ID (USDT payout)', 'On-Chain Hash (BMAN)', 'Refund Tx Hash',
+        ]];
+        foreach ($payouts as $p) {
+            $rows[] = [
+                (string) $p->payout_id,
+                (string) $p->status,
+                (string) $p->method,
+                (string) $p->type,
+                (string) $p->period,
+                (float) $p->amount,
+                (float) $p->fee,
+                (float) $p->net_amount,
+                (float) $p->usdt_amount,
+                (string) $p->created_at,
+                (string) ($p->approved_at ?? ''),
+                (string) ($p->admin_review ?? ''),
+                (string) ($p->txn_id ?? ''),
+                (string) ($p->onchain_hash ?? ''),
+                (string) ($p->refund_tx_hash ?? ''),
+            ];
+        }
+
+        $this->load->library('Sheetwriter');
+        $filename = 'bman-withdrawals-' . $id . '-' . date('Ymd-His') . '.xlsx';
+        $this->sheetwriter->download($rows, $filename, 'Withdrawals');
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Withdraw  Page

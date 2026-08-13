@@ -510,6 +510,66 @@
       font-size: 12px;
     }
 
+    /* Withdrawal Details modal — scoped, does NOT touch the shared .pillx
+       used by the Insights icon-tiles above (different markup: label+value
+       wrapped in a div next to a sibling icon; column-stacking that layout
+       would push the icon underneath instead of beside it). */
+    #payoutModalDialog {
+      width: min(680px, 94vw);
+      max-width: 680px;
+      margin: 5% auto;
+      background: #fff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, .25);
+    }
+
+    #payoutModalBody {
+      overflow-x: hidden;
+    }
+
+    #payoutModalBody .pillx {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+      border-radius: 10px;
+      background: #fafafc;
+      border-color: #eef0f4;
+    }
+
+    #payoutModalBody .pillx b {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+      color: #6b7280;
+      font-weight: 700;
+    }
+
+    #payoutModalBody .pillx span {
+      font-size: 13px;
+      color: #111827;
+      font-weight: 600;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    #payoutModalBody .pillx span a {
+      color: var(--primary, #5e55ea);
+      text-decoration: none;
+    }
+
+    #payoutModalBody .pillx span a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 600px) {
+      #payoutModalDialog {
+        width: calc(100% - 24px);
+        margin: 12% auto !important;
+        border-radius: 14px !important;
+      }
+    }
+
     .btn-full {
       width: 100%;
       border: none;
@@ -677,19 +737,6 @@
       .filters .sel,
       .filters .btn-soft {
         width: 100%;
-      }
-    }
-
-    /* Modal: fit small screens */
-    @media (max-width: 600px) {
-      #payoutModal>div {
-        width: calc(100% - 24px);
-        margin: 18% auto !important;
-        border-radius: 18px !important;
-      }
-
-      #payoutModalBody {
-        max-height: 65vh !important;
       }
     }
 
@@ -951,7 +998,12 @@
           <div class="card" style="margin-top:14px;">
             <div class="card-h">
               <h3>Payout History</h3>
-              <span class="chip"><i class="ph ph-clock-counter-clockwise"></i> Records</span>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <a class="chip" href="<?= base_url('user/withdraw/export'); ?>" style="text-decoration:none;cursor:pointer;">
+                  <i class="ph ph-file-xls"></i> Export Excel
+                </a>
+                <span class="chip"><i class="ph ph-clock-counter-clockwise"></i> Records</span>
+              </div>
             </div>
 
             <div class="filters">
@@ -1585,17 +1637,16 @@
   </script>
   <!-- ===== PAYOUT DETAILS MODAL ===== -->
   <div id="payoutModal" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.55);">
-    <div
-      style="max-width:520px;margin:6% auto;background:#fff;border-radius:22px;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,.25);">
+    <div id="payoutModalDialog">
 
       <div
-        style="padding:14px 18px;border-bottom:1px solid #f1f1f6;display:flex;justify-content:space-between;align-items:center;">
-        <b style="font-size:14px;">Withdrawal Details</b>
+        style="padding:16px 20px;border-bottom:1px solid #f1f1f6;display:flex;justify-content:space-between;align-items:center;">
+        <b style="font-size:15px;">Withdrawal Details</b>
         <button onclick="closePayoutModal()"
           style="border:none;background:none;font-size:20px;cursor:pointer;">×</button>
       </div>
 
-      <div id="payoutModalBody" style="padding:16px;display:grid;gap:10px;max-height:70vh;overflow:auto;">
+      <div id="payoutModalBody" style="padding:18px 20px;display:grid;gap:10px;max-height:72vh;overflow-y:auto;">
         <!-- content injected by JS -->
       </div>
 
@@ -1619,9 +1670,9 @@
 
       body.innerHTML = `
     <div class="pillx"><b>Payout ID</b><span>${esc(p.payout_id)}</span></div>
-    <div class="pillx"><b>Transaction ID (USDT payout)</b><span style="word-break:break-all;">${txLink(p.txn_id)}</span></div>
-    <div class="pillx"><b>On-Chain Hash (BMAN)</b><span style="word-break:break-all;">${txLink(p.onchain_hash)}</span></div>
-    ${p.refund_tx_hash ? `<div class="pillx"><b>Refund Tx Hash</b><span style="word-break:break-all;">${txLink(p.refund_tx_hash)}</span></div>` : ''}
+    <div class="pillx"><b>Transaction ID (USDT payout)</b><span>${txLink(p.txn_id)}</span></div>
+    <div class="pillx"><b>On-Chain Hash (BMAN)</b><span>${txLink(p.onchain_hash)}</span></div>
+    ${p.refund_tx_hash ? `<div class="pillx"><b>Refund Tx Hash</b><span>${txLink(p.refund_tx_hash)}</span></div>` : ''}
 
     <div class="pillx"><b>Status</b><span style="color:${statusColor(p.status)};font-weight:800;">${esc(p.status)}</span></div>
     <div class="pillx"><b>Method</b><span>${esc(p.method)}</span></div>

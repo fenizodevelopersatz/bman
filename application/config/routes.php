@@ -593,6 +593,7 @@ $route['user/rank-reward'] = 'user/usersettings/Rank_rewards';
 $route['user/rank-reward/status'] = 'user/usersettings/Rank_rewards/status';           // live progress refresh (JSON)
 $route['user/rank-certificate/(:any)'] = 'user/usersettings/Rank_rewards/certificate/$1'; // member's OWN certificate, print-ready
 $route['user/withdraw'] = 'user/usersettings/genealogycontroller/withdraw';
+$route['user/withdraw/export'] = 'user/usersettings/genealogycontroller/withdraw_export';
 $route['user/wallet-transfer'] = 'user/usersettings/genealogycontroller/wallet_transfer';
 $route['user/all-rank'] = 'user/usersettings/genealogycontroller/all_rank';
 
