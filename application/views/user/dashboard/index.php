@@ -760,7 +760,7 @@
         <div class="fin-chart-head">
           <div>
             <h3>User Activity &amp; Coin Trend</h3>
-            <small>Blue &amp; green bars (in vs out) · Earning / Bonus / Staking as trend lines —
+            <small>Blue &amp; green bars (in vs out) · Left/Right Investment &amp; Bonus/Staking trend lines —
               <span id="finPeriodName">Months</span></small>
           </div>
           <select class="fin-period" id="finPeriod" aria-label="Period">
@@ -869,7 +869,7 @@
         <a href="<?= base_url('user/transfer-wallet'); ?>" class="qa"><i class="ph ph-arrows-left-right"></i> Transfer Wallet</a>
         <a href="<?= base_url('user/binary-tree'); ?>" class="qa"><i class="ph ph-tree-structure"></i> View Binary Tree</a>
         <a href="<?= base_url('user/referrals'); ?>" class="qa"><i class="ph ph-user-plus"></i> Invite Member</a>
-        <a href="<?= base_url('support'); ?>" class="qa"><i class="ph ph-headset"></i> Support Ticket</a>
+        <a href="<?= base_url('user/support'); ?>" class="qa"><i class="ph ph-headset"></i> Support Ticket</a>
       </div>
 
       <!-- Binary + Team -->
@@ -1898,6 +1898,12 @@
           { type:'line', label:'Bonus Used', data:pick('bonus_used'),
             borderColor:C.amber, backgroundColor:C.amber, tension:.4, borderWidth:3,
             pointRadius:3, pointBackgroundColor:C.amber, fill:false, order:1, yAxisID:'y' },
+          { type:'line', label:'Left Investment', data:pick('left_investment'),
+            borderColor:'#2563eb', backgroundColor:'#2563eb', tension:.4, borderWidth:2.5,
+            pointRadius:2, pointBackgroundColor:'#2563eb', fill:false, order:1, yAxisID:'y', borderDash:[3,3] },
+          { type:'line', label:'Right Investment', data:pick('right_investment'),
+            borderColor:'#22c55e', backgroundColor:'#22c55e', tension:.4, borderWidth:2.5,
+            pointRadius:2, pointBackgroundColor:'#22c55e', fill:false, order:1, yAxisID:'y', borderDash:[3,3] },
           { type:'line', label:'Staking Done', data:pick('staking_done'), hidden:true,
             borderColor:C.purple, backgroundColor:C.purple, tension:.4, borderWidth:2,
             pointRadius:2, fill:false, order:1, yAxisID:'y1' },

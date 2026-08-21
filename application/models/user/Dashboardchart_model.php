@@ -127,6 +127,7 @@ class Dashboardchart_model extends CI_Model
         $this->_applyLedger($buckets, $range, $from, $ids);
         $this->_applyStaking($buckets, $range, $from, $ids);
         $this->_applyWithdrawals($buckets, $range, $from, $ids);
+        $this->_applyLegInvestments($buckets, $userId, $range, $from, $ids);
 
         $out = $this->_shape($range, $buckets);
         $this->cache->save($key, $out, self::CACHE_TTL);
@@ -250,6 +251,7 @@ class Dashboardchart_model extends CI_Model
                 'date' => $label,
                 'active_users' => 0, 'bonus_used' => 0.0, 'staking_done' => 0,
                 'earning_coin' => 0.0, 'coin_withdrawal' => 0.0,
+                'left_investment' => 0.0, 'right_investment' => 0.0,
             ];
         }
         return $out;
@@ -352,6 +354,56 @@ class Dashboardchart_model extends CI_Model
         }
     }
 
+    /**
+     * Left/Right leg locked wallet investment totals per bucket.
+     * Calculates active, unmatured staking (locked wallet) sums per leg
+     * for the team downline over time.
+     */
+    private function _applyLegInvestments(&$buckets, $userId, $range, $from, $ids)
+    {
+        if (!$ids) return; // Only for team scope
+        if (empty($ids)) return;
+
+        // Recursive CTE to walk the binary tree and accumulate locked wallet per leg
+        $b = $this->_bucketSql($range, 'us.updated_at');
+        $sql = "
+            WITH RECURSIVE downline AS (
+                SELECT bp.user_id, bp.parent_id, bp.position AS root_leg
+                FROM binary_placement bp
+                WHERE bp.parent_id = ?
+
+                UNION ALL
+
+                SELECT c.user_id, c.parent_id, d.root_leg
+                FROM binary_placement c
+                JOIN downline d ON d.user_id = c.parent_id
+            )
+            SELECT {$b} AS bkt, d.root_leg,
+                   SUM(us.stake_amount) AS leg_total
+            FROM downline d
+            JOIN user_stakes us ON us.user_id = d.user_id
+                AND us.status IN ('active', 'processing')
+                AND us.maturity_date > NOW()
+            WHERE us.updated_at >= ?
+            GROUP BY bkt, d.root_leg
+        ";
+        $bind = [$userId, $from];
+
+        foreach ($this->db->query($sql, $bind)->result_array() as $r) {
+            $k = (string) $r['bkt'];
+            if (!isset($buckets[$k])) continue;
+
+            $leg = $r['root_leg'];
+            $val = round((float) $r['leg_total'], 4);
+
+            if ($leg === 'left') {
+                $buckets[$k]['left_investment'] = $val;
+            } elseif ($leg === 'right') {
+                $buckets[$k]['right_investment'] = $val;
+            }
+        }
+    }
+
     /* ============================= helpers ============================= */
 
     /** Quoted IN list for a fixed, code-owned set of strings. */
@@ -374,7 +426,8 @@ class Dashboardchart_model extends CI_Model
     {
         $points = array_values($buckets);
         $sum = ['active_users' => 0, 'bonus_used' => 0.0, 'staking_done' => 0,
-                'earning_coin' => 0.0, 'coin_withdrawal' => 0.0];
+                'earning_coin' => 0.0, 'coin_withdrawal' => 0.0,
+                'left_investment' => 0.0, 'right_investment' => 0.0];
 
         foreach ($points as $p) {
             // Active users is a DISTINCT count per bucket — summing buckets would
@@ -384,8 +437,10 @@ class Dashboardchart_model extends CI_Model
             $sum['staking_done']   += (int) $p['staking_done'];
             $sum['earning_coin']   += (float) $p['earning_coin'];
             $sum['coin_withdrawal']+= (float) $p['coin_withdrawal'];
+            $sum['left_investment'] += (float) $p['left_investment'];
+            $sum['right_investment']+= (float) $p['right_investment'];
         }
-        foreach (['bonus_used','earning_coin','coin_withdrawal'] as $k) {
+        foreach (['bonus_used','earning_coin','coin_withdrawal','left_investment','right_investment'] as $k) {
             $sum[$k] = round($sum[$k], 4);
         }
 
