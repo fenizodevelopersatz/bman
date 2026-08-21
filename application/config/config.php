@@ -102,9 +102,9 @@ $config['charset'] = 'UTF-8';
 | setting this variable to TRUE (boolean).  See the user guide for details.
 |
 */
-// $config['enable_hooks'] = TRUE;
+$config['enable_hooks'] = TRUE;
 
-$config['enable_hooks'] = FALSE;
+// $config['enable_hooks'] = FALSE;
 /*
 |--------------------------------------------------------------------------
 | Class Extension Prefix
@@ -612,9 +612,9 @@ header("Access-Control-Allow-Headers: Content-Type, Authorization");
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
 
 
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
+// ini_set('display_errors', 1);
+// ini_set('display_startup_errors', 1);
+// error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
 
 
 // // Turn off all error reporting

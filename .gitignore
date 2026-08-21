@@ -32,6 +32,9 @@ db/*
 Recovery/*
 /vendor/
 
+# Developer security panel credentials — never commit
+application/config/app_switch_credentials.json
+
 # IDE Files
 #-------------------------
 /nbproject/
@@ -45,3 +48,4 @@ Recovery/*
 *.sublime-project
 /tests/tests/
 /tests/results/
+node_modules/

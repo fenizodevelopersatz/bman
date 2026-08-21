@@ -17,3 +17,11 @@ $hook['post_controller_constructor'][] = array(
     'filename' => 'CacheControlHook.php',
     'filepath' => 'hooks',
 );
+
+
+$hook['pre_controller'][] = array(
+    'class'    => 'AppSwitchHook',
+    'function' => 'check',
+    'filename' => 'AppSwitchHook.php',
+    'filepath' => 'hooks',
+);
