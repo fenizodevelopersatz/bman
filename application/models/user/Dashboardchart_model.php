@@ -365,7 +365,13 @@ class Dashboardchart_model extends CI_Model
         if (empty($ids)) return;
 
         // Recursive CTE to walk the binary tree and accumulate locked wallet per leg
-        $b = $this->_bucketSql($range, 'us.created_at');
+        // Construct DATE_FORMAT manually since _bucketSql doesn't handle qualified column names
+        switch ($range) {
+            case 'daily':  $bkt_format = "DATE(us.created_at)"; break;
+            case 'yearly': $bkt_format = "DATE_FORMAT(us.created_at, '%Y')"; break;
+            default:       $bkt_format = "DATE_FORMAT(us.created_at, '%Y-%m')";
+        }
+
         $sql = "
             WITH RECURSIVE downline AS (
                 SELECT bp.user_id, bp.parent_id, bp.position AS root_leg
@@ -378,7 +384,7 @@ class Dashboardchart_model extends CI_Model
                 FROM binary_placement c
                 JOIN downline d ON d.user_id = c.parent_id
             )
-            SELECT {$b} AS bkt, d.root_leg,
+            SELECT {$bkt_format} AS bkt, d.root_leg,
                    SUM(us.stake_amount) AS leg_total
             FROM downline d
             JOIN user_stakes us ON us.user_id = d.user_id
