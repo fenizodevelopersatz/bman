@@ -118,6 +118,14 @@
                                             <!-- Cron Run Log -->
                                             <div class="tab-pane fade" id="at-tab-cron">
                                                 <div id="at-cron-body" class="table-responsive">Loading…</div>
+
+                                                <div class="d-flex justify-content-between align-items-center mt-4">
+                                                    <div class="text-muted fs-7" id="at-cron-summary"></div>
+                                                    <div class="d-flex gap-2">
+                                                        <button type="button" class="btn btn-light btn-sm" id="at-cron-prev">&laquo; Prev</button>
+                                                        <button type="button" class="btn btn-light btn-sm" id="at-cron-next">Next &raquo;</button>
+                                                    </div>
+                                                </div>
                                             </div>
 
                                         </div>
@@ -411,6 +419,8 @@
         /* ---------------- cron run log tab ---------------- */
         let cronLoaded = false;
         let cronRows = [];
+        let cronPage = 1;
+        const cronLimit = 50;
         const cronStatusCls = { success: 'success', error: 'danger', timeout: 'warning', unknown: 'secondary' };
 
         function humanizeKey(k) {
@@ -478,11 +488,14 @@
         async function loadCronTab() {
             const body = document.getElementById('at-cron-body');
             body.innerHTML = 'Loading…';
-            const j = await fetchJson(base + 'admin/all-transaction/cron-log');
+            const j = await fetchJson(base + 'admin/all-transaction/cron-log?page=' + cronPage + '&limit=' + cronLimit);
             if (!j.status) { body.innerHTML = '<div class="text-danger">Failed to load.</div>'; return; }
             cronRows = j.rows || [];
             if (!cronRows.length) {
                 body.innerHTML = '<div class="text-muted">No cron runs recorded yet.</div>';
+                document.getElementById('at-cron-summary').textContent = cronPage > 1 ? '' : 'No results';
+                document.getElementById('at-cron-prev').disabled = cronPage <= 1;
+                document.getElementById('at-cron-next').disabled = true;
                 return;
             }
             const trs = cronRows.map((r, i) => {
@@ -503,11 +516,20 @@
             body.querySelectorAll('.at-cron-row').forEach(tr => {
                 tr.addEventListener('click', () => openCronDetail(cronRows[Number(tr.dataset.idx)]));
             });
+
+            const shown = cronRows.length;
+            const start = j.total ? ((j.page - 1) * j.limit + 1) : 0;
+            document.getElementById('at-cron-summary').textContent =
+                j.total ? ('Showing ' + start + '–' + (start + shown - 1) + ' of ' + j.total) : 'No results';
+            document.getElementById('at-cron-prev').disabled = j.page <= 1;
+            document.getElementById('at-cron-next').disabled = (j.page * j.limit) >= j.total;
         }
 
         document.querySelector('a[href="#at-tab-cron"]').addEventListener('shown.bs.tab', () => {
             if (!cronLoaded) { cronLoaded = true; loadCronTab(); }
         });
+        document.getElementById('at-cron-prev').addEventListener('click', () => { if (cronPage > 1) { cronPage--; loadCronTab(); } });
+        document.getElementById('at-cron-next').addEventListener('click', () => { cronPage++; loadCronTab(); });
 
         loadOptions().then(loadWalletTab);
     })();

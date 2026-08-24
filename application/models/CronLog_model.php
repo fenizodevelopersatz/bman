@@ -17,10 +17,16 @@ class CronLog_model extends CI_Model
         ]);
     }
 
-    public function recent($limit = 100, $cron_name = null)
+    public function recent($limit = 100, $cron_name = null, $offset = 0)
     {
         if ($cron_name) $this->db->where('cron_name', $cron_name);
-        return $this->db->order_by('id', 'DESC')->limit((int) $limit)
+        return $this->db->order_by('id', 'DESC')->limit((int) $limit, (int) $offset)
                         ->get('cron_execution_log')->result_array();
+    }
+
+    public function count_recent($cron_name = null)
+    {
+        if ($cron_name) $this->db->where('cron_name', $cron_name);
+        return (int) $this->db->count_all_results('cron_execution_log');
     }
 }

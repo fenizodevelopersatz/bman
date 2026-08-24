@@ -129,10 +129,18 @@ class AllTransactions extends CI_Controller
     public function cron_log()
     {
         if (!$this->input->is_ajax_request()) show_404();
-        $limit = min(300, max(1, (int) ($this->input->get('limit', true) ?: 100)));
-        $name  = $this->input->get('cron_name', true) ?: null;
+        $limit  = min(300, max(1, (int) ($this->input->get('limit', true) ?: 50)));
+        $name   = $this->input->get('cron_name', true) ?: null;
+        $page   = max(1, (int) $this->input->get('page', true) ?: 1);
+        $offset = ($page - 1) * $limit;
 
-        $this->_json(['status' => true, 'rows' => $this->cronlog->recent($limit, $name)]);
+        $this->_json([
+            'status' => true,
+            'total'  => $this->cronlog->count_recent($name),
+            'page'   => $page,
+            'limit'  => $limit,
+            'rows'   => $this->cronlog->recent($limit, $name, $offset),
+        ]);
     }
 
     /**
