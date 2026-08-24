@@ -702,7 +702,7 @@
            theme tokens, because the colours ARE the spec here: blue vs green is
            how in-vs-out is read at a glance. */
         .fin-chart-card{
-          --c-blue:#2563eb; --c-green:#22c55e; --c-amber:#f59e0b;
+          --c-blue:#0ea5e9; --c-green:#22c55e; --c-amber:#f59e0b;
           --c-purple:#8b5cf6; --c-grey:#94a3b8;
           --c-ink:#0f172a; --c-muted:#64748b; --c-line:#e2e8f0; --c-card:#ffffff;
           background:var(--c-card); border:1px solid var(--c-line);
@@ -760,7 +760,7 @@
         <div class="fin-chart-head">
           <div>
             <h3>User Activity &amp; Coin Trend</h3>
-            <small>Blue &amp; green bars (in vs out) · Left/Right Investment &amp; Bonus/Staking trend lines —
+            <small>Blue &amp; red bars (in vs out) · Left/Right Investment &amp; Bonus/Staking trend lines —
               <span id="finPeriodName">Months</span></small>
           </div>
           <select class="fin-period" id="finPeriod" aria-label="Period">
@@ -773,13 +773,13 @@
         <div class="fin-tiles" id="finTiles">
           <div class="fin-tile is-loading"><div class="k"><i style="background:#94a3b8"></i>Active Users</div>
             <div class="v" id="finTileActive">0</div></div>
-          <div class="fin-tile is-loading"><div class="k"><i style="background:#f59e0b"></i>Bonus Used</div>
+          <div class="fin-tile is-loading"><div class="k"><i style="background:#f59e0b"></i>Bonus Wallet Balance</div>
             <div class="v" id="finTileBonus">0<small>BMAN</small></div></div>
-          <div class="fin-tile is-loading"><div class="k"><i style="background:#8b5cf6"></i>Staking Done</div>
-            <div class="v" id="finTileStaking">0</div></div>
-          <div class="fin-tile is-loading"><div class="k"><i style="background:#2563eb"></i>Earning Coin</div>
+          <div class="fin-tile is-loading"><div class="k"><i style="background:#8b5cf6"></i>Staking Wallet Balance</div>
+            <div class="v" id="finTileStaking">0<small>BMAN</small></div></div>
+          <div class="fin-tile is-loading"><div class="k"><i style="background:#0ea5e9"></i>Earning Coin</div>
             <div class="v" id="finTileEarning">0<small>BMAN</small></div></div>
-          <div class="fin-tile is-loading"><div class="k"><i style="background:#22c55e"></i>Coin Withdrawal</div>
+          <div class="fin-tile is-loading"><div class="k"><i style="background:#ef4444"></i>Coin Withdrawal</div>
             <div class="v" id="finTileWithdraw">0<small>BMAN</small></div></div>
         </div>
 
@@ -1855,8 +1855,9 @@
     // — the colours ARE the spec here, which is why they don't derive from the
     // panel theme tokens.
     var C = {
-      blue:   '#2563eb',  // earning coin (in)
-      green:  '#22c55e',  // coin withdrawal (out)
+      blue:   '#0ea5e9',  // earning coin (in) — NOT #2563eb, that's Left Investment's color
+      green:  '#22c55e',  // unused — kept for Right Investment's hardcoded '#22c55e' to match
+      red:    '#ef4444',  // coin withdrawal (out)
       amber:  '#f59e0b',  // bonus used
       purple: '#8b5cf6',  // staking done
       grey:   '#94a3b8'   // active users
@@ -1872,7 +1873,7 @@
       });
       if (!s) return;
       document.getElementById('finTileActive').textContent   = num(s.active_users);
-      document.getElementById('finTileStaking').textContent  = num(s.staking_done);
+      document.getElementById('finTileStaking').innerHTML    = num(s.staking_done)    + '<small>BMAN</small>';
       document.getElementById('finTileBonus').innerHTML      = num(s.bonus_used)      + '<small>BMAN</small>';
       document.getElementById('finTileEarning').innerHTML    = num(s.earning_coin)    + '<small>BMAN</small>';
       document.getElementById('finTileWithdraw').innerHTML   = num(s.coin_withdrawal) + '<small>BMAN</small>';
@@ -1887,15 +1888,19 @@
 
       var cfg = {
         data: { labels: labels, datasets: [
-          // Grouped bars: blue = earning (in), green = withdrawal (out).
+          // Grouped bars: sky blue = earning (in), red = withdrawal (out).
+          // Sky blue (not C.blue/#2563eb) deliberately — that darker blue is
+          // Left Investment's line color and the two need to stay visually
+          // distinct on the same chart, not just distinguishable by legend text.
           { type:'bar', label:'Earning Coin', data:pick('earning_coin'),
-            backgroundColor:'rgba(37,99,235,.85)', borderRadius:6, order:3, yAxisID:'y' },
+            backgroundColor:'rgba(14,165,233,.85)', borderRadius:6, order:3, yAxisID:'y' },
           { type:'bar', label:'Coin Withdrawal', data:pick('coin_withdrawal'),
-            backgroundColor:'rgba(34,197,94,.85)', borderRadius:6, order:3, yAxisID:'y' },
-          // Trend lines. Bonus is a BMAN amount so it shares the left axis;
-          // Staking/Active are counts and ride the right axis, otherwise the
-          // coin amounts (orders of magnitude larger) flatten them to nothing.
-          { type:'line', label:'Bonus Used', data:pick('bonus_used'),
+            backgroundColor:'rgba(239,68,68,.85)', borderRadius:6, order:3, yAxisID:'y' },
+          // Trend lines. Bonus/Staking are both BMAN wallet balances now, so
+          // they share the left axis with the coin bars; Active Users is a
+          // headcount and rides the right axis, otherwise the coin amounts
+          // (orders of magnitude larger) would flatten it to nothing.
+          { type:'line', label:'Bonus Wallet Balance', data:pick('bonus_used'),
             borderColor:C.amber, backgroundColor:C.amber, tension:.4, borderWidth:3,
             pointRadius:3, pointBackgroundColor:C.amber, fill:false, order:1, yAxisID:'y' },
           { type:'line', label:'Left Investment', data:pick('left_investment'),
@@ -1904,9 +1909,9 @@
           { type:'line', label:'Right Investment', data:pick('right_investment'),
             borderColor:'#22c55e', backgroundColor:'#22c55e', tension:.4, borderWidth:2.5,
             pointRadius:2, pointBackgroundColor:'#22c55e', fill:false, order:1, yAxisID:'y', borderDash:[3,3] },
-          { type:'line', label:'Staking Done', data:pick('staking_done'), hidden:true,
+          { type:'line', label:'Staking Wallet Balance', data:pick('staking_done'),
             borderColor:C.purple, backgroundColor:C.purple, tension:.4, borderWidth:2,
-            pointRadius:2, fill:false, order:1, yAxisID:'y1' },
+            pointRadius:2, fill:false, order:1, yAxisID:'y' },
           { type:'line', label:'Active Users', data:pick('active_users'), hidden:true,
             borderColor:C.grey, backgroundColor:C.grey, tension:.4, borderWidth:2,
             borderDash:[5,4], pointRadius:2, fill:false, order:1, yAxisID:'y1' }

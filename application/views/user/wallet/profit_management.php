@@ -1404,7 +1404,30 @@
     }
 
     function copyPlain(txt) {
-      navigator.clipboard.writeText(txt || "").then(() => toastMini("Copied!"));
+      txt = txt || "";
+      // navigator.clipboard is only defined in a secure context (HTTPS or
+      // localhost) — this app is also reachable over plain HTTP on a LAN IP,
+      // where navigator.clipboard is undefined and calling .writeText on it
+      // throws immediately, so the button did nothing with no visible error.
+      if (window.isSecureContext && navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(() => toastMini("Copied!")).catch(() => legacyCopy(txt));
+      } else {
+        legacyCopy(txt);
+      }
+    }
+
+    function legacyCopy(txt) {
+      const ta = document.createElement('textarea');
+      ta.value = txt;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      toastMini(ok ? "Copied!" : "Copy failed — please select and copy manually");
     }
 
     function downloadFile(name, content) {

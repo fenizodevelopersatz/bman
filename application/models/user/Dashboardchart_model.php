@@ -8,20 +8,66 @@
  * assets/user_v2/data/dashboard_chart.json that described itself as "Dummy
  * dashboard finance data"):
  *
- *   active_users     COUNT(DISTINCT user_id) with a wallet movement in the bucket
- *   bonus_used       bonus wallet DEBITS, excluding the admin 60-day clawback
- *   staking_done     completed staking purchases
- *   earning_coin     earning wallet CREDITS from line / matching / rank bonuses
- *   coin_withdrawal  completed BMAN withdrawals
+ *   active_users     TEAM-SCOPED. COUNT(DISTINCT user_id) with a wallet
+ *                    movement in the bucket, across the downline. "How many
+ *                    of my team are active" only means something across a
+ *                    team — a personal count is always 0 or 1.
+ *   bonus_used       PERSONAL. Despite the field name (kept because
+ *                    platformTrend()/admin still uses the original meaning —
+ *                    see _applyLedger()'s docblock), the member dashboard
+ *                    shows this as the session user's actual running BONUS
+ *                    WALLET BALANCE, not debit activity. A member who has
+ *                    received bonus but never spent any of it has a real,
+ *                    nonzero balance — showing 0 there (the original
+ *                    "debits so far" meaning) reads as "you have nothing"
+ *                    when they clearly do.
+ *   staking_done     PERSONAL. Same story as bonus_used: the member
+ *                    dashboard shows the session user's running STAKING
+ *                    WALLET BALANCE, not a count of completed
+ *                    staking_swap_orders purchases. A member's staking
+ *                    wallet can be funded by a binary-matching bonus split
+ *                    with zero actual purchases behind it — the purchase
+ *                    count reads as "you have nothing staked" when there is
+ *                    real BMAN sitting in that wallet.
+ *   earning_coin     PERSONAL. The session user's own earning wallet CREDITS
+ *                    from line / matching / rank bonuses.
+ *   coin_withdrawal  PERSONAL. The session user's own completed BMAN
+ *                    withdrawals.
  *
- * SCOPE — the member's own TEAM (their binary downline), not the whole platform
- * and not just themselves. "How many active user" / "how many user staking done"
- * count USERS, which only means something across a team. Change TEAM_SCOPE to
- * false for platform-wide figures; everything else keeps working.
+ * SCOPE — active_users (and left_investment/right_investment, the chart's two
+ * trend-line series) are TEAM-scoped: the member's own binary downline, not
+ * the whole platform and not just themselves — "how many of my team are
+ * active" / left-vs-right leg investment only mean something across a team.
+ * Change TEAM_SCOPE to false to make active_users platform-wide instead.
+ *
+ * Every OTHER tile (bonus_used, staking_done, earning_coin, coin_withdrawal)
+ * is PERSONAL, always — regardless of TEAM_SCOPE or downline size. They sit
+ * directly beside the member's own wallet balance cards on the dashboard, so
+ * a team total there reads as the member's own money when it wasn't
+ * (originally reported: 8,000 BMAN of TEAM earning-bonus credits shown next
+ * to a 12,000 BMAN PERSONAL earning wallet balance — two different people's
+ * money, mistaken for one figure). _applyPersonal() computes all four from
+ * the member's own user_id and always runs, even when the team-wide block in
+ * trend() is skipped for an empty downline.
+ *
+ * bonus_used/staking_done went a step further after that same fix (personal
+ * scope alone wasn't enough): once scoped to the member, both were still
+ * reading 0 for a real account holding 25,000 BMAN bonus / 3,000 BMAN
+ * staking — correctly, per their ORIGINAL definitions (debit sum / purchase
+ * count), just not what a member reading "Bonus Used" next to their own
+ * Bonus Wallet card would expect. Both are now the member's running WALLET
+ * BALANCE instead — see _walletBalanceSeries(). A balance is a point-in-time
+ * snapshot, not a per-bucket flow, so unlike every other series here it
+ * can't be summed within a bucket or across buckets (see trend()'s summary
+ * override and _walletBalanceSeries()'s docblock).
  *
  * SPEED
- *  - THREE queries per range, not fifteen: wallet_ledger yields three of the
- *    five series in one pass via conditional aggregation.
+ *  - FIVE queries per range: one team-scoped wallet_ledger pass (for
+ *    active_users only) + one team-scoped recursive CTE (leg investments),
+ *    plus a personal-scoped pass reusing the exact same three aggregation
+ *    helpers with $ids forced to the member's own id — so the personal
+ *    figures can never drift from the team/platform figures' business rules
+ *    (the bonus_reduction exclusion, the swap_completed status pair, etc).
  *  - The downline is resolved through Rankcalculator_model, which loads the
  *    genealogy ONCE and walks it in memory (3 queries for any team size)
  *    instead of one query per node.
@@ -112,24 +158,38 @@ class Dashboardchart_model extends CI_Model
 
         $buckets = $this->_buckets($range);              // dense skeleton, zeros
         $ids     = self::TEAM_SCOPE ? $this->_teamIds($userId) : null;
+        $from    = $this->_since($range);
 
-        // TEAM_SCOPE with an empty downline means genuinely nothing to show —
-        // return the zeroed skeleton rather than silently falling back to
-        // platform-wide numbers, which would be a lie.
-        if (self::TEAM_SCOPE && $ids !== null && empty($ids)) {
-            $out = $this->_shape($range, $buckets);
-            $this->cache->save($key, $out, self::CACHE_TTL);
-            $out['cached'] = false;
-            return $out;
+        // Team-wide series: active_users and left/right leg investment — the
+        // only two tiles that still mean "the team" (a single member has no
+        // "leg" of their own). TEAM_SCOPE with an empty downline means
+        // genuinely nothing to show for these — leave them zeroed rather than
+        // silently falling back to platform-wide numbers, which would be a lie.
+        if (!self::TEAM_SCOPE || $ids === null || !empty($ids)) {
+            $this->_applyLedger($buckets, $range, $from, $ids);
+            $this->_applyLegInvestments($buckets, $userId, $range, $from, $ids);
         }
 
-        $from = $this->_since($range);
-        $this->_applyLedger($buckets, $range, $from, $ids);
-        $this->_applyStaking($buckets, $range, $from, $ids);
-        $this->_applyWithdrawals($buckets, $range, $from, $ids);
-        $this->_applyLegInvestments($buckets, $userId, $range, $from, $ids);
+        // Personal series: bonus_used, staking_done, earning_coin and
+        // coin_withdrawal all read as "my own" activity/money next to the
+        // member's own wallet cards, so they're scoped to the SESSION USER
+        // alone, not the team — see class docblock SCOPE note. Always runs,
+        // regardless of downline size.
+        $this->_applyPersonal($buckets, $range, $from, $userId);
 
         $out = $this->_shape($range, $buckets);
+
+        // bonus_used/staking_done are wallet BALANCES on this member-facing
+        // path (see class docblock SCOPE note + _walletBalanceSeries()) —
+        // _shape()'s generic summary logic just summed every bucket, which is
+        // right for a flow (earning_coin, coin_withdrawal) but wrong for a
+        // balance: it would add the same ~steady balance up to 12x over. The
+        // current balance is simply the most recent bucket's value.
+        $latest = end($buckets);
+        reset($buckets);
+        $out['summary']['bonus_used']   = $latest['bonus_used'];
+        $out['summary']['staking_done'] = $latest['staking_done'];
+
         $this->cache->save($key, $out, self::CACHE_TTL);
         $out['cached'] = false;
         return $out;
@@ -249,7 +309,7 @@ class Dashboardchart_model extends CI_Model
             }
             $out[$key] = [
                 'date' => $label,
-                'active_users' => 0, 'bonus_used' => 0.0, 'staking_done' => 0,
+                'active_users' => 0, 'bonus_used' => 0.0, 'staking_done' => 0.0,
                 'earning_coin' => 0.0, 'coin_withdrawal' => 0.0,
                 'left_investment' => 0.0, 'right_investment' => 0.0,
             ];
@@ -260,7 +320,19 @@ class Dashboardchart_model extends CI_Model
     /* =========================== aggregations ========================== */
 
     /**
-     * wallet_ledger — three series in ONE pass.
+     * wallet_ledger — three columns in ONE pass: active_users, bonus_used,
+     * earning_coin. Shared by three different callers, each keeping a
+     * different subset of the result:
+     *   - platformTrend() (admin, $ids=null/platform-wide): all three columns
+     *     are final — there's no "personal" concept on the platform-wide chart.
+     *   - trend()'s team-wide block (member, $ids=downline): only active_users
+     *     is kept. bonus_used/earning_coin are thrown away.
+     *   - _applyPersonal() (member, $ids=[the member's own id]): only
+     *     earning_coin is kept. bonus_used is NOT used from here — the member
+     *     dashboard shows bonus_used as a wallet BALANCE now
+     *     (_walletBalanceSeries()), not the debit-sum this query computes;
+     *     see class docblock SCOPE note. active_users from this call is also
+     *     unused (trend()'s team-wide block already set the real one).
      *
      * active_users : anyone with a wallet movement in the bucket. There is no
      *                honest login signal in this schema (users has no last_login
@@ -270,7 +342,8 @@ class Dashboardchart_model extends CI_Model
      * bonus_used   : bonus-wallet DEBITS, excluding reference_type
      *                'bonus_reduction' — that is the platform's 60-day clawback,
      *                not the member spending their bonus. Including it would
-     *                spike the line on reduction runs.
+     *                spike the line on reduction runs. (Only meaningful to
+     *                platformTrend() now — see above.)
      * earning_coin : earning-wallet CREDITS from line/matching/rank bonuses.
      */
     private function _applyLedger(&$buckets, $range, $from, $ids)
@@ -304,9 +377,119 @@ class Dashboardchart_model extends CI_Model
     }
 
     /**
+     * bonus_used, staking_done, earning_coin, coin_withdrawal — all scoped to
+     * the SESSION USER alone, not the team (active_users and left/right leg
+     * investment are the only series that stay team-scoped; see the class
+     * docblock SCOPE note for why).
+     *
+     * Two different kinds of "personal" combine here:
+     *  - earning_coin / coin_withdrawal are FLOW: reuses _applyLedger()'s
+     *    earning_coin column and _applyWithdrawals(), both called with $ids
+     *    forced to the single-element [$userId] (a one-element IN-list is
+     *    equivalent to an equality filter) rather than hand-duplicating their
+     *    SQL — so these can never drift from the team/platform figures'
+     *    business rules (the swap_completed status pair, the net_amount
+     *    column, etc).
+     *  - bonus_used / staking_done are BALANCE: see _walletBalanceSeries().
+     *    _applyLedger()'s own bonus_used column is deliberately NOT used
+     *    here (that's debit-sum, the old meaning — still correct for
+     *    platformTrend()/admin, just not what this method needs).
+     *
+     * Explicitly zeroes all four personal fields on the real buckets first:
+     * without that, a bucket where the team had activity but this member
+     * personally didn't would keep whatever team figure trend()'s team-wide
+     * block wrote instead of correctly showing 0.
+     */
+    private function _applyPersonal(&$buckets, $range, $from, $userId)
+    {
+        foreach ($buckets as $k => &$row) {
+            $row['bonus_used']      = 0.0;
+            $row['staking_done']    = 0.0;
+            $row['earning_coin']    = 0.0;
+            $row['coin_withdrawal'] = 0.0;
+        }
+        unset($row);
+
+        $own     = [(int) $userId];
+        $scratch = $this->_buckets($range);
+        $this->_applyLedger($scratch, $range, $from, $own);
+        $this->_applyWithdrawals($scratch, $range, $from, $own);
+
+        $bonusBalance   = $this->_walletBalanceSeries($range, $from, $userId, 'bonus');
+        $stakingBalance = $this->_walletBalanceSeries($range, $from, $userId, 'staking');
+
+        foreach ($buckets as $k => &$row) {
+            if (isset($scratch[$k])) {
+                $row['earning_coin']    = $scratch[$k]['earning_coin'];
+                $row['coin_withdrawal'] = $scratch[$k]['coin_withdrawal'];
+            }
+            $row['bonus_used']   = $bonusBalance[$k]['balance']   ?? 0.0;
+            $row['staking_done'] = $stakingBalance[$k]['balance'] ?? 0.0;
+        }
+        unset($row);
+    }
+
+    /**
+     * Running wallet_ledger balance per bucket, scoped to one user + one
+     * wallet_type. Unlike every other series in this class, a wallet BALANCE
+     * isn't something that happened "within" a bucket — it's a point-in-time
+     * snapshot that carries forward, so bucket N's value must include every
+     * credit/debit up to and including that bucket, not just what landed
+     * inside it.
+     *
+     * Two queries, not one per bucket:
+     *  1. The starting balance immediately before the window (everything
+     *     with created_at < $from) — a member with wallet history older than
+     *     the visible range still needs an accurate starting point, not 0.
+     *  2. The NET movement (credit - debit) inside each bucket, then walked
+     *     forward in chronological order as a running total. _buckets()
+     *     builds its skeleton oldest-first, so plain array iteration order
+     *     is already correct — no separate sort needed.
+     */
+    private function _walletBalanceSeries($range, $from, $userId, $walletType)
+    {
+        $userId = (int) $userId;
+
+        $startRow = $this->db
+            ->query(
+                "SELECT SUM(`credit` - `debit`) AS bal FROM `wallet_ledger`
+                  WHERE `user_id` = ? AND `wallet_type` = ? AND `created_at` < ?",
+                [$userId, $walletType, $from]
+            )
+            ->row_array();
+        $running = (float) ($startRow['bal'] ?? 0);
+
+        $b = $this->_bucketSql($range, 'created_at');
+        $sql = "SELECT {$b} AS bkt, SUM(`credit` - `debit`) AS net
+                  FROM `wallet_ledger`
+                 WHERE `user_id` = ? AND `wallet_type` = ? AND `created_at` >= ?
+                 GROUP BY bkt";
+        $netByBucket = [];
+        foreach ($this->db->query($sql, [$userId, $walletType, $from])->result_array() as $r) {
+            $netByBucket[(string) $r['bkt']] = (float) $r['net'];
+        }
+
+        $out = $this->_buckets($range);
+        foreach ($out as $k => &$row) {
+            $running += $netByBucket[$k] ?? 0.0;
+            $row['balance'] = round($running, 4);
+        }
+        unset($row);
+        return $out;
+    }
+
+    /**
      * staking_swap_orders — "how many user staking done".
      * The status pair is what excludes cancelled / failed / pending / refunded.
      * See $done_status: the engine writes 'swap_completed', not 'completed'.
+     *
+     * Only caller left is platformTrend() (admin, $ids=null, platform-wide
+     * purchase count). The member-facing trend() used to reuse this via
+     * _applyPersonal() too, but staking_done there is now a wallet BALANCE
+     * (_walletBalanceSeries()), not a purchase count — a member's staking
+     * wallet can hold real BMAN from a binary-matching bonus split with zero
+     * actual completed purchases behind it, which this query would (rightly,
+     * for what IT measures) report as 0. See class docblock SCOPE note.
      */
     private function _applyStaking(&$buckets, $range, $from, $ids)
     {
@@ -332,6 +515,10 @@ class Dashboardchart_model extends CI_Model
      * bman_withdraw_requests — coin actually out of the platform.
      * Buckets on completed_at (when the coin left), not created_at (when it was
      * asked for), and counts net_amount — what the member actually received.
+     *
+     * Called two ways, never team-scoped: platformTrend() (admin) with
+     * $ids=null for a platform-wide sum, and _applyPersonal() (member) with
+     * $ids=[the member's own id] for their personal sum.
      */
     private function _applyWithdrawals(&$buckets, $range, $from, $ids)
     {
@@ -453,7 +640,11 @@ class Dashboardchart_model extends CI_Model
         return [
             'range'   => $range,
             'label'   => $this->ranges[$range]['label'],
-            'scope'   => self::TEAM_SCOPE ? 'team' : 'platform',
+            // 'mixed': active_users + left/right investment are team-scoped,
+            // everything else (bonus_used/staking_done/earning_coin/
+            // coin_withdrawal) is personal — see class docblock SCOPE note.
+            // platformTrend() overwrites this to 'platform' itself.
+            'scope'   => self::TEAM_SCOPE ? 'mixed' : 'platform',
             'points'  => $points,
             'summary' => $sum,
             'cached'  => false,

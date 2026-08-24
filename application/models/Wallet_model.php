@@ -464,17 +464,41 @@ class Wallet_model extends CI_Model
      * keyed by reference_type (set at the site where each is credited):
      *   binary_matching -> BinaryMatchingPayoutCron
      *   roi             -> RoiMonthlyDistribution_cron / RoiMaturityPayment_cron
-     *   swap_bonus      -> Swapengine_model (instant 25% bonus at stake purchase)
+     *   swap_bonus      -> nothing currently writes this (see INSTANT below) —
+     *                      kept in case a future/other writer legitimately uses it
      *   rank_reward     -> Rankreward_model (§10 rank achievement)
      * Replaces the old `history` table buckets (binary_commission/level_commission/
      * direct_commission/rank_commission/site_withdraw), none of which the pairing-
      * era history rows ever actually used — history only ever holds staking_purchase
      * rows, so every one of those buckets was permanently empty.
+     *
+     * INSTANT (the 25% instant staking bonus) is the one bucket where the
+     * "obvious" reference_type doesn't match reality. 'swap_bonus' — what this
+     * bucket originally looked for, per this file's own history and a stale
+     * comment in User.php crediting "Swapengine_model's instant 25% staking
+     * bonus" — is written by NOTHING in the current codebase (confirmed:
+     * every reference_type value that has ever existed in wallet_ledger is
+     * binary_matching/bonus/deposit/stake_purchase, never swap_bonus). The
+     * two REAL purchase paths each credit the same 25% bonus under a
+     * different string, and neither is 'swap_bonus':
+     *   - Option 1 (on-chain purchase): StakingPurchasecron::_credit() credits
+     *     the bonus wallet with reference_type='stake_purchase'.
+     *   - Options 2-7 (wallet-funded re-stake): Staking_model::
+     *     restakeFromWallets() credits the bonus wallet with
+     *     reference_type='bonus' — literally "$pct% staking bonus — stake #N".
+     * Both are used ONLY for this (verified: every credit>0 row in
+     * wallet_ledger with reference_type IN ('stake_purchase','bonus') is a
+     * "N% staking bonus" row — 'stake_purchase' elsewhere is only ever a
+     * DEBIT, the re-stake funding leg, already excluded everywhere here by
+     * the blanket `credit > 0` filter). If a future writer ever reuses either
+     * string for something that ISN'T this bonus, it will silently show up
+     * under Instant Bonus too — this is the tradeoff for two purchase paths
+     * that were never given one shared, distinct reference_type of their own.
      */
     private $commissionBucketMap = [
         'BINARY'  => ['binary_matching'],
         'ROI'     => ['roi'],
-        'INSTANT' => ['swap_bonus'],
+        'INSTANT' => ['swap_bonus', 'stake_purchase', 'bonus'],
         'RANK'    => ['rank_reward'],
     ];
 
@@ -484,7 +508,9 @@ class Wallet_model extends CI_Model
         switch ($refType) {
             case 'binary_matching': return 'Binary Matching Bonus';
             case 'roi':              return 'ROI';
-            case 'swap_bonus':       return 'Instant Bonus';
+            case 'swap_bonus':
+            case 'stake_purchase':
+            case 'bonus':            return 'Instant Bonus';
             case 'rank_reward':      return 'Rank Reward';
             default:                 return ucfirst(str_replace('_', ' ', $refType));
         }
@@ -534,7 +560,7 @@ class Wallet_model extends CI_Model
         CASE
             WHEN reference_type = 'binary_matching' THEN 'BINARY'
             WHEN reference_type = 'roi'              THEN 'ROI'
-            WHEN reference_type = 'swap_bonus'       THEN 'INSTANT'
+            WHEN reference_type IN ('swap_bonus','stake_purchase','bonus') THEN 'INSTANT'
             WHEN reference_type = 'rank_reward'       THEN 'RANK'
             ELSE UPPER(reference_type)
         END
@@ -640,7 +666,7 @@ class Wallet_model extends CI_Model
         CASE
             WHEN reference_type = 'binary_matching' THEN 'BINARY'
             WHEN reference_type = 'roi'              THEN 'ROI'
-            WHEN reference_type = 'swap_bonus'       THEN 'INSTANT'
+            WHEN reference_type IN ('swap_bonus','stake_purchase','bonus') THEN 'INSTANT'
             WHEN reference_type = 'rank_reward'       THEN 'RANK'
             ELSE 'OTHER'
         END
