@@ -866,8 +866,8 @@
       <!-- Quick Actions -->
       <div class="quick-actions">
         <a href="<?= base_url('user/withdraw'); ?>" class="qa"><i class="ph ph-money"></i> Withdraw</a>
-        <a href="<?= base_url('user/transfer-wallet'); ?>" class="qa"><i class="ph ph-arrows-left-right"></i> Transfer Wallet</a>
-        <a href="<?= base_url('user/binary-tree'); ?>" class="qa"><i class="ph ph-tree-structure"></i> View Binary Tree</a>
+        <a href="<?= base_url('user/transfer_wallet'); ?>" class="qa"><i class="ph ph-arrows-left-right"></i> Transfer Wallet</a>
+        <a href="<?= base_url('user/genealogy'); ?>" class="qa"><i class="ph ph-tree-structure"></i> View Binary Tree</a>
         <a href="<?= base_url('user/referrals'); ?>" class="qa"><i class="ph ph-user-plus"></i> Invite Member</a>
         <a href="<?= base_url('user/support'); ?>" class="qa"><i class="ph ph-headset"></i> Support Ticket</a>
       </div>
