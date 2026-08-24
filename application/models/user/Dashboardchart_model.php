@@ -365,7 +365,7 @@ class Dashboardchart_model extends CI_Model
         if (empty($ids)) return;
 
         // Recursive CTE to walk the binary tree and accumulate locked wallet per leg
-        $b = $this->_bucketSql($range, 'us.updated_at');
+        $b = $this->_bucketSql($range, 'us.created_at');
         $sql = "
             WITH RECURSIVE downline AS (
                 SELECT bp.user_id, bp.parent_id, bp.position AS root_leg
@@ -384,7 +384,7 @@ class Dashboardchart_model extends CI_Model
             JOIN user_stakes us ON us.user_id = d.user_id
                 AND us.status IN ('active', 'processing')
                 AND us.maturity_date > NOW()
-            WHERE us.updated_at >= ?
+            WHERE us.created_at >= ?
             GROUP BY bkt, d.root_leg
         ";
         $bind = [$userId, $from];
