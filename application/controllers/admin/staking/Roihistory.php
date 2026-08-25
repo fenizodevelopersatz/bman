@@ -85,7 +85,6 @@ class Roihistory extends CI_Controller
             'title'   => 'ROI Distribution History',
             'summary' => $this->_summary(),
             'failed'  => $this->_failedRecords(),
-            'upcoming'=> $this->_upcoming(),
         ];
         $this->load->view('admin/staking/roi_history', $data);
     }
@@ -138,24 +137,7 @@ class Roihistory extends CI_Controller
             ->get()->result_array();
     }
 
-    private function _upcoming()
-    {
-        $now = date('Y-m-d H:i:s');
-        $in7 = date('Y-m-d H:i:s', strtotime('+7 days'));
-        return $this->db->select('r.id, r.user_id, r.ref, r.plan_type, r.overall_status,
-                r.fixed_payment_amount, r.fixed_maturity_date, r.regular_payment_amount,
-                r.next_payment_date, u.username', false)
-            ->from('roi_staking_management r')
-            ->join('users u', 'u.id = r.user_id', 'left')
-            ->where('r.overall_status !=', 'completed')
-            ->where('r.next_payment_date >=', $now)
-            ->where('r.next_payment_date <=', $in7)
-            ->order_by('r.next_payment_date', 'ASC')
-            ->limit(50)
-            ->get()->result_array();
-    }
-
-    /** AJAX: paginated distribution event log (real credited payments). */
+/** AJAX: paginated distribution event log (real credited payments). */
     public function list()
     {
         if (!$this->input->is_ajax_request()) show_404();
@@ -179,7 +161,8 @@ class Roihistory extends CI_Controller
 
         $applyFilters();
         $rows = $this->db->select('o.id, o.user_id, o.tx_type, o.amount, o.wallet_type, o.status,
-                o.tx_hash, o.reference_id, o.gas_fee_total, o.created_at, u.username, u.email', false)
+                o.tx_hash, o.reference_id, o.gas_fee_total, o.created_at, u.username, u.email,
+                o.failure_reason, o.revert_message', false)
             ->order_by('o.created_at', 'DESC')->limit($limit, $offset)->get()->result_array();
 
         return $this->_json(['status' => 'success', 'rows' => $rows, 'total' => $total, 'page' => $page, 'limit' => $limit]);

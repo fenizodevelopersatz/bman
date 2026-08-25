@@ -92,6 +92,24 @@
                                                         <?php echo !empty($settings['reduction_enabled']) ? 'checked' : ''; ?> />
                                                     <label class="form-check-label fw-semibold">Automatic reduction enabled</label>
                                                 </div>
+                                                <div class="form-check form-switch form-check-custom form-check-solid mb-2">
+                                                    <input class="form-check-input" type="checkbox" name="reduction_dry_run" value="1"
+                                                        <?php echo !empty($settings['reduction_dry_run']) ? 'checked' : ''; ?> />
+                                                    <label class="form-check-label fw-semibold">Dry-run only (preview — no real balance changes)</label>
+                                                </div>
+                                                <div class="form-check form-switch form-check-custom form-check-solid mb-2">
+                                                    <input class="form-check-input" type="checkbox" name="reduction_onchain" value="1"
+                                                        <?php echo !empty($settings['reduction_onchain']) ? 'checked' : ''; ?> />
+                                                    <label class="form-check-label fw-semibold">Also send on-chain (BMAN moved from the user's custodial wallet to admin)</label>
+                                                </div>
+                                                <div class="text-muted fs-8 mb-6">
+                                                    On-chain sends need BNB gas already sitting in each user's custodial wallet —
+                                                    if their wallets hold none, every cycle's on-chain leg fails with
+                                                    "insufficient funds for gas" (the balance itself still reduces either way;
+                                                    only the matching on-chain transfer to admin doesn't). Turn this off to
+                                                    keep reductions internal-only until that's resolved — every cycle then
+                                                    completes cleanly with no FAILED rows.
+                                                </div>
                                                 <div class="row">
                                                     <div class="col-6 mb-6">
                                                         <label class="form-label fw-semibold required">Interval (days)</label>
@@ -276,6 +294,8 @@
             const fd = new FormData();
             fd.append('bonus_percent_default', form.elements.bonus_percent_default.value);
             fd.append('reduction_enabled', form.elements.reduction_enabled.checked ? 1 : 0);
+            fd.append('reduction_dry_run', form.elements.reduction_dry_run.checked ? 1 : 0);
+            fd.append('reduction_onchain', form.elements.reduction_onchain.checked ? 1 : 0);
             fd.append('reduction_interval_days', form.elements.reduction_interval_days.value);
             fd.append('reduction_percent', form.elements.reduction_percent.value);
             fd.append('transfer_enabled', form.elements.transfer_enabled.checked ? 1 : 0);

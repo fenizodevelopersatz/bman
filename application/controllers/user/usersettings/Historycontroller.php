@@ -677,6 +677,8 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
         $this->data['commission_balance'] = (float) $this->wallet->getCommissionBalance($user_id); // history type='commission'
         $this->data['bonus_balance']      = (float) $this->wallet->getTotalEarnedBonusBalance($user_id);      // history type='bonus'
 
+        $this->load->model('Bonusreduction_model', 'bonusReduction');
+
         // ✅ withdraw metrics (from withdraw table)
         // ✅ total earned (bonus + commission credits)
         // ✅ Custodial wallet balances (USDT + BMAN wallets) — same source of truth
@@ -705,15 +707,54 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
         $this->data['wallet_monitor'] = $this->cw->monitor($user_id);
         $this->data['wallet_check_url'] = site_url('member/profile/wallet_check');
 
-        // ✅ NEW: Wallet history from on-chain transactions only (simplified architecture)
-        // Shows all confirmed USDT transfers (incoming/outgoing)
-        $onchain_filters = [
-            'type' => strtoupper(trim((string)$this->input->get('type'))), // INCOMING / OUTGOING / ALL
+        // ✅ Wallet History: on-chain transactions, this member's own
+        // bonus_reduction_log rows (shaped identically by
+        // Bonusreduction_model::walletHistory() so the same table/detail-modal
+        // markup renders both without a fork), or — for "All" — both merged
+        // and re-sorted by date so "All" really does mean all.
+        $typeParam = strtoupper(trim((string) $this->input->get('type'))); // '' / INCOMING / OUTGOING / BONUS_REDUCTION
+
+        // Chip badges always reflect the true totals across BOTH sources,
+        // regardless of which filter is currently selected. Bonus count comes
+        // from walletHistory() itself (not a plain row COUNT(*)) since a
+        // reverted cycle expands to two entries (the reduction + its return)
+        // — counting raw bonus_reduction_log rows would undercount and no
+        // longer match the "Total" the table itself shows once returns exist.
+        $onchainCounts = $this->cw->getOnchainTransactions($user_id, [], 1, 1)['counts'];
+        $bonusCount    = (int) $this->bonusReduction->walletHistory($user_id, 1, 1)['paging']['total'];
+        $this->data['counts'] = [
+            'ALL'             => (int) ($onchainCounts['ALL'] ?? 0) + $bonusCount,
+            'INCOMING'        => (int) ($onchainCounts['INCOMING'] ?? 0),
+            'OUTGOING'        => (int) ($onchainCounts['OUTGOING'] ?? 0),
+            'BONUS_REDUCTION' => $bonusCount,
         ];
-        $list = $this->cw->getOnchainTransactions($user_id, $onchain_filters, $page, $per_page);
+
+        if ($typeParam === 'BONUS_REDUCTION') {
+            $list = $this->bonusReduction->walletHistory($user_id, $page, $per_page);
+        } elseif ($typeParam === 'INCOMING' || $typeParam === 'OUTGOING') {
+            $list = $this->cw->getOnchainTransactions($user_id, ['type' => $typeParam], $page, $per_page);
+        } else {
+            // Two very differently-shaped source tables (onchain_transactions vs
+            // bonus_reduction_log), so this stitches them together in PHP rather
+            // than a fragile hand-written SQL UNION. Per-user volumes here are
+            // small (a personal wallet, not a ledger-wide report), so pulling up
+            // to 100 rows from each side before merging is safe.
+            $onchainRows = $this->cw->getOnchainTransactions($user_id, [], 1, 100)['rows'];
+            $bonusRows   = $this->bonusReduction->walletHistory($user_id, 1, 100)['rows'];
+            $merged = array_merge($onchainRows, $bonusRows);
+            usort($merged, function ($a, $b) {
+                return strtotime($b['created_at']) <=> strtotime($a['created_at']);
+            });
+            $total = count($merged);
+            $pages = max(1, (int) ceil($total / $per_page));
+            $page  = min($page, $pages);
+            $list = [
+                'rows'   => array_slice($merged, ($page - 1) * $per_page, $per_page),
+                'paging' => ['page' => $page, 'pages' => $pages, 'total' => $total],
+            ];
+        }
 
         $this->data['transactions'] = $list['rows'];
-        $this->data['counts']       = $list['counts'];
         $this->data['paging']       = $list['paging'];
         // echo "<pre>";print_r($this->data);exit;
         $this->load->view('user/wallet/view_mywallet_management', $this->data);

@@ -206,6 +206,40 @@
             return '<a href="' + explorerUrl + '/tx/' + encodeURIComponent(hash) + '" target="_blank" rel="noopener">' + label + '</a>';
         }
 
+        function shortAddr(a) {
+            if (!a) return '—';
+            return a.length > 14 ? a.slice(0, 6) + '…' + a.slice(-4) : a;
+        }
+
+        /* Wallet address (from/to a chain leg) — links out to the explorer's
+           address page, same convention as hashLink()'s /tx/ links. */
+        function addrLink(addr) {
+            if (!addr) return '<span class="text-muted">—</span>';
+            const label = '<span class="badge badge-light-secondary fs-8" style="font-family:monospace;">' + esc(shortAddr(addr)) + '</span>';
+            if (!explorerUrl) return label;
+            return '<a href="' + explorerUrl + '/address/' + encodeURIComponent(addr) + '" target="_blank" rel="noopener">' + label + '</a>';
+        }
+
+        /* Same status→color convention as admin/wallet/onchain-transactions'
+           badge() helper — was hardcoded to badge-light-info everywhere here
+           regardless of the real status, so 'confirmed' and 'partial'/'failed'
+           all looked identical. */
+        const ONCHAIN_STATUS_CLS = {confirmed:'success',pending:'warning',processing:'info',failed:'danger',reverted:'danger',partial:'warning',cancelled:'secondary'};
+        // Reference types that NEVER attempt a real blockchain send — the
+        // Walletledger observer still auto-mirrors every ledger credit/debit
+        // into onchain_transactions (status defaults to 'confirmed'), so
+        // without this these showed as if a real chain confirmation had
+        // happened. bonus_reduction_return is purely an internal ledger
+        // credit (see Bonusreduction_model::returnToUser()) — no web3 call
+        // is ever made for it.
+        const ONCHAIN_NEVER_ATTEMPTED = new Set(['bonus_reduction_return']);
+        function onchainBadge(status, referenceType) {
+            if (ONCHAIN_NEVER_ATTEMPTED.has(referenceType)) {
+                return '<span class="badge badge-light fs-8 text-uppercase" title="Internal ledger credit — no blockchain transaction was ever attempted">Off-chain</span>';
+            }
+            return '<span class="badge badge-light-' + (ONCHAIN_STATUS_CLS[status] || 'secondary') + ' fs-8 text-uppercase">' + esc(status || 'onchain') + '</span>';
+        }
+
         async function fetchJson(url) {
             const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
             return res.json();
@@ -260,7 +294,7 @@
             const map = {
                 deposit: 'success', withdrawal: 'danger', purchase: 'primary',
                 roi: 'info', binary: 'warning', transfer: 'secondary',
-                ceiling: 'dark', reduction: 'danger', admin: 'dark',
+                ceiling: 'dark', reduction: 'danger', reduction_return: 'success', admin: 'dark',
             };
             const cls = map[cat] || 'light';
             return '<span class="badge badge-light-' + cls + '">' + esc(categories[cat] || cat) + '</span>';
@@ -314,9 +348,7 @@
             const trs = rows.map((r, i) => {
                 const amt = (r.direction === 'credit' ? '+' : '−') + fmt(r.amount) + ' ' + esc(r.wallet_type.toUpperCase());
                 const amtCls = r.direction === 'credit' ? 'text-success' : 'text-danger';
-                const onchain = r.onchain
-                    ? '<span class="badge badge-light-info fs-8">' + esc(r.onchain.status || 'onchain') + '</span>'
-                    : '<span class="badge badge-light fs-8">internal</span>';
+                const onchain = r.onchain ? onchainBadge(r.onchain.status, r.reference_type) : '<span class="badge badge-light fs-8">internal</span>';
                 const gasFee = (r.onchain && r.onchain.gas_fee_total != null)
                     ? fmt(r.onchain.gas_fee_total) + ' BNB'
                     : '<span class="text-muted">—</span>';
@@ -325,8 +357,10 @@
                     '<td class="fs-8 text-muted">' + esc(r.created_at) + '</td>' +
                     '<td><div class="d-flex align-items-center gap-2">' +
                         avatarImg(r.avatar, 24) +
-                        '<span>#' + esc(r.user_id) + '</span>' +
-                        '</div></td>' +
+                        '<div class="d-flex flex-column">' +
+                            '<span>' + esc(r.username || ('#' + r.user_id)) + '</span>' +
+                            '<span class="fs-9 text-muted">#' + esc(r.user_id) + (r.email ? ' &middot; ' + esc(r.email) : '') + '</span>' +
+                        '</div></div></td>' +
                     '<td>' + categoryBadge(r.category) + '<div class="fs-8 text-muted">' + esc(r.type_label) + '</div></td>' +
                     '<td class="fw-bold ' + amtCls + '">' + amt + '</td>' +
                     '<td>' + flowBadge(r) + '</td>' +
@@ -371,24 +405,56 @@
             if (!j.status) { body.innerHTML = '<div class="text-danger">' + esc(j.message || 'Not found') + '</div>'; return; }
             const r = j.row;
             let html = '<table class="table table-row-dashed fs-7">';
+            const u = r.user || {};
+            const displayName = u.username || u.name || ('#' + r.user_id);
+            const fullName = [u.first_name, u.last_name].filter(Boolean).join(' ');
             const userHtml = '<div class="d-flex align-items-center gap-2">' +
                 avatarImg(r.avatar, 28) +
-                '<span>#' + esc(r.user_id) + '</span></div>';
+                '<div class="d-flex flex-column">' +
+                    '<span class="fw-bold">' + esc(displayName) + '</span>' +
+                    '<span class="fs-8 text-muted">#' + esc(r.user_id) + '</span>' +
+                '</div></div>';
             const rowsOutRaw = [
-                ['Ledger ID', esc(r.ledger_id)], ['User', userHtml], ['Wallet', esc(r.wallet_type)],
+                ['Ledger ID', esc(r.ledger_id)], ['User', userHtml],
+            ];
+            if (u.email) rowsOutRaw.push(['Email', esc(u.email)]);
+            if (fullName) rowsOutRaw.push(['Name', esc(fullName)]);
+            if (u.referral_id) rowsOutRaw.push(['Referral ID', esc(u.referral_id)]);
+            rowsOutRaw.push(
+                ['Wallet', esc(r.wallet_type)],
                 ['Type', esc(r.type_label + ' (' + r.reference_type + ')')],
                 ['Amount', esc((r.direction === 'credit' ? '+' : '−') + fmt(r.amount))],
                 ['Balance After', esc(fmt(r.balance_after))],
                 ['Description', esc(r.description || '—')],
                 ['Tx Hash', hashLink(r.tx_hash)],
                 ['When', esc(r.created_at)],
-            ];
+            );
             if (r.onchain) {
-                rowsOutRaw.push(['On-chain Status', esc(r.onchain.status)]);
-                rowsOutRaw.push(['On-chain Amount', esc(fmt(r.onchain.amount) + ' (' + (r.onchain.tx_type || '') + ')')]);
+                if (ONCHAIN_NEVER_ATTEMPTED.has(r.reference_type)) {
+                    // No "On-chain Amount"/from/to here — those imply a real
+                    // send was attempted, which never happens for this type.
+                    rowsOutRaw.push(['Settlement', onchainBadge(r.onchain.status, r.reference_type)]);
+                } else {
+                    rowsOutRaw.push(['On-chain Status', onchainBadge(r.onchain.status, r.reference_type)]);
+                    rowsOutRaw.push(['On-chain Amount', esc(fmt(r.onchain.amount) + ' (' + (r.onchain.tx_type || '') + ')')]);
+                }
+                if (r.onchain.from_address) rowsOutRaw.push(['From Address', addrLink(r.onchain.from_address)]);
+                if (r.onchain.to_address) rowsOutRaw.push(['To Address', addrLink(r.onchain.to_address)]);
                 if (r.onchain.block_number) rowsOutRaw.push(['Block', esc(r.onchain.block_number)]);
-                if (r.onchain.gas_fee_total != null) rowsOutRaw.push(['Gas Fee', esc(fmt(r.onchain.gas_fee_total) + ' BNB')]);
+                if (r.onchain.gas_fee_total != null) {
+                    let gasDetail = fmt(r.onchain.gas_fee_total) + ' BNB';
+                    if (r.onchain.gas_used != null) gasDetail += ' <span class="text-muted fs-8">(' + esc(r.onchain.gas_used) + ' gas';
+                    if (r.onchain.gas_price_gwei != null) gasDetail += ' @ ' + esc(r.onchain.gas_price_gwei) + ' gwei';
+                    if (r.onchain.gas_used != null) gasDetail += ')</span>';
+                    rowsOutRaw.push(['Gas Fee', gasDetail]);
+                }
             }
+            // The reduction/return note (e.g. the RPC failure reason, or the
+            // "[returned] credited back to user" note left by a Return action)
+            // — already came back in source.record, just never rendered here.
+            const src = (r.source && r.source.record) || {};
+            if (src.note) rowsOutRaw.push(['Note', esc(src.note)]);
+            if (src.reverted_at) rowsOutRaw.push(['Returned', 'Yes — ' + esc(src.reverted_at) + (src.reverted_by ? ' (admin #' + esc(src.reverted_by) + ')' : '')]);
             if (r.source && r.source.table) {
                 rowsOutRaw.push(['Source Table', esc(r.source.table + ' #' + (r.source.id || '—'))]);
             }
@@ -396,11 +462,17 @@
                 html += '<tr><td class="fw-bold text-muted" style="width:180px">' + esc(k) + '</td><td>' + (v ?? '—') + '</td></tr>';
             });
             html += '</table>';
+            /* Bonus Reduction pulls from the user into admin_wallet — link
+               straight to where that receiving balance is managed. */
+            if (r.reference_type === 'bonus_reduction') {
+                html += '<div class="mt-4"><a href="' + base + 'admin/wallet/admin-wallet" target="_blank" rel="noopener" class="btn btn-sm btn-light-primary">View Admin Wallet &rarr;</a></div>';
+            }
             if (r.related_ledger && r.related_ledger.length) {
                 html += '<div class="fw-bold mb-2 mt-4">Related Ledger Rows</div>';
-                html += '<table class="table table-row-dashed fs-7"><thead><tr class="fw-bold text-muted"><th>When</th><th>Wallet</th><th>Amount</th></tr></thead><tbody>';
+                html += '<table class="table table-row-dashed fs-7"><thead><tr class="fw-bold text-muted"><th>When</th><th>User</th><th>Wallet</th><th>Amount</th></tr></thead><tbody>';
                 r.related_ledger.forEach(rl => {
-                    html += '<tr><td class="fs-8 text-muted">' + esc(rl.created_at) + '</td><td>' + esc(rl.wallet_type) + '</td>' +
+                    const rlUser = rl.username ? (esc(rl.username) + ' <span class="text-muted">#' + esc(rl.user_id) + '</span>') : ('#' + esc(rl.user_id));
+                    html += '<tr><td class="fs-8 text-muted">' + esc(rl.created_at) + '</td><td class="fs-8">' + rlUser + '</td><td>' + esc(rl.wallet_type) + '</td>' +
                         '<td>' + (rl.direction === 'credit' ? '+' : '−') + fmt(rl.amount) + '</td></tr>';
                 });
                 html += '</tbody></table>';

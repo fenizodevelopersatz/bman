@@ -33,10 +33,10 @@
     <div class="app-container container-xxl">
 
       <div class="roi-card mb-6">
-        <div class="card-header border-0 pt-6">
+        <div class="card-header border-0 pt-6 px-6">
           <div class="card-title"><div class="fw-bold fs-4">Manual Send — Particular User</div></div>
         </div>
-        <div class="card-body pt-3 pb-6">
+        <div class="card-body pt-3 pb-6 px-6">
           <div class="tiny mb-3">Look up a user and send their ROI now. Safe to use any time — it only credits whatever is actually due today per that record's schedule; it never pays ahead of schedule.</div>
           <div class="d-flex gap-2 mb-4" style="max-width:480px;">
             <input id="user-q" type="text" class="form-control form-control-sm" placeholder="User ID, username, or email">
@@ -76,44 +76,10 @@
       </div>
 
       <div class="roi-card mb-6">
-        <div class="card-header border-0 pt-6">
-          <div class="card-title"><div class="fw-bold fs-4">All Staking &amp; ROI Records</div></div>
-          <div class="card-toolbar gap-2">
-            <select id="rec-status" class="form-select form-select-sm w-auto">
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="failed">Failed</option>
-            </select>
-          </div>
-        </div>
-        <div class="card-body pt-3 pb-6">
-          <div class="table-responsive">
-            <table class="table align-middle table-row-dashed fs-7 gy-3">
-              <thead>
-                <tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
-                  <th>ID</th><th>User</th><th>Plan</th><th>Principal</th><th>Total ROI</th><th>Paid</th><th>Remaining</th><th>Status</th><th>Next Due</th><th></th>
-                </tr>
-              </thead>
-              <tbody id="rec-body"><tr><td colspan="10" class="text-center text-muted py-6">Loading...</td></tr></tbody>
-            </table>
-          </div>
-          <div class="d-flex align-items-center justify-content-between pt-4 border-top">
-            <div class="text-muted fs-8">Showing <span id="rec-showing">0</span> of <span id="rec-total">0</span> | Page <span id="rec-page">1</span></div>
-            <div class="gap-2 d-flex">
-              <button id="rec-prev" class="btn btn-sm btn-light">← Previous</button>
-              <button id="rec-next" class="btn btn-sm btn-light">Next →</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="roi-card mb-6">
-        <div class="card-header border-0 pt-6">
+        <div class="card-header border-0 pt-6 px-6">
           <div class="card-title"><div class="fw-bold fs-4">Failed / Needs Retry (<?php echo count($failed); ?>)</div></div>
         </div>
-        <div class="card-body pt-3 pb-6">
+        <div class="card-body pt-3 pb-6 px-6">
           <div class="table-responsive">
             <table class="table align-middle table-row-dashed fs-7 gy-3">
               <thead>
@@ -145,70 +111,80 @@
         </div>
       </div>
 
-      <div class="roi-card mb-6">
-        <div class="card-header border-0 pt-6">
-          <div class="card-title"><div class="fw-bold fs-4">Upcoming Due (Next 7 Days)</div></div>
-        </div>
-        <div class="card-body pt-3 pb-6">
-          <div class="table-responsive">
-            <table class="table align-middle table-row-dashed fs-7 gy-3">
-              <thead>
-                <tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
-                  <th>ID</th><th>User</th><th>Plan</th><th>Amount Due</th><th>Due Date</th>
-                </tr>
-              </thead>
-              <tbody id="upcoming-body">
-                <?php if (empty($upcoming)): ?>
-                <tr><td colspan="5" class="text-center text-muted py-6">Nothing due in the next 7 days.</td></tr>
-                <?php else: foreach ($upcoming as $u): ?>
-                <tr class="paged-row">
-                  <td class="mono">#<?php echo $u['id']; ?></td>
-                  <td><?php echo html_escape($u['username'] ?: ('User #'.$u['user_id'])); ?></td>
-                  <td><span class="badge badge-<?php echo $u['plan_type']; ?>"><?php echo ucfirst($u['plan_type']); ?></span></td>
-                  <td><?php echo number_format((float)($u['regular_payment_amount'] ?: $u['fixed_payment_amount']), 4); ?></td>
-                  <td class="tiny"><?php echo html_escape($u['next_payment_date']); ?></td>
-                </tr>
-                <?php endforeach; endif; ?>
-              </tbody>
-            </table>
-          </div>
-          <?php if (count($upcoming) > 10): ?>
-          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 pt-4 border-top" id="upcoming-pager"></div>
-          <?php endif; ?>
-        </div>
-      </div>
-
+      <!-- All Staking & Distribution History — two tabs, each with its own
+           filter + pagination. Same element IDs as before the redesign, so
+           loadRecords()/loadDist() and their listeners need no JS changes. -->
       <div class="roi-card">
-        <div class="card-header border-0 pt-6">
-          <div class="card-title"><div class="fw-bold fs-4">Distribution History</div></div>
-          <div class="card-toolbar gap-2">
-            <select id="f-type" class="form-select form-select-sm w-auto">
-              <option value="">All Types</option>
-              <option value="roi_monthly">Monthly</option>
-              <option value="roi_maturity">Maturity</option>
-              <option value="principal_return">Principal Return</option>
-            </select>
-            <input id="f-user" type="number" min="1" placeholder="User ID" class="form-control form-control-sm w-auto" style="width:120px;">
-            <button id="dist-refresh" class="btn btn-sm btn-light-primary">Filter</button>
+        <div class="card-header border-0 pt-6 px-6">
+          <div class="card-title">
+            <ul class="nav nav-tabs nav-line-tabs fs-6 border-0">
+              <li class="nav-item"><a class="nav-link active fs-4 fw-bold" data-bs-toggle="tab" href="#roi-tab-records">All Staking</a></li>
+              <li class="nav-item"><a class="nav-link fs-4 fw-bold" data-bs-toggle="tab" href="#roi-tab-dist">Distribution History</a></li>
+            </ul>
           </div>
         </div>
-        <div class="card-body pt-3 pb-6">
-          <div class="table-responsive">
-            <table class="table align-middle table-row-dashed fs-7 gy-3">
-              <thead>
-                <tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
-                  <th>Date</th><th>User</th><th>Type</th><th class="text-end">Amount (BMAN)</th><th>Wallet</th><th>Gas Fee</th><th>Tx Hash</th><th>Ref</th><th>Status</th>
-                </tr>
-              </thead>
-              <tbody id="dist-body"><tr><td colspan="9" class="text-center text-muted py-6">Loading...</td></tr></tbody>
-            </table>
-          </div>
-          <div class="d-flex align-items-center justify-content-between pt-4 border-top">
-            <div class="text-muted fs-8">Showing <span id="dist-showing">0</span> of <span id="dist-total">0</span> | Page <span id="dist-page">1</span></div>
-            <div class="gap-2 d-flex">
-              <button id="dist-prev" class="btn btn-sm btn-light">← Previous</button>
-              <button id="dist-next" class="btn btn-sm btn-light">Next →</button>
+        <div class="card-body pt-3 pb-6 px-6">
+          <div class="tab-content">
+
+            <div class="tab-pane fade show active" id="roi-tab-records">
+              <div class="d-flex justify-content-end mb-4">
+                <select id="rec-status" class="form-select form-select-sm w-auto">
+                  <option value="">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="failed">Failed</option>
+                </select>
+              </div>
+              <div class="table-responsive">
+                <table class="table align-middle table-row-dashed fs-7 gy-3">
+                  <thead>
+                    <tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
+                      <th>ID</th><th>User</th><th>Plan</th><th>Principal</th><th>Total ROI</th><th>Paid</th><th>Remaining</th><th>Status</th><th>Next Due</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="rec-body"><tr><td colspan="10" class="text-center text-muted py-6">Loading...</td></tr></tbody>
+                </table>
+              </div>
+              <div class="d-flex align-items-center justify-content-between pt-4 border-top">
+                <div class="text-muted fs-8">Showing <span id="rec-showing">0</span> of <span id="rec-total">0</span> | Page <span id="rec-page">1</span></div>
+                <div class="gap-2 d-flex">
+                  <button id="rec-prev" class="btn btn-sm btn-light">← Previous</button>
+                  <button id="rec-next" class="btn btn-sm btn-light">Next →</button>
+                </div>
+              </div>
             </div>
+
+            <div class="tab-pane fade" id="roi-tab-dist">
+              <div class="d-flex flex-wrap justify-content-end gap-2 mb-4">
+                <select id="f-type" class="form-select form-select-sm w-auto">
+                  <option value="">All Types</option>
+                  <option value="roi_monthly">Monthly</option>
+                  <option value="roi_maturity">Maturity</option>
+                  <option value="principal_return">Principal Return</option>
+                </select>
+                <input id="f-user" type="number" min="1" placeholder="User ID" class="form-control form-control-sm w-auto" style="width:120px;">
+                <button id="dist-refresh" class="btn btn-sm btn-light-primary">Filter</button>
+              </div>
+              <div class="table-responsive">
+                <table class="table align-middle table-row-dashed fs-7 gy-3">
+                  <thead>
+                    <tr class="text-start text-gray-500 fw-bold fs-8 text-uppercase gs-0">
+                      <th>Date</th><th>User</th><th>Type</th><th class="text-end">Amount (BMAN)</th><th>Wallet</th><th>Gas Fee</th><th>Tx Hash</th><th>Ref</th><th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dist-body"><tr><td colspan="9" class="text-center text-muted py-6">Loading...</td></tr></tbody>
+                </table>
+              </div>
+              <div class="d-flex align-items-center justify-content-between pt-4 border-top">
+                <div class="text-muted fs-8">Showing <span id="dist-showing">0</span> of <span id="dist-total">0</span> | Page <span id="dist-page">1</span></div>
+                <div class="gap-2 d-flex">
+                  <button id="dist-prev" class="btn btn-sm btn-light">← Previous</button>
+                  <button id="dist-next" class="btn btn-sm btn-light">Next →</button>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -276,9 +252,16 @@
       const j = await res.json();
       if (j.status !== 'success') { body.innerHTML = '<tr><td colspan="9" class="text-danger text-center py-6">Failed to load.</td></tr>'; return; }
       if (!j.rows.length) { body.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-6">No distributions found.</td></tr>'; document.getElementById('dist-showing').textContent = '0'; document.getElementById('dist-total').textContent = j.total; return; }
+      // Same status→color convention as admin/all-transaction's badge() helper.
+      const distStatusCls = {confirmed:'success',pending:'warning',processing:'info',failed:'danger',reverted:'danger',partial:'warning',cancelled:'secondary'};
+      const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       body.innerHTML = j.rows.map(r => {
         const amt = Number(r.amount || 0).toLocaleString(undefined, { maximumFractionDigits: 8 });
         const gas = r.gas_fee_total ? Number(r.gas_fee_total).toLocaleString(undefined,{maximumFractionDigits:8}) : '—';
+        const st = r.status || '—';
+        const reason = r.failure_reason || r.revert_message;
+        const statusCell = '<span class="badge badge-light-'+(distStatusCls[st]||'secondary')+' text-uppercase">'+esc(st)+'</span>'+
+          (reason ? '<div class="err-cell mt-1">'+esc(reason)+'</div>' : '');
         return '<tr>'+
           '<td class="tiny">'+String(r.created_at||'').slice(0,16)+'</td>'+
           '<td>'+(r.username || ('User #'+r.user_id))+'</td>'+
@@ -288,7 +271,7 @@
           '<td>'+gas+'</td>'+
           '<td class="mono">'+(r.tx_hash||'internal')+'</td>'+
           '<td class="mono">'+(r.reference_id||'—')+'</td>'+
-          '<td>'+(r.status||'—')+'</td>'+
+          '<td>'+statusCell+'</td>'+
         '</tr>';
       }).join('');
       document.getElementById('dist-showing').textContent = j.rows.length;
@@ -427,7 +410,6 @@
   loadRecords();
   loadDist();
   paginateStaticTable('failed-body', 'failed-pager', 10);
-  paginateStaticTable('upcoming-body', 'upcoming-pager', 10);
 })();
 </script>
 </body>

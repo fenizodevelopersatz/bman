@@ -94,9 +94,22 @@ class AllTransactions extends CI_Controller
         $offset  = ($page - 1) * $limit;
 
         $rows = $this->tracker->list_transactions($filters, $limit, $offset);
-        foreach ($rows as &$r) {
-            $r['avatar'] = user_profile_image($r['user_id']);
+
+        $userIds = array_values(array_unique(array_map(function ($r) { return (int) $r['user_id']; }, $rows)));
+        $users = [];
+        if ($userIds) {
+            $this->db->select('id, username, email')->where_in('id', $userIds);
+            foreach ($this->db->get('users')->result_array() as $u) {
+                $users[(int) $u['id']] = $u;
+            }
         }
+
+        foreach ($rows as &$r) {
+            $r['avatar']   = user_profile_image($r['user_id']);
+            $r['username'] = $users[(int) $r['user_id']]['username'] ?? null;
+            $r['email']    = $users[(int) $r['user_id']]['email'] ?? null;
+        }
+        unset($r);
 
         $this->_json([
             'status' => true,
@@ -122,6 +135,25 @@ class AllTransactions extends CI_Controller
             ->select('id, username, name, first_name, last_name, email, referral_id')
             ->get_where('users', ['id' => (int)$row['user_id']])
             ->row_array() ?: null;
+
+        // The other leg of an internal transfer (e.g. wallet_transfer) — identify
+        // who received/sent it, not just the raw user_id.
+        if (!empty($row['related_ledger'])) {
+            $relIds = array_values(array_unique(array_map(function ($r) { return (int) $r['user_id']; }, $row['related_ledger'])));
+            $relUsers = [];
+            if ($relIds) {
+                $this->db->select('id, username, email')->where_in('id', $relIds);
+                foreach ($this->db->get('users')->result_array() as $u) {
+                    $relUsers[(int) $u['id']] = $u;
+                }
+            }
+            foreach ($row['related_ledger'] as &$rl) {
+                $rl['username'] = $relUsers[(int) $rl['user_id']]['username'] ?? null;
+                $rl['email']    = $relUsers[(int) $rl['user_id']]['email'] ?? null;
+            }
+            unset($rl);
+        }
+
         $this->_json(['status' => true, 'row' => $row, 'explorer_url' => $this->_explorer()]);
     }
 

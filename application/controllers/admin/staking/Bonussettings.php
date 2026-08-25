@@ -60,7 +60,7 @@ class Bonussettings extends CI_Controller
         if (!$this->input->is_ajax_request()) show_404();
         $fields = [
             'bonus_percent_default',
-            'reduction_enabled','reduction_interval_days','reduction_percent',
+            'reduction_enabled','reduction_dry_run','reduction_onchain','reduction_interval_days','reduction_percent',
             'transfer_enabled','transfer_to_direct_left','transfer_to_direct_right',
             'transfer_require_email_otp','transfer_require_transfer_password',
             'matching_total_percent','matching_earning_percent','matching_staking_percent',

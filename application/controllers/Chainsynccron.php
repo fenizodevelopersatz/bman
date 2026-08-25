@@ -50,8 +50,13 @@ class Chainsynccron extends CI_Controller
             }
         }
 
+        // 5) keep rpc_sync_log bounded — pure diagnostic telemetry, nothing
+        // reads past the last 24h, so an unbounded table here is pure waste.
+        $prunedSyncLogRows = $this->chain->pruneSyncLog(30);
+
         $this->output->set_content_type('application/json')
-                     ->set_output(json_encode(array_merge(['status' => 'success'], $out),
+                     ->set_output(json_encode(array_merge(
+                         ['status' => 'success', 'pruned_sync_log_rows' => $prunedSyncLogRows], $out),
                                   JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL);
     }
 }

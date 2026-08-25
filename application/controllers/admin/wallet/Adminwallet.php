@@ -53,10 +53,21 @@ class Adminwallet extends CI_Controller
         $data['is_super']     = $this->is_super;
         $data['wallet']       = $this->reduction->adminWallet();
         $data['totals']       = $this->reduction->totals();
+        $data['retryable_failed_count'] = $this->reduction->retryableFailedCount();
         $data['settings']     = $settings ?: [];
         $data['admin_addr']   = $this->reduction->adminAddress();
         $data['explorer_url'] = rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
-        $data['history']      = array_map([$this, '_withUserDisplay'], $this->reduction->history(200));
+
+        $perPage = 20;
+        $page    = max(1, (int) $this->input->get('page'));
+        $total   = $this->reduction->historyCount();
+        $pages   = max(1, (int) ceil($total / $perPage));
+        $page    = min($page, $pages);
+
+        $data['history']     = array_map([$this, '_withUserDisplay'], $this->reduction->history($perPage, ($page - 1) * $perPage));
+        $data['page']        = $page;
+        $data['pages']       = $pages;
+        $data['history_total'] = $total;
 
         $this->load->view('admin/wallet/admin_wallet', $data);
     }
@@ -92,6 +103,47 @@ class Adminwallet extends CI_Controller
             'force_dry_run' => $dry,
             'triggered_by'  => 'admin',
         ]);
+        return $this->_json($out, ($out['status'] ?? '') === 'success' ? 200 : 422);
+    }
+
+    /* ------------- AJAX: retry a stuck on-chain leg (Super) --------------- */
+
+    /** Retry one failed reduction's on-chain send. */
+    public function retry($logId)
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        if (!$this->is_super) {
+            return $this->_json(['status' => 'error', 'message' => 'Super Admin only.'], 403);
+        }
+        $out = $this->reduction->retryOnchain((int) $logId);
+        // 'auto_returned' is a resolved, successful outcome too — the money
+        // is safely back with the user, just via a different path than a
+        // real send.
+        $ok = in_array($out['status'] ?? '', ['success', 'auto_returned'], true);
+        return $this->_json($out, $ok ? 200 : 422);
+    }
+
+    /** Retry every currently-failed reduction's on-chain send. */
+    public function retry_all()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        if (!$this->is_super) {
+            return $this->_json(['status' => 'error', 'message' => 'Super Admin only.'], 403);
+        }
+        $out = $this->reduction->retryAllFailed();
+        return $this->_json($out, 200);
+    }
+
+    /* ------------- AJAX: return a reduction to the user (Super) ----------- */
+
+    /** Credit one reduction's amount back to the user (internal reversal only — see returnToUser()). */
+    public function return_to_user($logId)
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        if (!$this->is_super) {
+            return $this->_json(['status' => 'error', 'message' => 'Super Admin only.'], 403);
+        }
+        $out = $this->reduction->returnToUser((int) $logId, (int) $this->session->userdata('admin_userid'));
         return $this->_json($out, ($out['status'] ?? '') === 'success' ? 200 : 422);
     }
 }

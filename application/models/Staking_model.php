@@ -707,6 +707,8 @@ class Staking_model extends CI_Model
 
         // §7 reduction rule (every N days, X% of bonus wallet reduced)
         if (array_key_exists('reduction_enabled', $data)) $row['reduction_enabled'] = (int)!!$data['reduction_enabled'];
+        if (array_key_exists('reduction_dry_run', $data)) $row['reduction_dry_run'] = (int)!!$data['reduction_dry_run'];
+        if (array_key_exists('reduction_onchain', $data)) $row['reduction_onchain'] = (int)!!$data['reduction_onchain'];
         if (array_key_exists('reduction_interval_days', $data)) {
             $d = (int)$data['reduction_interval_days'];
             if ($d < 1 || $d > 365) return [false, 'Reduction interval must be 1–365 days.'];

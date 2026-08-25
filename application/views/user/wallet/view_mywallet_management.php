@@ -1463,6 +1463,7 @@ function wallet_title_fallback($type)
             <option value="" <?= ($type ?? '') === '' ? 'selected' : ''; ?>>All Transactions</option>
             <option value="INCOMING" <?= strtoupper($type ?? '') === 'INCOMING' ? 'selected' : ''; ?>>Incoming (Deposits)</option>
             <option value="OUTGOING" <?= strtoupper($type ?? '') === 'OUTGOING' ? 'selected' : ''; ?>>Outgoing (Transfers)</option>
+            <option value="BONUS_REDUCTION" <?= strtoupper($type ?? '') === 'BONUS_REDUCTION' ? 'selected' : ''; ?>>Bonus Reduction</option>
           </select>
         </div>
 
@@ -1474,6 +1475,8 @@ function wallet_title_fallback($type)
               class="ph ph-arrow-circle-down"></i> Incoming <span class="count"><?= (int) ($counts['INCOMING'] ?? 0); ?></span></div>
           <div class="chip <?= (strtoupper($type ?? '') === 'OUTGOING' ? 'active' : ''); ?>" data-type="OUTGOING"><i
               class="ph ph-arrow-circle-up"></i> Outgoing <span class="count"><?= (int) ($counts['OUTGOING'] ?? 0); ?></span></div>
+          <div class="chip <?= (strtoupper($type ?? '') === 'BONUS_REDUCTION' ? 'active' : ''); ?>" data-type="BONUS_REDUCTION"><i
+              class="ph ph-gift"></i> Bonus Reduction <span class="count"><?= (int) ($counts['BONUS_REDUCTION'] ?? 0); ?></span></div>
           <a class="chip" href="<?= base_url('user/wallet'); ?>"><i class="ph ph-x"></i> Clear </a>
         </div>
 

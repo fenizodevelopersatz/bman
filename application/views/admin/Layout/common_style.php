@@ -24,6 +24,22 @@ $keywords = site_settings('meta-settings','site-keyword');
 
 <link href="<?php echo base_url();?>assets/admin/plugins/global/plugins.bundle.css" rel="stylesheet" type="text/css">
 <link href="<?php echo base_url();?>assets/admin/css/style.bundle.css" rel="stylesheet" type="text/css">
+<style>
+/* Bootstrap's .container-xxl (from style.bundle.css) caps at max-width:1320px
+   and auto-centers past that — correct for a plain centered page, wrong for
+   this dashboard shell where content sits beside a fixed sidebar. On any
+   viewport wide enough that the sidebar + 1320px no longer fill the window
+   (~1585px+ total), centering opens equal empty gutters on both sides of the
+   content — most visibly as a gap between the sidebar and the content's left
+   edge. Every admin page's content wrapper uses `.app-container.container-xxl`
+   together (never container-xxl alone outside this shell — confirmed against
+   admin/login.php, which loads this same stylesheet but never pairs the two
+   classes), so this compound selector reaches exactly the dashboard content
+   containers and nothing else. Fixed here once for every admin page rather
+   than per-page, since they all share the identical markup pattern.
+   See docs on the ROI Distribution History alignment fix. */
+.app-container.container-xxl { max-width: none; margin-left: 0; margin-right: 0; }
+</style>
 </head>
 
 <script>

@@ -879,6 +879,9 @@ $route['admin/wallet-monitor/deposits']['get'] = 'admin/wallet/Walletmonitor/dep
 /**************** Finance — Admin Bonus Wallet + reduction history (doc 11) */
 $route['admin/wallet/admin-wallet'] = 'admin/wallet/Adminwallet/index';
 $route['admin/wallet/admin-wallet/run']['post'] = 'admin/wallet/Adminwallet/run_now';
+$route['admin/wallet/admin-wallet/retry/(:num)']['post'] = 'admin/wallet/Adminwallet/retry/$1';
+$route['admin/wallet/admin-wallet/retry-all']['post'] = 'admin/wallet/Adminwallet/retry_all';
+$route['admin/wallet/admin-wallet/return/(:num)']['post'] = 'admin/wallet/Adminwallet/return_to_user/$1';
 
 /**************** Finance — On-Chain Transactions (doc 13) */
 $route['admin/wallet/onchain-transactions'] = 'admin/wallet/Onchaintx/index';

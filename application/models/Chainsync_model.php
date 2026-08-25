@@ -474,4 +474,24 @@ class Chainsync_model extends CI_Model
             ]);
         } catch (Throwable $e) { /* logging must never break sync */ }
     }
+
+    /**
+     * Delete rpc_sync_log rows older than $days. This table is pure
+     * operational/diagnostic telemetry (every sync attempt, RPC failure,
+     * balance diff) — not a user-facing audit or transaction history —
+     * and the only reader (DashboardStats_model's RPC health stat) only
+     * ever looks at the last 24h, so nothing in the app depends on rows
+     * past the retention window. created_at is indexed (idx_created), so
+     * this is cheap even called every cron run.
+     */
+    public function pruneSyncLog($days = 30)
+    {
+        try {
+            $cutoff = date('Y-m-d H:i:s', strtotime("-{$days} days"));
+            $this->db->where('created_at <', $cutoff)->delete('rpc_sync_log');
+            return (int) $this->db->affected_rows();
+        } catch (Throwable $e) {
+            return 0;
+        }
+    }
 }

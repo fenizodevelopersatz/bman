@@ -23,8 +23,9 @@ class WalletTracker_model extends CI_Model
         'binary_matching'  => ['label' => 'Binary Matching',        'category' => 'binary',     'source' => 'staking_matching_payouts'],
         'wallet_transfer'  => ['label' => 'Wallet Transfer',        'category' => 'transfer',   'source' => 'wallet_internal_transfer'],
         'ceiling_release'  => ['label' => 'Ceiling Release',        'category' => 'ceiling',    'source' => 'ceiling_wallet_ledger'],
-        'bonus_reduction'  => ['label' => 'Bonus Reduction',        'category' => 'reduction',  'source' => 'bonus_reduction_log'],
-        'admin_adjustment' => ['label' => 'Admin Adjustment',       'category' => 'admin',      'source' => null],
+        'bonus_reduction'        => ['label' => 'Bonus Reduction',        'category' => 'reduction',        'source' => 'bonus_reduction_log'],
+        'bonus_reduction_return' => ['label' => 'Bonus Reduction Return', 'category' => 'reduction_return', 'source' => 'bonus_reduction_log'],
+        'admin_adjustment'       => ['label' => 'Admin Adjustment',       'category' => 'admin',            'source' => null],
     ];
 
     public function __construct()
@@ -50,6 +51,7 @@ class WalletTracker_model extends CI_Model
             'transfer'   => 'Wallet Transfers',
             'ceiling'    => 'Ceiling Release',
             'reduction'  => 'Bonus Reduction',
+            'reduction_return' => 'Bonus Reduction Return',
             'withdrawal' => 'Withdrawals',
             'admin'      => 'Admin Adjustments',
         ];
@@ -340,6 +342,14 @@ class WalletTracker_model extends CI_Model
 
             case 'bonus_reduction':
                 return $this->_fetch_source('bonus_reduction_log', (string) $lid, 'wallet_ledger_id', true);
+
+            // Unlike 'bonus_reduction' above, the return credit's own
+            // reference_id IS the bonus_reduction_log row's real id (set
+            // explicitly in Bonusreduction_model::returnToUser()) — a direct
+            // primary-key lookup, not the reverse wallet_ledger_id match the
+            // original debit needs.
+            case 'bonus_reduction_return':
+                return $this->_fetch_source('bonus_reduction_log', (string) $ref, 'id', true);
 
             case 'bman_withdrawal':
                 return $this->_resolve_bman_withdrawal($ref, $uid);
