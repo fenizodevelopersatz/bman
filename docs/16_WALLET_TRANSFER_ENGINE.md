@@ -19,8 +19,16 @@ Currency: **BMAN only**. Wallets: `exchange · earning · staking · bonus` (USD
 **Member transfers** (to another user, same wallet on the recipient):
 | Source wallet | Allowed recipient |
 |---|---|
-| exchange / earning / staking | any member in the **source's downline** |
-| **bonus** | **only the source's direct sponsor** |
+| exchange / earning / staking | any member in the **source's downline** (sponsor tree) |
+| **bonus** | **only the source's direct LEFT or direct RIGHT binary-leg member** |
+
+The bonus rule reads the **binary tree** (`binary_placement.parent_id` +
+`position`) — the same relationship the Binary Tree page draws — not the sponsor
+chain in `users.sponser`. It is exactly one level down: the two nodes sitting
+immediately under the source on its left and right legs. The direct sponsor,
+deeper downline, siblings and unrelated members are all rejected
+(`bonus_only_to_direct_legs`). A source with an empty leg simply has fewer (or
+zero) eligible bonus recipients.
 
 **Internal transfers** (source user's own wallets):
 | From | To |
@@ -31,16 +39,16 @@ Exchange is **source-only** (never receives). No reverse, no other pairs.
 
 **Admin** acts on behalf of a chosen source user and follows the **exact same
 rules** — `via=admin` skips only the User-Panel **KYC + transfer-password** gates,
-never the wallet / downline / sponsor / balance rules.
+never the wallet / downline / direct-leg / balance rules.
 
 ## 2. Validation (`validate($ctx)` → `[ok, code, message, ctx]`)
 
 Amount > 0, ≤ 8 dp · source user exists + active · from-wallet valid (BMAN) ·
 (user panel) KYC approved + transfer password (`password_verify` + legacy md5) ·
 internal direction allowed / Exchange-source-only · member: recipient exists +
-active + not self + **downline** (walk sponsor chain) or **direct-sponsor** for
-bonus · sufficient balance (both panels). First failing rule returns immediately
-with a machine `code`.
+active + not self + **downline** (walk sponsor chain) or **direct binary leg**
+(`binary_placement` child, left/right) for bonus · sufficient balance (both
+panels). First failing rule returns immediately with a machine `code`.
 
 ## 3. Execution (`execute($ctx)`)
 
@@ -79,13 +87,20 @@ two entry points.
 **Touched:** `controllers/user/Transfer_wallet.php`,
 `controllers/admin/wallet/Internaltransfers.php`.
 
-## 7. Tests (`php index.php wallettransfertest run|exec`)
+## 7. Tests (`php index.php wallettransfertest run|exec|ui|pickers [uid]`)
 
-- **18/18 rule tests** against real relationships (source 247 · sponsor 1 ·
-  downline 248 · unrelated 250): internal Exchange-source-only + allowed pairs,
-  member downline rules, Bonus→sponsor-only, self / amount / precision / USDT.
+- **19/19 rule tests** — relationships are discovered from live data (last run:
+  source 2 · sponsor 1 · downline 5 · leg-child 8 · deeper-downline 6 ·
+  unrelated 3): internal Exchange-source-only + allowed pairs, member downline
+  rules, **Bonus→direct-leg-only** (sponsor, deeper downline and unrelated all
+  rejected), self / amount / precision / USDT.
 - **3/3 execution tests**: real transfer moved balances (−2 exchange / +2 bonus),
   **idempotent** re-run returned the same ref with no double debit, balances restored.
+- **6/6 UI-support tests**: `preview` shape + blocked pairs, `detailEnriched`,
+  and picker scoping (`recipientOptions(bonus)` = at most the two leg children,
+  never the sponsor).
+- `pickers <uid>` prints the exact JSON **both** recipient endpoints return for
+  that user, per wallet — the quickest way to eyeball a rule change.
 
 ## 8. Shared UI layer (both panels, one codebase)
 
@@ -112,13 +127,15 @@ What the shared layer does:
 1. **Disables invalid combinations** up front (Exchange source-only for internal;
    all four selectable for member; impossible destinations hidden) instead of
    letting them be chosen then rejected. Member mode shows the recipient rule
-   ("must be in downline" / "bonus → direct sponsor only").
+   ("must be in downline" / "bonus → direct left or right leg member only").
    - **Recipient pickers are server-scoped**: both panels list ONLY the source's
      valid recipients for the chosen From wallet — the source's **downline** for
-     exchange/earning/staking, or the **direct sponsor** for bonus (never the full
-     member list). Backed by `recipientOptions($sourceId,$fromWallet,$q)` +
+     exchange/earning/staking, or the **direct left/right binary leg members**
+     (at most two, left listed first) for bonus (never the full member list).
+     Backed by `recipientOptions($sourceId,$fromWallet,$q)` +
      `downlineIds($sourceId)` (BFS down the sponsor tree; `sponser` may hold an id
-     or a referral id, so each level matches on both). Endpoints:
+     or a referral id, so each level matches on both) and
+     `directLegChildIds($sourceId)` (binary tree). Endpoints:
      `user/transfer_wallet/search_recipients` (POST, needs `from_wallet`) and
      `admin/finance/internal-transfers/recipients` (GET `sender_id`,`from_wallet`).
      Changing the source/From wallet clears + refetches the recipient. The admin
@@ -146,8 +163,9 @@ What the shared layer does:
      network, addresses (enriched from `onchain_transactions` when linked); shows
      an explicit *off-chain internal ledger* note when there is no chain tx.
    - **Validation** — itemized checks derived from the transfer's OWN record:
-     wallet-direction rule, downline / direct-sponsor (whichever applied),
-     transfer-password, KYC, and admin-override (with pass / n-a / overridden).
+     wallet-direction rule, downline / direct-leg (whichever applied — the
+     direct-leg line names the actual side, left or right), transfer-password,
+     KYC, and admin-override (with pass / n-a / overridden).
    - **Audit Timeline** — the `wallet_transfer_audit` rows as a vertical timeline
      (action · result code · message · actor · time) + IP, browser/device,
      request id, user agent.

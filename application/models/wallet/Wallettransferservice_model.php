@@ -9,7 +9,9 @@
  *
  * Member transfers (to another user):
  *   exchange / earning / staking → any member in the SOURCE user's downline
- *   bonus                        → ONLY the source user's DIRECT SPONSOR
+ *   bonus                        → ONLY the source user's DIRECT LEFT or DIRECT
+ *                                  RIGHT binary-leg member (binary_placement
+ *                                  children, one level down — nobody else)
  * Internal transfers (source user's own wallets):
  *   exchange → bonus | earning | staking   (Exchange is SOURCE-ONLY; never receives)
  *   no reverse, no other pairs
@@ -40,7 +42,7 @@ class Wallettransferservice_model extends CI_Model
     public function memberRule($wallet)
     {
         if (in_array($wallet, ['exchange','earning','staking'], true)) return 'downline';
-        if ($wallet === 'bonus') return 'direct_sponsor';
+        if ($wallet === 'bonus') return 'direct_legs';
         return null;
     }
 
@@ -65,6 +67,35 @@ class Wallettransferservice_model extends CI_Model
         if (!$u || $u['sponser'] === null || $u['sponser'] === '') return 0;
         $sp = $this->resolveUser($u['sponser']);
         return $sp ? (int)$sp['id'] : 0;
+    }
+
+    /**
+     * The source's DIRECT binary children — the two nodes sitting immediately
+     * below them on the Binary Tree, one per leg. Placement lives in
+     * `binary_placement` (parent_id + position), which is the same relationship
+     * the Binary Tree page draws; the sponsor chain in users.sponser is a
+     * DIFFERENT tree and is deliberately not consulted here.
+     * @return array ['left' => int userId|0, 'right' => int userId|0]
+     */
+    public function directLegChildren($userId)
+    {
+        $out = ['left' => 0, 'right' => 0];
+        $userId = (int)$userId;
+        if (!$userId) return $out;
+        $rows = $this->db->select('user_id, position')->where('parent_id', $userId)
+                         ->where_in('position', ['left', 'right'])
+                         ->order_by('id', 'ASC')->get('binary_placement')->result_array();
+        foreach ($rows as $r) {
+            $pos = strtolower((string)$r['position']);
+            if (isset($out[$pos]) && !$out[$pos]) $out[$pos] = (int)$r['user_id'];
+        }
+        return $out;
+    }
+
+    /** Direct leg children as a plain id list, left leg first, empty legs dropped. */
+    public function directLegChildIds($userId)
+    {
+        return array_values(array_filter($this->directLegChildren($userId)));
     }
 
     /** True if $recipientId is in $sourceId's downline (walk the sponsor chain up). */
@@ -113,7 +144,7 @@ class Wallettransferservice_model extends CI_Model
      * that pass the member rule, optionally filtered by a search term. Used to scope
      * the recipient pickers in BOTH panels so users can't pick an invalid recipient.
      *   exchange/earning/staking → the source's downline
-     *   bonus                    → the source's direct sponsor only
+     *   bonus                    → the source's direct left/right leg members only
      * @return array [ ['id','username','name','email','referral_id'], ... ]
      */
     public function recipientOptions($sourceId, $fromWallet, $q = '', $limit = 20)
@@ -124,16 +155,21 @@ class Wallettransferservice_model extends CI_Model
         $q = trim((string)$q);
         $sel = 'id, username, name, email, referral_id';
 
-        if ($rule === 'direct_sponsor') {
-            $spId = $this->directSponsorId($sourceId);
-            if (!$spId) return [];
-            $sp = $this->db->select($sel)->where('id', $spId)->where('status', '1')->get('users')->row_array();
-            if (!$sp) return [];
-            if ($q !== '') {                                    // honour the search box
-                $hay = strtolower($sp['username'].' '.$sp['name'].' '.$sp['email'].' '.$sp['referral_id'].' '.$sp['id']);
-                if (strpos($hay, strtolower($q)) === false) return [];
+        if ($rule === 'direct_legs') {
+            $legIds = $this->directLegChildIds($sourceId);   // left leg first
+            if (empty($legIds)) return [];
+            $this->db->select($sel)->from('users')->where('status', '1')->where_in('id', $legIds);
+            if ($q !== '') {
+                $this->db->group_start()->like('username', $q)->or_like('email', $q)
+                         ->or_like('referral_id', $q)->or_like('name', $q)->or_like('id', $q)->group_end();
             }
-            return [$sp];
+            $rows = $this->db->limit(max(2, (int)$limit))->get()->result_array();
+            // present them in leg order (left, then right) rather than by id
+            $order = array_flip($legIds);
+            usort($rows, function ($a, $b) use ($order) {
+                return $order[(int)$a['id']] - $order[(int)$b['id']];
+            });
+            return $rows;
         }
 
         // downline
@@ -208,9 +244,12 @@ class Wallettransferservice_model extends CI_Model
             if ($recipientId === $src) return $this->_no('self_transfer', 'Cannot transfer to yourself in a member transfer.');
             if ((string)$rec['status'] !== '1') return $this->_no('recipient_inactive', 'Recipient account is inactive or blocked.');
             $rule = $this->memberRule($from);
-            if ($rule === 'direct_sponsor') {
-                if ($recipientId !== $this->directSponsorId($src))
-                    return $this->_no('bonus_only_to_sponsor', 'Bonus wallet can only be transferred to your direct sponsor.');
+            if ($rule === 'direct_legs') {
+                // Bonus moves one level DOWN the binary tree only: to the direct
+                // left or direct right leg member, nobody else (not the sponsor,
+                // not deeper downline, not a sibling).
+                if (!in_array($recipientId, $this->directLegChildIds($src), true))
+                    return $this->_no('bonus_only_to_direct_legs', 'Bonus wallet can only be transferred to your direct left or direct right leg member.');
             } elseif ($rule === 'downline') {
                 if (!$this->isInDownline($src, $recipientId))
                     return $this->_no('recipient_not_in_downline', 'Recipient must be in your downline.');
@@ -527,13 +566,22 @@ class Wallettransferservice_model extends CI_Model
         $checks[] = ['key'=>'wallet_rule', 'label'=>'Wallet direction rule', 'applies'=>true, 'status'=>$ok,
                      'detail'=>$isMember ? (ucfirst($h['from_wallet']).' → recipient '.ucfirst($h['to_wallet']))
                                          : (ucfirst($h['from_wallet']).' → '.ucfirst($h['to_wallet']).' (Exchange source-only)')];
-        // downline / sponsor only for member transfers
+        // downline / direct-leg only for member transfers
         $checks[] = ['key'=>'downline', 'label'=>'Downline validation',
                      'applies'=>($isMember && $memberRule === 'downline'), 'status'=>($isMember && $memberRule==='downline') ? $ok : 'n/a',
                      'detail'=>($isMember && $memberRule==='downline') ? 'Recipient is in the source user\'s downline' : 'Not applicable'];
-        $checks[] = ['key'=>'direct_sponsor', 'label'=>'Direct sponsor validation',
-                     'applies'=>($isMember && $memberRule === 'direct_sponsor'), 'status'=>($isMember && $memberRule==='direct_sponsor') ? $ok : 'n/a',
-                     'detail'=>($isMember && $memberRule==='direct_sponsor') ? 'Recipient is the source user\'s direct sponsor' : 'Not applicable'];
+        $legApplies = ($isMember && $memberRule === 'direct_legs');
+        $legDetail  = 'Not applicable';
+        if ($legApplies) {
+            $legs = $this->directLegChildren($src);
+            $side = ((int)$legs['left'] === $rcp) ? 'left' : (((int)$legs['right'] === $rcp) ? 'right' : '');
+            // Rows written before this rule existed can name a recipient that is
+            // not a leg child — report the rule, don't claim a leg that isn't there.
+            $legDetail = $side ? 'Recipient is the source user\'s direct '.$side.' leg member'
+                               : 'Direct left/right leg rule applied';
+        }
+        $checks[] = ['key'=>'direct_legs', 'label'=>'Direct leg validation',
+                     'applies'=>$legApplies, 'status'=>$legApplies ? $ok : 'n/a', 'detail'=>$legDetail];
         // user-panel gates
         $checks[] = ['key'=>'transfer_password', 'label'=>'Transfer password',
                      'applies'=>!$viaAdmin, 'status'=>$viaAdmin ? 'overridden' : $ok,

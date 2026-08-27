@@ -93,8 +93,9 @@ class Internaltransfers extends CI_Controller
 
     /**
      * AJAX (Select2): valid RECIPIENTS for the chosen source user + From wallet.
-     * Only the source's downline (exchange/earning/staking) or direct sponsor
-     * (bonus) are returned — the admin cannot pick an invalid recipient.
+     * Only the source's downline (exchange/earning/staking) or direct left/right
+     * binary leg members (bonus) are returned — the admin cannot pick an invalid
+     * recipient.
      * GET sender_id, from_wallet, q. Returns {results:[{id,text}], pagination:{more:false}}.
      */
     public function recipients()

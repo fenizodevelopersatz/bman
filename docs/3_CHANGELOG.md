@@ -5,7 +5,119 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
-## 2026-08-08 (latest) — Genealogy Tree becomes a Binary Matching audit screen
+## 2026-08-27 (latest) — Admin ▸ Members list: add Current Staking column, verify withdrawal click-through
+
+Per an annotated screenshot of `/network-member`: a new column between **Current
+Rank** and **Purchased Staking**, plus a check that the **Withdrawal Request**
+cell already opens the admin review page when a request exists.
+
+**New column — Current Staking.** The existing "Purchased Staking" column only
+ever reads 0.0000 BMAN for every member — it sums `staking_swap_orders` (the
+on-chain swap-purchase path), which has zero rows on this database; real
+staking activity here was added through a different path straight into
+`user_stakes`. The new column reads that table directly:
+- **Current Staking Summation** (bold, first line) — `SUM(stake_amount)` where
+  `status IN ('processing','active')`: principal still ongoing, i.e. not yet
+  matured, withdrawn or cancelled.
+- **Matured** (muted, second line) — `COUNT(*)` where `status = 'matured'`.
+
+One batch query for the whole page (`WHERE user_id IN (...) GROUP BY user_id`),
+same pattern as the existing `$rankByUser` lookup — no N+1.
+
+- `application/controllers/admin/member/Membermanagement.php` — batch query +
+  `StakingSummary` cell in `list()`.
+- `application/views/admin/member/list.php` — `<th>Current Staking</th>`.
+- `assets/admin/js/custom/authentication/sign-in/network-list.js` — new column
+  in the DataTables `columns` array; `columnDefs` non-orderable targets shifted
+  to match (the server always orders by `u.id DESC` regardless, so this was
+  already cosmetic).
+
+**Withdrawal Request click-through — already correct, verified, not changed.**
+`bman_withdraw_requests` is empty on this database, so every cell reads "None."
+The code (`$withdrawUrl` → `admin/bman-withdrawals/view/{request_id}`) was
+already right. Verified by inserting one temporary pending request for user #2
+(500 BMAN), confirming the cell became a link, following it to the real review
+page and checking the user/amount/status matched, then deleting the row —
+`bman_withdraw_requests` is back to 0 rows.
+
+**Apply:** no SQL, no routes. Hard-refresh so the updated `network-list.js` is
+picked up.
+
+**Effect:** on `network-member`, every member with a live `user_stakes` row now
+shows their real current staking total instead of a blanket 0.0000 — e.g.
+Vikram V 10,000 BMAN, BALU P N (#2) 100,000 BMAN, BALU P N (#3, no stake)
+correctly 0.0000. "Matured: 0" everywhere is correct, not a bug — all eight
+stakes are 5-year locks that started 2026-08-23/24, so none have matured yet.
+
+---
+
+## 2026-08-27 — Fix: member Performance Analytics drew nothing for a single reading
+
+On `view-user/<id>` ▸ **Performance Analytics**, every chart that had exactly one
+month of data rendered as an empty box labelled "1 data points", while the chart
+with *no* data was the only one that drew a line — the reverse of what it should
+show.
+
+`spark()` builds an SVG `<polyline>`, which paints nothing from a single vertex.
+A one-value series produced one coordinate pair (`0,14`) and disappeared; a
+zero-value series produced an empty string and hit the `||'0,92 100,92'`
+fallback, which has two points and therefore *did* draw. Since every series on a
+young account sits in one month, four of five tiles were blank.
+
+- One reading now draws a flat line across the tile instead of an invisible
+  point, at mid-height — with a single value the self-normalising `max` makes
+  `n/max` always 1, which would otherwise pin every single-reading chart to the
+  top edge and read as "maxed out" (`application/views/admin/member/profile.php`).
+- Non-finite values are filtered out before scaling.
+- The caption now reads `1 reading · <value>` instead of "1 data points", so a
+  flat line still tells you the actual number.
+
+**Two-point-and-longer series are byte-identical to before** — verified by
+diffing old vs new output across 2/3/12-point, all-equal, containing-zero,
+descending, decimal and string-number series.
+
+**Apply:** no SQL, no routes. Hard-refresh the member profile page.
+
+**Effect:** on `view-user/2`, Binary Matching (15,000), Rank Progress (15,000),
+Wallet Growth (40,000) and Investment (100,000) now render visibly with their
+values; Monthly ROI still correctly reads "No data yet" because no ROI has been
+distributed on this database yet.
+
+---
+
+## 2026-08-27 — Bonus Coin Transfer: direct sponsor → direct left/right leg
+
+The **bonus** wallet's member-transfer rule was flipped from going **up** the
+sponsor chain to going **one level down the binary tree**. Bonus may now only be
+sent to the source's **direct left** or **direct right** leg member
+(`binary_placement.parent_id` + `position`) — the two nodes drawn directly under
+them on the Binary Tree page. The direct sponsor, deeper downline, siblings and
+unrelated members are all rejected with `bonus_only_to_direct_legs`.
+
+**Bonus only.** Exchange / earning / staking keep the unchanged downline rule,
+and internal (own-wallet) Exchange-source-only transfers are untouched.
+
+- Rule + recipient scoping + new `directLegChildren()` / `directLegChildIds()`
+  helpers (`application/models/wallet/Wallettransferservice_model.php`) — the one
+  engine both panels call, so User and Admin change together.
+- Shared front-end rule mirror + hint text (`assets/js/wallet_transfer_ui.js`).
+- CLI suite updated to the new rule + new `pickers` dump
+  (`application/controllers/Wallettransfertest.php`).
+- Comments only: `controllers/user/Transfer_wallet.php`,
+  `controllers/admin/wallet/Internaltransfers.php`,
+  `views/admin/wallet/internal_transfers.php`.
+
+**Apply:** no SQL, no routes. Hard-refresh so the updated
+`assets/js/wallet_transfer_ui.js` is picked up.
+
+**Effect:** with `from_wallet=bonus`, `user/transfer_wallet/search_recipients`
+and `admin/finance/internal-transfers/recipients` now list at most two members
+(left leg first). For source user #2 they return #8 P.N.sathya (left) and #5
+Mohana V A (right) instead of #1 Admin. Tests: **19/19** rule, **6/6** UI.
+
+---
+
+## 2026-08-08 — Genealogy Tree becomes a Binary Matching audit screen
 
 Second pass on the map, turning it from a tree into an audit tool. All
 read-only; no business rule touched.

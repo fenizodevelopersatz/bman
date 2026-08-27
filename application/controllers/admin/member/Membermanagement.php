@@ -197,6 +197,26 @@ class  Membermanagement extends CI_Controller {
         }
     }
 
+    // Current Staking Summation (principal still processing/active, i.e. not yet
+    // matured/withdrawn/cancelled) + a matured-package count, from user_stakes —
+    // deliberately separate from 'purchased_staking' below, which only counts the
+    // on-chain swap-purchase path (staking_swap_orders) and stays 0 for any stake
+    // added through another route. One batch query for the whole page.
+    $stakingByUser = [];
+    if ($userIds) {
+        foreach ($this->db->select('user_id,
+                    SUM(CASE WHEN status IN ("processing","active") THEN stake_amount ELSE 0 END) AS current_total,
+                    SUM(CASE WHEN status = "matured" THEN 1 ELSE 0 END) AS matured_count', false)
+                          ->where_in('user_id', $userIds)
+                          ->group_by('user_id')
+                          ->get('user_stakes')->result_array() as $sk) {
+            $stakingByUser[(int) $sk['user_id']] = [
+                'current' => (float) $sk['current_total'],
+                'matured' => (int) $sk['matured_count'],
+            ];
+        }
+    }
+
     foreach ($users as $index => $user) {
         $fullName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
         if ($fullName === '') $fullName = trim((string) ($user['name'] ?? ''));
@@ -220,6 +240,7 @@ class  Membermanagement extends CI_Controller {
         $withdrawUrl = !empty($user['pending_withdraw_id'])
             ? base_url('admin/bman-withdrawals/view/' . (int) $user['pending_withdraw_id'])
             : '';
+        $staking = $stakingByUser[(int) $user['id']] ?? ['current' => 0.0, 'matured' => 0];
 
         $data[] = [
             'RecordID' => $start + $index + 1,
@@ -229,6 +250,7 @@ class  Membermanagement extends CI_Controller {
                 '<span class="text-muted fs-8">' . html_escape($user['register_date']) . '</span>' . $frozenBadge . '</div></div>',
             'SponserInfo' => '<div class="fw-bold text-gray-800">' . html_escape($sponsorReferral) . '</div><div class="text-muted fs-7">' . html_escape($sponsorEmail) . '</div>',
             'Rank' => rank_cell_html($rankByUser[(int) $user['id']] ?? null, 26),
+            'StakingSummary' => '<div class="fw-bolder text-gray-900">' . number_format($staking['current'], 4) . ' BMAN</div><div class="text-muted fs-8">Matured: ' . $staking['matured'] . '</div>',
             'StakingTotal' => '<div class="fw-bolder text-gray-900">' . number_format((float) $user['purchased_staking'], 4) . ' BMAN</div><div class="text-muted fs-8">Completed purchases</div>',
             'KycStatus' => '<a href="' . $kycUrl . '" class="badge badge-light-' . $kycClass . ' text-hover-primary" title="Open KYC review">' . html_escape(strtoupper(str_replace('_', ' ', $kyc))) . '</a>',
             'WithdrawalRequest' => $pendingCount > 0

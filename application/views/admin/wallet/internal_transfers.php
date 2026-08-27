@@ -214,7 +214,7 @@
             return { results: data.results||[], pagination:{ more: !!(data.pagination&&data.pagination.more) } }; } }
       });
       // Recipient — ONLY the source's valid recipients for the chosen From wallet
-      // (downline for exchange/earning/staking, direct sponsor for bonus).
+      // (downline for exchange/earning/staking, direct left/right leg for bonus).
       jQuery('#it-recipient').select2({
         placeholder:'Search recipient…', allowClear:true, width:'100%', minimumInputLength:0,
         ajax:{ url: base+'admin/finance/internal-transfers/recipients', dataType:'json', delay:250, cache:false,

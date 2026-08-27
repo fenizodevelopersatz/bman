@@ -33,19 +33,29 @@ class Wallettransfertest extends CI_Controller
 
     public function run()
     {
-        // discover real relationships: source U (has sponsor SU + a downline D), unrelated X
+        // discover real relationships: source U (has sponsor SU, a downline D and
+        // at least one direct binary leg child L), plus an unrelated member X.
         $users = $this->db->select('id')->where('status','1')->order_by('id','ASC')->limit(400)->get('users')->result_array();
-        $U=0;$SU=0;$D=0;$X=0;
+        $U=0;$SU=0;$D=0;$X=0;$L=0;$ND=0;
         foreach ($users as $u) {
             $uid=(int)$u['id']; $sp=$this->svc->directSponsorId($uid); if ($sp<=0) continue;
+            $legs=$this->svc->directLegChildIds($uid); if (empty($legs)) continue;
+            $D=0;
             foreach ($users as $d) { $did=(int)$d['id']; if ($did!==$uid && $this->svc->isInDownline($uid,$did)) { $D=$did; break; } }
-            if ($D) { $U=$uid; $SU=$sp; break; }
+            if ($D) { $U=$uid; $SU=$sp; $L=(int)$legs[0]; break; }
+        }
+        // a downline member that is NOT a direct leg child — the case the new
+        // bonus rule must reject even though the old sponsor-era rule never saw it
+        $legIds = $U ? $this->svc->directLegChildIds($U) : [];
+        foreach ($users as $d) {
+            $did=(int)$d['id'];
+            if ($did!==$U && $this->svc->isInDownline($U,$did) && !in_array($did,$legIds,true)) { $ND=$did; break; }
         }
         foreach ($users as $x) { $xid=(int)$x['id']; if ($xid!==$U && $xid!==$SU && $xid!==$D && !$this->svc->isInDownline($U,$xid)) { $X=$xid; break; } }
 
         echo "=== Wallet transfer rule tests ===\n";
-        echo "  relationships: source=$U  sponsor=$SU  downline=$D  unrelated=$X\n";
-        if (!$U || !$SU || !$D || !$X) { echo "  (could not find a full relationship set — abort)\n"; return; }
+        echo "  relationships: source=$U  sponsor=$SU  downline=$D  leg-child=$L  deep-downline=$ND  unrelated=$X\n";
+        if (!$U || !$SU || !$D || !$X || !$L) { echo "  (could not find a full relationship set — abort)\n"; return; }
 
         $adm = function($m,$from,$extra=[]) use ($U) { return array_merge(['mode'=>$m,'source_user_id'=>$U,'from_wallet'=>$from,'amount'=>'1','via'=>'admin'],$extra); };
         $ALLOW = ['ok','insufficient_balance'];
@@ -64,9 +74,11 @@ class Wallettransfertest extends CI_Controller
         $this->assertCode('member earning→downline allowed',  $adm('member','earning',['recipient'=>$D]),  $ALLOW);
         $this->assertCode('member staking→downline allowed',  $adm('member','staking',['recipient'=>$D]),  $ALLOW);
         $this->assertCode('member exchange→NON-downline blocked', $adm('member','exchange',['recipient'=>$X]), 'recipient_not_in_downline');
-        $this->assertCode('member bonus→direct-sponsor allowed',  $adm('member','bonus',['recipient'=>$SU]), $ALLOW);
-        $this->assertCode('member bonus→downline (not sponsor) blocked', $adm('member','bonus',['recipient'=>$D]), 'bonus_only_to_sponsor');
-        $this->assertCode('member bonus→unrelated blocked', $adm('member','bonus',['recipient'=>$X]), 'bonus_only_to_sponsor');
+        // bonus = direct binary leg (left/right) ONLY — one level down, nobody else
+        $this->assertCode('member bonus→direct leg child allowed',  $adm('member','bonus',['recipient'=>$L]), $ALLOW);
+        $this->assertCode('member bonus→direct SPONSOR blocked',    $adm('member','bonus',['recipient'=>$SU]), 'bonus_only_to_direct_legs');
+        if ($ND) $this->assertCode('member bonus→deeper downline blocked', $adm('member','bonus',['recipient'=>$ND]), 'bonus_only_to_direct_legs');
+        $this->assertCode('member bonus→unrelated blocked', $adm('member','bonus',['recipient'=>$X]), 'bonus_only_to_direct_legs');
         $this->assertCode('member exchange→self blocked', $adm('member','exchange',['recipient'=>$U]), 'self_transfer');
 
         // amount / precision / wallet validity
@@ -176,13 +188,42 @@ class Wallettransfertest extends CI_Controller
                 in_array($D,$exIds,true) && !in_array($U,$exIds,true), 'D='.$D.' rows='.count($optsEx));
 
             $optsBonus = $this->svc->recipientOptions($U,'bonus','',50);
-            $bIds = array_map(function($r){ return (int)$r['id']; }, $optsBonus);
-            $sp = $this->svc->directSponsorId($U);
-            $this->assertCode2('recipientOptions(bonus) = direct sponsor only',
-                count($optsBonus)<=1 && (!$sp || $bIds===[$sp]), 'sponsor='.$sp.' rows='.count($optsBonus));
+            $bIds  = array_map(function($r){ return (int)$r['id']; }, $optsBonus);
+            $legs  = $this->svc->directLegChildIds($U);
+            $sp    = $this->svc->directSponsorId($U);
+            $this->assertCode2('recipientOptions(bonus) = direct left/right leg only (max 2, never the sponsor)',
+                count($optsBonus)<=2 && !array_diff($bIds,$legs) && !in_array($sp,$bIds,true),
+                'legs=['.implode(',',$legs).'] sponsor='.$sp.' rows=['.implode(',',$bIds).']');
         }
 
         echo "=== {$this->pass} passed, {$this->fail} failed ===\n";
+    }
+
+    /**
+     * Emit the exact recipient-picker JSON BOTH panels return for a source user,
+     * per wallet — the payload of user/transfer_wallet/search_recipients and of
+     * admin/finance/internal-transfers/recipients, side by side.
+     * Run: php index.php wallettransfertest pickers 2
+     */
+    public function pickers($userId = 2)
+    {
+        $userId = (int)$userId;
+        $legs = $this->svc->directLegChildren($userId);
+        echo "=== recipient pickers for source user #$userId ===\n";
+        echo "  direct legs: left=".($legs['left'] ?: '—')."  right=".($legs['right'] ?: '—')
+             ."   direct sponsor=".$this->svc->directSponsorId($userId)." (no longer a bonus recipient)\n";
+        foreach ($this->svc->wallets() as $w) {
+            $rows = $this->svc->recipientOptions($userId, $w, '', 20);
+            echo "\n-- from_wallet=$w  (rule=".$this->svc->memberRule($w).", ".count($rows)." row(s)) --\n";
+            echo "  USER  : ".json_encode(['status'=>'success','rows'=>$rows])."\n";
+            $results = [];
+            foreach ($rows as $u) {
+                $label = '#'.$u['id'].' '.($u['name'] ?: $u['username']).' ('.$u['referral_id'].')';
+                if (!empty($u['email'])) $label .= ' · '.$u['email'];
+                $results[] = ['id' => (int)$u['id'], 'text' => $label];
+            }
+            echo "  ADMIN : ".json_encode(['results'=>$results,'pagination'=>['more'=>false]])."\n";
+        }
     }
 
     /** Emit the exact tx_detail endpoint JSON for a ref ('member' → latest member, else latest). */

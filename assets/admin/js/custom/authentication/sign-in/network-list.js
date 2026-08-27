@@ -115,6 +115,7 @@ $(document).ready(function(){
                     { data: 'UserInfo' },
                     { data: 'SponserInfo' },
                     { data: 'Rank' },
+                    { data: 'StakingSummary' },
                     { data: 'StakingTotal' },
                     { data: 'KycStatus' },
                     { data: 'WithdrawalRequest' },
@@ -122,7 +123,7 @@ $(document).ready(function(){
                     { data: 'Action' },
                 ],
                 columnDefs: [
-                    { targets: [0, 3, 4, 5, 6, 7], orderable: false }
+                    { targets: [0, 3, 4, 5, 6, 7, 8], orderable: false }
                 ]
             });
             

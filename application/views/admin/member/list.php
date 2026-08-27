@@ -149,6 +149,7 @@
                                                                     <th>Member</th>
                                                                     <th>Sponsor</th>
                                                                     <th>Current Rank</th>
+                                                                    <th>Current Staking</th>
                                                                     <th>Purchased Staking</th>
                                                                     <th>KYC</th>
                                                                     <th>Withdrawal Request</th>
