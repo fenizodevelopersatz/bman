@@ -26,4 +26,23 @@ class ZzTestLogin extends CI_Controller
 
         redirect('admin/wallet/admin-wallet');
     }
+
+    /** Same idea, member session — mirrors Login.php::_complete_login()'s exact keys. */
+    public function user($userId = 2)
+    {
+        $this->load->library('session');
+        $this->load->database();
+        $u = $this->db->get_where('users', ['id' => (int) $userId])->row();
+        if (!$u) { echo 'user not found'; return; }
+
+        $this->session->set_userdata([
+            'user_logged_in' => true,
+            'user_full_name' => $u->username,
+            'user_userid'    => $u->id,
+            'user_email'     => $u->email,
+            'user_login'     => true,
+        ]);
+
+        redirect('user/transfer_wallet');
+    }
 }

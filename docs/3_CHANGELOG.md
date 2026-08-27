@@ -5,7 +5,34 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
-## 2026-08-27 (latest) — Members list: Lock Wallet caption gets a real count
+## 2026-08-27 (latest) — Docs: verified + mapped exchange/earning/staking's downline rule
+
+No application code changed. Per request, rechecked and documented the rule
+the bonus-wallet docs mention in passing but never verified on its own:
+`exchange` / `earning` / `staking` accept any member in the source's
+**sponsor-tree downline, no depth limit** — unlike bonus's 2-level binary-leg
+cap from earlier today.
+
+Verified fresh, two independent paths:
+- **Admin engine** (`admin/finance/internal-transfers/...`): all three wallets
+  return the full 7-member downline for source `#2`, including `#11 Vikram V`
+  at 3 levels — the same node bonus's picker excludes.
+- **The real member-facing page itself** — logged in as user `#2` (a new
+  `ZzTestLogin::user($userId)` dev-only harness method, mirroring the existing
+  `admin()` one), clicked "Send to a Member" in the actual UI, read the
+  rendered dropdown DOM directly: same 7 members, all three wallets.
+
+New doc: [27_08_26_downline_wallet_transfer_rule.md](27_08_26_downline_wallet_transfer_rule.md)
+— rule table, a tree diagram showing the full downline zone with the 6
+bonus-eligible members amber-outlined and Vikram left plain (downline-only,
+the one node that tells the story), and the verification evidence above.
+
+**Apply:** nothing — no application code changed, only docs and a local dev
+harness (`application/controllers/ZzTestLogin.php`, never deployed).
+
+---
+
+## 2026-08-27 — Members list: Lock Wallet caption gets a real count
 
 Same-day follow-up: Lock Wallet showed a static, countless "Currently locked"
 caption while its sibling Matured Staking column already said "N matured" —
