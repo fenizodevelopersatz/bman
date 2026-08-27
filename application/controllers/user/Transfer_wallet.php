@@ -136,9 +136,9 @@ class Transfer_wallet extends MY_Controller
     }
 
     /** AJAX: recipient picker — ONLY the valid recipients for the chosen From
-     *  wallet (downline for exchange/earning/staking, direct left/right binary
-     *  leg members for bonus), optionally filtered by a search query. Requires a
-     *  From wallet first. */
+     *  wallet (downline for exchange/earning/staking, left/right binary leg
+     *  downline — up to bonusLegDepth() levels — for bonus), optionally
+     *  filtered by a search query. Requires a From wallet first. */
     public function search_recipients()
     {
         if (!$this->input->is_ajax_request()) show_404();

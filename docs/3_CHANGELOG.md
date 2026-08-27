@@ -5,7 +5,104 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
-## 2026-08-27 (latest) — Admin ▸ Members list: add Current Staking column, verify withdrawal click-through
+## 2026-08-27 (latest) — Fix: "Matured" count on the Members list read a column no cron ever writes
+
+Reported against the **Current Staking** column added earlier today (see the
+2026-08-27 entry below, "Admin ▸ Members list: add Current Staking column"):
+the `Matured: N` figure should reflect a stake actually completing the term
+(years) the admin configured for it — not just an internal flag.
+
+It didn't. The original query counted `WHERE status = 'matured'`. That status
+value is **never set by any live cron** for `user_stakes` rows —
+`DashboardStats_model::stakingAnalytics()` already documents this exact fact for
+its own platform-wide stat (`user_stakes.status` is only flipped by
+`StakingLifecycle_model::releaseMaturedPrincipal()`, called from a maturity cron
+that operates on `staking_swap_orders`/`roi_staking_management`, a different
+purchase path than every stake in this dataset). So the count would have stayed
+0 forever, even years after a stake's real maturity date — indistinguishable
+from "hasn't matured yet."
+
+- `application/controllers/admin/member/Membermanagement.php` — both the
+  "current" and "matured" halves of the query now compare `maturity_date` to
+  `CURDATE()` instead of trusting `status`, matching the exact predicate
+  `DashboardStats_model` and `Matchingmap_model` already use elsewhere in this
+  admin panel.
+
+**Verified with a temporary synthetic row** (2-year stake for user `#6`,
+`status='active'`, `maturity_date` backdated to 2025-01-01 — deliberately
+*not* `'matured'`, to prove the fix reads the date, not the flag): before the
+fix this stake would have been silently invisible to "Matured"; after the fix,
+`#6`'s row correctly split to `50,000.0000 BMAN` current / `Matured: 1`,
+confirmed live over the real endpoint. Row deleted immediately after
+(`user_stakes` back to its real 8 rows). Real data is unaffected today — none
+of the 8 live stakes have reached their (2031) maturity date yet, so every
+member still correctly reads `Matured: 0`; the fix changes what happens once
+they do, not what's shown right now.
+
+**Apply:** no SQL, no routes. Hard-refresh.
+
+---
+
+## 2026-08-27 — Bonus Coin Transfer: widen direct leg (1 level) → binary leg downline (2 levels)
+
+Same-day follow-up to
+[27_08_26_bonus_transfer_rule_1.md](27_08_26_bonus_transfer_rule_1.md), per
+explicit instruction against the published tree diagram: bonus recipients grow
+from "the direct left/right leg member only" to "everyone within **2 levels**
+down the left or right binary leg."
+
+**Worked example, verified over live HTTP and the real admin UI (source `#2`):**
+
+| Level | Left leg | Right leg |
+|---|---|---|
+| 1 | `#8` NEXMAN591373 — allowed | `#5` NEXMAN715985 — allowed |
+| 2 | `#9` NEXMAN397920, `#10` NEXMAN471834 — allowed | `#6` NEXMAN831941, `#7` NEXMAN992152 — allowed |
+| 3 | `#11` NEXMAN767566 (child of `#10`) — **rejected**, past the cap | — |
+
+That is exactly the set and boundary given in the request. The sponsor and any
+sibling branch remain rejected, same as before.
+
+- `application/models/wallet/Wallettransferservice_model.php` — new
+  `$bonusLegDepth = 2` property; new `binaryLegDownline()` /
+  `binaryLegDownlineIds()` / `binaryLegSide()` (one recursive
+  `WITH RECURSIVE … WHERE depth < ?` query per call, same pattern as
+  `BinaryModel`'s existing subtree queries — tags each descendant with which
+  top-level leg it fell under so "left"/"right" survives past depth 1).
+  `memberRule('bonus')` renamed `direct_legs` → `binary_leg_downline`; reject
+  code `bonus_only_to_direct_legs` → `bonus_only_to_binary_leg_downline`. The
+  1-hop `directLegChildren()`/`directLegChildIds()` helpers are kept as-is
+  (still accurate, just no longer what bonus uses).
+- `assets/js/wallet_transfer_ui.js` — rule key + hint text updated to match.
+- `application/controllers/Wallettransfertest.php` — test discovery now walks
+  a full 3-deep chain (leg → grandchild → great-grandchild) so the suite
+  exercises the actual depth-2/depth-3 boundary, not just "has a leg"; picker
+  assertion's ceiling is now depth-aware (`2·(2^depth−1)`) instead of a
+  hardcoded 2.
+- Comments only: `controllers/user/Transfer_wallet.php`,
+  `controllers/admin/wallet/Internaltransfers.php`,
+  `views/admin/wallet/internal_transfers.php`.
+- `docs/16_WALLET_TRANSFER_ENGINE.md` — rule table, validation summary, picker
+  scoping and test counts updated to the depth-2 rule.
+
+**Also noted, not changed:** Admin ▸ Staking ▸ Bonus & Matching
+(`admin/staking/bonus-settings`) has its own `transfer_enabled` /
+`transfer_to_direct_left` / `transfer_to_direct_right` toggles, persisted by
+`Staking_model::saveBonusSettings()`. Grepped the codebase — nothing reads
+those columns anywhere. That panel doesn't gate or describe the rule this
+engine actually enforces; it's dead UI, unrelated to today's change, left
+untouched.
+
+**Apply:** no SQL, no routes. Hard-refresh so the updated
+`wallet_transfer_ui.js` is picked up.
+
+**Effect:** verified through the real select2 dropdown in a live browser (not
+just curl) — with sender `#2` and `from_wallet=bonus`, the recipient list now
+renders exactly 6 members in shallowest-first order: `#8, #5, #9, #10, #6, #7`.
+Tests: **20/20** rule, **6/6** UI.
+
+---
+
+## 2026-08-27 — Admin ▸ Members list: add Current Staking column, verify withdrawal click-through
 
 Per an annotated screenshot of `/network-member`: a new column between **Current
 Rank** and **Purchased Staking**, plus a check that the **Withdrawal Request**

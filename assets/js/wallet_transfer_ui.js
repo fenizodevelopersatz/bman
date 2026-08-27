@@ -19,10 +19,10 @@
   /* ----- rule mirror (display/disable only; server re-enforces everything) --- */
   var WALLET_LABEL = { exchange: 'Exchange Wallet', earning: 'Earning Wallet', staking: 'Staking Wallet', bonus: 'Bonus Wallet' };
   var INTERNAL_PAIRS = { exchange: ['bonus', 'earning', 'staking'] };            // Exchange is source-only
-  var MEMBER_RULE = { exchange: 'downline', earning: 'downline', staking: 'downline', bonus: 'direct_legs' };
+  var MEMBER_RULE = { exchange: 'downline', earning: 'downline', staking: 'downline', bonus: 'binary_leg_downline' };
   var MEMBER_RULE_TEXT = {
     downline: "Recipient must be in the source user's downline.",
-    direct_legs: "Bonus can only be transferred to the source user's direct left or direct right leg member."
+    binary_leg_downline: "Bonus can only be transferred to a member within 2 levels down the source user's left or right binary leg."
   };
 
   var cfg = {

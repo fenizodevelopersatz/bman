@@ -8,6 +8,14 @@ Engine doc: [16_WALLET_TRANSFER_ENGINE.md](16_WALLET_TRANSFER_ENGINE.md) ·
 Module doc: [9_INTERNAL_WALLET_TRANSFER.md](9_INTERNAL_WALLET_TRANSFER.md) ·
 Changelog: [3_CHANGELOG.md](3_CHANGELOG.md).
 
+> **Superseded the same day.** The "one edge, direct leg only" depth below was
+> widened to **2 levels** a few hours later — see the 2026-08-27 changelog
+> entry titled "Bonus Coin Transfer: widen direct leg (1 level) → binary leg
+> downline (2 levels)" and [16_WALLET_TRANSFER_ENGINE.md](16_WALLET_TRANSFER_ENGINE.md)
+> for the current rule. Kept below as the historical record of what shipped
+> first; the mermaid diagrams and the "1 recipient" eligibility counts in §7
+> now describe the *original* depth-1 rule, not the current one.
+
 ---
 
 ## 1. The rule

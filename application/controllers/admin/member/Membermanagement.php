@@ -197,16 +197,25 @@ class  Membermanagement extends CI_Controller {
         }
     }
 
-    // Current Staking Summation (principal still processing/active, i.e. not yet
-    // matured/withdrawn/cancelled) + a matured-package count, from user_stakes —
+    // Current Staking Summation (principal still locked, i.e. within its
+    // admin-configured term) + a matured-package count, from user_stakes —
     // deliberately separate from 'purchased_staking' below, which only counts the
     // on-chain swap-purchase path (staking_swap_orders) and stays 0 for any stake
     // added through another route. One batch query for the whole page.
+    //
+    // status='matured' is NEVER set by any live cron for these rows (same fact
+    // DashboardStats_model::stakingAnalytics() already documents — the maturity
+    // crons operate on staking_swap_orders/roi_staking_management, not
+    // user_stakes), so it would silently read 0 forever even long after a stake's
+    // term is up. Compute maturity from maturity_date vs today instead — the same
+    // predicate DashboardStats_model and Matchingmap_model already use — so
+    // 'matured' actually means "reached the number of years the admin configured
+    // for this plan," not "a cron happened to flip a column."
     $stakingByUser = [];
     if ($userIds) {
         foreach ($this->db->select('user_id,
-                    SUM(CASE WHEN status IN ("processing","active") THEN stake_amount ELSE 0 END) AS current_total,
-                    SUM(CASE WHEN status = "matured" THEN 1 ELSE 0 END) AS matured_count', false)
+                    SUM(CASE WHEN status IN ("processing","active") AND maturity_date > CURDATE() THEN stake_amount ELSE 0 END) AS current_total,
+                    SUM(CASE WHEN status IN ("processing","active") AND maturity_date <= CURDATE() THEN 1 ELSE 0 END) AS matured_count', false)
                           ->where_in('user_id', $userIds)
                           ->group_by('user_id')
                           ->get('user_stakes')->result_array() as $sk) {

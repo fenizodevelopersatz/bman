@@ -9,9 +9,12 @@
  *
  * Member transfers (to another user):
  *   exchange / earning / staking → any member in the SOURCE user's downline
- *   bonus                        → ONLY the source user's DIRECT LEFT or DIRECT
- *                                  RIGHT binary-leg member (binary_placement
- *                                  children, one level down — nobody else)
+ *   bonus                        → the source user's LEFT or RIGHT binary leg,
+ *                                  up to $bonusLegDepth levels down
+ *                                  (binary_placement descendants; 2026-08-27
+ *                                  widened from 1 level to 2 per explicit
+ *                                  instruction — nobody outside those two
+ *                                  subtrees, however deep)
  * Internal transfers (source user's own wallets):
  *   exchange → bonus | earning | staking   (Exchange is SOURCE-ONLY; never receives)
  *   no reverse, no other pairs
@@ -29,6 +32,8 @@ class Wallettransferservice_model extends CI_Model
     /** Internal (own-wallet) allowed directions — Exchange source-only. */
     private $internalPairs = ['exchange' => ['bonus', 'earning', 'staking']];
     private $settleSettingsCache = null;
+    /** How many binary-tree levels down each leg the bonus wallet may reach. */
+    private $bonusLegDepth = 2;
 
     public function __construct()
     {
@@ -38,11 +43,12 @@ class Wallettransferservice_model extends CI_Model
 
     public function wallets() { return $this->wallets; }
     public function internalPairs() { return $this->internalPairs; }
+    public function bonusLegDepth() { return $this->bonusLegDepth; }
     /** Member transfer: which recipient constraint applies to each source wallet. */
     public function memberRule($wallet)
     {
         if (in_array($wallet, ['exchange','earning','staking'], true)) return 'downline';
-        if ($wallet === 'bonus') return 'direct_legs';
+        if ($wallet === 'bonus') return 'binary_leg_downline';
         return null;
     }
 
@@ -98,6 +104,78 @@ class Wallettransferservice_model extends CI_Model
         return array_values(array_filter($this->directLegChildren($userId)));
     }
 
+    /**
+     * Everyone within $maxLevel binary-tree levels down the source's LEFT leg
+     * and RIGHT leg — the set the bonus wallet may transfer to. One recursive
+     * query (same WITH RECURSIVE + depth-cap pattern as BinaryModel), tagging
+     * each descendant with which top-level leg it fell under (root_leg) so
+     * "left" and "right" stay distinguishable at any depth, not just depth 1.
+     * @return array ['left' => [userId,...], 'right' => [userId,...]] each
+     *   ordered shallowest-first, then by id; a leg with no placement is [].
+     */
+    public function binaryLegDownline($userId, $maxLevel = null)
+    {
+        $out = ['left' => [], 'right' => []];
+        foreach ($this->_binaryLegDownlineRows($userId, $maxLevel) as $r) {
+            $out[$r['root_leg']][] = $r['user_id'];
+        }
+        return $out;
+    }
+
+    /**
+     * binaryLegDownline() flattened to one id list, ordered shallowest-first —
+     * level 1 (left, right), then level 2 (left, right), etc. — rather than
+     * "all of the left leg, then all of the right leg", so the closest
+     * relatives lead the recipient picker regardless of which side they're on.
+     */
+    public function binaryLegDownlineIds($userId, $maxLevel = null)
+    {
+        $ids = array_column($this->_binaryLegDownlineRows($userId, $maxLevel), 'user_id');
+        return array_values(array_unique($ids));
+    }
+
+    /** Raw (user_id, root_leg, depth) rows for binaryLegDownline*(), depth-then-side ordered. */
+    private function _binaryLegDownlineRows($userId, $maxLevel = null)
+    {
+        $userId = (int)$userId;
+        $maxLevel = $maxLevel === null ? $this->bonusLegDepth : (int)$maxLevel;
+        if (!$userId || $maxLevel < 1) return [];
+
+        $sql = "
+            WITH RECURSIVE leg_downline AS (
+                SELECT bp.user_id, bp.position AS root_leg, 1 AS depth
+                FROM binary_placement bp
+                WHERE bp.parent_id = ?
+
+                UNION ALL
+
+                SELECT c.user_id, d.root_leg, d.depth + 1
+                FROM binary_placement c
+                JOIN leg_downline d ON d.user_id = c.parent_id
+                WHERE d.depth < ?
+            )
+            SELECT user_id, root_leg, depth FROM leg_downline ORDER BY depth, root_leg, user_id
+        ";
+        $out = [];
+        foreach ($this->db->query($sql, [$userId, $maxLevel])->result_array() as $r) {
+            $side = strtolower((string)$r['root_leg']);
+            if ($side === 'left' || $side === 'right') {
+                $out[] = ['user_id' => (int)$r['user_id'], 'root_leg' => $side, 'depth' => (int)$r['depth']];
+            }
+        }
+        return $out;
+    }
+
+    /** Which leg $recipientId falls under in $sourceId's binaryLegDownline(), or '' if neither. */
+    public function binaryLegSide($sourceId, $recipientId, $maxLevel = null)
+    {
+        $legs = $this->binaryLegDownline($sourceId, $maxLevel);
+        $recipientId = (int)$recipientId;
+        if (in_array($recipientId, $legs['left'], true)) return 'left';
+        if (in_array($recipientId, $legs['right'], true)) return 'right';
+        return '';
+    }
+
     /** True if $recipientId is in $sourceId's downline (walk the sponsor chain up). */
     public function isInDownline($sourceId, $recipientId)
     {
@@ -144,7 +222,8 @@ class Wallettransferservice_model extends CI_Model
      * that pass the member rule, optionally filtered by a search term. Used to scope
      * the recipient pickers in BOTH panels so users can't pick an invalid recipient.
      *   exchange/earning/staking → the source's downline
-     *   bonus                    → the source's direct left/right leg members only
+     *   bonus                    → the source's left/right binary leg, up to
+     *                              bonusLegDepth() levels down
      * @return array [ ['id','username','name','email','referral_id'], ... ]
      */
     public function recipientOptions($sourceId, $fromWallet, $q = '', $limit = 20)
@@ -155,16 +234,20 @@ class Wallettransferservice_model extends CI_Model
         $q = trim((string)$q);
         $sel = 'id, username, name, email, referral_id';
 
-        if ($rule === 'direct_legs') {
-            $legIds = $this->directLegChildIds($sourceId);   // left leg first
+        if ($rule === 'binary_leg_downline') {
+            $legIds = $this->binaryLegDownlineIds($sourceId);   // left leg first, shallow-to-deep
             if (empty($legIds)) return [];
             $this->db->select($sel)->from('users')->where('status', '1')->where_in('id', $legIds);
             if ($q !== '') {
                 $this->db->group_start()->like('username', $q)->or_like('email', $q)
                          ->or_like('referral_id', $q)->or_like('name', $q)->or_like('id', $q)->group_end();
             }
-            $rows = $this->db->limit(max(2, (int)$limit))->get()->result_array();
-            // present them in leg order (left, then right) rather than by id
+            // A full binary subtree of depth N holds up to 2*(2^N - 1) members —
+            // never truncate the legal recipient set below that just because a
+            // caller passed a small $limit.
+            $floor = 2 * ((int)pow(2, $this->bonusLegDepth) - 1);
+            $rows = $this->db->limit(max($floor, (int)$limit))->get()->result_array();
+            // present them in leg + depth order (left leg shallow-to-deep, then right) rather than by id
             $order = array_flip($legIds);
             usort($rows, function ($a, $b) use ($order) {
                 return $order[(int)$a['id']] - $order[(int)$b['id']];
@@ -244,12 +327,15 @@ class Wallettransferservice_model extends CI_Model
             if ($recipientId === $src) return $this->_no('self_transfer', 'Cannot transfer to yourself in a member transfer.');
             if ((string)$rec['status'] !== '1') return $this->_no('recipient_inactive', 'Recipient account is inactive or blocked.');
             $rule = $this->memberRule($from);
-            if ($rule === 'direct_legs') {
-                // Bonus moves one level DOWN the binary tree only: to the direct
-                // left or direct right leg member, nobody else (not the sponsor,
-                // not deeper downline, not a sibling).
-                if (!in_array($recipientId, $this->directLegChildIds($src), true))
-                    return $this->_no('bonus_only_to_direct_legs', 'Bonus wallet can only be transferred to your direct left or direct right leg member.');
+            if ($rule === 'binary_leg_downline') {
+                // Bonus moves DOWN the binary tree only, within the source's LEFT
+                // leg or RIGHT leg — up to bonusLegDepth levels deep. Nobody
+                // outside those two subtrees (not the sponsor, not a sibling
+                // branch), and nobody past the depth cap within them.
+                if (!in_array($recipientId, $this->binaryLegDownlineIds($src), true))
+                    return $this->_no('bonus_only_to_binary_leg_downline',
+                        'Bonus wallet can only be transferred to a member within ' . $this->bonusLegDepth .
+                        ' level(s) down your left or right binary leg.');
             } elseif ($rule === 'downline') {
                 if (!$this->isInDownline($src, $recipientId))
                     return $this->_no('recipient_not_in_downline', 'Recipient must be in your downline.');
@@ -566,21 +652,21 @@ class Wallettransferservice_model extends CI_Model
         $checks[] = ['key'=>'wallet_rule', 'label'=>'Wallet direction rule', 'applies'=>true, 'status'=>$ok,
                      'detail'=>$isMember ? (ucfirst($h['from_wallet']).' → recipient '.ucfirst($h['to_wallet']))
                                          : (ucfirst($h['from_wallet']).' → '.ucfirst($h['to_wallet']).' (Exchange source-only)')];
-        // downline / direct-leg only for member transfers
+        // downline / binary-leg-downline only for member transfers
         $checks[] = ['key'=>'downline', 'label'=>'Downline validation',
                      'applies'=>($isMember && $memberRule === 'downline'), 'status'=>($isMember && $memberRule==='downline') ? $ok : 'n/a',
                      'detail'=>($isMember && $memberRule==='downline') ? 'Recipient is in the source user\'s downline' : 'Not applicable'];
-        $legApplies = ($isMember && $memberRule === 'direct_legs');
+        $legApplies = ($isMember && $memberRule === 'binary_leg_downline');
         $legDetail  = 'Not applicable';
         if ($legApplies) {
-            $legs = $this->directLegChildren($src);
-            $side = ((int)$legs['left'] === $rcp) ? 'left' : (((int)$legs['right'] === $rcp) ? 'right' : '');
-            // Rows written before this rule existed can name a recipient that is
-            // not a leg child — report the rule, don't claim a leg that isn't there.
-            $legDetail = $side ? 'Recipient is the source user\'s direct '.$side.' leg member'
-                               : 'Direct left/right leg rule applied';
+            $side = $this->binaryLegSide($src, $rcp);
+            // Rows written under an earlier, narrower version of this rule (or
+            // before it existed) can name a recipient outside today's rule —
+            // report the rule, don't claim a leg that isn't there.
+            $legDetail = $side ? 'Recipient is within '.$this->bonusLegDepth.' level(s) down the source user\'s '.$side.' binary leg'
+                               : 'Left/right binary leg downline rule applied';
         }
-        $checks[] = ['key'=>'direct_legs', 'label'=>'Direct leg validation',
+        $checks[] = ['key'=>'binary_leg_downline', 'label'=>'Binary leg downline validation',
                      'applies'=>$legApplies, 'status'=>$legApplies ? $ok : 'n/a', 'detail'=>$legDetail];
         // user-panel gates
         $checks[] = ['key'=>'transfer_password', 'label'=>'Transfer password',
