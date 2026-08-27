@@ -14,7 +14,7 @@ $wtx_panel   = isset($wtx_panel)   ? $wtx_panel   : 'user';
 $wtx_preview = isset($wtx_preview) ? $wtx_preview : '';
 $wtx_detail  = isset($wtx_detail)  ? $wtx_detail  : '';
 ?>
-<script src="<?= base_url('assets/js/wallet_transfer_ui.js') ?>?v=1"></script>
+<script src="<?= base_url('assets/js/wallet_transfer_ui.js') ?>?v=2"></script>
 <script>
 (function () {
   function boot() {

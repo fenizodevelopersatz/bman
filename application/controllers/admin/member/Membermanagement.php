@@ -215,13 +215,17 @@ class  Membermanagement extends CI_Controller {
     if ($userIds) {
         foreach ($this->db->select('user_id,
                     SUM(CASE WHEN status IN ("processing","active") AND maturity_date > CURDATE() THEN stake_amount ELSE 0 END) AS current_total,
-                    SUM(CASE WHEN status IN ("processing","active") AND maturity_date <= CURDATE() THEN 1 ELSE 0 END) AS matured_count', false)
+                    SUM(CASE WHEN status IN ("processing","active") AND maturity_date > CURDATE() THEN 1 ELSE 0 END) AS current_count,
+                    SUM(CASE WHEN status IN ("processing","active") AND maturity_date <= CURDATE() THEN 1 ELSE 0 END) AS matured_count,
+                    SUM(CASE WHEN status IN ("processing","active") AND maturity_date <= CURDATE() THEN stake_amount ELSE 0 END) AS matured_total', false)
                           ->where_in('user_id', $userIds)
                           ->group_by('user_id')
                           ->get('user_stakes')->result_array() as $sk) {
             $stakingByUser[(int) $sk['user_id']] = [
-                'current' => (float) $sk['current_total'],
-                'matured' => (int) $sk['matured_count'],
+                'current'      => (float) $sk['current_total'],
+                'currentCount' => (int) $sk['current_count'],
+                'matured'      => (int) $sk['matured_count'],
+                'maturedTotal' => (float) $sk['matured_total'],
             ];
         }
     }
@@ -249,7 +253,7 @@ class  Membermanagement extends CI_Controller {
         $withdrawUrl = !empty($user['pending_withdraw_id'])
             ? base_url('admin/bman-withdrawals/view/' . (int) $user['pending_withdraw_id'])
             : '';
-        $staking = $stakingByUser[(int) $user['id']] ?? ['current' => 0.0, 'matured' => 0];
+        $staking = $stakingByUser[(int) $user['id']] ?? ['current' => 0.0, 'currentCount' => 0, 'matured' => 0, 'maturedTotal' => 0.0];
 
         $data[] = [
             'RecordID' => $start + $index + 1,
@@ -259,8 +263,18 @@ class  Membermanagement extends CI_Controller {
                 '<span class="text-muted fs-8">' . html_escape($user['register_date']) . '</span>' . $frozenBadge . '</div></div>',
             'SponserInfo' => '<div class="fw-bold text-gray-800">' . html_escape($sponsorReferral) . '</div><div class="text-muted fs-7">' . html_escape($sponsorEmail) . '</div>',
             'Rank' => rank_cell_html($rankByUser[(int) $user['id']] ?? null, 26),
-            'StakingSummary' => '<div class="fw-bolder text-gray-900">' . number_format($staking['current'], 4) . ' BMAN</div><div class="text-muted fs-8">Matured: ' . $staking['matured'] . '</div>',
-            'StakingTotal' => '<div class="fw-bolder text-gray-900">' . number_format((float) $user['purchased_staking'], 4) . ' BMAN</div><div class="text-muted fs-8">Completed purchases</div>',
+            // Lock Wallet — principal still locked (within its admin-configured
+            // term), + how many packages make up that sum — mirrors the "N
+            // matured" caption on Matured Staking below instead of a static,
+            // countless "Currently locked" label.
+            'StakingSummary' => '<div class="fw-bolder text-gray-900">' . number_format($staking['current'], 4) . ' BMAN</div><div class="text-muted fs-8">' . $staking['currentCount'] . ' locked</div>',
+            // Matured Staking — repurposes the old 'Purchased Staking' column
+            // (which only ever read staking_swap_orders, always 0 for every
+            // stake in this dataset since none were bought through that path)
+            // to show what actually matters here: principal that's reached the
+            // end of its admin-configured term. $user['purchased_staking'] is
+            // untouched and still feeds the CSV export unchanged.
+            'StakingTotal' => '<div class="fw-bolder text-gray-900">' . number_format($staking['maturedTotal'], 4) . ' BMAN</div><div class="text-muted fs-8">' . $staking['matured'] . ' matured</div>',
             'KycStatus' => '<a href="' . $kycUrl . '" class="badge badge-light-' . $kycClass . ' text-hover-primary" title="Open KYC review">' . html_escape(strtoupper(str_replace('_', ' ', $kyc))) . '</a>',
             'WithdrawalRequest' => $pendingCount > 0
                 ? '<a href="' . $withdrawUrl . '" class="d-block text-decoration-none" title="Open withdrawal request"><div class="fw-bold text-warning">' . $pendingCount . ' pending</div><div class="text-muted fs-7">' . number_format($pendingAmount, 4) . ' BMAN</div></a>'

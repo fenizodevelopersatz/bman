@@ -5,7 +5,102 @@ Chronological record of work on the landing/home page module. Each entry lists
 
 ---
 
-## 2026-08-27 (latest) — Fix: "Matured" count on the Members list read a column no cron ever writes
+## 2026-08-27 (latest) — Members list: Lock Wallet caption gets a real count
+
+Same-day follow-up: Lock Wallet showed a static, countless "Currently locked"
+caption while its sibling Matured Staking column already said "N matured" —
+per direct instruction, made them symmetric. A member who bought one package
+now reads "1 locked", not just a repeated label with no number attached.
+
+- `application/controllers/admin/member/Membermanagement.php` — query adds
+  `current_count` (COUNT of the same still-locked rows `current_total` already
+  sums); Lock Wallet's caption is now `{count} locked`.
+
+**Verified live**, no synthetic data needed this time — real seed data already
+covers every case: every member with one active stake reads "1 locked"
+(matches the user's own annotation on `#2`, who has exactly one 100,000 BMAN
+stake); `#3` and Admin, who have none, correctly read "0 locked". Zero console
+errors on a fresh tab.
+
+**Apply:** no SQL, no routes. Hard-refresh.
+
+---
+
+## 2026-08-27 — Members list: split Lock Wallet and Matured into two columns
+
+Same-day follow-up: rather than cramming the matured badge into the Lock
+Wallet cell, per direct instruction give Matured its own column — the old
+**Purchased Staking** column, which was pure dead weight (`staking_swap_orders`
+based, always read 0.0000 BMAN for every stake in this dataset since none were
+bought through that path) is repurposed instead of leaving a redundant third
+column.
+
+- **Lock Wallet** — back to a plain amount + "Currently locked" caption, no
+  badge competing for space.
+- **Purchased Staking → Matured Staking** — now shows the SUM of matured
+  principal (not just the count) + "N matured" caption. Header tooltip states
+  the definition (completed its full admin-configured term).
+- `$user['purchased_staking']` (the old swap-orders figure) is **untouched** —
+  still feeds the CSV export at `export_members()` exactly as before. Only the
+  on-screen cell's content changed; the underlying `Users_model` query and the
+  DataTables field keys (`StakingSummary`/`StakingTotal`) are unchanged, so
+  `network-list.js` needed no edit.
+- `application/controllers/admin/member/Membermanagement.php` — query adds
+  `matured_total` (SUM of matured stake_amount); both cells rewritten.
+- `application/views/admin/member/list.php` — `<th>` renamed + tooltip.
+
+**Verified live** (browser): backdated a temporary stake for Nagarathianam P K
+(`#7`) — his row correctly split to `Lock Wallet: 50,000.0000 BMAN` (his real,
+still-active stake, untouched) / `Matured Staking: 3,333.0000 BMAN · 1 matured`
+(the test stake). Deleted immediately after; `user_stakes` back to its real 8
+rows, zero console errors on a fresh tab.
+
+**Apply:** no SQL, no routes. Hard-refresh.
+
+---
+
+## 2026-08-27 — Members list: rename "Current Staking" → "Lock Wallet", matured badge moved to the right
+
+Two cosmetic follow-ups on the column added earlier today, per an annotated
+screenshot.
+
+**Header renamed.** "Current Staking" → **"Lock Wallet"** — not invented fresh:
+grepped the app for how this exact figure (BMAN principal still locked in an
+active/processing stake, excluding anything past its maturity date) is already
+labeled elsewhere, and it's "Lock Wallet" everywhere — the admin Dashboard tile
+(`_staking_analytics.php`: *"Lock Wallet (BMAN) — excludes packages that
+already reached maturity"*, backed by the identical
+`status IN ('active','processing') AND maturity_date > CURDATE()` predicate),
+the user's own wallet page, and the admin Binary Matching genealogy tree. Using
+the same word the rest of the app already uses for the same number, instead of
+a new synonym. Added a `title` tooltip on the header spelling out the
+definition for admins who haven't seen it elsewhere.
+
+**Matured badge moved to the right of the amount**, in its own row via flex
+`justify-content:space-between`, instead of stacked as a muted line underneath
+— was easy to misread as part of the amount. Colored conditionally
+(`badge-light-success` when `> 0`, `badge-light-secondary` at `0`) so a
+member with something actually matured is visually distinct from the common
+case, matching the KYC badge's existing color-by-state pattern in this same
+table.
+
+- `application/views/admin/member/list.php` — `<th>` text + tooltip.
+- `application/controllers/admin/member/Membermanagement.php` — cell markup
+  only; the underlying query (from the previous fix) is untouched.
+
+**Verified live** (browser, not just the JSON): amount renders left of the
+badge (`amountIsLeftOfBadge: true`, confirmed via `getBoundingClientRect()`),
+header text reads "Lock Wallet". Re-ran the same backdated-stake technique as
+the previous fix — this time on **Sangeetha V (`#9`)** — and confirmed the
+badge itself flips color live: `badge-light-secondary` → `badge-light-success`
+the moment her matured count went 0 → 1, then back after the test row was
+deleted. `user_stakes` is back to its real 8 rows.
+
+**Apply:** no SQL, no routes. Hard-refresh.
+
+---
+
+## 2026-08-27 — Fix: "Matured" count on the Members list read a column no cron ever writes
 
 Reported against the **Current Staking** column added earlier today (see the
 2026-08-27 entry below, "Admin ▸ Members list: add Current Staking column"):

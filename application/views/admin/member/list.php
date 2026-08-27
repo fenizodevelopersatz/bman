@@ -149,8 +149,8 @@
                                                                     <th>Member</th>
                                                                     <th>Sponsor</th>
                                                                     <th>Current Rank</th>
-                                                                    <th>Current Staking</th>
-                                                                    <th>Purchased Staking</th>
+                                                                    <th title="BMAN principal still locked in an active/processing stake — excludes packages that already reached maturity. Same figure and definition as the Dashboard's Lock Wallet tile.">Lock Wallet</th>
+                                                                    <th title="Principal that has completed its full admin-configured staking period (maturity date reached) and is no longer locked.">Matured Staking</th>
                                                                     <th>KYC</th>
                                                                     <th>Withdrawal Request</th>
                                                                     <th>Status</th>
@@ -231,7 +231,7 @@
             <script>
             const base_url = '<?php echo base_url();?>';
             </script>
-            <script src="<?php echo base_url();?>/assets/admin/js/custom/authentication/sign-in/network-list.js?ver=3.4"></script>
+            <script src="<?php echo base_url();?>/assets/admin/js/custom/authentication/sign-in/network-list.js?ver=3.5"></script>
             <script>
             </script>
     </body>
