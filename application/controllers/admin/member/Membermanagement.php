@@ -36,34 +36,80 @@ class  Membermanagement extends CI_Controller {
         $search = trim((string) $this->input->get('search', true));
         $rows = $this->Users_model->get_export($clients, $fromDate, $toDate, $search);
 
-        $filename = 'members-' . date('Y-m-d-His') . '.csv';
-        $this->output
-            ->set_header('Content-Type: text/csv; charset=UTF-8')
-            ->set_header('Content-Disposition: attachment; filename="' . $filename . '"')
-            ->set_header('Cache-Control: no-store, no-cache, must-revalidate');
+        // Same Current Rank / Lock Wallet / Matured Staking figures as the
+        // on-screen table (Membermanagement::list()) — kept in sync with it so
+        // the export always matches what's currently visible, not the retired
+        // 'Purchased Staking' (staking_swap_orders-only) figure this used to show.
+        $userIds = array_map(function ($r) { return (int) $r['id']; }, $rows);
+        $rankByUser = [];
+        $stakingByUser = [];
+        if ($userIds) {
+            foreach ($this->db->select('user_id, current_rank_id')
+                              ->where_in('user_id', $userIds)
+                              ->get('user_ranks')->result_array() as $rk) {
+                $rankByUser[(int) $rk['user_id']] = $rk['current_rank_id'];
+            }
+            foreach ($this->db->select('user_id,
+                        SUM(CASE WHEN status IN ("processing","active") AND maturity_date > CURDATE() THEN stake_amount ELSE 0 END) AS current_total,
+                        SUM(CASE WHEN status IN ("processing","active") AND maturity_date > CURDATE() THEN 1 ELSE 0 END) AS current_count,
+                        SUM(CASE WHEN status IN ("processing","active") AND maturity_date <= CURDATE() THEN 1 ELSE 0 END) AS matured_count,
+                        SUM(CASE WHEN status IN ("processing","active") AND maturity_date <= CURDATE() THEN stake_amount ELSE 0 END) AS matured_total', false)
+                              ->where_in('user_id', $userIds)
+                              ->group_by('user_id')
+                              ->get('user_stakes')->result_array() as $sk) {
+                $stakingByUser[(int) $sk['user_id']] = [
+                    'current'      => (float) $sk['current_total'],
+                    'currentCount' => (int) $sk['current_count'],
+                    'matured'      => (int) $sk['matured_count'],
+                    'maturedTotal' => (float) $sk['matured_total'],
+                ];
+            }
+        }
 
-        $stream = fopen('php://output', 'w');
+        // Rank name fallback mirrors rank_helper.php's rank_cell_html(): the
+        // member's own rank, else the lowest-tier active rank, else an em-dash.
+        $rankNameById = [];
+        $baseRankName = '';
+        foreach ($this->db->select('id, name, tier_level, is_active')->order_by('tier_level', 'ASC')->get('staking_ranks')->result_array() as $r) {
+            $rankNameById[(int) $r['id']] = $r['name'];
+            if ($baseRankName === '' && (int) $r['is_active'] === 1) $baseRankName = $r['name'];
+        }
+
+        $stream = fopen('php://temp', 'r+');
         fputs($stream, "\xEF\xBB\xBF");
-        fputcsv($stream, ['Member ID', 'Name', 'Referral ID', 'Email', 'Sponsor ID', 'Sponsor Email', 'Purchased Staking (BMAN)', 'KYC Status', 'Pending Withdrawals', 'Pending Withdrawal Amount (BMAN)', 'Status', 'Registered']);
+        fputcsv($stream, ['Member ID', 'Name', 'Referral ID', 'Email', 'Registered', 'Sponsor ID', 'Sponsor Email', 'Current Rank', 'Lock Wallet (BMAN)', 'Locked Packages', 'Matured Staking (BMAN)', 'Matured Packages', 'KYC Status', 'Pending Withdrawals', 'Pending Withdrawal Amount (BMAN)', 'Status']);
         foreach ($rows as $row) {
+            $id = (int) $row['id'];
             $name = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')) ?: ($row['name'] ?: $row['username']);
+            $rankId = $rankByUser[$id] ?? null;
+            $rankName = ($rankId && isset($rankNameById[(int) $rankId])) ? $rankNameById[(int) $rankId] : ($baseRankName ?: '—');
+            $staking = $stakingByUser[$id] ?? ['current' => 0.0, 'currentCount' => 0, 'matured' => 0, 'maturedTotal' => 0.0];
+            $status = !empty($row['account_frozen']) ? 'Frozen' : ((int) $row['status'] === 1 ? 'Active' : 'Inactive');
+
             fputcsv($stream, [
-                $row['id'],
+                $id,
                 $name,
                 $row['referral_id'],
                 $row['email'],
+                $row['register_date'],
                 $row['sponsor_referral'] ?: 'Main - Admin',
                 $row['sponsor_email'] ?: 'Main - Admin',
-                number_format((float) $row['purchased_staking'], 8, '.', ''),
+                $rankName,
+                number_format($staking['current'], 4, '.', ''),
+                $staking['currentCount'],
+                number_format($staking['maturedTotal'], 4, '.', ''),
+                $staking['matured'],
                 strtoupper((string) $row['kyc_status']),
                 (int) $row['pending_withdraw_count'],
                 number_format((float) $row['pending_withdraw_amount'], 8, '.', ''),
-                (int) $row['status'] === 1 ? 'Active' : 'Inactive',
-                $row['register_date'],
+                $status,
             ]);
         }
+        rewind($stream);
+        $csv = stream_get_contents($stream);
         fclose($stream);
-        exit;
+
+        force_download('members-' . date('Y-m-d-His') . '.csv', $csv);
     }
 
     /*

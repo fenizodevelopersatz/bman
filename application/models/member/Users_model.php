@@ -179,9 +179,8 @@ class Users_model extends CI_Model
         $this->memberListQuery($client_filter, $from_date, $to_date, $search);
         return $this->db->select('
             u.id, u.name, u.first_name, u.last_name, u.username, u.referral_id,
-            u.email, u.register_date, u.status, u.kyc_status,
+            u.email, u.register_date, u.status, u.kyc_status, u.account_frozen,
             s.referral_id AS sponsor_referral, s.email AS sponsor_email,
-            COALESCE((SELECT SUM(sso.bman_amount) FROM staking_swap_orders sso WHERE sso.user_id = u.id AND sso.status = "swap_completed"), 0) AS purchased_staking,
             COALESCE((SELECT COUNT(*) FROM bman_withdraw_requests bwr WHERE bwr.user_id = u.id AND bwr.status IN ("pending","approved","processing")), 0) AS pending_withdraw_count,
             COALESCE((SELECT SUM(bwr.request_amount) FROM bman_withdraw_requests bwr WHERE bwr.user_id = u.id AND bwr.status IN ("pending","approved","processing")), 0) AS pending_withdraw_amount
         ', false)->order_by('u.id', 'DESC')->get()->result_array();
