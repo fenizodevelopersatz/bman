@@ -89,6 +89,7 @@ class RoiMaturityPayment_cron extends CI_Controller
         $fixedAmt  = (float)($r['fixed_payment_amount'] ?? 0); // lump for fixed/combo (0 for regular)
         $totalPaid = (float)$r['total_paid_amount'];
         $paidLump  = 0;
+        $principalReturn = 0; // set in the release block below; stays 0 for legacy (already-credited) stakes
 
         // 1) fixed lump ROI -> real on-chain transfer, then mirror into the internal
         //    earning-wallet ledger (fixed + combo)
@@ -131,18 +132,33 @@ class RoiMaturityPayment_cron extends CI_Controller
             // comes back: the fixed half's payout is gross (principal x
             // fixed% = 4x your money, principal included), so returning it
             // again would pay that half twice. principal_return_amount holds
-            // the right figure per plan — fixed/regular still return the
-            // whole stake. COALESCE keeps rows written before the split
-            // migration working: they have principal_return_amount = 0, so
-            // they fall back to the full principal, which is exactly what
-            // they were priced for.
+            // the right figure per plan.
+            //
+            // FIXED and REGULAR rows are AUTHORITATIVE: principal_return_amount
+            // encodes the admin "Return of principle" switch snapshotted at
+            // purchase — 0 = ROI only, principal = returned — so their 0 must
+            // NEVER be re-inflated back to the whole stake (fixed: the 500% bug;
+            // regular: the switch's OFF state). The legacy fallback only applies
+            // to COMBO rows written before principal_return_amount existed, where
+            // a 0 meant "unset" and the stake was priced to return the full
+            // principal. (The 2026-07-17 combo-split migration backfilled every
+            // pre-existing fixed/regular row to a non-zero value, so no live
+            // fixed/regular row relies on the fallback anyway.)
             $principalReturn = (float)($r['principal_return_amount'] ?? 0);
-            if ($principalReturn <= 0) $principalReturn = $principal;
+            if ($principalReturn <= 0 && $r['plan_type'] === 'combo') $principalReturn = $principal;
 
-            $txP = 'ROI-' . $r['ref'] . '-PRINCIPAL';
-            list($okP, $infoP) = $this->lifecycle->releaseMaturedPrincipal($uid, (int)$stake['id'], $principalReturn, $r['ref']);
-            if (!$okP) throw new RuntimeException('principal release failed: ' . $infoP);
-            $this->_recordOnchain($r, $txP, $principalReturn, 'principal_return', $this->lifecycle->maturityReleaseWallet());
+            if ($principalReturn > 0) {
+                $txP = 'ROI-' . $r['ref'] . '-PRINCIPAL';
+                list($okP, $infoP) = $this->lifecycle->releaseMaturedPrincipal($uid, (int)$stake['id'], $principalReturn, $r['ref']);
+                if (!$okP) throw new RuntimeException('principal release failed: ' . $infoP);
+                $this->_recordOnchain($r, $txP, $principalReturn, 'principal_return', $this->lifecycle->maturityReleaseWallet());
+            } else {
+                // Return-of-principle OFF (fixed, ROI only): nothing is
+                // released, but the stake HAS matured. releaseMaturedPrincipal()
+                // returns early on a 0 amount without flipping the status, so
+                // do it here — otherwise the stake would sit "active" forever.
+                $this->db->where('id', (int)$stake['id'])->update('user_stakes', ['status' => 'matured']);
+            }
         } else {
             log_message('info', "[ROI_MATURITY] record {$r['id']}: principal already credited at purchase (legacy model) — skipping release to avoid double-crediting.");
         }
@@ -161,7 +177,7 @@ class RoiMaturityPayment_cron extends CI_Controller
 
         return [
             'id' => (int)$r['id'], 'user_id' => $uid, 'plan_type' => $r['plan_type'],
-            'lump_roi' => $paidLump, 'principal_returned' => $principal,
+            'lump_roi' => $paidLump, 'principal_returned' => $principalReturn,
         ];
     }
 

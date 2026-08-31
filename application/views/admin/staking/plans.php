@@ -93,13 +93,58 @@
 
                                                     <?php if ($code === 'fixed'): ?>
                                                         <input type="hidden" name="withdraw_after_maturity" value="1" />
+                                                        <div class="separator separator-dashed my-4"></div>
+                                                        <div class="d-flex flex-stack mb-2">
+                                                            <div class="me-3">
+                                                                <label class="form-label fw-semibold mb-0">Return of principle</label>
+                                                                <div class="text-muted fs-8">
+                                                                    <b>On:</b> principal + ROI at maturity.
+                                                                    <b>Off:</b> ROI only — principal is not returned (400% = 4×, not 5×).
+                                                                </div>
+                                                            </div>
+                                                            <div class="form-check form-switch form-check-custom form-check-solid">
+                                                                <input class="form-check-input stk-return-principal" type="checkbox"
+                                                                    name="return_principal" value="1"
+                                                                    <?php echo !empty($plan['return_principal'] ?? 0) ? 'checked' : ''; ?> />
+                                                                <label class="form-check-label fs-7 stk-rp-label">
+                                                                    <?php echo !empty($plan['return_principal'] ?? 0) ? 'On' : 'Off'; ?>
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                        <div class="text-muted fs-8 mb-2">
+                                                            Applies to <b>new</b> stakes only — existing stakes keep the rule they were bought under.
+                                                        </div>
                                                     <?php else: ?>
                                                         <div class="mb-5">
                                                             <label class="form-label fw-semibold">Monthly ROI credit days</label>
                                                             <input type="text" name="credit_days" class="form-control form-control-solid"
                                                                 value="<?php echo html_escape((string)$plan['credit_days']); ?>"
                                                                 placeholder="5,15,25" />
-                                                            <div class="text-muted fs-8 mt-1">Day numbers 1–31, comma separated.</div>
+                                                            <div class="text-muted fs-8 mt-1">Day numbers 1–31, comma separated. These credit the monthly <b>ROI only</b>.</div>
+                                                        </div>
+                                                    <?php endif; ?>
+
+                                                    <?php if ($code === 'regular'): ?>
+                                                        <div class="separator separator-dashed my-4"></div>
+                                                        <div class="d-flex flex-stack mb-2">
+                                                            <div class="me-3">
+                                                                <label class="form-label fw-semibold mb-0">Return of principle</label>
+                                                                <div class="text-muted fs-8">
+                                                                    <b>On:</b> monthly ROI, then the principal is returned at maturity.
+                                                                    <b>Off:</b> monthly ROI only — principal is not returned.
+                                                                </div>
+                                                            </div>
+                                                            <div class="form-check form-switch form-check-custom form-check-solid">
+                                                                <input class="form-check-input stk-return-principal" type="checkbox"
+                                                                    name="return_principal" value="1"
+                                                                    <?php echo !empty($plan['return_principal'] ?? 0) ? 'checked' : ''; ?> />
+                                                                <label class="form-check-label fs-7 stk-rp-label">
+                                                                    <?php echo !empty($plan['return_principal'] ?? 0) ? 'On' : 'Off'; ?>
+                                                                </label>
+                                                            </div>
+                                                        </div>
+                                                        <div class="text-muted fs-8 mb-2">
+                                                            Applies to <b>new</b> stakes only — existing stakes keep the rule they were bought under.
                                                         </div>
                                                     <?php endif; ?>
 
@@ -119,6 +164,12 @@
                                                             </div>
                                                         </div>
                                                         <div class="text-muted fs-8 mb-3 stk-combo-sum-note">Split must total 100%.</div>
+                                                        <div class="separator separator-dashed my-4"></div>
+                                                        <div class="text-muted fs-8 mb-2">
+                                                            <label class="form-label fw-semibold mb-1 d-block">Return of principle (set by the split)</label>
+                                                            <b>Fixed share:</b> gross ROI only — principal <b>not</b> returned.<br>
+                                                            <b>Regular share:</b> monthly ROI on the credit days, and its principal <b>is</b> returned at maturity.
+                                                        </div>
                                                     <?php endif; ?>
 
                                                     <div class="text-end">
@@ -195,11 +246,23 @@
                 const fd = new FormData(form);
                 // always send years[] (unticking all should clear durations)
                 if (!fd.has('years[]')) fd.append('years[]', '');
+                // A checkbox is omitted from FormData when unchecked — send an
+                // explicit 0/1 so toggling the switch OFF actually persists.
+                const rp = form.querySelector('input[name=return_principal]');
+                if (rp) fd.set('return_principal', rp.checked ? 1 : 0);
                 const btn = form.querySelector('button[type=submit]');
                 btn.disabled = true;
                 const r = await post('admin/staking/plans/save/' + form.dataset.id, fd);
                 btn.disabled = false;
                 toast(r.msg, r.ok);
+            });
+        });
+
+        // live On/Off label for the return-of-principle switch
+        document.querySelectorAll('.stk-return-principal').forEach(sw => {
+            sw.addEventListener('change', () => {
+                const lbl = sw.closest('.form-check').querySelector('.stk-rp-label');
+                if (lbl) lbl.textContent = sw.checked ? 'On' : 'Off';
             });
         });
 

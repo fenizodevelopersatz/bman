@@ -37,6 +37,27 @@ class RoiStakingManagement_model extends CI_Model
     }
 
     /**
+     * The admin "Return of principle" switch for a plan
+     * (staking_plans.return_principal). Currently wired for the FIXED plan only:
+     *   ON  → principal is returned at maturity ON TOP of the gross ROI lump.
+     *   OFF → ROI only; the principal is NOT returned (400% = 4x, not 5x).
+     *
+     * Read at PURCHASE time so the answer can be snapshotted onto the record —
+     * never re-read while maturing a live stake. Defaults OFF (the corrected,
+     * no-double-pay behavior) whenever the column is absent (pre-migration),
+     * matching the field_exists-guarded pattern used elsewhere in this model.
+     */
+    private function _planReturnsPrincipal($planType)
+    {
+        if (!$this->db->field_exists('return_principal', 'staking_plans')) {
+            return false; // pre-migration default: Fixed pays ROI only
+        }
+        $row = $this->db->select('return_principal')
+                        ->get_where('staking_plans', ['code' => $planType])->row_array();
+        return $row ? ((int)$row['return_principal'] === 1) : false;
+    }
+
+    /**
      * Create ROI staking record for purchase
      */
     public function createROIRecord($stakingOrderId, $userId, $orderRef, $planType, $data)
@@ -81,15 +102,26 @@ class RoiStakingManagement_model extends CI_Model
         $fixedAmount   = $fixedPrincipal * ($fixedPct / 100);
 
         if ($planType === 'fixed') {
-            // Unchanged: fixed% is ROI, and the principal is returned on top.
+            // fixed% is a GROSS multiple — 400% means "4x your money back,
+            // principal INCLUDED", exactly like the combo plan's fixed half.
+            // Whether the principal ALSO comes back on top is the admin's
+            // "Return of principle" switch (staking_plans.return_principal),
+            // snapshotted HERE onto the record via principal_return_amount so a
+            // later switch flip can never re-price this live stake. Default OFF
+            // → ROI only (the 500%-vs-400% fix).
             $roiRate  = $fixedPct;
             $totalROI = $fixedAmount;
-            $principalReturn = $principal;
+            $principalReturn = $this->_planReturnsPrincipal('fixed') ? $principal : 0;
         } elseif ($planType === 'regular') {
-            // Unchanged: monthly ROI for the term, principal returned at maturity.
+            // Monthly ROI credited on the plan's credit days for the full term.
+            // Whether the principal ALSO comes back at maturity is the admin
+            // "Return of principle" switch (staking_plans.return_principal,
+            // default ON for regular), snapshotted HERE via principal_return_amount
+            // so a later switch flip never re-prices this live stake. OFF → the
+            // user keeps only the monthly ROI; nothing is returned at maturity.
             $roiRate  = $monthlyPct;
             $totalROI = $monthlyAmount * $months;
-            $principalReturn = $principal;
+            $principalReturn = $this->_planReturnsPrincipal('regular') ? $principal : 0;
         } else { // combo
             $roiRate  = $monthlyPct;
             $totalROI = $monthlyAmount * $months + $fixedAmount;

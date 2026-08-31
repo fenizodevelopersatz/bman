@@ -61,7 +61,7 @@ class Plans extends CI_Controller
         if (!$this->input->is_ajax_request()) show_404();
 
         $fields = [
-            'credit_days','withdraw_after_maturity','withdraw_frequency_days',
+            'credit_days','withdraw_after_maturity','return_principal','withdraw_frequency_days',
             'min_withdraw_bman','max_withdraw_bman','min_withdraw_usdt','max_withdraw_usdt',
             'combo_fixed_pct','combo_regular_pct',
         ];

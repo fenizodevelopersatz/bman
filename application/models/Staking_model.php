@@ -139,6 +139,14 @@ class Staking_model extends CI_Model
         if (array_key_exists('withdraw_after_maturity', $data)) {
             $row['withdraw_after_maturity'] = (int)!!$data['withdraw_after_maturity'];
         }
+        // "Return of principle" switch (fixed plan): 1 = principal returned at
+        // maturity on top of ROI, 0 = ROI only. Snapshotted per stake at
+        // purchase, so editing it here only affects NEW stakes. Guarded so a
+        // pre-migration DB (no column) doesn't error on the update.
+        if (array_key_exists('return_principal', $data)
+            && $this->db->field_exists('return_principal', 'staking_plans')) {
+            $row['return_principal'] = (int)!!$data['return_principal'];
+        }
 
         // credit_days must be comma-separated day numbers 1-31 (e.g. "5,15,25")
         if (!empty($row['credit_days'])) {
