@@ -242,6 +242,12 @@
       border-radius: 22px;
       padding: 14px;
       box-shadow: 0 12px 30px rgba(0, 0, 0, 0.04);
+      /* Grid items default to min-width:auto, which lets the table's
+         min-content force the grid wider than .main-content — it then gets
+         clipped by .main-content{overflow-x:hidden}. min-width:0 lets the
+         column shrink so the table scrolls inside its own .table-wrap
+         instead of blowing the whole layout out. */
+      min-width: 0;
     }
 
     .card-h {
@@ -588,12 +594,20 @@
 
 
     .pill {
-      display: inline-flex;
+      /* Full-width flex with wrap (this rule wins over the earlier .pill def):
+         inline-flex here made each pill size to its content, so a long value
+         (e.g. Next Payout time) overflowed a narrow Insights column and clipped.
+         space-between keeps label left / value right; flex-wrap drops the value
+         onto a new line instead of clipping when the column is tight. */
+      display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 6px;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 13px;
+      gap: 6px 10px;
+      flex-wrap: wrap;
+      width: 100%;
+      padding: 8px 14px;
+      border-radius: 16px;
+      font-size: 12px;
       font-weight: 600;
     }
 
@@ -814,12 +828,16 @@
         gap: 12px;
       }
 
+      /* Table + Insights stack in one column here: between ~1200 and 1440px
+         the right panel is still a side column, so .main-content is too narrow
+         to hold BOTH the table and the Insights card side by side — the table's
+         min-content crushed Insights to a ~160px sliver that overflowed and got
+         clipped. Full-width stacking gives each the whole (already narrow)
+         main-content width. Two columns resume above 1440px. */
       .content-grid {
         gap: 12px;
-        grid-template-columns: 1.25fr .75fr;
+        grid-template-columns: 1fr;
       }
-
-      /* balance table + insights */
 
       /* buttons compact */
       .btn-soft,
