@@ -265,8 +265,17 @@ class Genealogytree extends CI_Controller
         $level   = $levelSel > 0 ? (int)$levelSel : $nextLvl;
 
         $legs     = $this->BLM->legVolumesByDepth($id);
+        $counts   = $this->BLM->legCountsByDepth($id);
         $vol      = $legs ? $this->BLM->cumulativeVolume($legs, $level) : ['left' => 0.0, 'right' => 0.0];
         $complete = $legs ? $this->BLM->levelComplete($legs, $level) : false;
+
+        // Member-count gate (2026-08-31, user-ruled): level N also needs 2^N
+        // members at exactly this depth — see Binarylevelmatching_model::
+        // requiredMembersForLevel()'s docblock. Read-only here; the real gate
+        // lives in processSponsor().
+        $haveMembers = ($counts['left'][$level] ?? 0) + ($counts['right'][$level] ?? 0);
+        $needMembers = $this->BLM->requiredMembersForLevel($level);
+        $membersOk   = $haveMembers >= $needMembers;
 
         // Was this level already paid? If so the historical row wins — a
         // completed level must be reported as it was paid, never restated from
@@ -299,6 +308,9 @@ class Genealogytree extends CI_Controller
             elseif (!$complete)          { $status = 'PENDING';      $reason = ($vol['left'] <= 0 || $vol['right'] <= 0)
                                                                         ? 'Both legs need eligible Lock Wallet volume at this depth'
                                                                         : 'Level not complete yet'; }
+            elseif (!$membersOk)         { $status = 'PENDING';      $reason = 'Waiting for downline growth — '
+                                                                        . $haveMembers . ' of ' . $needMembers
+                                                                        . ' member(s) required at level ' . $level; }
             elseif ($ceil['status'] === 'no_stake') { $status = 'NOT_ELIGIBLE'; $reason = 'Sponsor holds no eligible staking package'; }
             else                         { $status = 'PENDING';      $reason = 'Due — awaiting the next cron run'; }
 
@@ -314,6 +326,8 @@ class Genealogytree extends CI_Controller
                 'earning_amount' => round((float)$p['earning'], 4),
                 'staking_amount' => round((float)$p['staking'], 4),
                 'admin_overflow' => round((float)$p['admin'], 4),
+                'members_have'   => $haveMembers,
+                'members_need'   => $needMembers,
                 'payout_id'      => null,
                 'run_ref'        => null,
                 'completed_at'   => null,

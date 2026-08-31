@@ -182,12 +182,29 @@ class Binarylevelmatching_model extends CI_Model
         $u = $this->db->select('status')->get_where('users', ['id' => (int)$userId])->row_array();
         if (!$u || (string)$u['status'] !== '1') return $out;
 
-        $legs = $this->legVolumesByDepth((int)$userId);
+        // One tree walk feeds both volume AND member-count checks below, so
+        // they can never disagree (see _aggregateLegs()'s docblock).
+        list($legs, $counts) = $this->_aggregateLegs($this->legMembers((int)$userId));
         if (!$legs) return $out;
 
         $level = $this->nextLevel((int)$userId);
         for ($guard = 0; $guard < $this->maxLevels; $guard++, $level++) {
             if (!$this->levelComplete($legs, $level)) break;
+
+            // Member-count gate (2026-08-31, user-ruled — see
+            // requiredMembersForLevel()'s docblock): level N additionally
+            // needs 2^N total members at EXACTLY this depth before it may
+            // pay. Treated exactly like a config error — level stays OPEN,
+            // retried every future run, never silently skipped ahead.
+            $haveMembers = ($counts['left'][$level] ?? 0) + ($counts['right'][$level] ?? 0);
+            $needMembers = $this->requiredMembersForLevel($level);
+            if ($haveMembers < $needMembers) {
+                $out['deferred']++;
+                $out['deferred_detail'][] = 'user ' . $userId . ' L' . $level
+                    . ' [insufficient_members] have ' . $haveMembers . ' of ' . $needMembers
+                    . ' required downline member(s) at depth ' . $level;
+                break;
+            }
 
             $vol = $this->cumulativeVolume($legs, $level);
             $paid = $this->_payLevel((int)$userId, $level, $vol, $runRef, $pct);
@@ -250,17 +267,72 @@ class Binarylevelmatching_model extends CI_Model
      */
     public function legVolumesByDepth($userId)
     {
-        // Aggregate the per-member rows rather than running a second CTE, so
-        // the map's "contributors" list and the engine's payout volume can
-        // never disagree — one query, one definition.
+        list($legs, ) = $this->_aggregateLegs($this->legMembers($userId));
+        return $legs;
+    }
+
+    /**
+     * Distinct downline MEMBER COUNT under one sponsor, grouped by leg and
+     * depth — the figure requiredMembersForLevel() gates against (2026-08-31,
+     * user-ruled member-count requirement). Every position counts once
+     * regardless of that member's own stake/eligibility (a member with no
+     * stake still occupies a real tree position — see legVolumesByDepth()'s
+     * docblock, same rule).
+     *
+     * @return array [side => [depth => count]]
+     */
+    public function legCountsByDepth($userId)
+    {
+        list(, $counts) = $this->_aggregateLegs($this->legMembers($userId));
+        return $counts;
+    }
+
+    /**
+     * One recursive-CTE walk (legMembers()), two aggregations — volume AND
+     * member count can never disagree because both are derived from the same
+     * raw row set in the same pass.
+     *
+     * @return array{0: array, 1: array} [legs(volume), counts(members)]
+     */
+    private function _aggregateLegs(array $rawMembers)
+    {
         $legs = ['left' => [], 'right' => []];
-        foreach ($this->legMembers($userId) as $m) {
+        $counts = ['left' => [], 'right' => []];
+        foreach ($rawMembers as $m) {
             $side = $m['side'] === 'right' ? 'right' : 'left';
             $d = (int)$m['depth'];
-            if (!isset($legs[$side][$d])) $legs[$side][$d] = 0.0;
-            $legs[$side][$d] += (float)$m['volume'];
+            if (!isset($legs[$side][$d]))   $legs[$side][$d] = 0.0;
+            if (!isset($counts[$side][$d])) $counts[$side][$d] = 0;
+            $legs[$side][$d]   += (float)$m['volume'];
+            $counts[$side][$d] += 1;
         }
-        return $legs;
+        return [$legs, $counts];
+    }
+
+    /**
+     * Member-count gate (2026-08-31, user-ruled — additive, layered ON TOP OF
+     * levelComplete(), never replacing it): Level N additionally requires 2^N
+     * total downline members positioned at EXACTLY that depth (both legs
+     * combined) — a perfect binary tree has 2^N positions at depth N, and this
+     * requires every one of them to be filled by an actual member before the
+     * level may pay.
+     *
+     * This does NOT change the money formula at all: matched volume, the 10%
+     * total / 8%-2% split, and the ceiling cap (projectLevel()) are completely
+     * untouched. This only gates WHEN a level is allowed to close, never HOW
+     * MUCH it pays once it does.
+     *
+     * Superseded reading (do not re-litigate lightly): the 2026-08-08 rule
+     * ("not all 2^N positions — that would stall auto-placed trees forever")
+     * deliberately rejected a full-tree requirement. This is an explicit,
+     * later, informed reversal of that call for the specific case of gating
+     * level completion on member count.
+     */
+    public function requiredMembersForLevel($level)
+    {
+        $level = (int)$level;
+        if ($level < 1) return 0;
+        return (int) (2 ** $level);
     }
 
     /**
