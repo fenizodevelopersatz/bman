@@ -2364,12 +2364,89 @@ function wallet_title_fallback($type)
             </button>
           </div>
         </div>
+
+        ${tx.tx_hash ? `
+        <!-- Your Private Note (own database only — never on-chain, never
+             shared with anyone else; same idea as BscScan's private note,
+             but stored by this platform since BscScan's is tied to a
+             BscScan account, not this one). Only offered for a real
+             on-chain row (tx.tx_hash present) — a Bonus Wallet Reduction
+             entry has no chain backing and gets no note UI at all. -->
+        <div style="padding:14px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;">
+          <small style="color:#6b7280;font-weight:900;font-size:11px;text-transform:uppercase;display:block;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+            <i class="ph ph-note-pencil"></i> YOUR PRIVATE NOTE (max 100 characters)
+          </small>
+          <textarea id="txNoteInput" maxlength="100" rows="2" placeholder="Loading…" disabled
+            style="width:100%;font:inherit;font-size:12px;padding:10px;border-radius:8px;border:1px solid #e5e7eb;resize:vertical;"></textarea>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+            <small id="txNoteStatus" style="color:#6b7280;font-size:11px;font-weight:800;"></small>
+            <button id="txNoteSaveBtn" type="button" disabled
+              style="background:#6e56cf;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-weight:900;font-size:12px;cursor:pointer;">
+              Save Note
+            </button>
+          </div>
+        </div>
+        ` : ''}
       `;
 
       content.innerHTML = detailsHTML;
       document.getElementById('txBscLink').href = 'https://bscscan.com/tx/' + tx.tx_hash;
       modal.style.display = 'block';
+
+      // Notes are additive only — this never touches balances, wallet
+      // history rows, or anything else on the page. Skipped entirely when
+      // the modal has no note UI (off-chain rows, e.g. Bonus Wallet
+      // Reduction, per the tx.tx_hash gate above).
+      loadTxNote(tx.id);
     }
+
+    let txNoteCurrentId = null;
+    async function loadTxNote(onchainTxId) {
+      const input = document.getElementById('txNoteInput');
+      const btn = document.getElementById('txNoteSaveBtn');
+      const status = document.getElementById('txNoteStatus');
+      if (!input || !btn) return; // no note UI for this row (off-chain)
+      txNoteCurrentId = onchainTxId;
+      input.disabled = true; input.value = ''; input.placeholder = 'Loading…';
+      status.textContent = '';
+      try {
+        const fd = new URLSearchParams({ onchain_transactions_id: onchainTxId });
+        const res = await fetch('<?= base_url('user/wallet-note-get'); ?>', {
+          method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const j = await res.json();
+        if (j.status === 'success') {
+          input.value = j.note || '';
+          input.placeholder = 'Add a private note for yourself…';
+          input.disabled = false; btn.disabled = false;
+        } else {
+          input.placeholder = j.message || 'Notes unavailable for this transaction.';
+        }
+      } catch (e) {
+        input.placeholder = 'Could not load note.';
+      }
+    }
+
+    document.addEventListener('click', async (e) => {
+      if (e.target.id !== 'txNoteSaveBtn') return;
+      const input = document.getElementById('txNoteInput');
+      const status = document.getElementById('txNoteStatus');
+      const btn = e.target;
+      if (!input || !txNoteCurrentId) return;
+      btn.disabled = true;
+      try {
+        const fd = new URLSearchParams({ onchain_transactions_id: txNoteCurrentId, note: input.value });
+        const res = await fetch('<?= base_url('user/wallet-note-save'); ?>', {
+          method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const j = await res.json();
+        status.textContent = j.status === 'success' ? 'Saved.' : (j.message || 'Save failed.');
+        status.style.color = j.status === 'success' ? '#10b981' : '#ef4444';
+      } catch (e2) {
+        status.textContent = 'Save failed.'; status.style.color = '#ef4444';
+      }
+      btn.disabled = false;
+    });
 
     function closeTxModal() {
       document.getElementById('txDetailsModal').style.display = 'none';

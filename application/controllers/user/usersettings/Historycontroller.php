@@ -761,6 +761,43 @@ private function getMiningHistory($userIds, $decimalCurrency, $currencySymbol) {
     }
 
     /**
+     * AJAX: fetch the logged-in user's own private note for one Wallet
+     * History row. Scope is intentionally narrow — see TransactionNote_model
+     * for the on-chain + ownership checks this delegates to. Touches nothing
+     * else: no balance, no other table, no other feature.
+     * POST /user/wallet-note-get  { onchain_transactions_id }
+     */
+    public function wallet_note_get()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $userId = (int) $this->session->userdata('user_userid');
+        $id = (int) $this->input->post('onchain_transactions_id');
+        $this->load->model('TransactionNote_model', 'txNotes');
+        $r = $this->txNotes->get($id, $userId);
+        echo json_encode($r['ok']
+            ? ['status' => 'success', 'note' => $r['note']]
+            : ['status' => 'error', 'message' => $r['message']]);
+    }
+
+    /**
+     * AJAX: save (or clear, if blank) the logged-in user's own private note
+     * for one Wallet History row. Same narrow scope as wallet_note_get().
+     * POST /user/wallet-note-save  { onchain_transactions_id, note }
+     */
+    public function wallet_note_save()
+    {
+        if (!$this->input->is_ajax_request()) show_404();
+        $userId = (int) $this->session->userdata('user_userid');
+        $id = (int) $this->input->post('onchain_transactions_id');
+        $note = (string) $this->input->post('note', true);
+        $this->load->model('TransactionNote_model', 'txNotes');
+        $r = $this->txNotes->save($id, $userId, $note);
+        echo json_encode($r['ok']
+            ? ['status' => 'success', 'note' => $r['note']]
+            : ['status' => 'error', 'message' => $r['message']]);
+    }
+
+    /**
      * AJAX endpoint: Instantly credit pending deposits (on-chain confirmed but not in DB yet).
      * User clicks "Credit Pending Deposits" button → this endpoint processes them immediately
      * without waiting for DepositListener cron to run.

@@ -646,6 +646,8 @@ $route['user/view-pool'] = 'user/usersettings/historycontroller/lendingPoolHisto
 $route['user/view-referral'] = 'user/usersettings/historycontroller/lendingReferralHistory';
 $route['user/view-binary'] = 'user/usersettings/historycontroller/lendingBinaryHistory';
 $route['user/wallet'] = 'user/usersettings/historycontroller/lendingMywalletHistory';
+$route['user/wallet-note-get']['post']  = 'user/usersettings/historycontroller/wallet_note_get';
+$route['user/wallet-note-save']['post'] = 'user/usersettings/historycontroller/wallet_note_save';
 
 $route['user/my-referral'] = 'user/usersettings/historycontroller/myreferralHistory';
 $route['user/referrals'] = 'user/usersettings/historycontroller/myreferralHistory';
