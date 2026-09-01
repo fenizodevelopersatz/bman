@@ -104,6 +104,16 @@ class Roihistory extends CI_Controller
         $distCount = (int)$this->db->where('reference_type', 'roi')
             ->count_all_results('onchain_transactions');
 
+        // "Total Staking" — the admin's actual received/settled staking
+        // capital: principal on records that have FULLY completed (matured
+        // and paid out), never active/in_progress ones (those are still
+        // locked, not yet a closed-out amount). Deliberately a separate
+        // figure from total_paid (ROI paid out), which double-counts nothing
+        // here — this is principal, not ROI.
+        $completedPrincipalRow = $this->db->select('COALESCE(SUM(principal_amount),0) AS s', false)
+            ->where('overall_status', 'completed')
+            ->get('roi_staking_management')->row_array();
+
         // Real gas comes from the tx receipts on onchain_transactions (filled
         // in by Chainsync_model::verifyTx once the sync cron confirms each
         // send) — roi_staking_management.total_gas_paid is never written by
@@ -113,6 +123,7 @@ class Roihistory extends CI_Controller
             ->get('onchain_transactions')->row_array();
 
         return [
+            'total_staking_completed' => (float)($completedPrincipalRow['s'] ?? 0),
             'total_paid'      => (float)($row['total_paid'] ?? 0),
             'total_remaining' => (float)($row['total_remaining'] ?? 0),
             'total_gas_paid'  => (float)($gasRow['g'] ?? 0),

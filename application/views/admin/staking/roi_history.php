@@ -57,6 +57,7 @@
 
       <div class="row g-4 mb-6">
         <?php $stats = [
+          ['Total Staking (Completed)', number_format($summary['total_staking_completed'],4), '#16a34a', 'Principal on FULLY completed (matured + paid out) staking records only — active/in_progress stakes are still locked and not counted here.'],
           ['Total ROI Paid', number_format($summary['total_paid'],4), '#22c55e'],
           ['Remaining To Pay', number_format($summary['total_remaining'],4), '#f59e0b'],
           ['Total Gas Paid', number_format($summary['total_gas_paid'],4), '#0ea5e9'],
@@ -67,7 +68,7 @@
         ]; ?>
         <?php foreach ($stats as $s): ?>
         <div class="col-6 col-md-3 col-lg">
-          <div class="roi-stat" style="border-top-color:<?php echo $s[2]; ?>;">
+          <div class="roi-stat" style="border-top-color:<?php echo $s[2]; ?>;" <?php if (!empty($s[3])): ?>title="<?php echo html_escape($s[3]); ?>"<?php endif; ?>>
             <div class="v"><?php echo $s[1]; ?></div>
             <div class="l"><?php echo $s[0]; ?></div>
           </div>
@@ -376,11 +377,18 @@
       const j = await res.json();
       if (j.status !== 'success') { body.innerHTML = '<tr><td colspan="10" class="text-danger text-center py-6">Failed to load.</td></tr>'; return; }
       if (!j.rows.length) { body.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-6">No staking records yet.</td></tr>'; document.getElementById('rec-showing').textContent = '0'; document.getElementById('rec-total').textContent = j.total; return; }
+      const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       body.innerHTML = j.rows.map(r => {
         const progress = r.plan_type === 'fixed' ? (r.fixed_status || 'pending') : (r.regular_payments_completed + '/' + r.regular_payment_count);
         const nextDue = r.next_payment_date || r.fixed_maturity_date || '—';
         const who = r.username || r.email || ('User #' + r.user_id);
         const specialTag = Number(r.is_special) ? ' <span class="badge" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:900;">★ SPECIAL'+(r.duration_years ? ' '+r.duration_years+'y' : '')+'</span>' : '';
+        // Status + the actual error text (not just a bare "(error)" flag) —
+        // same err-cell convention Distribution History already uses, so a
+        // record blocked mid-schedule is diagnosable from this table alone,
+        // without hunting it down in the separate Failed/Needs Retry panel.
+        const statusCell = esc(r.overall_status) + ' — ' + esc(progress)
+          + (r.error_message ? '<div class="err-cell mt-1">'+esc(r.error_message)+'</div>' : '');
         return '<tr>'+
           '<td class="mono">#'+r.id+'</td>'+
           '<td>'+who+'</td>'+
@@ -389,7 +397,7 @@
           '<td>'+Number(r.total_roi_amount||0).toLocaleString(undefined,{maximumFractionDigits:4})+'</td>'+
           '<td>'+Number(r.total_paid_amount||0).toLocaleString(undefined,{maximumFractionDigits:4})+'</td>'+
           '<td>'+Number(r.remaining_to_pay||0).toLocaleString(undefined,{maximumFractionDigits:4})+'</td>'+
-          '<td>'+r.overall_status+(r.error_message ? ' <span class="text-danger">(error)</span>' : '')+' — '+progress+'</td>'+
+          '<td>'+statusCell+'</td>'+
           '<td class="tiny">'+nextDue+'</td>'+
           '<td><button class="btn btn-sm btn-light-primary retry-one" data-id="'+r.id+'">Send Now</button></td>'+
         '</tr>';

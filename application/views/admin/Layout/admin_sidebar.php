@@ -234,7 +234,7 @@ $mobile_logo_src = $mobile_logo_info ? base_url('assets/images/' . rawurlencode(
               <div class="menu-item">
                 <a class="menu-link" href="<?php echo base_url(); ?>admin/staking/roi-history">
                   <span class="menu-bullet"><span class="bullet bullet-dot"></span></span><span
-                    class="menu-title">ROI History</span>
+                    class="menu-title">Staking & ROI History</span>
                 </a>
               </div>
 

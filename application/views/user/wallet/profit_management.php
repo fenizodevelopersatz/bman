@@ -975,25 +975,25 @@
         <div class="sum-card">
           <div class="sum-ic sum-good"><i class="ph ph-wallet"></i></div>
           <div class="sum-meta">
-            <small>Available Balance</small>
-            <strong><?= currency_format($wallet_balance ?? 0, 2); ?></strong>
+            <small>Available Balance(BMAN)</small>
+            <strong><?= currency_format_no_symbol($wallet_balance ?? 0); ?></strong>
             <span>Withdraw anytime</span>
           </div>
         </div>
         <div class="sum-card">
           <div class="sum-ic sum-warn"><i class="ph ph-hourglass"></i></div>
           <div class="sum-meta">
-            <small>Pending Commission</small>
+            <small>Pending Commission(BMAN)</small>
             <strong>
-              <?= currency_format($pending_commission ?? 0, 2); ?></strong>
+              <?= currency_format_no_symbol($pending_commission ?? 0); ?></strong>
             <span>Awaiting payout</span>
           </div>
         </div>
         <div class="sum-card">
           <div class="sum-ic sum-info"><i class="ph ph-trend-up"></i></div>
           <div class="sum-meta">
-            <small>Total Earned</small>
-            <strong> <?= currency_format($total_earned ?? 0, 2); ?></strong>
+            <small>Total Earned(BMAN)</small>
+            <strong> <?= currency_format_no_symbol($total_earned ?? 0); ?></strong>
             <span>Lifetime income</span>
           </div>
         </div>
@@ -1001,7 +1001,7 @@
           <div class="sum-ic sum-bad"><i class="ph ph-bank"></i></div>
           <div class="sum-meta">
             <small>Total Paid Out</small>
-            <strong><?= currency_format($paid_out ?? 0, 2); ?></strong>
+            <strong><?= currency_format_no_symbol($paid_out ?? 0); ?></strong>
             <span>Transferred to bank</span>
           </div>
         </div>
@@ -1073,7 +1073,7 @@
                   <tr>
                     <th>Commission</th>
                     <th>Date</th>
-                    <th>Amount</th>
+                    <th>Amount(BMAN)</th>
                     <th>Status</th>
                     <th style="text-align:right;">Actions</th>
                   </tr>
@@ -1107,9 +1107,24 @@
                     $title = strtoupper($r->title ?? ($type . ' Bonus'));
                     $ref = $r->ref ?? ($r->id ? 'Order #' . $r->id : ($r->level ? 'Level ' . $r->level : ''));
                     $note = $r->note ?? '';
-                    $fromU = $r->from_user ?? '';
                     $dt = $r->created_at ?? '';
                     $amt = (float) ($r->amount ?? 0);
+
+                    // "From / To" — logical labels, not a real blockchain address.
+                    // No from_address/to_address is ever captured anywhere in this
+                    // system today (verified against onchain_transactions — those
+                    // columns exist but nothing writes them, on any transaction
+                    // type), so this describes the SOURCE POOL in plain terms
+                    // instead of showing nothing (the previous 'From' key read
+                    // $r->from_user, a column this query never selected — always
+                    // empty, silently dropped by the popup's own blank-value skip).
+                    $fromLabel = [
+                      'ROI'     => 'Treasury Wallet',
+                      'BINARY'  => 'Treasury Wallet',
+                      'INSTANT' => 'Internal Bonus Pool',
+                      'RANK'    => 'Rank Reward Pool',
+                    ][$type] ?? 'Platform';
+                    $toLabel = !empty($r->wallet_type) ? ('Your ' . ucfirst($r->wallet_type) . ' Wallet') : '';
 
                     // BMAN quantities with the trailing zeros trimmed (0.00833333 → not 0.01)
                     $bman = function ($v) {
@@ -1119,18 +1134,27 @@
                       'Type' => $type,
                       'Title' => $title,
                       'Reference' => $ref,
-                      'From' => $fromU,
+                      'From' => $fromLabel,
+                      'To' => $toLabel,
                       'Level' => ($r->level ?? ''),
                       // The staking order this earning came from (parsed from
                       // ORDER-{id}-… references) — the ledger row id is only a
                       // fallback for rows with no order relation.
                       'Order ID' => (!empty($r->order_id) ? $r->order_id : ($r->id ?? '')),
                       'Date' => $dt,
-                      // currency_format() so the popup, the Amount column and the
-                      // Total Earned card all round the same way (currency_config.decimal)
-                      'Amount' => currency_format($amt),
+                      // symbol-free formatting keeps the popup, the Amount column
+                      // and the summary cards aligned with the BMAN display.
+                      'Amount' => currency_format_no_symbol($amt),
                       'Status' => $statusContent,
                     ];
+                    // Real on-chain hash, whichever bucket it's on (ROI's own
+                    // maturity/monthly cron and Binary Matching's payout cron are
+                    // the two paths that ever send one) — Instant Bonus and Rank
+                    // Reward never get one (pure internal credits), so this is
+                    // simply absent for them, not blank.
+                    if (!empty($r->tx_hash) && strpos($r->tx_hash, '0x') === 0) {
+                      $detail['Tx Hash'] = substr($r->tx_hash, 0, 14) . '…' . substr($r->tx_hash, -6);
+                    }
                     // ROI rows: explain the staking behind the credit — exact BMAN
                     // amount, plan, principal, rate, cycle progress, destination.
                     $roiRec = $r->roi_staking ?? null;
@@ -1156,13 +1180,22 @@
                           $detail['Next ROI Payment'] = $roiRec['next_payment_date'];
                         }
                       }
-                      if (!empty($r->tx_hash) && strpos($r->tx_hash, '0x') === 0) {
-                        $detail['Tx Hash'] = substr($r->tx_hash, 0, 14) . '…' . substr($r->tx_hash, -6);
-                      }
                     }
                     $detail['Note'] = $note;
+
+                    // "View Full Order" target — only set when this row is
+                    // genuinely tied to one stake/order (see Wallet_model::
+                    // getCommissionHistory()'s detail_link resolution). Binary
+                    // Matching / Rank Reward rows have none — no button shows.
+                    $detailUrl = '';
+                    if (!empty($r->detail_link['kind']) && !empty($r->detail_link['id'])) {
+                      $detailUrl = base_url('user/stakings') . '?'
+                        . ($r->detail_link['kind'] === 'order' ? 'open_order=' : 'open_restake=')
+                        . (int) $r->detail_link['id'];
+                    }
                     ?>
-                    <tr class="row" data-json="<?= htmlspecialchars(json_encode($detail), ENT_QUOTES, 'UTF-8'); ?>">
+                    <tr class="row" data-json="<?= htmlspecialchars(json_encode($detail), ENT_QUOTES, 'UTF-8'); ?>"
+                        data-detail-url="<?= htmlspecialchars($detailUrl, ENT_QUOTES); ?>">
                       <td>
                         <div class="tx-left">
                           <div class="bullet"><i class="ph <?= $icon; ?>"></i></div>
@@ -1171,7 +1204,6 @@
                             <small>
                               <?= htmlspecialchars($type); ?>
                               <?= $ref ? ' • ' . htmlspecialchars($ref) : ''; ?>
-                              <?= $fromU ? ' • From ' . htmlspecialchars($fromU) : ''; ?>
                             </small>
                           </div>
                         </div>
@@ -1180,7 +1212,7 @@
                         <?= htmlspecialchars($dt); ?>
                       </td>
                       <td class="amt">
-                        <?= currency_format($amt); ?>
+                        <?= currency_format_no_symbol($amt); ?>
                       </td>
                       <td>
                         <span class="status <?= $stClass === 'st-success' ? 'success' : 'pending'; ?>">
@@ -1304,6 +1336,9 @@
       </div>
       <div class="modal-f">
         <button class="btn-soft" onclick="closeModal()"><i class="ph ph-x"></i> Close</button>
+        <button class="btn-soft" id="mViewOrderBtn" style="display:none;" onclick="viewFullOrder()">
+          <i class="ph ph-arrow-square-out"></i> View Full Order
+        </button>
         <button class="btn-main" onclick="exportOne()"><i class="ph ph-download-simple"></i> Export</button>
       </div>
     </div>
@@ -1316,6 +1351,7 @@
     const mMask = document.getElementById('mMask');
     const kv = document.getElementById('kv');
     let lastRowData = null;
+    let lastDetailUrl = '';
 
     // Row click -> modal
     if (tbl) {
@@ -1337,19 +1373,36 @@
       if (!raw) return;
       try { lastRowData = JSON.parse(raw); } catch (err) { return; }
       renderKV(lastRowData);
+      // "View Full Order" only shows when this row is genuinely tied to one
+      // stake/order (Wallet_model resolved a real target server-side) — a
+      // Binary Matching or Rank Reward row has no single order to point to,
+      // so data-detail-url is empty and the button stays hidden.
+      lastDetailUrl = tr.getAttribute('data-detail-url') || '';
+      const btn = document.getElementById('mViewOrderBtn');
+      if (btn) btn.style.display = lastDetailUrl ? '' : 'none';
       openModal();
+    }
+
+    function viewFullOrder() {
+      if (lastDetailUrl) window.location.href = lastDetailUrl;
     }
 
     function renderKV(obj) {
       kv.innerHTML = '';
-      console.log("obj", obj);
 
       Object.keys(obj).forEach(k => {
         const v = obj[k] ?? '';
         if (v === '' || v === null) return;
         const d = document.createElement('div');
         d.className = 'k';
-        d.innerHTML = `<small>${escapeHtml(k)}</small><b>${escapeHtml(String(v))}</b>`;
+        // Status gets the same colored pill as the table row (.status.success/
+        // .status.pending from the shared stylesheet) instead of plain bold
+        // text — the modal previously rendered every field identically, so
+        // "SUCCESS" showed in plain black with no color cue at all.
+        const valueHtml = (k === 'Status')
+          ? `<span class="status ${String(v).toUpperCase() === 'SUCCESS' ? 'success' : 'pending'}">${escapeHtml(String(v))}</span>`
+          : `<b>${escapeHtml(String(v))}</b>`;
+        d.innerHTML = `<small>${escapeHtml(k)}</small>${valueHtml}`;
         kv.appendChild(d);
       });
     }

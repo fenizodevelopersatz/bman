@@ -593,7 +593,18 @@ class Wallet_model extends CI_Model
                         THEN CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(reference_id, '-', 2), '-', -1) AS UNSIGNED)
                     ELSE NULL
                 END
-            )                 AS order_id
+            )                 AS order_id,
+            -- Same two candidates, kept SEPARATE (never coalesced) so the
+            -- \"View Full Order\" link can tell a real on-chain order (needs
+            -- showSwapDetails/open_order) apart from a wallet-funded re-stake
+            -- (needs showRestakeDetails/open_restake) — see Wallet_model's own
+            -- reference_type docblock above getCommissionHistory. Only ROI
+            -- rows resolve via roi_staking_management; stake_purchase/bonus
+            -- rows are resolved separately in PHP (order_id regex / note parse).
+            (SELECT NULLIF(r3.staking_swap_orders_id, 0) FROM roi_staking_management r3
+              WHERE r3.ref = CAST(wallet_ledger.reference_id AS BINARY) LIMIT 1) AS roi_swap_order_id,
+            (SELECT NULLIF(r4.user_stakes_id, 0) FROM roi_staking_management r4
+              WHERE r4.ref = CAST(wallet_ledger.reference_id AS BINARY) LIMIT 1) AS roi_user_stakes_id
         FROM wallet_ledger
         $whereSql
         ORDER BY created_at DESC, id DESC
@@ -624,6 +635,50 @@ class Wallet_model extends CI_Model
             }
         } else {
             foreach ($rows as $r) { $r->roi_staking = null; }
+        }
+
+        // "View Full Order" redirect target — only for the row types
+        // genuinely tied to ONE specific stake/order:
+        //   roi            -> roi_staking_management already resolved which
+        //                      (swap order vs wallet-funded stake) above.
+        //   stake_purchase -> ALWAYS a real on-chain order (see reference_type
+        //                      docblock above the bucket map); order_id was
+        //                      already resolved via the ORDER-N regex.
+        //   bonus          -> the "N% staking bonus — stake #N" text is the
+        //                      ONLY way back to the stake (no ref match to any
+        //                      table) — parse it, then check that stake's OWN
+        //                      swap_order_id to tell which of the two
+        //                      purchase paths created it (see docblock).
+        // binary_matching / rank_reward are never tied to a single order —
+        // left with no link rather than guessing one.
+        $bonusStakeIds = [];
+        foreach ($rows as $r) {
+            $r->_bonus_stake_id = null;
+            if ($r->raw_type === 'bonus' && preg_match('/stake #(\d+)/', (string)$r->note, $m)) {
+                $r->_bonus_stake_id = (int)$m[1];
+                $bonusStakeIds[$r->_bonus_stake_id] = true;
+            }
+        }
+        $swapOrderByStake = [];
+        if ($bonusStakeIds) {
+            $stakeRows = $this->db->select('id, swap_order_id')->where_in('id', array_keys($bonusStakeIds))
+                ->get('user_stakes')->result_array();
+            foreach ($stakeRows as $sr) $swapOrderByStake[(int)$sr['id']] = (int)($sr['swap_order_id'] ?? 0);
+        }
+        foreach ($rows as $r) {
+            $r->detail_link = null;
+            if ($r->raw_type === 'roi') {
+                if (!empty($r->roi_swap_order_id))       $r->detail_link = ['kind' => 'order',   'id' => (int)$r->roi_swap_order_id];
+                elseif (!empty($r->roi_user_stakes_id))  $r->detail_link = ['kind' => 'restake', 'id' => (int)$r->roi_user_stakes_id];
+            } elseif ($r->raw_type === 'stake_purchase' && !empty($r->order_id)) {
+                $r->detail_link = ['kind' => 'order', 'id' => (int)$r->order_id];
+            } elseif ($r->raw_type === 'bonus' && $r->_bonus_stake_id) {
+                $swapId = $swapOrderByStake[$r->_bonus_stake_id] ?? 0;
+                $r->detail_link = $swapId > 0
+                    ? ['kind' => 'order',   'id' => $swapId]
+                    : ['kind' => 'restake', 'id' => $r->_bonus_stake_id];
+            }
+            unset($r->_bonus_stake_id);
         }
 
         $counts = $this->getCommissionCounts($user_id, $filters);

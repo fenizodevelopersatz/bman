@@ -2576,6 +2576,28 @@ $hero_progress = 48;
     });
   })();
   </script>
+
+  <script>
+  // Deep-link support: the Commissions page's "View Full Order" button sends
+  // the user here with ?open_order=<id> or ?open_restake=<id> so the same
+  // rich detail modal used when browsing this page directly (showSwapDetails/
+  // showRestakeDetails, both plain top-level functions — see their own
+  // definitions above) opens automatically, instead of making the user
+  // re-find the row themselves. Deliberately a separate, non-IIFE script tag
+  // placed last: both functions are already attached to window by the time
+  // this runs, regardless of which earlier <script> block (IIFE or not)
+  // defined them.
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    const openOrder = parseInt(params.get('open_order'), 10);
+    const openRestake = parseInt(params.get('open_restake'), 10);
+    if (openOrder > 0 && typeof showSwapDetails === 'function') {
+      showSwapDetails(openOrder);
+    } else if (openRestake > 0 && typeof showRestakeDetails === 'function') {
+      showRestakeDetails(openRestake);
+    }
+  })();
+  </script>
 </body>
 
 </html>

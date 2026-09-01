@@ -104,7 +104,12 @@ $rankPercent = $rankTarget > 0 ? min(100, ($rank['group_volume'] / $rankTarget) 
           <div class="mp-card mp-stat mp-rank"><div class="mp-stat-label">Rank Progress · <span data-rank="current"><?= $e($rank['current']); ?></span></div><div class="mp-progress"><span data-rank-progress style="width:<?= number_format($rankPercent,2,'.',''); ?>%"></span></div><div class="d-flex justify-content-between"><b><span data-rank="group_volume"><?= $money($rank['group_volume']); ?></span> BMAN</b><span class="text-muted">Next: <span data-rank="next"><?= $e($rank['next'] ?: 'Highest rank'); ?></span></span></div></div>
         </div>
 
-        <section class="mp-card mp-section mb-4" id="wallet-section"><div class="mp-head"><div><h3>Wallet Balance Breakdown</h3><small>Authoritative balances from user_wallets</small></div><b data-wallet="bman_total"><?= $money($w['bman_total']); ?> BMAN total</b></div>
+        <section class="mp-card mp-section mb-4" id="wallet-section"><div class="mp-head"><div><h3>Wallet Balance Breakdown</h3><small>Authoritative balances from user_wallets</small>
+              <div class="mt-1" style="font-size:11px;color:var(--mp-muted);">On-chain address:
+                <code data-member="wallet_address" style="font-size:11px;"><?= $e($m['wallet_address'] ?: '—'); ?></code>
+                <button type="button" class="mp-btn" id="copy-wallet-addr" title="Copy address" style="padding:2px 8px;font-size:10px;"><i class="ki-outline ki-copy"></i></button>
+              </div>
+            </div><b data-wallet="bman_total"><?= $money($w['bman_total']); ?> BMAN total</b></div>
           <div class="mp-wallets">
             <?php foreach ([['usdt','USDT Wallet','USDT'],['exchange','Exchange Wallet','BMAN'],['earning','Earning Wallet','BMAN'],['bonus','Bonus Wallet','BMAN'],['staking','Staking Wallet','BMAN'],['pending_usdt','Pending Balance','USDT']] as $walletCard): ?>
               <div class="mp-wallet"><span class="mp-label"><?= $e($walletCard[1]); ?></span><b data-wallet="<?= $walletCard[0]; ?>"><?= $money($w[$walletCard[0]]); ?> <small><?= $walletCard[2]; ?></small></b></div>
@@ -182,6 +187,34 @@ $rankPercent = $rankTarget > 0 ? min(100, ($rank['group_volume'] / $rankTarget) 
   const num=v=>Number(v||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:8});
   const toast=msg=>{const el=document.getElementById('mp-toast');el.textContent=msg;el.style.display='block';setTimeout(()=>el.style.display='none',2200)};
   const loading=on=>document.getElementById('profile-app').classList.toggle('mp-loading',on);
+
+  // navigator.clipboard is only defined in a secure context (HTTPS or
+  // localhost) — this admin is also reached over plain HTTP on a LAN IP,
+  // where navigator.clipboard is undefined, so a bare .writeText() call would
+  // silently do nothing there. Textarea+execCommand fallback covers that case.
+  function copyText(txt){
+    if(!txt || txt==='—') return;
+    if(window.isSecureContext && navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(()=>toast('Address copied!')).catch(()=>legacyCopyText(txt));
+    } else {
+      legacyCopyText(txt);
+    }
+  }
+  function legacyCopyText(txt){
+    const ta=document.createElement('textarea');
+    ta.value=txt; ta.style.position='fixed'; ta.style.left='-9999px';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    let ok=false; try{ ok=document.execCommand('copy'); }catch(e){ ok=false; }
+    document.body.removeChild(ta);
+    toast(ok?'Address copied!':'Copy failed — please select and copy manually');
+  }
+  const copyWalletBtn=document.getElementById('copy-wallet-addr');
+  if(copyWalletBtn){
+    copyWalletBtn.addEventListener('click',()=>{
+      const el=document.querySelector('[data-member="wallet_address"]');
+      copyText(el?el.textContent.trim():'');
+    });
+  }
 
   function syncStatusButton(){
     const badge=document.querySelector('[data-member-badge="status"]');

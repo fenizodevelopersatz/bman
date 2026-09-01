@@ -953,6 +953,16 @@ class  Membermanagement extends CI_Controller {
         if (!$user) return null;
 
         $wallet = $this->db->get_where('user_wallets', ['user_id' => (int) $id])->row_array() ?: [];
+
+        // On-chain custodial address — a DIFFERENT table (user_wallet, singular)
+        // from the balances above (user_wallets, plural). Select ONLY
+        // wallet_address: this table also carries mnemonic/private_key for the
+        // custodial signing flow (see Tokenmaster_model's treasury-key pattern),
+        // neither of which any admin screen should ever surface.
+        $onchain = $this->db->select('wallet_address')
+            ->get_where('user_wallet', ['user_id' => (int) $id])->row_array();
+        $walletAddress = $onchain['wallet_address'] ?? null;
+
         $wallets = [
             'usdt' => (float) ($wallet['usd_balance'] ?? 0),
             'exchange' => (float) ($wallet['exchange_balance'] ?? 0),
@@ -1013,6 +1023,7 @@ class  Membermanagement extends CI_Controller {
                 'last_login' => $lastLogin['last_login'] ?? null,
                 'last_active' => $user['last_active_at'],
                 'avatar' => $this->_profileAvatar($user['profile_img'] ?? '', $user['image'] ?? ''),
+                'wallet_address' => $walletAddress,
             ],
             'wallets' => $wallets,
             'stats' => [
