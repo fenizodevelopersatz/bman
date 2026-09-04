@@ -1151,9 +1151,15 @@
                     // maturity/monthly cron and Binary Matching's payout cron are
                     // the two paths that ever send one) — Instant Bonus and Rank
                     // Reward never get one (pure internal credits), so this is
-                    // simply absent for them, not blank.
+                    // simply absent for them, not blank. User panel — no
+                    // off-chain/on-chain plumbing jargon shown when there's
+                    // nothing real to show; that belongs on the admin side.
                     if (!empty($r->tx_hash) && strpos($r->tx_hash, '0x') === 0) {
                       $detail['Tx Hash'] = substr($r->tx_hash, 0, 14) . '…' . substr($r->tx_hash, -6);
+                      // Full hash for the explorer link href — renderKV() skips
+                      // this key on its own and uses it only to build the link
+                      // under the truncated 'Tx Hash' display row above.
+                      $detail['Tx Hash Full'] = $r->tx_hash;
                     }
                     // ROI rows: explain the staking behind the credit — exact BMAN
                     // amount, plan, principal, rate, cycle progress, destination.
@@ -1347,6 +1353,7 @@
   <script src="<?php echo base_url(); ?>/assets/user_v2/js/script.js?ver=2.9"></script>
   <script>
     const base_url = "<?php echo base_url() ?>";
+    const EXPLORER_URL = "<?php echo addslashes(rtrim($explorer_url ?? 'https://bscscan.com', '/')); ?>";
     const tbl = document.getElementById('tbl');
     const mMask = document.getElementById('mMask');
     const kv = document.getElementById('kv');
@@ -1391,6 +1398,7 @@
       kv.innerHTML = '';
 
       Object.keys(obj).forEach(k => {
+        if (k === 'Tx Hash Full') return; // used below to build the Tx Hash link, not its own row
         const v = obj[k] ?? '';
         if (v === '' || v === null) return;
         const d = document.createElement('div');
@@ -1399,9 +1407,15 @@
         // .status.pending from the shared stylesheet) instead of plain bold
         // text — the modal previously rendered every field identically, so
         // "SUCCESS" showed in plain black with no color cue at all.
-        const valueHtml = (k === 'Status')
-          ? `<span class="status ${String(v).toUpperCase() === 'SUCCESS' ? 'success' : 'pending'}">${escapeHtml(String(v))}</span>`
-          : `<b>${escapeHtml(String(v))}</b>`;
+        let valueHtml;
+        if (k === 'Status') {
+          valueHtml = `<span class="status ${String(v).toUpperCase() === 'SUCCESS' ? 'success' : 'pending'}">${escapeHtml(String(v))}</span>`;
+        } else if (k === 'Tx Hash' && obj['Tx Hash Full']) {
+          const url = EXPLORER_URL + '/tx/' + encodeURIComponent(obj['Tx Hash Full']);
+          valueHtml = `<b><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(String(v))}</a></b>`;
+        } else {
+          valueHtml = `<b>${escapeHtml(String(v))}</b>`;
+        }
         d.innerHTML = `<small>${escapeHtml(k)}</small>${valueHtml}`;
         kv.appendChild(d);
       });

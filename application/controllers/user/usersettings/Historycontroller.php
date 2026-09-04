@@ -55,6 +55,12 @@ class  Historycontroller extends CI_Controller {
         $this->data['title']      = "Earnings & Bonuses";
         $this->data['card_title'] = "Commissions";
 
+        // Same field + fallback as Matchinghistory/Payoutqueue's _explorer():
+        // whichever network token_settings is configured for (mainnet or
+        // testnet BscScan) is where a shown Tx Hash should link.
+        $ts = $this->db->select('explorer_url')->get_where('token_settings', ['status' => 1])->row_array();
+        $this->data['explorer_url'] = rtrim($ts['explorer_url'] ?? 'https://bscscan.com', '/');
+
         // ✅ Default range: last 30 days
         $this->data['from'] = $this->input->get('from') ? $this->input->get('from') : '';
         $this->data['to']   = $this->input->get('to')   ? $this->input->get('to')   : '';

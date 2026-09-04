@@ -47,12 +47,26 @@ class Binarymatchingpayouttest extends BinaryMatchingPayoutCron
 
         // 2) synthetic matching payout row — bypasses the engine directly
         $runRef = 'TEST-RUN-BMP';
+        $level = 1;
         $this->db->insert('staking_matching_payouts', [
-            'user_id' => $uid, 'matched_volume' => 100, 'total_percent' => 10,
+            'user_id' => $uid, 'level' => $level, 'matched_volume' => 100, 'total_percent' => 10,
             'earning_amount' => 8, 'staking_amount' => 2,
             'left_before' => 100, 'right_before' => 150, 'run_ref' => $runRef,
         ]);
         $smpId = (int)$this->db->insert_id();
+
+        // 2b) the two wallet_ledger credits the real engine would have posted
+        // for this level — through Walletledger_model::credit() (not a raw
+        // insert), so this also exercises the "no false CONFIRMED shadow row"
+        // guard in Walletledger_model::_captureOnchain() end to end.
+        $ledgerRef = $runRef . '-L' . $level;
+        $this->load->model('Walletledger_model', 'ledger');
+        $this->ledger->credit($uid, 'earning', 8, 'binary_matching', ['reference_id' => $ledgerRef]);
+        $this->ledger->credit($uid, 'staking', 2, 'binary_matching', ['reference_id' => $ledgerRef]);
+
+        $shadow = $this->db->where(['reference_type' => 'binary_matching', 'reference_id' => $ledgerRef])
+                           ->count_all_results('onchain_transactions');
+        $ok($shadow === 0, 'ledger credit: no false-CONFIRMED shadow row created while tx_hash is still empty (got ' . $shadow . ')');
 
         // 3) enqueue (phase b) — scoped to our synthetic user only
         $enqueue = $this->_enqueuePayouts(['user_id' => $uid]);
@@ -86,7 +100,30 @@ class Binarymatchingpayouttest extends BinaryMatchingPayoutCron
             $ok((bool)$octx, 'confirm: linked onchain_transactions row exists');
             $ok($octx && $octx['status'] === 'confirmed', 'confirm: onchain_transactions.status == confirmed');
             $ok($octx && $octx['user_id'] == $uid, 'confirm: onchain_transactions.user_id matches');
+            // DRYRUN never had a real broadcast, so there's no real gas to
+            // report — must stay null, not a fabricated 0.
+            $ok($octx && $octx['gas_fee_total'] === null, 'confirm: gas_fee_total stays null for a DRYRUN hash (no real gas spent)');
         }
+
+        // 5b) wallet_ledger backfill — the two rows credited in step 2b must
+        // now carry the same tx_hash confirm just recorded, via UPDATE only
+        // (never a third wallet_ledger row for this payout).
+        $ledgerRows = $this->db->where(['reference_type' => 'binary_matching', 'reference_id' => $ledgerRef])
+                               ->get('wallet_ledger')->result_array();
+        $ok(count($ledgerRows) === 2, 'backfill: still exactly 2 wallet_ledger rows for this payout, none added (got ' . count($ledgerRows) . ')');
+        $bothStamped = count($ledgerRows) === 2
+            && $ledgerRows[0]['tx_hash'] === $row['tx_hash'] && $ledgerRows[1]['tx_hash'] === $row['tx_hash'];
+        $ok($bothStamped, 'backfill: both earning + staking wallet_ledger rows carry the confirmed tx_hash');
+
+        // 5c) idempotency: re-running the backfill for the same payout must be
+        // a no-op — it can never overwrite or duplicate what's already there.
+        $affected = $this->ledger->backfillTxHash('binary_matching', $ledgerRef, $row['tx_hash']);
+        $ok($affected === 0, 'backfill: retry affects 0 rows once already stamped (got ' . $affected . ')');
+        $afterRetry = $this->db->where(['reference_type' => 'binary_matching', 'reference_id' => $ledgerRef])
+                               ->get('wallet_ledger')->result_array();
+        $stillIntact = count($afterRetry) === 2
+            && $afterRetry[0]['tx_hash'] === $row['tx_hash'] && $afterRetry[1]['tx_hash'] === $row['tx_hash'];
+        $ok($stillIntact, 'backfill: hash unchanged and no duplicate rows after the retry');
 
         // 6) retry guard: a CONFIRMED row must not be retryable
         $this->load->model('staking/Blockchainpayout_model', 'PQ');
@@ -100,12 +137,16 @@ class Binarymatchingpayouttest extends BinaryMatchingPayoutCron
     private function _cleanup($uid)
     {
         $this->db->where('user_id', $uid)->delete('user_wallet');
+        $this->db->where('user_id', $uid)->delete('user_wallets'); // balance row created by Walletledger_model::ensureRow()
         $ids = $this->db->select('id')->where('user_id', $uid)->get('staking_matching_payouts')->result_array();
         foreach ($ids as $r) {
             $this->db->where(['reference_type' => 'staking_matching_payout', 'reference_id' => (string)$r['id']])
                      ->delete('blockchain_payout_queue');
         }
         $this->db->where('user_id', $uid)->delete('staking_matching_payouts');
-        $this->db->where('reference_type', 'binary_matching_payout')->where('user_id', $uid)->delete('onchain_transactions');
+        $this->db->where('user_id', $uid)->delete('wallet_ledger');
+        $this->db->where('user_id', $uid)
+                 ->where_in('reference_type', ['binary_matching_payout', 'binary_matching'])
+                 ->delete('onchain_transactions');
     }
 }

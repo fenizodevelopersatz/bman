@@ -435,6 +435,24 @@ class Depositlistener_model extends CI_Model
                 ['confirmations' => $conf, 'status' => $status]);
             if ($conf < $minConf) continue;
 
+            // Every internal payout (binary matching, ROI, wallet transfer
+            // settlement, admin transfer — any of them) is broadcast from the
+            // ONE configured treasury wallet (Tokenmaster_model::activeSettings()
+            // — "the single active configuration every engine must read"). A
+            // transfer arriving FROM that same address is therefore never a
+            // genuine external deposit: it's money this platform already sent
+            // and already credited internally through whichever subsystem
+            // authorized the send. Crediting it again here would double-count
+            // it into Exchange on top of its real destination wallet.
+            $treasury = strtolower((string) ($cfg['treasury_wallet'] ?? ''));
+            $sender   = strtolower((string) ($d['from_address'] ?? ''));
+            if ($treasury !== '' && $sender === $treasury) {
+                log_message('info', "[Depositlistener] BMAN deposit id={$d['id']} tx_hash={$d['tx_hash']} sender is the treasury wallet — internal payout, not an external deposit. Not credited.");
+                $this->db->where('id', $d['id'])->update('wallet_deposits', ['status' => 'failed']);
+                $skipped++;
+                continue;
+            }
+
             $amount = (float) $d['amount_bman'];
             if (($min > 0 && $amount < $min) || ($max > 0 && $amount > $max)) {
                 log_message('info', "[Depositlistener] BMAN deposit id={$d['id']} amount={$amount} outside configured limits (min={$min}, max={$max}) — not credited.");

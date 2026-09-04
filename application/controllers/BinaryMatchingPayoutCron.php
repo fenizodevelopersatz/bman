@@ -243,20 +243,36 @@ class BinaryMatchingPayoutCron extends CI_Controller
      *   >= 0  confirmations (0 = pending / not yet mined)
      *   -1    reverted / failed on-chain
      */
+    /**
+     * Returns confirmations PLUS gas usage/price, pulled from the exact same
+     * two RPC responses this already fetches — no extra round trip. Shape:
+     *   ['confirmations' => N|-1, 'gas_used' => ?string, 'gas_price_wei' => ?string]
+     * gas_* are null whenever the tx isn't actually mined yet (or DRYRUN,
+     * which never had a real broadcast to have gas data for).
+     */
     private function _txConfirmations($hash, $head, $requiredConfs)
     {
-        if (empty($hash)) return 0;
-        if (strpos($hash, 'DRYRUN') === 0) return $requiredConfs;
+        $none = ['confirmations' => 0, 'gas_used' => null, 'gas_price_wei' => null];
+        if (empty($hash)) return $none;
+        if (strpos($hash, 'DRYRUN') === 0) {
+            return ['confirmations' => $requiredConfs, 'gas_used' => null, 'gas_price_wei' => null];
+        }
 
         $tx = $this->_apiGet(['module' => 'proxy', 'action' => 'eth_getTransactionByHash', 'txhash' => $hash]);
         $blk = $tx['result']['blockNumber'] ?? null;
-        if (empty($blk)) return 0; // pending / unknown
+        if (empty($blk)) return $none; // pending / unknown
 
         $rc = $this->_apiGet(['module' => 'proxy', 'action' => 'eth_getTransactionReceipt', 'txhash' => $hash]);
         $st = $rc['result']['status'] ?? null;
-        if ($st !== null && hexdec($st) === 0) return -1; // reverted
+        if ($st !== null && hexdec($st) === 0) {
+            return ['confirmations' => -1, 'gas_used' => null, 'gas_price_wei' => null]; // reverted
+        }
 
-        return max(0, $head - (int)hexdec($blk));
+        return [
+            'confirmations' => max(0, $head - (int)hexdec($blk)),
+            'gas_used'      => isset($rc['result']['gasUsed']) ? (string)hexdec($rc['result']['gasUsed']) : null,
+            'gas_price_wei' => isset($tx['result']['gasPrice']) ? (string)hexdec($tx['result']['gasPrice']) : null,
+        ];
     }
 
     /* ============================ phase b: enqueue ============================ */
@@ -301,7 +317,13 @@ class BinaryMatchingPayoutCron extends CI_Controller
                 continue;
             }
             $this->db->insert('blockchain_payout_queue', [
-                'payout_ref'     => 'MBP-' . $r['run_ref'] . '-U' . $r['user_id'],
+                // includes smp.id (-P{id}), not just run_ref+user_id: a single
+                // engine run can pay one user multiple levels at once (same
+                // run_ref, same user_id), which previously produced identical
+                // payout_ref values and crashed the whole batch on the
+                // uq_payout_ref unique-key violation — see id=2/id=3 for
+                // run_ref MB-20260823-014501-9B72DA, user 2.
+                'payout_ref'     => 'MBP-' . $r['run_ref'] . '-U' . $r['user_id'] . '-P' . $r['id'],
                 'user_id'        => (int)$r['user_id'],
                 'token'          => 'BMAN',
                 'amount'         => round((float)$r['earning_amount'] + (float)$r['staking_amount'], 8),
@@ -459,7 +481,8 @@ class BinaryMatchingPayoutCron extends CI_Controller
         $head = $this->_currentBlock();
         $confirmed = 0; $failed = 0;
         foreach ($rows as $row) {
-            $conf = $this->_txConfirmations($row['tx_hash'], $head, (int)$row['required_confs']);
+            $tc = $this->_txConfirmations($row['tx_hash'], $head, (int)$row['required_confs']);
+            $conf = $tc['confirmations'];
 
             if ($conf === -1) {
                 $this->db->where('id', $row['id'])->update('blockchain_payout_queue', [
@@ -469,6 +492,18 @@ class BinaryMatchingPayoutCron extends CI_Controller
                 continue;
             }
             if ($conf < (int)$row['required_confs']) continue; // still awaiting confirmations
+
+            // Real cost of this send — gas_used/gas_price_wei came from the
+            // same eth_getTransactionReceipt/eth_getTransactionByHash calls
+            // _txConfirmations() already made to determine confirmations; both
+            // stay null for a DRYRUN hash (never had a real broadcast to cost
+            // anything). bcmath for the same reason the rest of this codebase
+            // uses it for money math: wei-scale multiplication has no room for
+            // float rounding error.
+            $gasPriceGwei = $tc['gas_price_wei'] !== null ? bcdiv($tc['gas_price_wei'], '1000000000', 9) : null;
+            $gasFeeTotal  = ($tc['gas_used'] !== null && $tc['gas_price_wei'] !== null)
+                ? bcdiv(bcmul($tc['gas_used'], $tc['gas_price_wei']), '1000000000000000000', 18)
+                : null;
 
             $meta = $this->_cfg();
             $txId = $this->octx->upsertByReference('binary_matching_payout', (string)$row['id'], [
@@ -481,6 +516,10 @@ class BinaryMatchingPayoutCron extends CI_Controller
                 'from_address'       => strtolower((string)$row['from_address']),
                 'to_address'         => strtolower((string)$row['to_address']),
                 'user_id'            => $row['user_id'],
+                'gas_used'           => $tc['gas_used'],
+                'gas_price'          => $tc['gas_price_wei'],
+                'gas_price_gwei'     => $gasPriceGwei,
+                'gas_fee_total'      => $gasFeeTotal,
                 'token_symbol'       => 'BMAN',
                 'token_name'         => $meta['bman_name'] ?? 'BMAN Token',
                 'token_contract'     => $meta['bman_contract'] ?? null,
@@ -489,6 +528,24 @@ class BinaryMatchingPayoutCron extends CI_Controller
                 'block_number'       => $head - $conf,
                 'confirmation_count' => $conf,
             ]);
+
+            // Backfill the real tx_hash onto the original wallet_ledger credit
+            // rows (earning + staking) for this level, so the user-facing
+            // Commissions page can finally show it — update-only, never a new
+            // ledger transaction (Walletledger_model::backfillTxHash is a
+            // targeted UPDATE, idempotent via its own tx_hash IS NULL guard).
+            // Keyed off the smp row this queue entry links to:
+            // staking_matching_payouts.run_ref + '-L' + level is exactly the
+            // reference_id Binarylevelmatching_model wrote on those two rows
+            // when it credited them.
+            if ($row['reference_type'] === 'staking_matching_payout' && $row['reference_id']) {
+                $smp = $this->db->select('run_ref, level')->where('id', (int)$row['reference_id'])
+                                ->get('staking_matching_payouts')->row_array();
+                if ($smp && !empty($smp['run_ref'])) {
+                    $this->load->model('Walletledger_model', 'ledger');
+                    $this->ledger->backfillTxHash('binary_matching', $smp['run_ref'] . '-L' . $smp['level'], $row['tx_hash']);
+                }
+            }
 
             $this->db->where('id', $row['id'])->update('blockchain_payout_queue', [
                 'status'        => 'CONFIRMED',

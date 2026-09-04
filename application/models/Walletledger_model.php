@@ -168,6 +168,17 @@ class Walletledger_model extends CI_Model
     /** Fail-safe: record the movement in onchain_transactions (+ audit event). */
     private function _captureOnchain($user_id, $wallet, $credit, $debit, $new, $refType, $refId, $txHash, $admin, $desc, $ledgerId)
     {
+        // binary_matching credits are local-only until BinaryMatchingPayoutCron
+        // actually broadcasts and confirms them (its own upsertByReference call
+        // writes the real row then, with a real tx_hash). Mirroring this as
+        // 'confirmed' the instant the engine credits the ledger — before any
+        // send is even queued — falsely told admin a payout was on-chain when
+        // it was still 100% local (e.g. wallet_ledger id 73, staking_matching_payouts
+        // level never enqueued, yet onchain_transactions showed status=confirmed).
+        // Skip the shadow row for this type until there's a real tx_hash.
+        if ($refType === 'binary_matching' && !$txHash) {
+            return;
+        }
         try {
             $meta   = $this->_tokenMeta();
             $isUsdt = ($wallet === 'usdt');
@@ -198,6 +209,36 @@ class Walletledger_model extends CI_Model
         } catch (Throwable $e) {
             log_message('error', '[wallet_ledger onchain hook] ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Backfill a real tx_hash onto existing wallet_ledger row(s) once a
+     * previously-local credit is actually confirmed on-chain (e.g.
+     * BinaryMatchingPayoutCron's confirm phase, after the queued send it
+     * broadcast reaches its required confirmations).
+     *
+     * Never inserts a row — this is the update-only counterpart to post():
+     * the ledger credit already happened when the engine ran; this just
+     * attaches the proof once it exists. Matches on (reference_type,
+     * reference_id) because one payout can be split across more than one
+     * wallet_ledger row (earning + staking), all sharing the same reference
+     * and all settling in the same on-chain send.
+     *
+     * Idempotent by construction: the `tx_hash IS NULL` guard means a row
+     * only accepts this update once — a retried or duplicate confirm pass
+     * finds nothing left to touch and affects 0 rows, so it can never
+     * overwrite an already-attached hash with a different one.
+     */
+    public function backfillTxHash($reference_type, $reference_id, $tx_hash)
+    {
+        if ($reference_type === '' || $reference_id === '' || $reference_id === null || empty($tx_hash)) {
+            return 0;
+        }
+        $this->db->where('reference_type', $reference_type)
+                 ->where('reference_id', $reference_id)
+                 ->where('tx_hash IS NULL', null, false)
+                 ->update('wallet_ledger', ['tx_hash' => $tx_hash]);
+        return (int) $this->db->affected_rows();
     }
 
     private function _col($user_id, $col)
